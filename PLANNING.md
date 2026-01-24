@@ -33,6 +33,79 @@ Issues we've had to solve manually that frameworks handle:
 - Validation artifact preservation
 - Reproducible sampling
 
+### Critical Requirement: Resilience & Recovery
+
+**Problem**: Our current matric-cli eval crashed at model 13/31 with EPIPE error. Lost progress, manual restart required, no easy way to resume or re-run specific failures.
+
+**Required Capabilities**:
+
+| Capability | Description | Priority |
+|------------|-------------|----------|
+| **Checkpoint/Resume** | Save state after each model/benchmark, resume from last checkpoint | P0 |
+| **Selective Re-run** | Re-run specific model + benchmark combo without full restart | P0 |
+| **Gap Detection** | Scan output directory, identify missing/incomplete results | P0 |
+| **Auto-Recovery** | Retry on transient errors (timeout, connection reset, EPIPE) | P1 |
+| **Graceful Degradation** | Skip failed model, continue with next, report at end | P1 |
+| **Idempotent Runs** | Re-running same eval produces same results, skips completed | P1 |
+
+**State Management Design**:
+
+```
+results/run-{timestamp}/
+├── meta.json                    # Run metadata, seed, config
+├── state.json                   # Current progress, next model/benchmark
+├── {model}/
+│   ├── meta.json               # Model-level metadata
+│   ├── state.json              # Which benchmarks complete
+│   ├── {benchmark}/
+│   │   ├── meta.json           # Benchmark metadata
+│   │   ├── state.json          # Which problems complete
+│   │   └── {problem_id}/       # Individual results
+│   │       ├── prompt.txt
+│   │       ├── response.txt
+│   │       └── validation.json
+│   └── summary.json            # Aggregated results (generated)
+└── summary.json                # Run-level summary (generated)
+```
+
+**CLI Commands**:
+
+```bash
+# Start fresh run
+matric-eval --tier quick
+
+# Resume interrupted run
+matric-eval --resume run-2026-01-24T01-15-51
+
+# Re-run specific model
+matric-eval --resume run-2026-01-24T01-15-51 --model codestral:latest
+
+# Re-run specific benchmark for model
+matric-eval --resume run-2026-01-24T01-15-51 --model codestral:latest --benchmark mbpp
+
+# Detect and fill gaps
+matric-eval --resume run-2026-01-24T01-15-51 --fill-gaps
+
+# Validate completeness, report missing
+matric-eval --validate run-2026-01-24T01-15-51
+```
+
+**Implementation Notes**:
+
+1. **Atomic writes**: Write to temp file, rename on success (prevents partial state)
+2. **Lock files**: Prevent concurrent runs on same results directory
+3. **Heartbeat**: Update timestamp periodically to detect zombie runs
+4. **Error classification**: Distinguish retryable (network, timeout) from fatal (bad model)
+5. **Progress streaming**: Real-time status to stdout/file for monitoring
+
+**Framework Evaluation Criteria**:
+
+When evaluating Inspect AI vs lm-eval-harness, check:
+- [ ] Does it support checkpointing natively?
+- [ ] Can you resume from a specific point?
+- [ ] How does it handle model crashes?
+- [ ] Can you re-run individual samples?
+
 ## Recommended Architecture
 
 ### Option A: Inspect AI Foundation (Recommended)
