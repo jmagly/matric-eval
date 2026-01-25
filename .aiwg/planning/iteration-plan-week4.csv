@@ -1,0 +1,7 @@
+Issue,Title,Priority,EstimatedHours,AssignedAgent,Dependencies,Status,TestCoverage
+#1,Code execution scoring for HumanEval/MBPP,P1,8,Developer,"Inspect AI framework, Docker setup",Not Started,90%
+#2,Integrate inspect-evals for public benchmarks,P1,6,Developer,#1 (code execution patterns),Not Started,85%
+#3,IFEval constraint checking scorer,P1,7,Developer,#2 (inspect-evals integration),Not Started,90%
+#4,LiveCodeBench competitive programming scorer,P1,6,Developer,#1 (code execution),Not Started,85%
+#5,DS-1000 data science scorer,P1,5,Developer,#1 (code execution),Not Started,85%
+#6,Tiered CLI with smoke/quick/full modes,P1,6,Developer,"#2 (benchmarks available), Inception phase CLI foundation",Not Started,90%

@@ -1,0 +1,493 @@
+# Team Profile: matric-eval v1.0
+# Consolidated Model Evaluation Framework
+# Timeline: 6-8 weeks | Profile: Production
+
+metadata:
+  project: matric-eval
+  version: "1.0"
+  timeline: "6-8 weeks"
+  profile: "Production"
+  team_size: "1 human + 8 AI agents"
+  created: "2026-01-24"
+  last_updated: "2026-01-24"
+
+# =============================================================================
+# TEAM COMPOSITION
+# =============================================================================
+
+team_members:
+  human:
+    - id: lead-developer
+      name: "Python Expert Developer"
+      role: "Technical Lead & Primary Developer"
+      responsibilities:
+        - Strategic decision-making and architecture approval
+        - Code review and quality assurance oversight
+        - Complex problem-solving and architectural refinement
+        - Stakeholder communication and project coordination
+        - Final authority on technical decisions
+        - Production deployment and release management
+      availability: "Core hours, asynchronous for reviews"
+      expertise:
+        - Python 3.11+ advanced features
+        - Evaluation frameworks (Inspect AI, lm-eval-harness)
+        - Production system design and optimization
+        - Model evaluation methodologies
+      communication_channels:
+        - Claude Code session (primary)
+        - Git commits and PR reviews
+        - Issue tracking (Gitea)
+        - Documentation updates
+
+  ai_agents:
+    - id: architecture-designer
+      role: "Architecture Designer"
+      responsibilities:
+        - Software Architecture Document (SAD) creation
+        - Architecture Decision Records (ADRs)
+        - System design and component interactions
+        - Technology stack recommendations
+        - Architectural risk identification
+        - Design pattern selection and validation
+      assigned_phases: ["Inception", "Elaboration"]
+      primary_deliverables:
+        - "SAD (Software Architecture Document)"
+        - "ADRs for key decisions"
+        - "Component interaction diagrams"
+        - "Technology evaluation reports"
+      escalation_triggers:
+        - "Conflicting architectural requirements"
+        - "Major technology stack changes"
+        - "Performance/scalability trade-offs"
+
+    - id: requirements-analyst
+      role: "Requirements Analyst"
+      responsibilities:
+        - Use case documentation and refinement
+        - Non-functional requirements (NFRs) specification
+        - Requirements traceability matrix
+        - Stakeholder requirement analysis
+        - Acceptance criteria definition
+        - Requirements validation with lead developer
+      assigned_phases: ["Inception", "Elaboration"]
+      primary_deliverables:
+        - "Use case specifications"
+        - "NFR documentation"
+        - "Requirements traceability matrix"
+        - "Acceptance criteria per issue"
+      escalation_triggers:
+        - "Conflicting requirements from matric-cli/matric-memory"
+        - "Unclear stakeholder expectations"
+        - "Scope creep beyond v1.0"
+
+    - id: software-implementer
+      role: "Software Implementer"
+      responsibilities:
+        - Core Python module development
+        - Inspect AI framework integration
+        - Benchmark task implementations
+        - Solver and scorer logic
+        - Model discovery and configuration
+        - Code artifact generation
+      assigned_phases: ["Construction"]
+      primary_deliverables:
+        - "Python source code (src/matric_eval/)"
+        - "Task definitions (tasks/)"
+        - "Solvers and scorers"
+        - "CLI implementation"
+      escalation_triggers:
+        - "Blocked by missing architecture decisions"
+        - "Integration issues with Ollama/Inspect AI"
+        - "Performance bottlenecks requiring design changes"
+
+    - id: test-engineer
+      role: "Test Engineer"
+      responsibilities:
+        - pytest test suite design and implementation
+        - Smoke test development
+        - Benchmark validation and correctness testing
+        - Integration test scenarios
+        - Test data preparation and fixtures
+        - Test coverage measurement and reporting
+      assigned_phases: ["Elaboration", "Construction", "Transition"]
+      primary_deliverables:
+        - "pytest test suite"
+        - "Smoke tests (run_smoke.py)"
+        - "Integration tests"
+        - "Test coverage reports"
+      escalation_triggers:
+        - "Test failures blocking CI/CD"
+        - "Coverage below 80% threshold"
+        - "Benchmark validation discrepancies"
+
+    - id: api-designer
+      role: "API Designer"
+      responsibilities:
+        - CLI interface design and UX
+        - Python API structure for bindings
+        - TypeScript/Rust binding interface contracts
+        - Configuration schema design
+        - Output format specifications (JSON/JSONL)
+        - Versioning and backwards compatibility
+      assigned_phases: ["Elaboration", "Construction"]
+      primary_deliverables:
+        - "CLI interface specification"
+        - "Python API documentation"
+        - "Binding interface contracts"
+        - "Configuration schema (YAML/JSON)"
+      escalation_triggers:
+        - "Breaking changes to existing matric-cli/matric-memory integrations"
+        - "CLI UX conflicts with matric ecosystem conventions"
+        - "Versioning strategy disputes"
+
+    - id: devops-engineer
+      role: "DevOps Engineer"
+      responsibilities:
+        - CI/CD pipeline setup (GitHub Actions/Gitea CI)
+        - Docker containerization for sandboxed execution
+        - Dependency management (uv, pyproject.toml)
+        - Smoke test automation
+        - Release automation and versioning
+        - Infrastructure-as-code documentation
+      assigned_phases: ["Elaboration", "Construction", "Transition"]
+      primary_deliverables:
+        - "CI/CD pipeline (.github/workflows or .gitea/workflows)"
+        - "Dockerfile for sandboxed execution"
+        - "Release automation scripts"
+        - "Deployment documentation"
+      escalation_triggers:
+        - "CI/CD infrastructure unavailable"
+        - "Sandbox security vulnerabilities"
+        - "Deployment blockers"
+
+    - id: technical-writer
+      role: "Technical Writer"
+      responsibilities:
+        - User documentation (README, guides)
+        - API reference documentation
+        - Migration guides from matric-cli/matric-memory
+        - Inline code documentation (docstrings)
+        - Architecture documentation formatting
+        - Changelog and release notes
+      assigned_phases: ["Construction", "Transition"]
+      primary_deliverables:
+        - "README.md and usage guides"
+        - "API reference docs"
+        - "Migration guides"
+        - "Docstring coverage"
+      escalation_triggers:
+        - "Missing technical context for documentation"
+        - "API changes requiring documentation updates"
+        - "Conflicting information across docs"
+
+    - id: code-reviewer
+      role: "Code Reviewer"
+      responsibilities:
+        - Code quality assurance
+        - Design pattern compliance
+        - Security vulnerability scanning
+        - Performance review and optimization suggestions
+        - Best practices enforcement (PEP 8, type hints)
+        - PR review and approval recommendations
+      assigned_phases: ["Construction", "Transition"]
+      primary_deliverables:
+        - "Code review reports"
+        - "Quality gate pass/fail decisions"
+        - "Refactoring recommendations"
+        - "Security audit reports"
+      escalation_triggers:
+        - "Critical security vulnerabilities"
+        - "Architectural violations in implementation"
+        - "Performance regressions"
+
+# =============================================================================
+# TEAM STRUCTURE & ORGANIZATION
+# =============================================================================
+
+team_structure:
+  leadership:
+    technical_lead: "lead-developer"
+    architecture_authority: "architecture-designer"
+    quality_authority: "code-reviewer"
+
+  phase_teams:
+    inception:
+      lead: "architecture-designer"
+      members:
+        - "requirements-analyst"
+        - "api-designer"
+      support: ["lead-developer"]
+
+    elaboration:
+      lead: "architecture-designer"
+      members:
+        - "requirements-analyst"
+        - "api-designer"
+        - "test-engineer"
+        - "devops-engineer"
+      support: ["lead-developer"]
+
+    construction:
+      lead: "software-implementer"
+      members:
+        - "test-engineer"
+        - "api-designer"
+        - "devops-engineer"
+        - "technical-writer"
+        - "code-reviewer"
+      support: ["lead-developer", "architecture-designer"]
+
+    transition:
+      lead: "devops-engineer"
+      members:
+        - "technical-writer"
+        - "test-engineer"
+        - "code-reviewer"
+      support: ["lead-developer"]
+
+  working_groups:
+    - name: "Architecture Review Board"
+      members: ["lead-developer", "architecture-designer", "api-designer"]
+      cadence: "As needed during Inception/Elaboration"
+      purpose: "Approve architectural decisions and ADRs"
+
+    - name: "Quality Assurance Team"
+      members: ["test-engineer", "code-reviewer", "software-implementer"]
+      cadence: "Weekly during Construction"
+      purpose: "Review test coverage, code quality, and defects"
+
+    - name: "Integration Team"
+      members: ["software-implementer", "api-designer", "devops-engineer"]
+      cadence: "Bi-weekly during Construction"
+      purpose: "Coordinate Inspect AI integration, CLI, and bindings"
+
+    - name: "Documentation Team"
+      members: ["technical-writer", "api-designer", "requirements-analyst"]
+      cadence: "Weekly during Construction/Transition"
+      purpose: "Ensure documentation completeness and accuracy"
+
+# =============================================================================
+# COMMUNICATION & COLLABORATION
+# =============================================================================
+
+communication:
+  channels:
+    primary:
+      - name: "Claude Code Session"
+        purpose: "Real-time development, code generation, debugging"
+        participants: ["lead-developer", "all AI agents"]
+
+    asynchronous:
+      - name: "Git Commit Messages"
+        purpose: "Code changes, implementation decisions"
+        convention: "Conventional Commits (feat/fix/docs/test/refactor)"
+
+      - name: "Gitea Issues"
+        purpose: "Task tracking, bug reports, feature requests"
+        url: "https://git.integrolabs.net/roctinam/devops/issues"
+
+      - name: "Pull Request Reviews"
+        purpose: "Code review, approval, feedback"
+        reviewers: ["code-reviewer", "lead-developer"]
+
+      - name: "Documentation Updates"
+        purpose: "Architecture decisions, requirements changes"
+        location: ".aiwg/ directory, PLANNING.md, CLAUDE.md"
+
+  meeting_rhythms:
+    daily:
+      - "Agent status check (via git log/issue updates)"
+
+    weekly:
+      - "Phase progress review (Construction phase)"
+      - "Risk and blocker identification"
+
+    milestone:
+      - "Phase transition review (Inception -> Elaboration -> Construction -> Transition)"
+      - "Architecture review (end of Elaboration)"
+      - "Release readiness review (end of Construction)"
+
+  artifact_locations:
+    planning: ".aiwg/planning/"
+    requirements: ".aiwg/requirements/"
+    architecture: ".aiwg/architecture/"
+    testing: ".aiwg/testing/"
+    team: ".aiwg/team/"
+    operations: ".aiwg/operations/"
+    code: "src/matric_eval/"
+    tests: "tests/"
+    docs: "docs/"
+
+# =============================================================================
+# ESCALATION & DECISION-MAKING
+# =============================================================================
+
+escalation:
+  levels:
+    L1_agent_collaboration:
+      description: "Agent-to-agent collaboration on routine tasks"
+      resolution_time: "Same session"
+      examples:
+        - "Software Implementer requests API design clarification from API Designer"
+        - "Test Engineer requests test data from Software Implementer"
+        - "Technical Writer requests documentation context from Requirements Analyst"
+
+    L2_lead_developer_review:
+      description: "Technical decisions requiring human judgment"
+      resolution_time: "Within 1 business day"
+      examples:
+        - "Architecture Designer proposes ADR requiring approval"
+        - "API Designer identifies breaking change in CLI"
+        - "Code Reviewer flags security vulnerability"
+        - "Requirements Analyst identifies scope creep"
+
+    L3_stakeholder_consultation:
+      description: "Strategic decisions impacting matric ecosystem"
+      resolution_time: "Within 3 business days"
+      examples:
+        - "Major timeline changes (beyond 8 weeks)"
+        - "Technology stack pivot (e.g., lm-eval-harness instead of Inspect AI)"
+        - "Breaking changes to matric-cli/matric-memory integrations"
+        - "Budget or resource constraints"
+
+  decision_authority:
+    architectural:
+      owner: "lead-developer"
+      advisors: ["architecture-designer", "api-designer"]
+      escalation: "Stakeholder consultation if ecosystem impact"
+
+    technical_implementation:
+      owner: "software-implementer"
+      advisors: ["code-reviewer", "test-engineer"]
+      escalation: "Lead developer if architectural impact"
+
+    quality_gates:
+      owner: "code-reviewer"
+      advisors: ["test-engineer", "lead-developer"]
+      escalation: "Lead developer if blocking release"
+
+    deployment:
+      owner: "lead-developer"
+      advisors: ["devops-engineer", "test-engineer"]
+      escalation: "Stakeholder if production impact"
+
+# =============================================================================
+# HANDOFF PROTOCOLS
+# =============================================================================
+
+handoffs:
+  inception_to_elaboration:
+    trigger: "Vision document and SAD outline approved"
+    from: ["architecture-designer", "requirements-analyst"]
+    to: ["api-designer", "test-engineer", "devops-engineer"]
+    deliverables:
+      - "SAD v0.1 with architectural direction"
+      - "Use case specifications"
+      - "NFR baseline"
+    acceptance_criteria:
+      - "Lead developer approves architecture direction"
+      - "All 22 issues have acceptance criteria"
+      - "Technology stack validated (Inspect AI + Ollama)"
+
+  elaboration_to_construction:
+    trigger: "Architecture baseline established, risks retired"
+    from: ["architecture-designer", "api-designer", "test-engineer"]
+    to: ["software-implementer", "devops-engineer", "technical-writer"]
+    deliverables:
+      - "SAD v1.0 with detailed component design"
+      - "CLI interface specification"
+      - "Test strategy and smoke test suite"
+      - "CI/CD pipeline setup"
+    acceptance_criteria:
+      - "All ADRs approved"
+      - "API contracts defined for TypeScript/Rust bindings"
+      - "Smoke test passes with minimal Inspect AI integration"
+      - "CI/CD pipeline operational"
+
+  construction_to_transition:
+    trigger: "All P1 and P2 issues complete, P3 stabilized"
+    from: ["software-implementer", "test-engineer"]
+    to: ["devops-engineer", "technical-writer", "code-reviewer"]
+    deliverables:
+      - "Core evaluation framework (tasks, solvers, scorers)"
+      - "Public benchmarks (HumanEval, MBPP, GSM8K)"
+      - "Custom test support (tool calling, LLM-as-judge)"
+      - "pytest test suite with >80% coverage"
+    acceptance_criteria:
+      - "All P1 issues closed and validated"
+      - "At least 4/6 P2 issues complete"
+      - "Integration tests pass"
+      - "Code review approved"
+
+  transition_completion:
+    trigger: "Production readiness checklist complete"
+    from: ["devops-engineer", "technical-writer"]
+    to: ["lead-developer"]
+    deliverables:
+      - "Deployment documentation"
+      - "User documentation and migration guides"
+      - "Release notes and changelog"
+      - "Post-deployment monitoring plan"
+    acceptance_criteria:
+      - "All documentation complete and reviewed"
+      - "Deployment tested in staging environment"
+      - "matric-cli and matric-memory integration validated"
+      - "Lead developer signs off on v1.0 release"
+
+# =============================================================================
+# RISK MANAGEMENT
+# =============================================================================
+
+risk_ownership:
+  technical_risks:
+    owner: "architecture-designer"
+    monitor: ["software-implementer", "code-reviewer"]
+
+  integration_risks:
+    owner: "api-designer"
+    monitor: ["software-implementer", "devops-engineer"]
+
+  quality_risks:
+    owner: "code-reviewer"
+    monitor: ["test-engineer", "software-implementer"]
+
+  schedule_risks:
+    owner: "lead-developer"
+    monitor: ["all agents"]
+
+# =============================================================================
+# SUCCESS METRICS
+# =============================================================================
+
+success_metrics:
+  team_performance:
+    - metric: "Phase transition on schedule"
+      target: "100% of phases complete within planned timeline"
+
+    - metric: "Escalation rate"
+      target: "<5 L3 escalations per phase"
+
+    - metric: "Handoff quality"
+      target: "100% of handoff acceptance criteria met"
+
+  collaboration_quality:
+    - metric: "Cross-agent dependencies resolved"
+      target: "<2 days average resolution time"
+
+    - metric: "Documentation completeness"
+      target: "100% of deliverables documented before handoff"
+
+    - metric: "Code review turnaround"
+      target: "<1 day average for PR review"
+
+# =============================================================================
+# NOTES
+# =============================================================================
+
+notes:
+  - "This is a solo developer + AI augmentation model - human remains final authority"
+  - "AI agents operate within Claude Code session context - no external process management"
+  - "All agent outputs subject to human review before commit/merge"
+  - "Flexibility in agent assignment - lead developer can reassign based on workload"
+  - "Documentation-first approach - all decisions captured in .aiwg/ directory"
+  - "Production profile requires higher quality gates than Prototype/MVP profiles"

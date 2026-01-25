@@ -6,9 +6,9 @@ This file provides guidance to Claude Code when working with this codebase.
 
 Consolidated model evaluation framework for the matric ecosystem. Provides standardized benchmarking of Ollama models using public benchmarks (HumanEval, MBPP, GSM8K, etc.) and custom application-specific tests.
 
-## Project Status: Planning Phase
+## Project Status: Released (v0.1.0)
 
-See `PLANNING.md` for architectural decisions and implementation plan.
+The project is production-ready with 85% test coverage and 1106 tests passing.
 
 ## Key Context
 
@@ -18,12 +18,12 @@ We had evaluation code duplicated across projects:
 - **matric-cli**: TypeScript eval in `source/eval/` with public benchmarks
 - **matric-memory**: Rust eval in `crates/matric-inference/` with custom tests
 
-Both solved similar problems independently. This consolidation will:
-1. Avoid fixing the same issues repeatedly
-2. Standardize evaluation methodology
-3. Enable consistent model selection across the ecosystem
+Both solved similar problems independently. This consolidation:
+1. Avoids fixing the same issues repeatedly
+2. Standardizes evaluation methodology
+3. Enables consistent model selection across the ecosystem
 
-### Recommended Approach
+### Implementation
 
 **Python core using Inspect AI framework** (UK AI Safety Institute)
 
@@ -32,8 +32,6 @@ Why:
 - 100+ pre-built evaluations
 - Agent/tool calling evaluation support
 - Active maintenance by UK government
-
-Alternative: lm-eval-harness (EleutherAI) - industry standard, powers HuggingFace leaderboard
 
 ### Related Repositories
 
@@ -54,7 +52,7 @@ Located at `/home/roctinam/data/evals/`:
 - ds1000/ (1,000 data science)
 - mtbench/ (80 multi-turn questions)
 
-### Key Issues Solved in matric-cli (Preserve These)
+### Key Issues Solved (Preserved from matric-cli)
 
 1. **MBPP function names**: Extract from test assertions, include in prompt
 2. **Code extraction**: Handle markdown fences, language tags
@@ -73,34 +71,48 @@ This session has access to:
 
 ## Development Commands
 
-TBD - Project is in planning phase.
-
-### Proposed Stack
+### Stack
 
 ```
 Python 3.11+
 uv (package management)
 Inspect AI (evaluation framework)
 pytest (testing)
+Click (CLI)
 ```
 
-### Proposed Commands
+### Commands
 
 ```bash
 # Install dependencies
 uv sync
 
+# Run tests
+uv run pytest tests/ -q
+
+# Run tests with coverage
+uv run pytest tests/ --cov=src/matric_eval --cov-fail-under=80
+
 # Run smoke tests against a model
-matric-eval --tier smoke --model llama3.2:3b
+uv run matric-eval run --tier smoke --model llama3.2:3b
 
-# Run quick evaluation
-matric-eval --tier quick --model llama3.2:3b
+# List available benchmarks
+uv run matric-eval list-benchmarks
 
-# Run full evaluation with custom tests
-matric-eval --tier full --app matric-cli
+# List available Ollama models
+uv run matric-eval list-models
 
-# Generate config recommendations
-matric-eval --recommend --output model-categories.json
+# Generate model recommendations
+uv run matric-eval recommend --results-dir ./results
+
+# Validate run completeness
+uv run matric-eval validate --results-dir ./results
+
+# Build package
+uv build
+
+# Build TypeScript bindings
+cd bindings/typescript && npm run build
 ```
 
 ## Architecture Overview
@@ -108,16 +120,22 @@ matric-eval --recommend --output model-categories.json
 ```
 matric-eval/
 ├── src/matric_eval/        # Python core
-│   ├── tasks/              # Benchmark task definitions
-│   ├── solvers/            # Custom solving strategies
-│   ├── scorers/            # Scoring and validation
-│   └── config/             # Model configs
-├── datasets/               # JSONL test data
-│   ├── public/             # Public benchmarks
-│   └── custom/             # App-specific tests
-└── bindings/               # Language integrations
-    ├── typescript/         # For matric-cli
-    └── rust/               # For matric-memory
+│   ├── cli.py              # Click CLI (5 commands)
+│   ├── config.py           # Configuration
+│   ├── datasets.py         # Dataset loading
+│   ├── logging.py          # Structured logging
+│   ├── parallel.py         # Concurrent execution
+│   ├── recommendation.py   # Model recommendations
+│   ├── config/             # Tier configurations
+│   ├── core/               # Evaluation engine
+│   ├── scorers/            # Scoring (code exec, LLM judge, multidimensional)
+│   ├── state/              # Checkpoint/resume manager
+│   ├── tasks/              # All benchmark tasks
+│   └── utils/              # Helper utilities
+├── tests/                  # pytest test suite (1106 tests)
+├── bindings/               # Language integrations
+│   └── typescript/         # @matric/eval-client for matric-cli
+└── .github/workflows/      # CI/CD pipeline
 ```
 
 ## Evaluation Flow
@@ -130,18 +148,19 @@ matric-eval/
 5. CONFIG   → Generate model recommendations
 ```
 
-## Next Steps
+## Features
 
-1. Prototype Inspect AI integration with Ollama
-2. Migrate one benchmark (HumanEval) as proof of concept
-3. Add one custom test suite (tool calling)
-4. Create TypeScript binding for matric-cli
-5. CI/CD setup with smoke tests
+- **8 Benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, DS-1000, LiveCodeBench, MT-Bench
+- **Tool Calling**: 6-scenario evaluation with correctness scoring
+- **LLM-as-Judge**: Multi-turn conversation assessment
+- **Checkpoint/Resume**: Fault-tolerant with StateManager
+- **Parallel Execution**: Concurrent model evaluation
+- **Model Recommendations**: Capability-based selection
+- **TypeScript Bindings**: Integration for matric-cli
 
 ## References
 
 - [Inspect AI Docs](https://inspect.aisi.org.uk/)
 - [lm-eval-harness](https://github.com/EleutherAI/lm-evaluation-harness)
 - [HELM Stanford](https://crfm.stanford.edu/helm/)
-- [Gitea Issue #5](https://git.integrolabs.net/roctinam/devops/issues/5)
-- [PLANNING.md](./PLANNING.md)
+- [.aiwg/](./.aiwg/) - SDLC artifacts and documentation

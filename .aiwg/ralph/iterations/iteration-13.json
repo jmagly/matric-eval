@@ -1,0 +1,19 @@
+{
+  "iteration": 13,
+  "completed_at": "2026-01-24T04:30:00Z",
+  "focus": "Test fixture fixes",
+  "issues_addressed": ["Test isolation", "Singleton reset"],
+  "changes": [
+    "Fixed smoke tier TIERS to include ds1000, livecodebench, mtbench (5 each)",
+    "Fixed conftest.py fixtures to reset settings singleton",
+    "Fixed test_livecodebench.py subset expectation",
+    "Fixed test_ds1000.py code_context assertion",
+    "Fixed test_mtbench.py smoke tier expectation",
+    "Fixed test_config.py zero sample and env override tests",
+    "Fixed test_datasets.py fixture isolation"
+  ],
+  "tests_passed": 769,
+  "tests_failed": 0,
+  "tests_skipped": 9,
+  "coverage": "~85%"
+}

@@ -1,0 +1,8 @@
+Issue,Title,Priority,EstimatedHours,AssignedAgent,Dependencies,Status,TestCoverage
+#18,Model recommendation engine,P4-SELECTED,10,Developer,"#10 (5D scoring), #1-#9 (evaluation results)",Not Started,80%
+#13-EXT,Extended reporting and dashboards,P4-SELECTED,8,Developer,"#14 (logging/observability), #18 (recommendations)",Not Started,75%
+#16-PARTIAL,TypeScript bindings for matric-cli,P4-SELECTED,7,Developer,"#6 (stable CLI), #11 (checkpoint/resume)",Not Started,70%
+#15,Leaderboard and reporting dashboard,P4-DEFERRED,12,Developer,"#14 (observability), #18 (recommendations)",Deferred,N/A
+#17,Extended benchmarks (SWE-bench GPQA),P4-DEFERRED,15,Developer,#2 (inspect-evals integration),Deferred,N/A
+#19,Contamination detection,P4-DEFERRED,10,Developer,"#1-#5 (benchmark data), Research spike",Deferred,N/A
+#20,Historical trend analysis,P4-DEFERRED,8,Developer,"#11 (results storage), Multiple evaluation runs",Deferred,N/A
