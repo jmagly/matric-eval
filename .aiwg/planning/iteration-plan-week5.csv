@@ -1,0 +1,7 @@
+Issue,Title,Priority,EstimatedHours,AssignedAgent,Dependencies,Status,TestCoverage
+#7,Port 282 custom matric tests,P2,8,Developer,"#2 (benchmark infrastructure), Custom test data migration",Not Started,80%
+#8,Tool calling evaluation (6 scenarios),P2,7,Developer,"#1 (sandboxing patterns), #6 (CLI foundation)",Not Started,85%
+#9,MT-Bench multi-turn with LLM-as-judge,P2,8,Developer,#2 (inspect-evals integration),Not Started,75%
+#10,5-dimensional scoring framework,P2,6,Developer,"#1-#5 (base scorers), #9 (judge patterns)",Not Started,85%
+#21,Port matric-memory LLM-as-Judge templates,P2,6,Developer,#9 (MT-Bench judge implementation),Not Started,80%
+#22,Universal LLM-as-Judge with agentic support,P2,7,Developer,"#9 (MT-Bench), #21 (templates), #8 (tool calling)",Not Started,75%

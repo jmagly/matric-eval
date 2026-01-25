@@ -1,0 +1,5 @@
+Issue,Title,Priority,EstimatedHours,AssignedAgent,Dependencies,Status,TestCoverage
+#11,Checkpoint/resume for fault tolerance,P3,10,Developer,"Inception phase state management foundation, #1-#5 (all benchmarks)",Not Started,95%
+#12,Parallel model evaluation,P3,8,Developer,"#11 (state management), #6 (CLI)",Not Started,85%
+#13,CI/CD pipeline with smoke tests,P3,8,Developer,"#6 (CLI), #1-#5 (benchmarks), Docker setup",Not Started,90%
+#14,Comprehensive logging and observability,P3,6,Developer,"#6 (CLI), #11 (state tracking)",Not Started,85%
