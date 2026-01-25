@@ -114,11 +114,6 @@ const recommendations = await client.recommend({ resultsDir: './results' });
 - **Model Recommendations**: Capability-based model selection
 - **85% Test Coverage**: Comprehensive test suite (1106 tests)
 
-## Related Projects
-
-- [matric-cli](https://git.integrolabs.net/roctinam/matric-cli) - AI CLI assistant
-- [matric-memory](https://git.integrolabs.net/roctinam/matric-memory) - Knowledge management
-
 ## Documentation
 
 - [docs/](./docs/README.md) - Full project documentation
