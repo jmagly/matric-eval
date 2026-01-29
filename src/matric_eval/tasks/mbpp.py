@@ -18,10 +18,10 @@ from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.scorers.code_execution import code_execution_scorer
 
 # Path to MBPP dataset
 MBPP_PATH = "/home/roctinam/data/evals/mbpp/mbpp.jsonl"
@@ -113,7 +113,6 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
                      `def check_triplet(array, size, target, sum)`"
     """
     # Extract function name from test assertions (CRITICAL FIX)
-    test_code = "\n".join(record["test_list"])
     func_name = extract_function_name(record["test_list"])
 
     # Extract function signature from reference code if available
@@ -127,6 +126,12 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
         f"Provide the complete function implementation."
     )
 
+    # Build executable test code for code_execution_scorer
+    # Combines setup code (if any) with test assertions
+    test_setup = record.get("test_setup_code", "")
+    test_assertions = "\n".join(record["test_list"])
+    test_code = f"{test_setup}\n{test_assertions}" if test_setup else test_assertions
+
     return Sample(
         input=prompt,
         target=record["code"],
@@ -135,6 +140,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
             "entry_point": func_name,
             "test_list": record["test_list"],
             "test_setup_code": record.get("test_setup_code", ""),
+            "test": test_code,  # Pre-built test code for code_execution_scorer
         },
     )
 
@@ -230,6 +236,6 @@ def mbpp(tier: str = "smoke") -> Task:
             ),
             generate(),
         ],
-        scorer=includes(),  # Will be replaced with code_execution_scorer in future task
+        scorer=code_execution_scorer(),
         name="mbpp",
     )

@@ -1,6 +1,13 @@
 """Custom scorers for evaluation tasks."""
 
 from matric_eval.scorers.code_execution import code_execution_scorer, extract_code, safe_execute
+from matric_eval.scorers.ds1000_scorer import ds1000_scorer, execute_ds1000_test
+from matric_eval.scorers.io_execution import (
+    compare_outputs,
+    io_execute,
+    io_execution_scorer,
+    normalize_output,
+)
 from matric_eval.scorers.llm_judge import (
     JUDGE_PROMPTS,
     JudgePrompt,
@@ -35,12 +42,17 @@ __all__ = [
     "ALL_DIMENSIONS",
     "build_judge_prompt",
     "code_execution_scorer",
+    "compare_outputs",
     "correctness_scorer",
     "DimensionName",
     "DimensionScore",
+    "ds1000_scorer",
+    "execute_ds1000_test",
     "extract_code",
     "extract_number",
     "get_judge_template",
+    "io_execute",
+    "io_execution_scorer",
     "JUDGE_PROMPTS",
     "JudgePrompt",
     "JudgeResult",
@@ -49,6 +61,7 @@ __all__ = [
     "llm_judge_scorer",
     "multidimensional_scorer",
     "MultidimensionalScore",
+    "normalize_output",
     "normalize_score",
     "pairwise_judge_scorer",
     "parse_judge_score",

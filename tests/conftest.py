@@ -168,7 +168,9 @@ def mock_eval_log() -> EvalLog:
     # Mock results
     mock_results = MagicMock(spec=EvalResults)
     mock_score = MagicMock(spec=EvalScore)
-    mock_score.metrics = {"accuracy": {"value": 0.8}}
+    mock_metric = MagicMock()
+    mock_metric.value = 0.8
+    mock_score.metrics = {"accuracy": mock_metric}
     mock_results.scores = [mock_score]
 
     mock_log.results = mock_results

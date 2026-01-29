@@ -814,6 +814,141 @@ class TestReferenceJudgeScorer:
 # =============================================================================
 
 
+# =============================================================================
+# Regression Tests for API Compatibility
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestLLMJudgeScorerAPICompatibility:
+    """Regression tests for Inspect AI API compatibility.
+
+    These tests ensure we use the correct Inspect AI Model.generate() API.
+    Bug: Model.generate() does NOT accept `system` kwarg - must use
+    GenerateConfig(system_message=...) or ChatMessageSystem in message list.
+    """
+
+    @pytest.mark.asyncio
+    async def test_model_generate_uses_config_not_system_kwarg(self) -> None:
+        """REGRESSION: Model.generate() should NOT use system= kwarg.
+
+        The Inspect AI Model.generate() API accepts:
+        - input: str | list[ChatMessage]
+        - config: GenerateConfig (which has system_message field)
+
+        NOT: system=... as a direct kwarg.
+
+        This test verifies the correct API is used.
+        """
+        scorer = llm_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Test response"
+        state.input_text = "Test question"
+        state.metadata = {}
+
+        target = Target(target="")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Score: 8/10"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, target)
+
+            # Verify generate was called
+            mock_model.generate.assert_called_once()
+
+            # Get the call kwargs
+            call_kwargs = mock_model.generate.call_args.kwargs
+
+            # REGRESSION CHECK: 'system' should NOT be in kwargs
+            assert 'system' not in call_kwargs, \
+                "Model.generate() was called with 'system' kwarg which is not supported. " \
+                "Use GenerateConfig(system_message=...) instead."
+
+            # Should use 'config' with system_message
+            assert 'config' in call_kwargs, \
+                "Model.generate() should be called with config=GenerateConfig(...)"
+
+    @pytest.mark.asyncio
+    async def test_pairwise_scorer_uses_config_not_system_kwarg(self) -> None:
+        """REGRESSION: pairwise_judge_scorer should use correct API."""
+        scorer = pairwise_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Model response"
+        state.input_text = "Question"
+        state.metadata = {"reference_response": "Reference"}
+
+        target = Target(target="")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "[[A]]"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            await scorer(state, target)
+
+            call_kwargs = mock_model.generate.call_args.kwargs
+            assert 'system' not in call_kwargs, \
+                "pairwise scorer: 'system' kwarg not supported"
+
+    @pytest.mark.asyncio
+    async def test_agentic_scorer_uses_config_not_system_kwarg(self) -> None:
+        """REGRESSION: agentic_judge_scorer should use correct API."""
+        scorer = agentic_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Using tool..."
+        state.input_text = "Question"
+        state.metadata = {"available_tools": "tool1", "expected_outcome": "result"}
+
+        target = Target(target="")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Score: 8/10"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            await scorer(state, target)
+
+            call_kwargs = mock_model.generate.call_args.kwargs
+            assert 'system' not in call_kwargs, \
+                "agentic scorer: 'system' kwarg not supported"
+
+    @pytest.mark.asyncio
+    async def test_reference_scorer_uses_config_not_system_kwarg(self) -> None:
+        """REGRESSION: reference_judge_scorer should use correct API."""
+        scorer = reference_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Response"
+        state.input_text = "Question"
+        state.metadata = {}
+
+        target = Target(target="Reference answer")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Score: 8/10"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            await scorer(state, target)
+
+            call_kwargs = mock_model.generate.call_args.kwargs
+            assert 'system' not in call_kwargs, \
+                "reference scorer: 'system' kwarg not supported"
+
+
 @pytest.mark.unit
 class TestLLMJudgeScorerWithTemplates:
     """Tests for llm_judge_scorer() with template parameter."""

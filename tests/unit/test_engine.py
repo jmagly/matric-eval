@@ -11,7 +11,7 @@ Covers:
 
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from matric_eval.core import EvaluationEngine
 
@@ -61,8 +61,7 @@ class TestEngineInitialization:
 class TestRunBenchmark:
     """Tests for run_benchmark() method."""
 
-    @pytest.mark.asyncio
-    async def test_successful_benchmark(
+    def test_successful_benchmark(
         self,
         tmp_path: Path,
         mock_eval_log: MagicMock,
@@ -73,10 +72,10 @@ class TestRunBenchmark:
             log_dir=tmp_path,
         )
 
-        with patch("matric_eval.core.engine.eval", new_callable=AsyncMock) as mock_eval:
+        with patch("matric_eval.core.engine.eval") as mock_eval:
             mock_eval.return_value = [mock_eval_log]
 
-            result = await engine.run_benchmark(
+            result = engine.run_benchmark(
                 "humaneval",
                 task=Mock(),  # Provide a mock task to skip loading
             )
@@ -87,18 +86,17 @@ class TestRunBenchmark:
             assert result["score"] == 0.8
             assert result["samples"] == 5
 
-    @pytest.mark.asyncio
-    async def test_benchmark_with_error(self, tmp_path: Path) -> None:
+    def test_benchmark_with_error(self, tmp_path: Path) -> None:
         """Should handle evaluation errors gracefully."""
         engine = EvaluationEngine(
             model="ollama/test",
             log_dir=tmp_path,
         )
 
-        with patch("matric_eval.core.engine.eval", new_callable=AsyncMock) as mock_eval:
+        with patch("matric_eval.core.engine.eval") as mock_eval:
             mock_eval.side_effect = Exception("Model timeout")
 
-            result = await engine.run_benchmark(
+            result = engine.run_benchmark(
                 "humaneval",
                 task=Mock(),
             )
@@ -107,18 +105,17 @@ class TestRunBenchmark:
             assert "Model timeout" in result["error"]
             assert result["score"] == 0.0
 
-    @pytest.mark.asyncio
-    async def test_benchmark_no_logs_returned(self, tmp_path: Path) -> None:
+    def test_benchmark_no_logs_returned(self, tmp_path: Path) -> None:
         """Should handle case when eval() returns empty log list."""
         engine = EvaluationEngine(
             model="ollama/test",
             log_dir=tmp_path,
         )
 
-        with patch("matric_eval.core.engine.eval", new_callable=AsyncMock) as mock_eval:
+        with patch("matric_eval.core.engine.eval") as mock_eval:
             mock_eval.return_value = []
 
-            result = await engine.run_benchmark(
+            result = engine.run_benchmark(
                 "humaneval",
                 task=Mock(),
             )
@@ -131,8 +128,7 @@ class TestRunBenchmark:
 class TestRunAll:
     """Tests for run_all() method."""
 
-    @pytest.mark.asyncio
-    async def test_run_all_benchmarks_success(
+    def test_run_all_benchmarks_success(
         self,
         tmp_path: Path,
     ) -> None:
@@ -143,7 +139,7 @@ class TestRunAll:
         )
 
         # Mock run_benchmark to avoid actual eval calls
-        async def mock_run_benchmark(benchmark: str, **kwargs):
+        def mock_run_benchmark(benchmark: str, **kwargs):
             scores = {"humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.6}
             return {
                 "benchmark": benchmark,
@@ -153,15 +149,14 @@ class TestRunAll:
             }
 
         with patch.object(engine, "run_benchmark", side_effect=mock_run_benchmark):
-            result = await engine.run_all(["humaneval", "mbpp", "gsm8k"])
+            result = engine.run_all(["humaneval", "mbpp", "gsm8k"])
 
             assert result["status"] == "success"
             assert result["model"] == "ollama/test"
             assert len(result["benchmarks"]) == 3
             assert result["overall_score"] == pytest.approx(0.7)  # (0.8 + 0.7 + 0.6) / 3
 
-    @pytest.mark.asyncio
-    async def test_run_all_with_failures(
+    def test_run_all_with_failures(
         self,
         tmp_path: Path,
     ) -> None:
@@ -171,7 +166,7 @@ class TestRunAll:
             log_dir=tmp_path,
         )
 
-        async def mock_run_benchmark(benchmark: str, **kwargs):
+        def mock_run_benchmark(benchmark: str, **kwargs):
             if benchmark == "mbpp":
                 return {
                     "benchmark": benchmark,
@@ -187,7 +182,7 @@ class TestRunAll:
             }
 
         with patch.object(engine, "run_benchmark", side_effect=mock_run_benchmark):
-            result = await engine.run_all(["humaneval", "mbpp", "gsm8k"])
+            result = engine.run_all(["humaneval", "mbpp", "gsm8k"])
 
             assert result["status"] == "success"
             assert result["benchmarks"]["humaneval"]["status"] == "success"
@@ -196,8 +191,7 @@ class TestRunAll:
             # Score should average only successful benchmarks
             assert result["overall_score"] == pytest.approx(0.75)
 
-    @pytest.mark.asyncio
-    async def test_run_all_complete_failure(
+    def test_run_all_complete_failure(
         self,
         tmp_path: Path,
     ) -> None:
@@ -207,7 +201,7 @@ class TestRunAll:
             log_dir=tmp_path,
         )
 
-        async def mock_run_benchmark(benchmark: str, **kwargs):
+        def mock_run_benchmark(benchmark: str, **kwargs):
             return {
                 "benchmark": benchmark,
                 "status": "error",
@@ -216,7 +210,7 @@ class TestRunAll:
             }
 
         with patch.object(engine, "run_benchmark", side_effect=mock_run_benchmark):
-            result = await engine.run_all(["humaneval", "mbpp", "gsm8k"])
+            result = engine.run_all(["humaneval", "mbpp", "gsm8k"])
 
             assert result["status"] == "error"
             assert result["overall_score"] == 0.0
@@ -226,27 +220,52 @@ class TestRunAll:
 class TestLoadTask:
     """Tests for _load_task() method."""
 
-    @pytest.mark.asyncio
-    async def test_load_known_task(self, tmp_path: Path) -> None:
-        """Should load task from matric_eval.tasks module."""
+    def test_load_known_task(self, tmp_path: Path) -> None:
+        """Should load tier-aware task from matric_eval.tasks module."""
         engine = EvaluationEngine(
             model="ollama/test",
+            tier="smoke",
             log_dir=tmp_path,
         )
 
         with patch("importlib.import_module") as mock_import:
             mock_module = Mock()
             mock_task_fn = Mock(return_value=Mock())
-            mock_module.smoke_humaneval = mock_task_fn
+            mock_module.humaneval = mock_task_fn
             mock_import.return_value = mock_module
 
-            task = await engine._load_task("humaneval")
+            task = engine._load_task("humaneval")
 
             assert task is not None
-            mock_import.assert_called_once_with("matric_eval.tasks.smoke")
+            mock_import.assert_called_once_with("matric_eval.tasks.humaneval")
+            mock_task_fn.assert_called_once_with(tier="smoke")
 
-    @pytest.mark.asyncio
-    async def test_load_unknown_task(self, tmp_path: Path) -> None:
+    def test_load_all_benchmark_types(self, tmp_path: Path) -> None:
+        """Should support loading all registered benchmark types."""
+        engine = EvaluationEngine(
+            model="ollama/test",
+            tier="quick",
+            log_dir=tmp_path,
+        )
+
+        expected_benchmarks = [
+            "humaneval", "mbpp", "gsm8k", "arc", "ifeval",
+            "ds1000", "livecodebench", "mtbench", "tool_calling",
+        ]
+
+        for benchmark in expected_benchmarks:
+            with patch("importlib.import_module") as mock_import:
+                mock_module = Mock()
+                mock_task_fn = Mock(return_value=Mock())
+                setattr(mock_module, benchmark, mock_task_fn)
+                mock_import.return_value = mock_module
+
+                task = engine._load_task(benchmark)
+
+                assert task is not None
+                mock_task_fn.assert_called_once_with(tier="quick")
+
+    def test_load_unknown_task(self, tmp_path: Path) -> None:
         """Should raise ValueError for unknown benchmark."""
         engine = EvaluationEngine(
             model="ollama/test",
@@ -254,15 +273,14 @@ class TestLoadTask:
         )
 
         with pytest.raises(ValueError, match="Unknown benchmark"):
-            await engine._load_task("unknown_benchmark")
+            engine._load_task("unknown_benchmark")
 
 
 @pytest.mark.unit
 class TestEngineIntegration:
     """Integration tests for EvaluationEngine workflows."""
 
-    @pytest.mark.asyncio
-    async def test_full_evaluation_workflow(
+    def test_full_evaluation_workflow(
         self,
         tmp_path: Path,
         mock_eval_log: MagicMock,
@@ -274,11 +292,11 @@ class TestEngineIntegration:
             log_dir=tmp_path,
         )
 
-        with patch("matric_eval.core.engine.eval", new_callable=AsyncMock) as mock_eval:
+        with patch("matric_eval.core.engine.eval") as mock_eval:
             mock_eval.return_value = [mock_eval_log]
 
             # Run multiple benchmarks
-            results = await engine.run_all(
+            results = engine.run_all(
                 ["humaneval", "mbpp", "gsm8k"],
                 checkpoint=True,
             )

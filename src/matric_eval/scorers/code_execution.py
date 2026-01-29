@@ -10,7 +10,7 @@ import subprocess
 import sys
 from typing import Any
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
 
 
@@ -22,6 +22,7 @@ def extract_code(response: str) -> str:
     - Code blocks with language tags: ```python ... ```
     - Code blocks without language tags: ``` ... ```
     - Raw code without fences
+    - DS-1000 solution markers (BEGIN SOLUTION, END SOLUTION, etc.)
 
     Args:
         response: Model response potentially containing code
@@ -43,6 +44,20 @@ def extract_code(response: str) -> str:
     else:
         # No fence found, use entire response
         code = response
+
+    # Remove common solution markers (DS-1000, HumanEval, etc.)
+    # These markers may appear at the start or end of the code
+    markers_to_remove = [
+        r'^.*?### BEGIN SOLUTION\s*\n?',  # DS-1000 begin marker
+        r'^.*?<code>\s*\n?',  # DS-1000 code tag
+        r'\n?### END SOLUTION.*$',  # DS-1000 end marker with ###
+        r'\n?END SOLUTION.*$',  # DS-1000 end marker without ###
+        r'\n?</code>.*$',  # DS-1000 closing code tag
+        r'^# Solution\s*\n?',  # Common solution header
+    ]
+
+    for pattern in markers_to_remove:
+        code = re.sub(pattern, '', code, flags=re.DOTALL | re.IGNORECASE)
 
     return code.strip()
 
@@ -117,7 +132,7 @@ def safe_execute(code: str, test_code: str, timeout: int = 30) -> dict[str, Any]
         }
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean()])
 def code_execution_scorer(timeout: int = 30) -> Scorer:
     """
     Create Inspect AI scorer for code execution validation.

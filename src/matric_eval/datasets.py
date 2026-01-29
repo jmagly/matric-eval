@@ -107,17 +107,17 @@ def create_tiered_dataset(
 # Convenience functions for common benchmarks
 def humaneval_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load HumanEval with tiered sampling."""
-    from .tasks.smoke import HUMANEVAL_SAMPLES
+    from .tasks.builtin import HUMANEVAL_SAMPLES
     return create_tiered_dataset(HUMANEVAL_SAMPLES, "humaneval", tier, seed)
 
 
 def mbpp_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load MBPP with tiered sampling."""
-    from .tasks.smoke import MBPP_SAMPLES
+    from .tasks.builtin import MBPP_SAMPLES
     return create_tiered_dataset(MBPP_SAMPLES, "mbpp", tier, seed)
 
 
 def gsm8k_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load GSM8K with tiered sampling."""
-    from .tasks.smoke import GSM8K_SAMPLES
+    from .tasks.builtin import GSM8K_SAMPLES
     return create_tiered_dataset(GSM8K_SAMPLES, "gsm8k", tier, seed)

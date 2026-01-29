@@ -4,7 +4,6 @@ matric-eval CLI - Model evaluation runner.
 Click-based CLI with rich progress reporting and JSON output support.
 """
 
-import asyncio
 import json
 import subprocess
 import sys
@@ -153,7 +152,12 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
         "humaneval": "HumanEval - Python code generation (164 problems)",
         "mbpp": "MBPP - Mostly Basic Python Problems (974 problems)",
         "gsm8k": "GSM8K - Grade school math problems (1,319 problems)",
-        "arc": "ARC - AI2 Reasoning Challenge (2,590 problems)",
+        "arc": "ARC - AI2 Reasoning Challenge (1,172 problems)",
+        "ifeval": "IFEval - Instruction following (541 problems)",
+        "ds1000": "DS-1000 - Data science tasks (1,000 problems)",
+        "livecodebench": "LiveCodeBench - Competitive programming (880 problems)",
+        "mtbench": "MT-Bench - Multi-turn conversation (80 problems)",
+        "tool_calling": "Tool Calling - Function invocation (6 scenarios)",
     }
 
     if with_descriptions:
@@ -173,7 +177,7 @@ def run_evaluation(
     output_dir: Optional[Path] = None,
 ) -> dict[str, Any]:
     """
-    Run evaluation synchronously (wrapper for async engine).
+    Run evaluation using the synchronous engine.
 
     Args:
         model: Model name (without ollama/ prefix)
@@ -193,7 +197,7 @@ def run_evaluation(
         # Run all benchmarks with samples > 0 in this tier
         tier_config = get_tier(tier)
         benchmarks = [
-            name for name in ["humaneval", "mbpp", "gsm8k"]
+            name for name in get_available_benchmarks()
             if getattr(tier_config, name, 0) > 0
         ]
 
@@ -204,8 +208,7 @@ def run_evaluation(
         log_dir=output_dir / "logs" if output_dir else None,
     )
 
-    # Run synchronously
-    return asyncio.run(engine.run_all(benchmarks))
+    return engine.run_all(benchmarks)
 
 
 # =============================================================================

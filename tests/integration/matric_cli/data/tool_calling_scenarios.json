@@ -1,0 +1,68 @@
+[
+  {
+    "id": "tool-simple-read",
+    "name": "Simple File Read Tool Call",
+    "category": "tools",
+    "difficulty": "easy",
+    "prompt": "Read the contents of the file at /tmp/test.txt",
+    "expected_behavior": "Should invoke read/cat tool with correct file path",
+    "required_checks": ["mentionsReading", "hasFilePath"],
+    "tags": ["tool-call", "file-operations", "simple"],
+    "timeout_ms": 20000
+  },
+  {
+    "id": "tool-read-modify-write",
+    "name": "Read-Modify-Write Sequence",
+    "category": "tools",
+    "difficulty": "medium",
+    "prompt": "Read the file /tmp/data.json, add a new field \"timestamp\" with the current date, and write it back to the file.",
+    "expected_behavior": "Should sequence: read file, modify content, write file",
+    "required_checks": ["mentionsRead", "mentionsModify", "mentionsWrite"],
+    "tags": ["tool-call", "sequence", "file-operations"],
+    "timeout_ms": 45000
+  },
+  {
+    "id": "tool-search-read-act",
+    "name": "Search-Read-Act Nested Sequence",
+    "category": "tools",
+    "difficulty": "hard",
+    "prompt": "Find all TypeScript files in /home/user/project that contain the word \"deprecated\", read each one, and create a report listing the files and line numbers.",
+    "expected_behavior": "Should search files, read matches, aggregate results, create report",
+    "required_checks": ["mentionsSearch", "mentionsFileType", "mentionsKeyword", "mentionsRead", "mentionsReport"],
+    "tags": ["tool-call", "nested", "search", "aggregation"],
+    "timeout_ms": 60000
+  },
+  {
+    "id": "tool-error-handling",
+    "name": "Handle Invalid Tool Parameters",
+    "category": "tools",
+    "difficulty": "medium",
+    "prompt": "Read the file at /nonexistent/path/file.txt. If it doesn't exist, create it with the content \"Hello, World!\".",
+    "expected_behavior": "Should attempt read, handle error, then create file with fallback",
+    "required_checks": ["mentionsRead", "mentionsErrorHandling", "mentionsCreate"],
+    "tags": ["tool-call", "error-handling", "conditional"],
+    "timeout_ms": 45000
+  },
+  {
+    "id": "tool-parallel-execution",
+    "name": "Parallel Tool Execution",
+    "category": "tools",
+    "difficulty": "hard",
+    "prompt": "Read three files in parallel: /tmp/a.txt, /tmp/b.txt, and /tmp/c.txt. Then concatenate their contents and write to /tmp/combined.txt.",
+    "expected_behavior": "Should identify parallel opportunity, read files concurrently, then combine",
+    "required_checks": ["mentionsParallel", "mentionsAllFiles", "mentionsRead", "mentionsConcatenate", "mentionsWrite"],
+    "tags": ["tool-call", "parallel", "performance", "file-operations"],
+    "timeout_ms": 60000
+  },
+  {
+    "id": "tool-param-validation",
+    "name": "Tool Parameter Validation",
+    "category": "tools",
+    "difficulty": "medium",
+    "prompt": "Delete the file /tmp/important.txt, but only if it's smaller than 1KB.",
+    "expected_behavior": "Should check file size first, then conditionally delete",
+    "required_checks": ["mentionsCheckSize", "mentionsConditional", "mentionsDelete"],
+    "tags": ["tool-call", "validation", "conditional", "file-operations"],
+    "timeout_ms": 45000
+  }
+]

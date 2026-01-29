@@ -19,7 +19,7 @@ from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Scorer, Target, metric, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState, generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
@@ -548,7 +548,7 @@ def load_ifeval(tier: str = "smoke") -> list[Sample]:
 # =============================================================================
 
 
-@scorer(metrics=[metric(name="constraint_accuracy")])
+@scorer(metrics=[mean()])
 def ifeval_scorer() -> Scorer:
     """
     Custom scorer for IFEval that checks constraint satisfaction.

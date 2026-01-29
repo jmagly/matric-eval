@@ -27,8 +27,8 @@ class EvaluationEngine:
 
     Example:
         >>> engine = EvaluationEngine("ollama/llama3.2:3b", tier="smoke")
-        >>> result = await engine.run_benchmark("humaneval")
-        >>> results = await engine.run_all(["humaneval", "mbpp", "gsm8k"])
+        >>> result = engine.run_benchmark("humaneval")
+        >>> results = engine.run_all(["humaneval", "mbpp", "gsm8k"])
     """
 
     def __init__(
@@ -51,7 +51,7 @@ class EvaluationEngine:
         self.log_dir = Path(log_dir) if log_dir else Path("./logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    async def run_benchmark(
+    def run_benchmark(
         self,
         benchmark: str,
         task: Optional[Task] = None,
@@ -78,7 +78,7 @@ class EvaluationEngine:
         """
         if task is None:
             # Dynamically load task from matric_eval.tasks
-            task = await self._load_task(benchmark)
+            task = self._load_task(benchmark)
 
         result = {
             "benchmark": benchmark,
@@ -88,8 +88,8 @@ class EvaluationEngine:
         }
 
         try:
-            # Run evaluation with Inspect AI
-            logs: list[EvalLog] = await eval(
+            # Run evaluation with Inspect AI (synchronous - manages its own event loop)
+            logs: list[EvalLog] = eval(
                 task,
                 model=self.model,
                 log_dir=str(self.log_dir),
@@ -115,8 +115,14 @@ class EvaluationEngine:
 
             # Extract accuracy score
             if log.results and log.results.scores:
-                accuracy = log.results.scores[0].metrics.get("accuracy", {}).get("value", 0.0)
-                result["score"] = accuracy
+                metrics = log.results.scores[0].metrics
+                accuracy_metric = metrics.get("accuracy")
+                if accuracy_metric is not None:
+                    result["score"] = accuracy_metric.value
+                else:
+                    # Fall back to first available metric
+                    first_metric = next(iter(metrics.values()), None)
+                    result["score"] = first_metric.value if first_metric else 0.0
             else:
                 result["score"] = 0.0
 
@@ -130,7 +136,7 @@ class EvaluationEngine:
 
         return result
 
-    async def run_all(
+    def run_all(
         self,
         benchmarks: list[str],
         checkpoint: bool = True,
@@ -162,7 +168,7 @@ class EvaluationEngine:
         successful_scores = []
 
         for benchmark in benchmarks:
-            result = await self.run_benchmark(benchmark, **eval_kwargs)
+            result = self.run_benchmark(benchmark, **eval_kwargs)
             results["benchmarks"][benchmark] = result
 
             if result["status"] == "success":
@@ -178,9 +184,25 @@ class EvaluationEngine:
 
         return results
 
-    async def _load_task(self, benchmark: str) -> Task:
+    # Map benchmark names to (module_path, function_name) for tier-aware loaders
+    TASK_MAP: dict[str, str] = {
+        "humaneval": "matric_eval.tasks.humaneval.humaneval",
+        "mbpp": "matric_eval.tasks.mbpp.mbpp",
+        "gsm8k": "matric_eval.tasks.gsm8k.gsm8k",
+        "arc": "matric_eval.tasks.arc.arc",
+        "ifeval": "matric_eval.tasks.ifeval.ifeval",
+        "ds1000": "matric_eval.tasks.ds1000.ds1000",
+        "livecodebench": "matric_eval.tasks.livecodebench.livecodebench",
+        "mtbench": "matric_eval.tasks.mtbench.mtbench",
+        "tool_calling": "matric_eval.tasks.tool_calling.tool_calling",
+    }
+
+    def _load_task(self, benchmark: str) -> Task:
         """
-        Dynamically load a task from matric_eval.tasks module.
+        Dynamically load a tier-aware task from matric_eval.tasks module.
+
+        Each task function accepts a ``tier`` parameter and returns a Task with
+        the appropriate number of samples for that tier.
 
         Args:
             benchmark: Benchmark name (e.g., "humaneval", "mbpp")
@@ -191,25 +213,18 @@ class EvaluationEngine:
         Raises:
             ValueError: If benchmark is not found
         """
-        # Map benchmark names to task modules
-        task_map = {
-            "humaneval": "matric_eval.tasks.smoke.smoke_humaneval",
-            "mbpp": "matric_eval.tasks.smoke.smoke_mbpp",
-            "gsm8k": "matric_eval.tasks.smoke.smoke_gsm8k",
-        }
-
-        if benchmark not in task_map:
+        if benchmark not in self.TASK_MAP:
             raise ValueError(
                 f"Unknown benchmark: {benchmark}. "
-                f"Available benchmarks: {', '.join(task_map.keys())}"
+                f"Available benchmarks: {', '.join(self.TASK_MAP.keys())}"
             )
 
-        # Import and call the task function
-        module_path = task_map[benchmark]
+        # Import and call the task function with tier
+        module_path = self.TASK_MAP[benchmark]
         module_name, task_name = module_path.rsplit(".", 1)
 
         import importlib
         module = importlib.import_module(module_name)
         task_fn = getattr(module, task_name)
 
-        return task_fn()
+        return task_fn(tier=self.tier)

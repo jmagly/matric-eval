@@ -1,0 +1,68 @@
+[
+  {
+    "id": "code-gen-fibonacci",
+    "name": "Generate Fibonacci Function",
+    "category": "code",
+    "difficulty": "easy",
+    "prompt": "Write a TypeScript function called 'fibonacci' that takes a number n and returns the nth Fibonacci number. Use recursion with memoization for efficiency.",
+    "expected_behavior": "Function should include: function signature, recursive logic, memoization, TypeScript types",
+    "required_checks": ["hasFunctionDeclaration", "hasParameter", "hasRecursion", "hasMemoization", "hasTypeAnnotation"],
+    "tags": ["function", "recursion", "algorithms"],
+    "timeout_ms": 30000
+  },
+  {
+    "id": "code-gen-isprime",
+    "name": "Generate isPrime Function",
+    "category": "code",
+    "difficulty": "easy",
+    "prompt": "Write a TypeScript function called 'isPrime' that takes a number and returns true if it's prime, false otherwise. Include edge cases for numbers less than 2.",
+    "expected_behavior": "Function should handle edge cases, use efficient algorithm, include types",
+    "required_checks": ["hasFunctionDeclaration", "hasParameter", "hasEdgeCaseHandling", "hasLoop", "hasReturnBoolean"],
+    "tags": ["function", "algorithms", "math"],
+    "timeout_ms": 30000
+  },
+  {
+    "id": "code-gen-bugfix",
+    "name": "Fix Buggy Code",
+    "category": "code",
+    "difficulty": "medium",
+    "prompt": "Fix the bug in this code:\n```typescript\nfunction sumArray(arr: number[]): number {\n  let sum = 0;\n  for (let i = 0; i <= arr.length; i++) {\n    sum += arr[i];\n  }\n  return sum;\n}\n```\nThe function should sum all numbers in the array without errors.",
+    "expected_behavior": "Should identify off-by-one error (i <= arr.length should be i < arr.length)",
+    "required_checks": ["identifiedBug", "hasCorrectLoop"],
+    "tags": ["debugging", "arrays", "edge-cases"],
+    "timeout_ms": 30000
+  },
+  {
+    "id": "code-gen-completion",
+    "name": "Complete Partial Function",
+    "category": "code",
+    "difficulty": "medium",
+    "prompt": "Complete this function that finds the longest word in a sentence:\n```typescript\nfunction findLongestWord(sentence: string): string {\n  // TODO: Split sentence into words\n  // TODO: Find the longest word\n  // TODO: Return the longest word\n}\n```",
+    "expected_behavior": "Should implement splitting, finding max length, and returning result",
+    "required_checks": ["hasSplit", "hasLoop", "hasLengthComparison", "hasReturn", "removedTodos"],
+    "tags": ["completion", "strings", "algorithms"],
+    "timeout_ms": 30000
+  },
+  {
+    "id": "code-gen-multifile",
+    "name": "Multi-File Feature Implementation",
+    "category": "code",
+    "difficulty": "hard",
+    "prompt": "Given this context:\nFile: types.ts\n```typescript\nexport interface User {\n  id: string;\n  name: string;\n  email: string;\n}\n```\n\nFile: userService.ts (existing)\n```typescript\nexport class UserService {\n  private users: User[] = [];\n\n  addUser(user: User): void {\n    this.users.push(user);\n  }\n}\n```\n\nImplement a method in UserService called 'findUserByEmail' that returns a User or undefined.",
+    "expected_behavior": "Should add method to UserService class, use correct types, handle not found case",
+    "required_checks": ["hasMethodName", "hasParameter", "hasReturnType", "hasArraySearch", "hasEmailComparison"],
+    "tags": ["multi-file", "class", "types", "methods"],
+    "timeout_ms": 45000
+  },
+  {
+    "id": "code-gen-complex-algo",
+    "name": "Binary Search Implementation",
+    "category": "code",
+    "difficulty": "hard",
+    "prompt": "Implement a binary search function in TypeScript that takes a sorted array of numbers and a target value, returning the index if found or -1 if not found.",
+    "expected_behavior": "Should use binary search algorithm (not linear), handle edge cases, include types",
+    "required_checks": ["hasFunctionDeclaration", "hasParameters", "hasTypes", "hasMiddleCalculation", "hasBinaryLogic", "hasReturn"],
+    "tags": ["algorithms", "binary-search", "complexity"],
+    "timeout_ms": 45000
+  }
+]

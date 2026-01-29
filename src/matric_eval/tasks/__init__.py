@@ -42,7 +42,7 @@ from matric_eval.tasks.mbpp import (
 from matric_eval.tasks.mbpp import record_to_sample as mbpp_record_to_sample
 from matric_eval.tasks.mtbench import mtbench, load_mtbench
 from matric_eval.tasks.mtbench import record_to_sample as mtbench_record_to_sample
-from matric_eval.tasks.smoke import (
+from matric_eval.tasks.builtin import (
     smoke_gsm8k,
     smoke_humaneval,
     smoke_mbpp,

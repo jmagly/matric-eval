@@ -15,10 +15,10 @@ from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.scorers.ds1000_scorer import ds1000_scorer
 
 # Path to DS-1000 dataset
 DS1000_PATH = "/home/roctinam/data/evals/ds1000/ds1000.jsonl"
@@ -156,6 +156,6 @@ def ds1000(tier: str = "smoke") -> Task:
             ),
             generate(),
         ],
-        scorer=includes(),  # Will be replaced with code_execution_scorer in future task
+        scorer=ds1000_scorer(),
         name="ds1000",
     )

@@ -1,8 +1,8 @@
 """
-Tests for tasks module (matric_eval.tasks.smoke).
+Tests for tasks module (matric_eval.tasks.builtin).
 
 Covers:
-- Smoke test data samples
+- Built-in fixture data samples
 - Task definitions
 - Scorer configurations
 """
@@ -11,7 +11,7 @@ import pytest
 from inspect_ai import Task
 from inspect_ai.dataset import MemoryDataset
 
-from matric_eval.tasks.smoke import (
+from matric_eval.tasks.builtin import (
     GSM8K_SAMPLES,
     HUMANEVAL_SAMPLES,
     MBPP_SAMPLES,

@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Scorer, Score, Target, scorer
+from inspect_ai.scorer import Scorer, Score, Target, mean, scorer
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
@@ -472,7 +472,7 @@ def extract_function_call(response: str) -> dict | list | None:
     return None
 
 
-def calculate_param_match(actual: dict, expected: dict) -> float:
+def calculate_param_match(actual: Any, expected: Any) -> float:
     """
     Calculate parameter matching score.
 
@@ -483,6 +483,10 @@ def calculate_param_match(actual: dict, expected: dict) -> float:
     Returns:
         Score from 0.0 to 1.0
     """
+    # Guard against non-dict values (model may emit strings instead of dicts)
+    if not isinstance(expected, dict) or not isinstance(actual, dict):
+        return 1.0 if str(actual) == str(expected) else 0.0
+
     if not expected:
         return 1.0 if not actual else 0.5
 
@@ -551,6 +555,12 @@ def calculate_function_call_score(actual: dict | list | None, expected: dict | l
     if isinstance(actual, list):
         actual = actual[0] if actual else {}
 
+    # Guard: both sides must be dicts for field-level comparison
+    if not isinstance(actual, dict):
+        return 0.0, f"Could not parse function call as object (got {type(actual).__name__})"
+    if not isinstance(expected, dict):
+        return 0.0, f"Unexpected target format (got {type(expected).__name__})"
+
     # Check for error handling scenario
     if "error" in expected:
         if "error" in str(actual).lower() or "cannot" in str(actual).lower():
@@ -575,7 +585,7 @@ def calculate_function_call_score(actual: dict | list | None, expected: dict | l
         return param_score, f"Poor parameter match: {param_score:.2%}"
 
 
-@scorer(metrics=["accuracy"])
+@scorer(metrics=[mean()])
 def tool_call_scorer() -> Scorer:
     """
     Scorer for tool calling evaluation.

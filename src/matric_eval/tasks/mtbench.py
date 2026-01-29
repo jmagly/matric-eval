@@ -106,7 +106,7 @@ def load_mtbench(tier: str = "smoke") -> list[Sample]:
 
 
 @task
-def mtbench(tier: str = "smoke", judge_model: str = "llama3.2:3b") -> Task:
+def mtbench(tier: str = "smoke", judge_model: str = "ollama/llama3.2:3b") -> Task:
     """
     MT-Bench multi-turn conversation benchmark.
 

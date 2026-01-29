@@ -43,7 +43,7 @@ def get_models(max_size_gb: float = 15.0) -> list[tuple[str, float]]:
 def run_smoke_eval(model: str) -> dict:
     """Run smoke evaluation on a model using Python API."""
     from inspect_ai import eval as inspect_eval
-    from matric_eval.tasks.smoke import smoke_humaneval, smoke_mbpp, smoke_gsm8k
+    from matric_eval.tasks.builtin import smoke_humaneval, smoke_mbpp, smoke_gsm8k
 
     ollama_model = f"ollama/{model}"
     results = {

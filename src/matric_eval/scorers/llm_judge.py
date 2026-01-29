@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal, Optional
 
-from inspect_ai.model import get_model
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
 
 
@@ -408,7 +408,7 @@ def normalize_score(raw_score: int, config: ScoringConfig) -> float:
     return (raw_score - config.min_score) / range_size
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean()])
 def llm_judge_scorer(
     judge_model: str = "llama3.2:3b",
     template: str = "default",
@@ -463,7 +463,9 @@ def llm_judge_scorer(
 
             # Call judge model with optional system prompt
             full_system = system_prompt or judge_template.system_prompt
-            judge_result = await model.generate(judge_prompt, system=full_system)
+            judge_result = await model.generate(
+                judge_prompt, config=GenerateConfig(system_message=full_system)
+            )
 
             # Extract score from judge response
             raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
@@ -491,7 +493,7 @@ def llm_judge_scorer(
     return score
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean()])
 def pairwise_judge_scorer(
     judge_model: str = "llama3.2:3b",
     reference_key: str = "reference_response",
@@ -527,7 +529,8 @@ def pairwise_judge_scorer(
 
             model = get_model(judge_model)
             judge_result = await model.generate(
-                judge_prompt, system=judge_template.system_prompt
+                judge_prompt,
+                config=GenerateConfig(system_message=judge_template.system_prompt),
             )
 
             winner = parse_pairwise_winner(judge_result.completion)
@@ -564,7 +567,7 @@ def pairwise_judge_scorer(
     return score
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean()])
 def agentic_judge_scorer(
     judge_model: str = "llama3.2:3b",
     tools_key: str = "available_tools",
@@ -604,7 +607,8 @@ def agentic_judge_scorer(
 
             model = get_model(judge_model)
             judge_result = await model.generate(
-                judge_prompt, system=judge_template.system_prompt
+                judge_prompt,
+                config=GenerateConfig(system_message=judge_template.system_prompt),
             )
 
             raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
@@ -628,7 +632,7 @@ def agentic_judge_scorer(
     return score
 
 
-@scorer(metrics=[])
+@scorer(metrics=[mean()])
 def reference_judge_scorer(
     judge_model: str = "llama3.2:3b",
 ) -> Scorer:
@@ -661,7 +665,8 @@ def reference_judge_scorer(
 
             model = get_model(judge_model)
             judge_result = await model.generate(
-                judge_prompt, system=judge_template.system_prompt
+                judge_prompt,
+                config=GenerateConfig(system_message=judge_template.system_prompt),
             )
 
             raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
