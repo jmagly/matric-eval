@@ -19,6 +19,9 @@ class TierConfig:
     ds1000: int = 0
     livecodebench: int = 0
     mtbench: int = 0
+    # Application-specific benchmarks
+    matric_cli: int = 0
+    matric_memory: int = 0
 
 
 # Tier definitions matching matric-cli
@@ -31,6 +34,8 @@ TIERS = {
         ifeval=10,
         ds1000=5,
         livecodebench=5,
+        matric_cli=6,       # Half of scenarios
+        matric_memory=10,   # Sample of title cases
     ),
     "quick": TierConfig(
         humaneval=75,
@@ -40,6 +45,8 @@ TIERS = {
         ifeval=100,
         ds1000=50,
         livecodebench=50,
+        matric_cli=12,      # All scenarios
+        matric_memory=20,   # Most title cases
     ),
     "full": TierConfig(
         humaneval=164,      # All
@@ -50,6 +57,8 @@ TIERS = {
         ds1000=1000,        # All
         livecodebench=880,  # All
         mtbench=80,         # All
+        matric_cli=12,      # All scenarios
+        matric_memory=30,   # All title cases + similarity
     ),
 }
 

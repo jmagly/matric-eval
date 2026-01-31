@@ -195,6 +195,9 @@ class EvaluationEngine:
         "livecodebench": "matric_eval.tasks.livecodebench.livecodebench",
         "mtbench": "matric_eval.tasks.mtbench.mtbench",
         "tool_calling": "matric_eval.tasks.tool_calling.tool_calling",
+        # Application-specific benchmarks
+        "matric_cli": "matric_eval.tasks.matric_cli.matric_cli",
+        "matric_memory": "matric_eval.tasks.matric_memory.matric_memory",
     }
 
     def _load_task(self, benchmark: str) -> Task:

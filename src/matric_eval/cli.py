@@ -158,6 +158,8 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
         "livecodebench": "LiveCodeBench - Competitive programming (880 problems)",
         "mtbench": "MT-Bench - Multi-turn conversation (80 problems)",
         "tool_calling": "Tool Calling - Function invocation (6 scenarios)",
+        "matric_cli": "Matric-CLI - Code generation & tool calling (12 scenarios)",
+        "matric_memory": "Matric-Memory - Title generation & semantics (30 cases)",
     }
 
     if with_descriptions:

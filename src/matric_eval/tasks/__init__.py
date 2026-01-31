@@ -61,6 +61,16 @@ from matric_eval.tasks.tool_calling import (
 from matric_eval.tasks.tool_calling import (
     record_to_sample as tool_calling_record_to_sample,
 )
+from matric_eval.tasks.matric_cli import (
+    load_matric_cli,
+    matric_cli,
+    matric_cli_scorer,
+)
+from matric_eval.tasks.matric_memory import (
+    load_matric_memory,
+    matric_memory,
+    title_quality_scorer,
+)
 
 __all__ = [
     "arc",
@@ -112,4 +122,11 @@ __all__ = [
     "tool_calling",
     "tool_calling_record_to_sample",
     "TOOL_CALLING_SCENARIOS",
+    # Application-specific tasks
+    "load_matric_cli",
+    "matric_cli",
+    "matric_cli_scorer",
+    "load_matric_memory",
+    "matric_memory",
+    "title_quality_scorer",
 ]
