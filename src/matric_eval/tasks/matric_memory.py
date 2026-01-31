@@ -68,9 +68,9 @@ def similarity_to_sample(pair: dict[str, Any], pair_type: str) -> Sample:
 0 means completely unrelated, 10 means identical meaning.
 Return only the number.
 
-Text A: {pair['text_a']}
+Text A: {pair['text1']}
 
-Text B: {pair['text_b']}
+Text B: {pair['text2']}
 
 Similarity score:"""
 

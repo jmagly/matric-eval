@@ -23,6 +23,9 @@ class TierConfig(BaseSettings):
     mtbench: int = 0
     tool_calling: int = 0
     custom: int = 0
+    # Application-specific benchmarks
+    matric_cli: int = 0
+    matric_memory: int = 0
 
 
 # Tier definitions matching matric-cli
@@ -38,6 +41,8 @@ TIERS: dict[str, TierConfig] = {
         mtbench=5,
         tool_calling=5,
         custom=5,
+        matric_cli=6,
+        matric_memory=10,
     ),
     "quick": TierConfig(
         humaneval=75,
@@ -50,6 +55,8 @@ TIERS: dict[str, TierConfig] = {
         mtbench=30,
         tool_calling=30,
         custom=50,
+        matric_cli=12,
+        matric_memory=20,
     ),
     "full": TierConfig(
         humaneval=164,  # All
@@ -62,6 +69,8 @@ TIERS: dict[str, TierConfig] = {
         mtbench=80,  # All
         tool_calling=100,  # All synthetic
         custom=1000,  # All custom tests
+        matric_cli=12,
+        matric_memory=30,
     ),
 }
 

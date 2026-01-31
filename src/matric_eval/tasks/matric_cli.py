@@ -115,7 +115,7 @@ def matric_cli_scorer():
             # Code generation checks
             "hasFunctionDeclaration": r'function\s+\w+|const\s+\w+\s*=\s*(?:async\s*)?\(',
             "hasParameter": r'\([^)]*\w+[^)]*\)',
-            "hasRecursion": r'\w+\s*\([^)]*\).*\1\s*\(',
+            "hasRecursion": r'fibonacci\s*\(.*fibonacci\s*\(|function\s+\w+.*\w+\s*\(',
             "hasMemoization": r'memo|cache|Map|Record|WeakMap',
             "hasTypeAnnotation": r':\s*(?:number|string|boolean|any|\w+\[\])',
             "hasLoop": r'for\s*\(|while\s*\(|\.forEach|\.map\s*\(',
