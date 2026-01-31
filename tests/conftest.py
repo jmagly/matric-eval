@@ -359,8 +359,8 @@ DATA_PATHS = {
     "gsm8k": "/home/roctinam/data/evals/gsm8k/test.jsonl",
     "humaneval": "/home/roctinam/data/evals/humaneval/HumanEval.jsonl",
     "mbpp": "/home/roctinam/data/evals/mbpp/mbpp.jsonl",
-    "ifeval": "/home/roctinam/data/evals/ifeval/data.jsonl",
-    "livecodebench": "/home/roctinam/data/evals/livecodebench/release_v1.jsonl",
+    "ifeval": "/home/roctinam/data/evals/ifeval/input_data.jsonl",
+    "livecodebench": "/home/roctinam/data/evals/livecodebench/livecodebench.jsonl",
     "ds1000": "/home/roctinam/data/evals/ds1000/ds1000.jsonl",
     "mtbench": "/home/roctinam/data/evals/mtbench/question.jsonl",
 }
