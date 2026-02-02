@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from inspect_ai import eval, Task
 from inspect_ai.log import EvalLog
-from inspect_ai.model import get_model
+from inspect_ai.model import GenerateConfig
 
 from matric_eval.config import get_tier
 
@@ -24,11 +24,16 @@ class EvaluationEngine:
     - Error handling and recovery
     - Result aggregation across benchmarks
     - Progress tracking and logging
+    - Thinking mode support for thinking-capable models
 
     Example:
         >>> engine = EvaluationEngine("ollama/llama3.2:3b", tier="smoke")
         >>> result = engine.run_benchmark("humaneval")
         >>> results = engine.run_all(["humaneval", "mbpp", "gsm8k"])
+
+        >>> # Thinking model with thinking disabled
+        >>> engine = EvaluationEngine("ollama/qwen3:14b", tier="smoke", thinking_mode="off")
+        >>> result = engine.run_benchmark("humaneval")
     """
 
     def __init__(
@@ -36,6 +41,7 @@ class EvaluationEngine:
         model: str,
         tier: str = "smoke",
         log_dir: Optional[Path | str] = None,
+        thinking_mode: Optional[str] = None,
     ):
         """
         Initialize the evaluation engine.
@@ -44,12 +50,59 @@ class EvaluationEngine:
             model: Model identifier (e.g., "ollama/llama3.2:3b")
             tier: Evaluation tier ("smoke", "quick", or "full")
             log_dir: Directory for storing evaluation logs (default: "./logs")
+            thinking_mode: Thinking mode for thinking-capable models:
+                - None: Standard mode (no thinking control)
+                - "on": Enable thinking (extended reasoning)
+                - "off": Disable thinking (direct response)
         """
         self.model = model
         self.tier = tier
         self.tier_config = get_tier(tier)
+        self.thinking_mode = thinking_mode
         self.log_dir = Path(log_dir) if log_dir else Path("./logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_log_dir(self) -> Path:
+        """
+        Get the model-specific log directory.
+
+        For thinking-capable models with thinking_mode set, creates
+        subdirectories for thinking-on and thinking-off results.
+
+        Returns:
+            Path to model-specific log directory
+        """
+        # Extract model name (remove ollama/ prefix)
+        model_name = self.model.replace("ollama/", "").replace(":", "_").replace("/", "_")
+
+        if self.thinking_mode in ("on", "off"):
+            # Include thinking mode in directory structure
+            return self.log_dir / model_name / f"thinking-{self.thinking_mode}"
+        else:
+            # Standard directory structure
+            return self.log_dir / model_name
+
+    def _get_eval_kwargs(self) -> dict[str, Any]:
+        """
+        Get evaluation kwargs including thinking mode configuration.
+
+        Returns:
+            Dictionary of kwargs to pass to inspect_ai.eval()
+        """
+        kwargs: dict[str, Any] = {}
+
+        if self.thinking_mode == "off":
+            # Disable thinking via generate config
+            kwargs["generate_config"] = GenerateConfig(
+                extra_body={"enable_thinking": False}
+            )
+        elif self.thinking_mode == "on":
+            # Enable thinking (may be default for some models)
+            kwargs["generate_config"] = GenerateConfig(
+                extra_body={"enable_thinking": True}
+            )
+
+        return kwargs
 
     def run_benchmark(
         self,
@@ -72,6 +125,7 @@ class EvaluationEngine:
             - samples: Number of samples evaluated
             - log_path: Path to evaluation log file
             - error: Error message (if status == "error")
+            - thinking_mode: Thinking mode used (if applicable)
 
         Raises:
             ValueError: If benchmark name is invalid
@@ -87,13 +141,25 @@ class EvaluationEngine:
             "status": "pending",
         }
 
+        # Include thinking mode in result if set
+        if self.thinking_mode:
+            result["thinking_mode"] = self.thinking_mode
+
+        # Get model-specific log directory
+        model_log_dir = self._get_model_log_dir()
+        model_log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Merge thinking mode config with any user-provided eval_kwargs
+        default_kwargs = self._get_eval_kwargs()
+        merged_kwargs = {**default_kwargs, **eval_kwargs}
+
         try:
             # Run evaluation with Inspect AI (synchronous - manages its own event loop)
             logs: list[EvalLog] = eval(
                 task,
                 model=self.model,
-                log_dir=str(self.log_dir),
-                **eval_kwargs,
+                log_dir=str(model_log_dir),
+                **merged_kwargs,
             )
 
             if not logs:
@@ -157,6 +223,7 @@ class EvaluationEngine:
             - benchmarks: Dict mapping benchmark name to results
             - overall_score: Average score across successful benchmarks
             - status: "success" if any benchmark succeeded, "error" otherwise
+            - thinking_mode: Thinking mode used (if applicable)
         """
         results = {
             "model": self.model,
@@ -164,6 +231,10 @@ class EvaluationEngine:
             "benchmarks": {},
             "status": "pending",
         }
+
+        # Include thinking mode if set
+        if self.thinking_mode:
+            results["thinking_mode"] = self.thinking_mode
 
         successful_scores = []
 

@@ -25,6 +25,7 @@ from matric_eval.logging import (
     set_context,
 )
 from matric_eval.state import StateManager
+from matric_eval.models.detection import has_thinking_capability
 
 console = Console()
 error_console = Console(stderr=True)
@@ -177,6 +178,7 @@ def run_evaluation(
     tier: str = "smoke",
     benchmarks: Optional[list[str]] = None,
     output_dir: Optional[Path] = None,
+    thinking_mode: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
@@ -186,6 +188,7 @@ def run_evaluation(
         tier: Evaluation tier (smoke, quick, full)
         benchmarks: Specific benchmarks to run (None = all for tier)
         output_dir: Output directory for logs
+        thinking_mode: Thinking mode ("on", "off", or None)
 
     Returns:
         Results dictionary
@@ -208,6 +211,7 @@ def run_evaluation(
         model=model,
         tier=tier,
         log_dir=output_dir / "logs" if output_dir else None,
+        thinking_mode=thinking_mode,
     )
 
     return engine.run_all(benchmarks)
@@ -299,6 +303,12 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     help="Output format (default: table)",
 )
 @click.option(
+    "--thinking",
+    type=click.Choice(["auto", "on", "off", "both"], case_sensitive=False),
+    default="auto",
+    help="Thinking mode for thinking-capable models (auto=detect, on=enable, off=disable, both=run twice)",
+)
+@click.option(
     "--resume",
     type=str,
     help="Resume from checkpoint (provide run-id or path to run directory)",
@@ -315,6 +325,7 @@ def run(
     max_size: float,
     output: Path,
     output_format: str,
+    thinking: str,
     resume: Optional[str],
     fill_gaps: bool,
 ):
@@ -472,29 +483,54 @@ def run(
                 progress.update(task, description=f"Evaluating {model_name}...")
 
             try:
-                result = run_evaluation(
-                    model=model_name,
-                    tier=tier,
-                    benchmarks=benchmarks_to_run,
-                    output_dir=output_dir,
-                )
-                all_results.append(result)
+                # Handle thinking mode
+                is_thinking_model = False
+                modes_to_run = []
 
-                # Log result
-                overall_score = result.get("overall_score", 0)
-                logger.info(
-                    "Model evaluation complete",
-                    extra={
-                        "model": model_name,
-                        "overall_score": overall_score,
-                        "status": result.get("status"),
-                    },
-                )
+                if thinking == "auto":
+                    # Auto-detect thinking capability
+                    is_thinking_model = has_thinking_capability(model_name)
+                    modes_to_run = ["off"] if is_thinking_model else [None]
+                elif thinking == "both":
+                    # Run both modes (only makes sense for thinking models)
+                    is_thinking_model = has_thinking_capability(model_name)
+                    modes_to_run = ["on", "off"] if is_thinking_model else [None]
+                elif thinking in ("on", "off"):
+                    # Explicit mode
+                    modes_to_run = [thinking]
+                else:
+                    modes_to_run = [None]
 
-                # Save individual result
-                safe_name = model_name.replace(":", "_").replace("/", "_")
-                result_file = output_dir / f"{safe_name}.json"
-                result_file.write_text(json.dumps(result, indent=2))
+                # Run evaluation for each mode
+                for thinking_mode in modes_to_run:
+                    result = run_evaluation(
+                        model=model_name,
+                        tier=tier,
+                        benchmarks=benchmarks_to_run,
+                        output_dir=output_dir,
+                        thinking_mode=thinking_mode,
+                    )
+                    all_results.append(result)
+
+                    # Log result
+                    overall_score = result.get("overall_score", 0)
+                    thinking_suffix = f" (thinking={thinking_mode})" if thinking_mode else ""
+                    logger.info(
+                        f"Model evaluation complete{thinking_suffix}",
+                        extra={
+                            "model": model_name,
+                            "overall_score": overall_score,
+                            "status": result.get("status"),
+                            "thinking_mode": thinking_mode,
+                        },
+                    )
+
+                    # Save individual result
+                    safe_name = model_name.replace(":", "_").replace("/", "_")
+                    if thinking_mode:
+                        safe_name = f"{safe_name}_thinking_{thinking_mode}"
+                    result_file = output_dir / f"{safe_name}.json"
+                    result_file.write_text(json.dumps(result, indent=2))
 
             except Exception as e:
                 logger.error(

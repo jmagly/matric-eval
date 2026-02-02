@@ -17,6 +17,7 @@ from inspect_ai.dataset import Sample, json_dataset
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.prompts import get_prompt
 from matric_eval.scorers.code_execution import code_execution_scorer
 
 # Path to HumanEval dataset
@@ -103,7 +104,7 @@ def load_humaneval(tier: str = "smoke") -> list[Sample]:
 
 
 @task
-def humaneval(tier: str = "smoke") -> Task:
+def humaneval(tier: str = "smoke", thinking: bool = True) -> Task:
     """
     HumanEval code generation benchmark.
 
@@ -115,6 +116,7 @@ def humaneval(tier: str = "smoke") -> Task:
             - "smoke": 5 samples (~30 seconds)
             - "quick": 75 samples (~8 minutes)
             - "full": 164 samples (all, ~18 minutes)
+        thinking: Use thinking-aware prompts to reduce reasoning cycles (default: True)
 
     Returns:
         Task configured for HumanEval evaluation
@@ -126,11 +128,7 @@ def humaneval(tier: str = "smoke") -> Task:
     return Task(
         dataset=load_humaneval(tier),
         solver=[
-            system_message(
-                "You are a Python coding assistant. "
-                "Complete the function based on the docstring. "
-                "Return only the function implementation, no explanations or examples."
-            ),
+            system_message(get_prompt("humaneval", thinking=thinking)),
             generate(),
         ],
         scorer=code_execution_scorer(),

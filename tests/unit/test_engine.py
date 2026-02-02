@@ -309,6 +309,7 @@ class TestEngineIntegration:
             # Verify eval was called for each benchmark
             assert mock_eval.call_count == 3
 
-            # Verify log_dir was passed
+            # Verify log_dir was passed (should include model name subdirectory)
             for call in mock_eval.call_args_list:
-                assert call.kwargs["log_dir"] == str(tmp_path)
+                assert call.kwargs["log_dir"].startswith(str(tmp_path))
+                assert "llama3.2_3b" in call.kwargs["log_dir"]
