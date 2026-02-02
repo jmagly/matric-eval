@@ -18,6 +18,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.prompts import get_prompt
 from matric_eval.scorers.io_execution import io_execution_scorer
 
 # Path to LiveCodeBench dataset
@@ -182,7 +183,7 @@ def load_livecodebench(tier: str = "smoke") -> list[Sample]:
 
 
 @task
-def livecodebench(tier: str = "smoke") -> Task:
+def livecodebench(tier: str = "smoke", thinking: bool = True) -> Task:
     """
     LiveCodeBench competitive programming benchmark.
 
@@ -195,6 +196,7 @@ def livecodebench(tier: str = "smoke") -> Task:
             - "smoke": 5 samples (~1 minute)
             - "quick": 50 samples (~10 minutes)
             - "full": 880+ samples (all, ~3 hours)
+        thinking: Use thinking-aware prompts to reduce reasoning cycles (default: True)
 
     Returns:
         Task configured for LiveCodeBench evaluation
@@ -206,12 +208,7 @@ def livecodebench(tier: str = "smoke") -> Task:
     return Task(
         dataset=load_livecodebench(tier),
         solver=[
-            system_message(
-                "You are an expert competitive programmer. "
-                "Solve the programming problem by writing clean, efficient code. "
-                "Read the problem carefully, understand the constraints, and provide a working solution. "
-                "Return only the code implementation."
-            ),
+            system_message(get_prompt("livecodebench", thinking=thinking)),
             generate(),
         ],
         scorer=io_execution_scorer(),

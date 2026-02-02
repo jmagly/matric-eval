@@ -21,6 +21,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.prompts import get_prompt
 from matric_eval.scorers.code_execution import code_execution_scorer
 
 # Path to MBPP dataset
@@ -203,7 +204,7 @@ def load_mbpp(tier: str = "smoke") -> list[Sample]:
 
 
 @task
-def mbpp(tier: str = "smoke") -> Task:
+def mbpp(tier: str = "smoke", thinking: bool = True) -> Task:
     """
     MBPP (Mostly Basic Python Problems) code generation benchmark.
 
@@ -218,6 +219,7 @@ def mbpp(tier: str = "smoke") -> Task:
             - "smoke": 5 samples (~30 seconds)
             - "quick": 100 samples (~12 minutes)
             - "full": 974 samples (all, ~2 hours)
+        thinking: Use thinking-aware prompts to reduce reasoning cycles (default: True)
 
     Returns:
         Task configured for MBPP evaluation
@@ -229,11 +231,7 @@ def mbpp(tier: str = "smoke") -> Task:
     return Task(
         dataset=load_mbpp(tier),
         solver=[
-            system_message(
-                "You are a Python coding assistant. "
-                "Write the function exactly as specified with the given name and signature. "
-                "Return only the function implementation, no explanations or examples."
-            ),
+            system_message(get_prompt("mbpp", thinking=thinking)),
             generate(),
         ],
         scorer=code_execution_scorer(),

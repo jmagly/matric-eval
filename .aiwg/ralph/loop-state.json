@@ -1,0 +1,24 @@
+{
+  "task": "Implement thinking model evaluation features (issues #23, #24, #25)",
+  "completion_criteria": [
+    "Issue #23: --thinking CLI parameter implemented with auto/on/off/both options",
+    "Issue #23: has_thinking_capability() detection function working",
+    "Issue #23: Results structure supports thinking-on/thinking-off separation",
+    "Issue #24: Prompt templates created in src/matric_eval/prompts/",
+    "Issue #24: Tasks updated to use thinking-aware prompts",
+    "Issue #25: ThinkingMetrics dataclass implemented",
+    "Issue #25: extract_thinking_metrics() function working",
+    "All new code has tests",
+    "Tests pass: uv run pytest tests/ -q",
+    "PR ready with all changes"
+  ],
+  "max_iterations": 10,
+  "current_iteration": 1,
+  "status": "running",
+  "started_at": "2026-02-01T23:30:00Z",
+  "parallel_agents": [
+    {"id": "issue-23", "name": "thinking-toggle", "status": "pending"},
+    {"id": "issue-24", "name": "prompts", "status": "pending"},
+    {"id": "issue-25", "name": "metrics", "status": "pending"}
+  ]
+}

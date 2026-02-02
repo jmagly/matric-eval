@@ -18,6 +18,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.prompts import get_prompt
 from matric_eval.scorers.ds1000_scorer import ds1000_scorer
 
 # Path to DS-1000 dataset
@@ -122,7 +123,7 @@ def load_ds1000(tier: str = "smoke") -> list[Sample]:
 
 
 @task
-def ds1000(tier: str = "smoke") -> Task:
+def ds1000(tier: str = "smoke", thinking: bool = True) -> Task:
     """
     DS-1000 data science coding benchmark.
 
@@ -135,6 +136,7 @@ def ds1000(tier: str = "smoke") -> Task:
             - "smoke": 5 samples (~1 minute)
             - "quick": 50 samples (~10 minutes)
             - "full": 1000 samples (all, ~3 hours)
+        thinking: Use thinking-aware prompts to reduce reasoning cycles (default: True)
 
     Returns:
         Task configured for DS-1000 evaluation
@@ -146,14 +148,7 @@ def ds1000(tier: str = "smoke") -> Task:
     return Task(
         dataset=load_ds1000(tier),
         solver=[
-            system_message(
-                "You are an expert data scientist and Python programmer. "
-                "Solve the data science problem using pandas, numpy, matplotlib, "
-                "or other appropriate libraries. "
-                "Pay attention to the provided code context and setup. "
-                "Return only the solution code that assigns the result to the "
-                "specified variable."
-            ),
+            system_message(get_prompt("ds1000", thinking=thinking)),
             generate(),
         ],
         scorer=ds1000_scorer(),
