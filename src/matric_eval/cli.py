@@ -166,6 +166,21 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
         "matric_memory": "Matric-Memory - Title generation & semantics (30 cases)",
     }
 
+    # Discover external datasets
+    try:
+        from matric_eval.discovery import get_external_datasets
+
+        for name, dataset in get_external_datasets().items():
+            if name not in benchmarks_info:  # Builtins take priority
+                display_name = dataset.manifest.name or name
+                desc = (
+                    dataset.manifest.description
+                    or f"{display_name} - External dataset ({dataset.total_samples:,} samples)"
+                )
+                benchmarks_info[name] = desc
+    except Exception:
+        pass  # Discovery failure shouldn't break CLI
+
     if with_descriptions:
         return benchmarks_info
     return list(benchmarks_info.keys())

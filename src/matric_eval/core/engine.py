@@ -313,13 +313,14 @@ class EvaluationEngine:
 
     def _load_task(self, benchmark: str) -> Task:
         """
-        Dynamically load a tier-aware task from matric_eval.tasks module.
+        Dynamically load a tier-aware task from matric_eval.tasks module,
+        falling back to external dataset discovery.
 
         Each task function accepts a ``tier`` parameter and returns a Task with
         the appropriate number of samples for that tier.
 
         Args:
-            benchmark: Benchmark name (e.g., "humaneval", "mbpp")
+            benchmark: Benchmark name (e.g., "humaneval", "mbpp", or external dataset name)
 
         Returns:
             Inspect AI Task object
@@ -327,18 +328,34 @@ class EvaluationEngine:
         Raises:
             ValueError: If benchmark is not found
         """
-        if benchmark not in self.TASK_MAP:
-            raise ValueError(
-                f"Unknown benchmark: {benchmark}. "
-                f"Available benchmarks: {', '.join(self.TASK_MAP.keys())}"
-            )
+        # Check builtin tasks first
+        if benchmark in self.TASK_MAP:
+            module_path = self.TASK_MAP[benchmark]
+            module_name, task_name = module_path.rsplit(".", 1)
 
-        # Import and call the task function with tier
-        module_path = self.TASK_MAP[benchmark]
-        module_name, task_name = module_path.rsplit(".", 1)
+            import importlib
+            module = importlib.import_module(module_name)
+            task_fn = getattr(module, task_name)
 
-        import importlib
-        module = importlib.import_module(module_name)
-        task_fn = getattr(module, task_name)
+            return task_fn(tier=self.tier)
 
-        return task_fn(tier=self.tier)
+        # Fallback: check external dataset registry
+        from matric_eval.discovery import (
+            get_external_dataset,
+            get_external_datasets,
+            create_external_task,
+        )
+
+        dataset = get_external_dataset(benchmark)
+        if dataset is not None:
+            return create_external_task(dataset, tier=self.tier)
+
+        # Not found
+        available = list(self.TASK_MAP.keys())
+        external = list(get_external_datasets().keys())
+        if external:
+            available.extend(external)
+        raise ValueError(
+            f"Unknown benchmark: {benchmark}. "
+            f"Available benchmarks: {', '.join(available)}"
+        )

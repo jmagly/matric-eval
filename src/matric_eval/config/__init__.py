@@ -22,6 +22,11 @@ def get_sample_count(benchmark: str, tier: str = "smoke") -> int:
     return get_settings().get_sample_count(benchmark, tier)
 
 
+def get_datasets_dir() -> str:
+    """Get configured datasets directory."""
+    return get_settings().datasets_dir
+
+
 __all__ = [
     "Settings",
     "TierConfig",
@@ -32,4 +37,5 @@ __all__ = [
     "get_seed",
     "get_tier",
     "get_sample_count",
+    "get_datasets_dir",
 ]

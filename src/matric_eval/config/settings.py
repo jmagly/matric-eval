@@ -94,6 +94,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Dataset directory
+    datasets_dir: str = Field(
+        default="datasets", description="Root directory for datasets (external + custom)"
+    )
+
     # Reproducibility
     seed: int = Field(default=42, description="Random seed for reproducible sampling")
 
