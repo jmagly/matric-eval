@@ -2,8 +2,10 @@
 EvaluationEngine - High-level interface for running model evaluations.
 
 Wraps Inspect AI's eval() function with checkpoint support, error handling,
-and result aggregation.
+and result aggregation. Supports multiple inference providers.
 """
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional
@@ -25,11 +27,17 @@ class EvaluationEngine:
     - Result aggregation across benchmarks
     - Progress tracking and logging
     - Thinking mode support for thinking-capable models
+    - Multi-provider support (Ollama, vLLM, llama.cpp, OpenRouter, Chutes)
 
     Example:
         >>> engine = EvaluationEngine("ollama/llama3.2:3b", tier="smoke")
         >>> result = engine.run_benchmark("humaneval")
         >>> results = engine.run_all(["humaneval", "mbpp", "gsm8k"])
+
+        >>> # With a specific provider
+        >>> from matric_eval.providers import get_provider
+        >>> provider = get_provider("vllm")
+        >>> engine = EvaluationEngine("mistral:7b", tier="smoke", provider=provider)
 
         >>> # Thinking model with thinking disabled
         >>> engine = EvaluationEngine("ollama/qwen3:14b", tier="smoke", thinking_mode="off")
@@ -42,25 +50,49 @@ class EvaluationEngine:
         tier: str = "smoke",
         log_dir: Optional[Path | str] = None,
         thinking_mode: Optional[str] = None,
+        provider: Any = None,
     ):
         """
         Initialize the evaluation engine.
 
         Args:
-            model: Model identifier (e.g., "ollama/llama3.2:3b")
+            model: Model identifier (e.g., "ollama/llama3.2:3b" or "llama3.2:3b")
             tier: Evaluation tier ("smoke", "quick", or "full")
             log_dir: Directory for storing evaluation logs (default: "./logs")
             thinking_mode: Thinking mode for thinking-capable models:
                 - None: Standard mode (no thinking control)
                 - "on": Enable thinking (extended reasoning)
                 - "off": Disable thinking (direct response)
+            provider: Optional Provider instance. If provided, the model string
+                is formatted through the provider and provider-specific eval
+                kwargs are applied. If None, model string is used as-is
+                (backwards-compatible with existing ollama/ prefix behavior).
         """
-        self.model = model
+        self.provider = provider
         self.tier = tier
         self.tier_config = get_tier(tier)
         self.thinking_mode = thinking_mode
         self.log_dir = Path(log_dir) if log_dir else Path("./logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Format model ID through provider if available
+        if provider is not None:
+            self.model = provider.format_model_id(model)
+            self._raw_model = model
+        else:
+            self.model = model
+            self._raw_model = model
+
+    def _get_provider_name(self) -> str:
+        """Get the provider name for metadata."""
+        if self.provider is not None:
+            return self.provider.name
+        # Infer from model string prefix
+        if self.model.startswith("ollama/"):
+            return "ollama"
+        if self.model.startswith("openai/"):
+            return "openai"
+        return "unknown"
 
     def _get_model_log_dir(self) -> Path:
         """
@@ -72,8 +104,11 @@ class EvaluationEngine:
         Returns:
             Path to model-specific log directory
         """
-        # Extract model name (remove ollama/ prefix)
-        model_name = self.model.replace("ollama/", "").replace(":", "_").replace("/", "_")
+        # Extract model name (remove provider prefix)
+        model_name = self.model
+        for prefix in ("ollama/", "openai/"):
+            model_name = model_name.replace(prefix, "")
+        model_name = model_name.replace(":", "_").replace("/", "_")
 
         if self.thinking_mode in ("on", "off"):
             # Include thinking mode in directory structure
@@ -149,8 +184,11 @@ class EvaluationEngine:
         model_log_dir = self._get_model_log_dir()
         model_log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Merge thinking mode config with any user-provided eval_kwargs
+        # Merge thinking mode config with provider kwargs and user overrides
         default_kwargs = self._get_eval_kwargs()
+        if self.provider is not None:
+            provider_kwargs = self.provider.get_eval_kwargs(self._raw_model)
+            default_kwargs = {**provider_kwargs, **default_kwargs}
         merged_kwargs = {**default_kwargs, **eval_kwargs}
 
         try:
@@ -228,6 +266,7 @@ class EvaluationEngine:
         results = {
             "model": self.model,
             "tier": self.tier,
+            "provider": self._get_provider_name(),
             "benchmarks": {},
             "status": "pending",
         }

@@ -26,6 +26,8 @@ from matric_eval.logging import (
 )
 from matric_eval.state import StateManager
 from matric_eval.models.detection import has_thinking_capability
+from matric_eval.providers import get_provider, list_providers
+from matric_eval.providers.base import ProviderConfig, ProviderConnectionError
 
 console = Console()
 error_console = Console(stderr=True)
@@ -179,23 +181,26 @@ def run_evaluation(
     benchmarks: Optional[list[str]] = None,
     output_dir: Optional[Path] = None,
     thinking_mode: Optional[str] = None,
+    provider: Any = None,
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
 
     Args:
-        model: Model name (without ollama/ prefix)
+        model: Model name (e.g., 'llama3.2:3b')
         tier: Evaluation tier (smoke, quick, full)
         benchmarks: Specific benchmarks to run (None = all for tier)
         output_dir: Output directory for logs
         thinking_mode: Thinking mode ("on", "off", or None)
+        provider: Provider instance. If None, defaults to Ollama behavior.
 
     Returns:
         Results dictionary
     """
-    # Ensure model has ollama/ prefix
-    if not model.startswith("ollama/"):
-        model = f"ollama/{model}"
+    # If no provider given, use legacy ollama/ prefix behavior
+    if provider is None:
+        if not model.startswith("ollama/"):
+            model = f"ollama/{model}"
 
     # Determine which benchmarks to run
     if benchmarks is None:
@@ -212,6 +217,7 @@ def run_evaluation(
         tier=tier,
         log_dir=output_dir / "logs" if output_dir else None,
         thinking_mode=thinking_mode,
+        provider=provider,
     )
 
     return engine.run_all(benchmarks)
@@ -309,6 +315,32 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     help="Thinking mode for thinking-capable models (auto=detect, on=enable, off=disable, both=run twice)",
 )
 @click.option(
+    "--provider",
+    "provider_name",
+    type=str,
+    default=None,
+    help="Inference provider (ollama, llama-cpp, vllm, openrouter, chutes). Default: ollama.",
+)
+@click.option(
+    "--provider-url",
+    type=str,
+    default=None,
+    help="Override the provider's base URL (e.g., http://localhost:8080)",
+)
+@click.option(
+    "--api-key",
+    type=str,
+    default=None,
+    help="API key for authenticated providers (openrouter, chutes). Can also use env vars.",
+)
+@click.option(
+    "--matrix",
+    "matrix_file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="YAML evaluation matrix config file for multi-provider runs.",
+)
+@click.option(
     "--resume",
     type=str,
     help="Resume from checkpoint (provide run-id or path to run directory)",
@@ -326,6 +358,10 @@ def run(
     output: Path,
     output_format: str,
     thinking: str,
+    provider_name: Optional[str],
+    provider_url: Optional[str],
+    api_key: Optional[str],
+    matrix_file: Optional[Path],
     resume: Optional[str],
     fill_gaps: bool,
 ):
@@ -410,6 +446,28 @@ def run(
         error_console.print("[yellow]Warning:[/yellow] Resume execution not yet implemented")
         return
 
+    # Handle matrix-based evaluation
+    if matrix_file:
+        from matric_eval.providers.matrix import EvaluationMatrix
+        matrix = EvaluationMatrix.from_yaml(matrix_file)
+        _run_matrix_evaluation(matrix, output, output_format, thinking, tier)
+        return
+
+    # Resolve provider
+    active_provider = None
+    if provider_name:
+        config = ProviderConfig()
+        if provider_url:
+            config.base_url = provider_url
+        if api_key:
+            config.api_key = api_key
+        try:
+            active_provider = get_provider(provider_name, config)
+        except ValueError as e:
+            error_console.print(f"[red]Error:[/red] {e}")
+            error_console.print(f"Available providers: {', '.join(list_providers())}")
+            sys.exit(1)
+
     # Get models to evaluate
     logger.info("Discovering models", extra={"max_size_gb": max_size, "specific_model": model})
 
@@ -417,6 +475,18 @@ def run(
         # User specified a model - use it even if not in Ollama list
         models_to_eval = [{"name": model, "size_gb": 0, "size_str": "unknown"}]
         logger.debug("Using user-specified model", extra={"model": model})
+    elif active_provider:
+        # Discover models from the active provider
+        try:
+            provider_models = active_provider.list_models(max_size_gb=max_size)
+            models_to_eval = [
+                {"name": m.name, "size_gb": m.size_gb, "size_str": f"{m.size_gb} GB"}
+                for m in provider_models
+            ]
+        except ProviderConnectionError as e:
+            error_console.print(f"[red]Error querying {active_provider.display_name}:[/red] {e}")
+            sys.exit(1)
+        logger.debug(f"Discovered models from {active_provider.display_name}", extra={"count": len(models_to_eval)})
     else:
         models_to_eval = get_ollama_models(max_size)
         logger.debug("Discovered models from Ollama", extra={"count": len(models_to_eval)})
@@ -509,6 +579,7 @@ def run(
                         benchmarks=benchmarks_to_run,
                         output_dir=output_dir,
                         thinking_mode=thinking_mode,
+                        provider=active_provider,
                     )
                     all_results.append(result)
 
@@ -956,6 +1027,183 @@ def recommend(
             "best_balanced": report.best_balanced,
         },
     )
+
+
+@cli.command("list-providers")
+@click.option(
+    "--check-availability",
+    is_flag=True,
+    help="Check if each provider is reachable",
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    help="Output format (default: table)",
+)
+def list_providers_cmd(check_availability: bool, output_format: str):
+    """
+    List available inference providers.
+
+    Examples:
+
+        # List all providers
+        matric-eval list-providers
+
+        # Check which providers are reachable
+        matric-eval list-providers --check-availability
+    """
+    provider_names = list_providers()
+
+    if output_format == "json":
+        providers_info = []
+        for name in provider_names:
+            info: dict[str, Any] = {"name": name}
+            try:
+                p = get_provider(name)
+                info["display_name"] = p.display_name
+                if check_availability:
+                    info["available"] = p.is_available()
+            except Exception:
+                info["display_name"] = name
+                if check_availability:
+                    info["available"] = False
+            providers_info.append(info)
+        console.print(json.dumps(providers_info, indent=2))
+    else:
+        console.print("\n[bold]Available providers:[/bold]\n")
+
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Provider", style="cyan")
+        table.add_column("Display Name")
+        if check_availability:
+            table.add_column("Status", justify="center")
+
+        for name in provider_names:
+            try:
+                p = get_provider(name)
+                display = p.display_name
+                if check_availability:
+                    available = p.is_available()
+                    status = "[green]available[/green]" if available else "[dim]unavailable[/dim]"
+                    table.add_row(name, display, status)
+                else:
+                    table.add_row(name, display)
+            except Exception:
+                if check_availability:
+                    table.add_row(name, name, "[red]error[/red]")
+                else:
+                    table.add_row(name, name)
+
+        console.print(table)
+        console.print(f"\n[dim]Total: {len(provider_names)} providers[/dim]")
+
+
+def _run_matrix_evaluation(
+    matrix: Any,
+    output: Path,
+    output_format: str,
+    thinking: str,
+    default_tier: str,
+) -> None:
+    """Run evaluation from a matrix configuration."""
+    logger = get_cli_logger()
+    runs = matrix.get_runs()
+    tier = matrix.tier or default_tier
+
+    if not runs:
+        error_console.print("[red]Error:[/red] Evaluation matrix produced no runs.")
+        sys.exit(1)
+
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    output_dir = output / f"run-{timestamp}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if output_format != "json":
+        console.print(f"\n[bold]MATRIC-EVAL MATRIX RUN - {tier.upper()} tier[/bold]")
+        console.print(f"Runs: {len(runs)}")
+        console.print(f"Output: {output_dir}\n")
+
+    all_results = []
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console if output_format != "json" else None,
+        disable=output_format == "json",
+    ) as progress:
+        task = progress.add_task(f"Running {len(runs)} evaluations...", total=len(runs))
+
+        for run_spec in runs:
+            model_name = run_spec["model"]
+            provider_name = run_spec["provider"]
+            benchmark_name = run_spec.get("benchmark")
+
+            set_context(model=model_name)
+
+            if output_format != "json":
+                progress.update(task, description=f"{model_name} on {provider_name}...")
+
+            try:
+                provider = get_provider(provider_name)
+                benchmarks = [benchmark_name] if benchmark_name else None
+
+                result = run_evaluation(
+                    model=model_name,
+                    tier=tier,
+                    benchmarks=benchmarks,
+                    output_dir=output_dir,
+                    provider=provider,
+                )
+                result["provider"] = provider_name
+                all_results.append(result)
+            except Exception as e:
+                logger.error(
+                    "Matrix run failed",
+                    extra={"model": model_name, "provider": provider_name, "error": str(e)},
+                )
+                all_results.append({
+                    "model": model_name,
+                    "provider": provider_name,
+                    "tier": tier,
+                    "status": "error",
+                    "error": str(e),
+                })
+
+            progress.advance(task)
+
+    # Save summary
+    summary = {
+        "timestamp": timestamp,
+        "tier": tier,
+        "matrix_runs": len(runs),
+        "results": all_results,
+    }
+    summary_file = output_dir / "summary.json"
+    summary_file.write_text(json.dumps(summary, indent=2))
+
+    if output_format == "json":
+        console.print(json.dumps(summary, indent=2))
+    else:
+        console.print(f"\n[bold]MATRIX RESULTS[/bold]\n")
+
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Model", style="cyan")
+        table.add_column("Provider")
+        table.add_column("Score", justify="right")
+        table.add_column("Status", justify="center")
+
+        for result in sorted(all_results, key=lambda x: x.get("overall_score", 0), reverse=True):
+            score = result.get("overall_score", 0)
+            status = "[green]OK[/green]" if result.get("status") == "success" else "[red]ERR[/red]"
+            model_display = result["model"].replace("ollama/", "").replace("openai/", "")
+            table.add_row(model_display, result.get("provider", "?"), f"{score:.1%}", status)
+
+        console.print(table)
+        console.print(f"\n[dim]Results saved to: {output_dir}[/dim]")
 
 
 def main() -> None:
