@@ -141,6 +141,7 @@ matric-eval is a mission-critical component that validates LLM performance acros
 - IFEval (541 problems) - validate constraint checking
 - LiveCodeBench (1,055 problems, release_v6) - validate against livecodebench/code_generation
 - DS-1000 (1,000 problems) - validate against xlang-ai/DS-1000
+- MMLU (14,042 questions, 57 subjects) - validate against hendrycks/test
 - MTBench (80 questions) - validate multi-turn handling
 
 **Testing Approach**:
@@ -643,7 +644,7 @@ The Test Architect has succeeded when:
    - [ ] Recovery time <5 seconds
 
 4. **Benchmark Correctness**:
-   - [ ] All 8 public benchmarks validated
+   - [ ] All 9 public benchmarks validated
    - [ ] Results match reference implementations
    - [ ] Scoring logic verified
 

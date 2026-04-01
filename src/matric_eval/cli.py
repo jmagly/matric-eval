@@ -159,6 +159,7 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
         "ifeval": "IFEval - Instruction following (541 problems)",
         "ds1000": "DS-1000 - Data science tasks (1,000 problems)",
         "livecodebench": "LiveCodeBench - Competitive programming (1,055 problems, release_v6)",
+        "mmlu": "MMLU - Massive Multitask Language Understanding (14,042 problems, 57 subjects)",
         "mtbench": "MT-Bench - Multi-turn conversation (80 problems)",
         "tool_calling": "Tool Calling - Function invocation (6 scenarios)",
         "matric_cli": "Matric-CLI - Code generation & tool calling (12 scenarios)",

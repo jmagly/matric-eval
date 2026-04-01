@@ -40,6 +40,8 @@ from matric_eval.tasks.mbpp import (
     mbpp,
 )
 from matric_eval.tasks.mbpp import record_to_sample as mbpp_record_to_sample
+from matric_eval.tasks.mmlu import mmlu, load_mmlu, format_mmlu_prompt
+from matric_eval.tasks.mmlu import record_to_sample as mmlu_record_to_sample
 from matric_eval.tasks.mtbench import mtbench, load_mtbench
 from matric_eval.tasks.mtbench import record_to_sample as mtbench_record_to_sample
 from matric_eval.tasks.builtin import (
@@ -104,9 +106,13 @@ __all__ = [
     "load_ifeval",
     "load_livecodebench",
     "load_mbpp",
+    "load_mmlu",
     "load_mtbench",
     "mbpp",
     "mbpp_record_to_sample",
+    "mmlu",
+    "mmlu_record_to_sample",
+    "format_mmlu_prompt",
     "mtbench",
     "mtbench_record_to_sample",
     "smoke_gsm8k",

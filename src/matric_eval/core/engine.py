@@ -303,6 +303,7 @@ class EvaluationEngine:
         "ifeval": "matric_eval.tasks.ifeval.ifeval",
         "ds1000": "matric_eval.tasks.ds1000.ds1000",
         "livecodebench": "matric_eval.tasks.livecodebench.livecodebench",
+        "mmlu": "matric_eval.tasks.mmlu.mmlu",
         "mtbench": "matric_eval.tasks.mtbench.mtbench",
         "tool_calling": "matric_eval.tasks.tool_calling.tool_calling",
         # Application-specific benchmarks

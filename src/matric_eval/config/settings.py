@@ -21,6 +21,7 @@ class TierConfig(BaseSettings):
     ds1000: int = 0
     livecodebench: int = 0
     mtbench: int = 0
+    mmlu: int = 0
     tool_calling: int = 0
     custom: int = 0
     # Application-specific benchmarks
@@ -39,6 +40,7 @@ TIERS: dict[str, TierConfig] = {
         ds1000=5,
         livecodebench=5,
         mtbench=5,
+        mmlu=5,
         tool_calling=5,
         custom=5,
         matric_cli=6,
@@ -53,6 +55,7 @@ TIERS: dict[str, TierConfig] = {
         ds1000=50,
         livecodebench=50,
         mtbench=30,
+        mmlu=75,
         tool_calling=30,
         custom=50,
         matric_cli=12,
@@ -67,6 +70,7 @@ TIERS: dict[str, TierConfig] = {
         ds1000=1000,  # All
         livecodebench=1055,  # All (release_v6)
         mtbench=80,  # All
+        mmlu=14042,  # All (57 subjects)
         tool_calling=100,  # All synthetic
         custom=1000,  # All custom tests
         matric_cli=12,
@@ -129,6 +133,7 @@ class Settings(BaseSettings):
         default=None, description="Override LiveCodeBench samples"
     )
     mtbench_samples: int | None = Field(default=None, description="Override MTBench samples")
+    mmlu_samples: int | None = Field(default=None, description="Override MMLU samples")
 
     def get_tier_config(self, tier_name: str | None = None) -> TierConfig:
         """Get tier configuration by name."""

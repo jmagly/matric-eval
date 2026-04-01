@@ -54,6 +54,7 @@ Located at `/home/roctinam/data/evals/`:
 - ifeval/ (541 instruction following)
 - livecodebench/ (1,055 competitive programming, release_v6)
 - ds1000/ (1,000 data science)
+- mmlu/ (14,042 knowledge questions, 57 subjects)
 - mtbench/ (80 multi-turn questions)
 
 ### Key Issues Solved (Preserved from matric-cli)
@@ -180,7 +181,7 @@ Provider flow:
 
 ## Features
 
-- **9 Benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, DS-1000, LiveCodeBench, MT-Bench, Tool Calling
+- **10 Benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, DS-1000, LiveCodeBench, MMLU, MT-Bench, Tool Calling
 - **5 Providers**: Ollama, vLLM, llama.cpp, OpenRouter, Chutes
 - **Thinking Models**: Auto-detect and evaluate with thinking on/off modes
 - **Evaluation Matrix**: YAML-based multi-provider comparison (cartesian/explicit)

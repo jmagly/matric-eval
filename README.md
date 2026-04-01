@@ -9,7 +9,7 @@ v0.1.0 - Production-ready with 1400+ tests passing.
 ## Purpose
 
 Standardized benchmarking of LLM models across multiple inference providers:
-- **Public benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, LiveCodeBench, DS-1000, MT-Bench
+- **Public benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, LiveCodeBench, DS-1000, MMLU, MT-Bench
 - **Custom tests**: Application-specific evaluations for matric-cli and matric-memory
 - **Tool calling**: 6-scenario evaluation with correctness scoring
 - **LLM-as-Judge**: Multi-turn conversation and reasoning assessment

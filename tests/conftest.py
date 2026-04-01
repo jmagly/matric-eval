@@ -363,15 +363,17 @@ DATA_PATHS = {
     "livecodebench": "/home/roctinam/data/evals/livecodebench/livecodebench.jsonl",
     "ds1000": "/home/roctinam/data/evals/ds1000/ds1000.jsonl",
     "mtbench": "/home/roctinam/data/evals/mtbench/question.jsonl",
+    "mmlu": "/home/roctinam/data/evals/mmlu/data/test",
 }
 
 
 def has_data_file(benchmark: str) -> bool:
-    """Check if the benchmark's external data file exists."""
+    """Check if the benchmark's external data file or directory exists."""
     path = DATA_PATHS.get(benchmark)
     if path is None:
         return False
-    return Path(path).exists()
+    p = Path(path)
+    return p.exists() and (p.is_file() or (p.is_dir() and any(p.iterdir())))
 
 
 # Pre-compute availability flags for use in skipif conditions
@@ -383,6 +385,7 @@ IFEVAL_DATA_AVAILABLE = has_data_file("ifeval")
 LIVECODEBENCH_DATA_AVAILABLE = has_data_file("livecodebench")
 DS1000_DATA_AVAILABLE = has_data_file("ds1000")
 MTBENCH_DATA_AVAILABLE = has_data_file("mtbench")
+MMLU_DATA_AVAILABLE = has_data_file("mmlu")
 
 
 # Reusable skip decorators for tests requiring external data
@@ -409,4 +412,7 @@ requires_ds1000_data = pytest.mark.skipif(
 )
 requires_mtbench_data = pytest.mark.skipif(
     not MTBENCH_DATA_AVAILABLE, reason="MT-Bench dataset not available in CI"
+)
+requires_mmlu_data = pytest.mark.skipif(
+    not MMLU_DATA_AVAILABLE, reason="MMLU dataset not available in CI"
 )
