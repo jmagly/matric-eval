@@ -9,33 +9,33 @@ authors = [{ name = "matric team" }]
 keywords = ["llm", "evaluation", "ollama", "benchmark"]
 
 dependencies = [
-    "inspect-ai>=0.3.0",
-    "httpx>=0.27.0",
-    "openai>=1.0.0",
-    "click>=8.0.0",
-    "rich>=13.0.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
+    "inspect-ai>=0.3.203",
+    "httpx>=0.28.0",
+    "openai>=2.30.0",
+    "click>=8.2.0",
+    "rich>=14.0.0",
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.13.0",
     "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
-    "mypy>=1.8.0",
-    "ruff>=0.3.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.0",
+    "mypy>=1.20.0",
+    "ruff>=0.15.0",
 ]
 # Data science dependencies for DS-1000 benchmark
 ds1000 = [
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
-    "scipy>=1.10.0",
-    "matplotlib>=3.7.0",
-    "scikit-learn>=1.2.0",
-    "seaborn>=0.12.0",  # Required for some Matplotlib problems
+    "pandas>=3.0.0",
+    "numpy>=2.4.0",
+    "scipy>=1.17.0",
+    "matplotlib>=3.10.0",
+    "scikit-learn>=1.8.0",
+    "seaborn>=0.13.0",
 ]
 
 [project.scripts]

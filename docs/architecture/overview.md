@@ -1,15 +1,15 @@
 # Software Architecture Document (SAD)
 
 **Project**: matric-eval - Model Evaluation Framework
-**Version**: 1.0
-**Date**: 2026-01-24
-**Status**: Proposed
+**Version**: 2.0
+**Date**: 2026-04-01
+**Status**: Released
 
 ## 1. Architecture Overview
 
 ### 1.1 Purpose
 
-matric-eval is a consolidated model evaluation framework for the matric ecosystem. It provides standardized benchmarking of Ollama models using public benchmarks (HumanEval, MBPP, GSM8K, etc.) and custom application-specific tests.
+matric-eval is a consolidated model evaluation framework for the matric ecosystem. It provides standardized benchmarking of LLM models across multiple inference providers (Ollama, vLLM, llama.cpp, OpenRouter, Chutes) using public benchmarks (HumanEval, MBPP, GSM8K, etc.) and custom application-specific tests.
 
 ### 1.2 Goals
 
@@ -24,10 +24,9 @@ matric-eval is a consolidated model evaluation framework for the matric ecosyste
 
 ### 1.3 Non-Goals
 
-- Multi-GPU distributed evaluation (v1.0 is single-machine)
+- Multi-GPU distributed evaluation (v1.0 is single-machine; multi-GPU via vLLM server config)
 - Cloud-hosted evaluation service (local/CI only)
 - Web UI for results (CLI + JSON/Markdown reports)
-- Non-Ollama model providers (Ollama focus for matric ecosystem)
 - Model training or fine-tuning (evaluation only)
 
 ## 2. Component Architecture
@@ -35,47 +34,65 @@ matric-eval is a consolidated model evaluation framework for the matric ecosyste
 ### 2.1 High-Level Component Diagram
 
 ```
-+------------------------------------------------------------------+
-|                        matric-eval                                |
-+------------------------------------------------------------------+
-|                                                                   |
-|  +-------------------+    +-------------------+                   |
-|  |       CLI         |    |    State Manager  |                   |
-|  |  (cli.py)         |--->|  (state.py)       |                   |
-|  +-------------------+    +-------------------+                   |
-|          |                        |                               |
-|          v                        v                               |
-|  +-------------------+    +-------------------+                   |
-|  |   Orchestrator    |    |  Recovery Engine  |                   |
-|  |  (orchestrator.py)|--->|  (recovery.py)    |                   |
-|  +-------------------+    +-------------------+                   |
-|          |                                                        |
-|          v                                                        |
-|  +-------------------+    +-------------------+                   |
-|  |   Task Runner     |--->|   Inspect AI      |                   |
-|  |  (runner.py)      |    |   Framework       |                   |
-|  +-------------------+    +-------------------+                   |
-|          |                        |                               |
-|          v                        v                               |
-|  +-------------------+    +-------------------+                   |
-|  |     Scorers       |    |    Ollama API     |                   |
-|  |  (scorers/)       |    |  (localhost:11434)|                   |
-|  +-------------------+    +-------------------+                   |
-|          |                                                        |
-|          v                                                        |
-|  +-------------------+                                            |
-|  | Config Generator  |                                            |
-|  |  (config.py)      |                                            |
-|  +-------------------+                                            |
-|                                                                   |
-+------------------------------------------------------------------+
++------------------------------------------------------------------------+
+|                           matric-eval                                   |
++------------------------------------------------------------------------+
+|                                                                         |
+|  +-------------------+    +-------------------+                         |
+|  |       CLI         |    |    State Manager  |                         |
+|  |  (cli.py)         |--->|  (state/)         |                         |
+|  +-------------------+    +-------------------+                         |
+|          |                        |                                     |
+|          v                        v                                     |
+|  +-------------------+    +-------------------+                         |
+|  | EvaluationEngine  |    |  Recovery Engine  |                         |
+|  |  (core/engine.py) |--->|  (recovery.py)    |                         |
+|  +-------------------+    +-------------------+                         |
+|          |                                                              |
+|          v                                                              |
+|  +-------------------+    +-------------------+                         |
+|  | Provider Layer    |--->|   Inspect AI      |                         |
+|  |  (providers/)     |    |   Framework       |                         |
+|  +-------------------+    +-------------------+                         |
+|    |   |   |   |   |             |                                      |
+|    v   v   v   v   v             v                                      |
+|  +---+ +---+ +---+ +---+ +---+  +---+                                  |
+|  |Oll| |vLL| |lcp| |ORT| |Chu|  |Scr|                                  |
+|  |ama| |M  | |p  | |   | |tes|  |ers|                                  |
+|  +---+ +---+ +---+ +---+ +---+  +---+                                  |
+|                                                                         |
+|  +-------------------+    +-------------------+                         |
+|  |  Matrix Config    |    | Config Generator  |                         |
+|  |  (matrix.py)      |    |  (recommendation) |                         |
+|  +-------------------+    +-------------------+                         |
+|                                                                         |
++------------------------------------------------------------------------+
           |                         |
           v                         v
 +-------------------+    +-------------------+
 |  TypeScript       |    |    Rust           |
 |  Bindings (npm)   |    |  Bindings (crate) |
 +-------------------+    +-------------------+
+
+Provider Key: Oll=Ollama, vLLM=vLLM, lcp=llama.cpp, ORT=OpenRouter, Chu=Chutes
 ```
+
+#### 2.1.1 Provider Abstraction Layer
+
+The provider layer (`src/matric_eval/providers/`) abstracts inference backends behind a common `Provider` protocol:
+
+```python
+class Provider(Protocol):
+    name: str                    # e.g., "ollama", "vllm"
+    display_name: str            # e.g., "Ollama", "vLLM"
+    def is_available() -> bool
+    def list_models(max_size_gb) -> list[ModelInfo]
+    def get_model_info(model) -> ModelInfo
+    def format_model_id(model) -> str   # e.g., "ollama/llama3.2:3b"
+    def get_eval_kwargs(model) -> dict  # base_url, api_key, etc.
+```
+
+Providers are registered in a `ProviderRegistry` and accessed via `get_provider("name")`. The `EvaluationEngine` accepts an optional `provider` parameter; when omitted, it falls back to the legacy `ollama/` prefix behavior for backwards compatibility.
 
 ### 2.2 Component Descriptions
 

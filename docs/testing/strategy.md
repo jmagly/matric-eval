@@ -139,7 +139,7 @@ matric-eval is a mission-critical component that validates LLM performance acros
 - GSM8K (1,319 problems) - validate against openai/grade-school-math
 - ARC (1,172 problems) - validate against allenai/ARC
 - IFEval (541 problems) - validate constraint checking
-- LiveCodeBench (880 problems) - validate against livecodebench/code_generation
+- LiveCodeBench (1,055 problems, release_v6) - validate against livecodebench/code_generation
 - DS-1000 (1,000 problems) - validate against xlang-ai/DS-1000
 - MTBench (80 questions) - validate multi-turn handling
 
@@ -369,7 +369,7 @@ matric-eval is a mission-critical component that validates LLM performance acros
 - gsm8k (1,319 problems)
 - arc (1,172 problems)
 - ifeval (541 problems)
-- livecodebench (880 problems)
+- livecodebench (1,055 problems, release_v6)
 - ds1000 (1,000 problems)
 - mtbench (80 questions)
 

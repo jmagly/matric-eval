@@ -158,7 +158,7 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
         "arc": "ARC - AI2 Reasoning Challenge (1,172 problems)",
         "ifeval": "IFEval - Instruction following (541 problems)",
         "ds1000": "DS-1000 - Data science tasks (1,000 problems)",
-        "livecodebench": "LiveCodeBench - Competitive programming (880 problems)",
+        "livecodebench": "LiveCodeBench - Competitive programming (1,055 problems, release_v6)",
         "mtbench": "MT-Bench - Multi-turn conversation (80 problems)",
         "tool_calling": "Tool Calling - Function invocation (6 scenarios)",
         "matric_cli": "Matric-CLI - Code generation & tool calling (12 scenarios)",
@@ -251,7 +251,7 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     """
     matric-eval - Consolidated model evaluation framework.
 
-    Evaluate Ollama models using standardized benchmarks (HumanEval, MBPP, GSM8K).
+    Evaluate LLM models across multiple providers using standardized benchmarks.
     """
     # Store config in context for subcommands
     ctx.ensure_object(dict)
@@ -912,9 +912,9 @@ def list_benchmarks(tier: Optional[str], output_format: str):
                 }
                 for name, desc in benchmarks_info.items()
             }
-            console.print(json.dumps(output, indent=2))
+            click.echo(json.dumps(output, indent=2))
         else:
-            console.print(json.dumps(benchmarks_info, indent=2))
+            click.echo(json.dumps(benchmarks_info, indent=2))
     else:
         console.print("\n[bold]Available benchmarks:[/bold]\n")
 

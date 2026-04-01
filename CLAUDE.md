@@ -1,14 +1,17 @@
 # CLAUDE.md
 
+
+@AIWG.md
+
 This file provides guidance to Claude Code when working with this codebase.
 
 ## Repository Purpose
 
-Consolidated model evaluation framework for the matric ecosystem. Provides standardized benchmarking of Ollama models using public benchmarks (HumanEval, MBPP, GSM8K, etc.) and custom application-specific tests.
+Consolidated model evaluation framework for the matric ecosystem. Provides standardized benchmarking of LLM models across multiple inference providers (Ollama, vLLM, llama.cpp, OpenRouter, Chutes) using public benchmarks and custom application-specific tests.
 
 ## Project Status: Released (v0.1.0)
 
-The project is production-ready with 85% test coverage and 1106 tests passing.
+The project is production-ready with 80%+ test coverage and 1400+ tests passing.
 
 ## Key Context
 
@@ -29,6 +32,7 @@ Both solved similar problems independently. This consolidation:
 
 Why:
 - Native Ollama support (`ollama/llama3.2` syntax)
+- OpenAI-compatible API support (vLLM, llama.cpp, OpenRouter, Chutes)
 - 100+ pre-built evaluations
 - Agent/tool calling evaluation support
 - Active maintenance by UK government
@@ -48,7 +52,7 @@ Located at `/home/roctinam/data/evals/`:
 - gsm8k/ (1,319 math problems)
 - arc/ (1,172 reasoning problems)
 - ifeval/ (541 instruction following)
-- livecodebench/ (880 competitive programming)
+- livecodebench/ (1,055 competitive programming, release_v6)
 - ds1000/ (1,000 data science)
 - mtbench/ (80 multi-turn questions)
 
@@ -76,9 +80,11 @@ This session has access to:
 ```
 Python 3.11+
 uv (package management)
-Inspect AI (evaluation framework)
-pytest (testing)
-Click (CLI)
+Inspect AI >=0.3.203 (evaluation framework)
+pytest >=9.0 (testing)
+Click >=8.2 (CLI)
+Rich >=14.0 (terminal output)
+PyYAML (evaluation matrix configs)
 ```
 
 ### Commands
@@ -93,8 +99,18 @@ uv run pytest tests/ -q
 # Run tests with coverage
 uv run pytest tests/ --cov=src/matric_eval --cov-fail-under=80
 
-# Run smoke tests against a model
+# Run smoke tests against a model (default: Ollama)
 uv run matric-eval run --tier smoke --model llama3.2:3b
+
+# Run with a different provider
+uv run matric-eval run --provider vllm --model meta-llama/Llama-3.2-3B --tier smoke
+uv run matric-eval run --provider openrouter --api-key $KEY --model anthropic/claude-3.5-sonnet
+
+# Run multi-provider matrix evaluation
+uv run matric-eval run --matrix eval-matrix.yaml
+
+# List available providers
+uv run matric-eval list-providers --check-availability
 
 # List available benchmarks
 uv run matric-eval list-benchmarks
@@ -120,19 +136,29 @@ cd bindings/typescript && npm run build
 ```
 matric-eval/
 ├── src/matric_eval/        # Python core
-│   ├── cli.py              # Click CLI (5 commands)
-│   ├── config.py           # Configuration
+│   ├── cli.py              # Click CLI (6 commands)
+│   ├── config.py           # Configuration and tier definitions
 │   ├── datasets.py         # Dataset loading
 │   ├── logging.py          # Structured logging
 │   ├── parallel.py         # Concurrent execution
 │   ├── recommendation.py   # Model recommendations
-│   ├── config/             # Tier configurations
-│   ├── core/               # Evaluation engine
+│   ├── config/             # Pydantic settings
+│   ├── core/               # EvaluationEngine (multi-provider)
+│   ├── models/             # Model detection (thinking capabilities)
+│   ├── providers/          # Provider abstraction layer
+│   │   ├── base.py         # Provider protocol and types
+│   │   ├── registry.py     # Provider registry
+│   │   ├── matrix.py       # Evaluation matrix DSL
+│   │   ├── ollama.py       # Ollama provider
+│   │   ├── llamacpp.py     # llama.cpp provider
+│   │   ├── vllm.py         # vLLM provider
+│   │   ├── openrouter.py   # OpenRouter provider
+│   │   └── chutes.py       # Chutes provider
 │   ├── scorers/            # Scoring (code exec, LLM judge, multidimensional)
 │   ├── state/              # Checkpoint/resume manager
 │   ├── tasks/              # All benchmark tasks
 │   └── utils/              # Helper utilities
-├── tests/                  # pytest test suite (1106 tests)
+├── tests/                  # pytest test suite (1400+ tests)
 ├── bindings/               # Language integrations
 │   └── typescript/         # @matric/eval-client for matric-cli
 └── .github/workflows/      # CI/CD pipeline
@@ -141,16 +167,23 @@ matric-eval/
 ## Evaluation Flow
 
 ```
-1. DISCOVER → Query Ollama for available models
-2. PUBLIC   → Run HumanEval, MBPP, GSM8K, etc.
+1. DISCOVER → Query provider for available models
+2. PUBLIC   → Run HumanEval, MBPP, GSM8K, etc. via Inspect AI
 3. RANK     → Filter top N per capability
 4. CUSTOM   → Run app-specific tests on top performers
 5. CONFIG   → Generate model recommendations
+
+Provider flow:
+  CLI → EvaluationEngine → Provider.format_model_id() → Inspect AI eval()
+                         → Provider.get_eval_kwargs()  → (base_url, api_key, etc.)
 ```
 
 ## Features
 
-- **8 Benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, DS-1000, LiveCodeBench, MT-Bench
+- **9 Benchmarks**: HumanEval, MBPP, GSM8K, ARC, IFEval, DS-1000, LiveCodeBench, MT-Bench, Tool Calling
+- **5 Providers**: Ollama, vLLM, llama.cpp, OpenRouter, Chutes
+- **Thinking Models**: Auto-detect and evaluate with thinking on/off modes
+- **Evaluation Matrix**: YAML-based multi-provider comparison (cartesian/explicit)
 - **Tool Calling**: 6-scenario evaluation with correctness scoring
 - **LLM-as-Judge**: Multi-turn conversation assessment
 - **Checkpoint/Resume**: Fault-tolerant with StateManager
