@@ -4,7 +4,7 @@ Consolidated model evaluation framework for the matric ecosystem.
 
 ## Status
 
-v0.1.0 - Production-ready with 1400+ tests passing.
+v0.1.0 - Production-ready with 1500+ tests passing.
 
 ## Purpose
 
@@ -97,6 +97,7 @@ matric-eval validate --results-dir ./results
 | IFEval | Instruction Following | 541 | Constraint checking |
 | LiveCodeBench | Competitive Programming | 1,055 | Contest problems (release_v6) |
 | DS-1000 | Data Science | 1,000 | Pandas/NumPy tasks |
+| MMLU | Knowledge | 14,042 | Multiple choice questions (57 subjects) |
 | MT-Bench | Multi-turn | 80 | Conversation quality |
 | Tool Calling | Agentic | 6 | Function invocation |
 
@@ -160,16 +161,45 @@ const results = await client.run({ tier: 'smoke', models: ['llama3.2:3b'] });
 const recommendations = await client.recommend({ resultsDir: './results' });
 ```
 
+## External Datasets
+
+Drop any git repo or directory into `datasets/` and it's auto-discovered as a benchmark:
+
+```bash
+# Clone a dataset repo
+git clone https://example.com/my-eval-data.git datasets/my-eval
+
+# Or add as submodule
+git submodule add https://example.com/my-eval-data.git datasets/my-eval
+
+# It just works
+matric-eval list-benchmarks          # shows "my-eval"
+matric-eval run --benchmark my-eval --tier smoke --model llama3.2:3b
+```
+
+Zero config for JSONL files with `input`/`target` fields. For more control, add a `dataset.yaml`:
+
+```yaml
+name: my-benchmark
+description: Domain-specific evaluation
+scorer: match
+tiers: { smoke: 5, quick: 50, full: 0 }
+field_mapping: { input: question, target: answer }
+```
+
+Configure dataset root: `EVAL_DATASETS_DIR=/path/to/datasets`
+
 ## Features
 
 - **Multi-Provider**: Evaluate across Ollama, vLLM, llama.cpp, OpenRouter, Chutes
+- **External Datasets**: Auto-discover datasets from git clones/submodules with zero config
 - **Thinking Models**: Extended reasoning support with auto-detection
 - **Checkpoint/Resume**: Fault-tolerant evaluation with automatic recovery
 - **Evaluation Matrix**: YAML-based multi-provider comparison runs
 - **Parallel Execution**: Concurrent model evaluation
 - **Structured Logging**: JSON logs for observability
 - **Model Recommendations**: Capability-based model selection
-- **1400+ Tests**: Comprehensive test suite with 80%+ coverage
+- **1500+ Tests**: Comprehensive test suite with 80%+ coverage
 
 ## Documentation
 

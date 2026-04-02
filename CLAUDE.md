@@ -11,7 +11,7 @@ Consolidated model evaluation framework for the matric ecosystem. Provides stand
 
 ## Project Status: Released (v0.1.0)
 
-The project is production-ready with 80%+ test coverage and 1400+ tests passing.
+The project is production-ready with 80%+ test coverage and 1500+ tests passing.
 
 ## Key Context
 
@@ -145,6 +145,7 @@ matric-eval/
 │   ├── recommendation.py   # Model recommendations
 │   ├── config/             # Pydantic settings
 │   ├── core/               # EvaluationEngine (multi-provider)
+│   ├── discovery.py        # External dataset auto-discovery
 │   ├── models/             # Model detection (thinking capabilities)
 │   ├── providers/          # Provider abstraction layer
 │   │   ├── base.py         # Provider protocol and types
@@ -159,7 +160,7 @@ matric-eval/
 │   ├── state/              # Checkpoint/resume manager
 │   ├── tasks/              # All benchmark tasks
 │   └── utils/              # Helper utilities
-├── tests/                  # pytest test suite (1400+ tests)
+├── tests/                  # pytest test suite (1500+ tests)
 ├── bindings/               # Language integrations
 │   └── typescript/         # @matric/eval-client for matric-cli
 └── .github/workflows/      # CI/CD pipeline
@@ -190,6 +191,7 @@ Provider flow:
 - **Checkpoint/Resume**: Fault-tolerant with StateManager
 - **Parallel Execution**: Concurrent model evaluation
 - **Model Recommendations**: Capability-based selection
+- **External Datasets**: Auto-discover datasets from git clones/submodules (zero config)
 - **TypeScript Bindings**: Integration for matric-cli
 
 ## Documentation

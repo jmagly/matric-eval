@@ -251,28 +251,27 @@ matric-eval/
 │       ├── recovery.py         # Error handling
 │       ├── runner.py           # Task execution
 │       ├── config.py           # Config recommendation
+│       ├── discovery.py        # External dataset auto-discovery
 │       ├── tasks/              # Benchmark task definitions
 │       │   ├── humaneval.py
 │       │   ├── mbpp.py
 │       │   ├── gsm8k.py
-│       │   └── ...
-│       ├── solvers/            # Custom solving strategies
-│       │   ├── code_extraction.py
-│       │   └── markdown_handling.py
+│       │   ├── mmlu.py
+│       │   └── ...             # arc, ifeval, ds1000, livecodebench,
+│       │                       # mtbench, tool_calling, matric_cli,
+│       │                       # matric_memory, custom, builtin
 │       └── scorers/            # Scoring logic
 │           ├── code_execution.py
-│           ├── string_match.py
-│           └── semantic.py
+│           ├── llm_judge.py
+│           └── multidimensional.py
 │
 ├── datasets/                   # JSONL test data
-│   ├── public/                 # Symlinks to /home/roctinam/data/evals/
-│   └── custom/                 # App-specific tests
-│       ├── cli/
-│       │   ├── tool_calling.jsonl
-│       │   └── agent_scenarios.jsonl
-│       └── memory/
-│           ├── title_generation.jsonl
-│           └── semantic_similarity.jsonl
+│   ├── custom/                 # App-specific tests
+│   │   ├── matric-cli/
+│   │   └── matric-memory/
+│   └── <external>/             # Auto-discovered external datasets
+│       ├── dataset.yaml        # Optional manifest
+│       └── data.jsonl          # JSONL with input/target fields
 │
 ├── bindings/                   # Language integrations
 │   ├── typescript/             # npm package

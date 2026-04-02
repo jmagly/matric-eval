@@ -3,7 +3,7 @@
 **Document ID**: REQ-VIS-001
 **Version**: 1.0
 **Date**: 2026-01-24
-**Status**: Planning Phase
+**Status**: Released (v0.1.0)
 
 ## Executive Summary
 
@@ -98,7 +98,7 @@ This project supports the matric ecosystem's goals:
 | Metric | Target | Measurement Method | Priority |
 |--------|--------|-------------------|----------|
 | Code Consolidation | 100% of eval code removed from matric-cli and matric-memory | LOC reduction in source repos | Critical |
-| Benchmark Coverage | 8+ public benchmarks supported | Count of implemented tasks | Critical |
+| Benchmark Coverage | 10+ public benchmarks supported | Count of implemented tasks | Critical |
 | Custom Test Migration | 282 matric tests successfully ported | Test execution success rate | High |
 | Smoke Test Speed | <5 minutes for tier=smoke | CI/CD execution time | High |
 | Quick Test Speed | <30 minutes for tier=quick | Benchmark execution time | High |
@@ -249,12 +249,13 @@ This project supports the matric ecosystem's goals:
 
 | In Scope | Out of Scope |
 |----------|--------------|
-| Evaluating Ollama models | Evaluating OpenAI/Anthropic APIs |
+| Evaluating models via Ollama, vLLM, llama.cpp, OpenRouter, Chutes | Model training or fine-tuning |
 | Code execution in sandbox | Production code deployment |
-| Scoring and metrics | Model training |
+| Scoring and metrics | Real-time inference serving |
 | Language bindings | Full SDKs with advanced features |
 | JSON configuration output | Interactive configuration UI |
-| CI/CD smoke tests | Continuous model monitoring |
+| External dataset auto-discovery | Continuous model monitoring |
+| CI/CD smoke tests | Commercial leaderboard hosting |
 
 ## Assumptions
 

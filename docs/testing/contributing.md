@@ -22,10 +22,9 @@ make test-unit
 
 ### Statistics
 
-- **Total Tests**: 175
-- **Test Files**: 14 Python files
-- **Total Lines**: 2,792 lines of test code
-- **Fixtures**: 24 reusable fixtures
+- **Total Tests**: 1,500+
+- **Test Files**: 25+ Python files
+- **Fixtures**: 24+ reusable fixtures
 - **Factories**: 3 factory classes
 - **Coverage Target**: 80% minimum
 
@@ -113,7 +112,7 @@ Tests are organized using pytest markers:
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| Unit Tests | 165+ | Fast, isolated component tests |
+| Unit Tests | 1,500+ | Fast, isolated component tests |
 | Integration Tests | 8 | Tests with Ollama/external services |
 | Smoke Tests | Subset | Quick validation tests |
 
@@ -439,10 +438,13 @@ Some tests in `test_config.py` demonstrate module-level import behavior:
 
 | Module | Tests | Coverage Goal |
 |--------|-------|--------------|
-| cli.py | 19 | 85% |
-| config.py | 29 | 90% |
-| datasets.py | 26 | 85% |
-| tasks/smoke.py | 62 | 90% |
+| cli.py | 50+ | 85% |
+| config.py | 50+ | 90% |
+| datasets.py | 30+ | 85% |
+| tasks/ (all benchmarks) | 800+ | 90% |
+| discovery.py | 58 | 90% |
+| scorers/ | 100+ | 85% |
+| providers/ | 80+ | 85% |
 | Integration | 8 | N/A |
 
 ## Dependencies
