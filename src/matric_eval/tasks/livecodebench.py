@@ -20,6 +20,7 @@ from inspect_ai.solver import generate, system_message
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.prompts import get_prompt
 from matric_eval.scorers.io_execution import io_execution_scorer
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to LiveCodeBench dataset
 LIVECODEBENCH_PATH = "/home/roctinam/data/evals/livecodebench/livecodebench.jsonl"
@@ -182,6 +183,13 @@ def load_livecodebench(tier: str = "smoke") -> list[Sample]:
     return sampled
 
 
+@register_benchmark(
+    name="livecodebench",
+    description="LiveCodeBench - Competitive programming (1,055 problems, release_v6)",
+    category="code",
+    tier_samples={"smoke": 5, "quick": 50, "full": 1055},
+    total_samples=1055,
+)
 @task
 def livecodebench(tier: str = "smoke", thinking: bool = True) -> Task:
     """

@@ -19,6 +19,7 @@ from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.scorers import llm_judge_scorer
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to MT-Bench dataset
 MTBENCH_PATH = "/home/roctinam/data/evals/mtbench/question.jsonl"
@@ -105,6 +106,13 @@ def load_mtbench(tier: str = "smoke") -> list[Sample]:
     return sampled
 
 
+@register_benchmark(
+    name="mtbench",
+    description="MT-Bench - Multi-turn conversation (80 problems)",
+    category="conversation",
+    tier_samples={"smoke": 5, "quick": 30, "full": 80},
+    total_samples=80,
+)
 @task
 def mtbench(tier: str = "smoke", judge_model: str = "ollama/llama3.2:3b") -> Task:
     """

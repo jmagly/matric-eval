@@ -18,6 +18,7 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to MMLU test dataset directory
 MMLU_TEST_PATH = "/home/roctinam/data/evals/mmlu/data/test"
@@ -195,6 +196,13 @@ def load_mmlu(tier: str = "smoke") -> list[Sample]:
     return sampled
 
 
+@register_benchmark(
+    name="mmlu",
+    description="MMLU - Massive Multitask Language Understanding (14,042 problems, 57 subjects)",
+    category="knowledge",
+    tier_samples={"smoke": 5, "quick": 75, "full": 14042},
+    total_samples=14042,
+)
 @task
 def mmlu(tier: str = "smoke") -> Task:
     """

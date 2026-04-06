@@ -526,11 +526,14 @@ class TestMmluConfig:
         from matric_eval.config.settings import TIERS
         assert TIERS["full"].mmlu == 14042
 
-    def test_mmlu_in_task_map(self) -> None:
-        """MMLU should be in EvaluationEngine.TASK_MAP."""
-        from matric_eval.core.engine import EvaluationEngine
-        assert "mmlu" in EvaluationEngine.TASK_MAP
-        assert EvaluationEngine.TASK_MAP["mmlu"] == "matric_eval.tasks.mmlu.mmlu"
+    def test_mmlu_in_registry(self) -> None:
+        """MMLU should be registered in the task registry."""
+        from matric_eval.tasks.registry import get_registry
+        registry = get_registry()
+        assert "mmlu" in registry
+        meta = registry.get("mmlu")
+        assert meta is not None
+        assert meta.module_path == "matric_eval.tasks.mmlu.mmlu"
 
     def test_mmlu_in_available_benchmarks(self) -> None:
         """MMLU should be listed in available benchmarks."""

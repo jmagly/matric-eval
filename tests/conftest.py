@@ -341,6 +341,20 @@ def sample_summary_json(tmp_results_dir: Path) -> Path:
 
 
 @pytest.fixture
+def isolated_registry(monkeypatch: pytest.MonkeyPatch):
+    """Provide an isolated TaskRegistry that doesn't pollute the global singleton.
+
+    Use this in any test that registers benchmarks to avoid cross-test contamination.
+    """
+    from matric_eval.tasks.registry import TaskRegistry
+    import matric_eval.tasks.registry as registry_module
+
+    fresh = TaskRegistry()
+    monkeypatch.setattr(registry_module, "_registry", fresh)
+    return fresh
+
+
+@pytest.fixture
 def create_mock_dataset():
     """Factory fixture for creating mock datasets."""
     def _create(samples: list[Sample], name: str = "test_dataset"):

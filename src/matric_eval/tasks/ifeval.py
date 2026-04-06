@@ -23,6 +23,7 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState, generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to IFEval dataset
 IFEVAL_PATH = "/home/roctinam/data/evals/ifeval/input_data.jsonl"
@@ -606,6 +607,13 @@ def ifeval_scorer() -> Scorer:
 # =============================================================================
 
 
+@register_benchmark(
+    name="ifeval",
+    description="IFEval - Instruction following (541 problems)",
+    category="instruction",
+    tier_samples={"smoke": 10, "quick": 100, "full": 541},
+    total_samples=541,
+)
 @task
 def ifeval(tier: str = "smoke") -> Task:
     """

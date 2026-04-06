@@ -686,9 +686,9 @@ class TestEngineIntegration:
     """Tests that EvaluationEngine can load external tasks."""
 
     def test_builtin_takes_priority(self) -> None:
-        """Builtin benchmarks should always take priority."""
-        from matric_eval.core.engine import EvaluationEngine
-        assert "humaneval" in EvaluationEngine.TASK_MAP
+        """Builtin benchmarks should always be in the task registry."""
+        from matric_eval.tasks.registry import get_registry
+        assert "humaneval" in get_registry()
 
     def test_load_external_task(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Engine should load external tasks not in TASK_MAP."""

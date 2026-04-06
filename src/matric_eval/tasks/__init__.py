@@ -1,5 +1,13 @@
 """Benchmark task definitions."""
 
+from matric_eval.tasks.registry import (  # noqa: F401 — registry must be importable
+    BenchmarkCategory,
+    BenchmarkMetadata,
+    TaskRegistry,
+    get_registry,
+    register_benchmark,
+)
+
 from matric_eval.tasks.arc import arc, format_arc_prompt, load_arc
 from matric_eval.tasks.custom import (
     CustomTestMetadata,
@@ -75,6 +83,13 @@ from matric_eval.tasks.matric_memory import (
 )
 
 __all__ = [
+    # Registry
+    "BenchmarkCategory",
+    "BenchmarkMetadata",
+    "TaskRegistry",
+    "get_registry",
+    "register_benchmark",
+    # Benchmarks
     "arc",
     "check_constraint",
     "custom_task",

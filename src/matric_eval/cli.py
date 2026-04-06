@@ -143,7 +143,7 @@ def filter_models(models: list[dict], exclude_patterns: list[str] | None = None)
 
 def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dict[str, str]:
     """
-    Get list of available benchmarks.
+    Get list of available benchmarks from the task registry.
 
     Args:
         with_descriptions: If True, return dict mapping names to descriptions
@@ -151,27 +151,20 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
     Returns:
         List of benchmark names or dict with descriptions
     """
-    benchmarks_info = {
-        "humaneval": "HumanEval - Python code generation (164 problems)",
-        "mbpp": "MBPP - Mostly Basic Python Problems (974 problems)",
-        "gsm8k": "GSM8K - Grade school math problems (1,319 problems)",
-        "arc": "ARC - AI2 Reasoning Challenge (1,172 problems)",
-        "ifeval": "IFEval - Instruction following (541 problems)",
-        "ds1000": "DS-1000 - Data science tasks (1,000 problems)",
-        "livecodebench": "LiveCodeBench - Competitive programming (1,055 problems, release_v6)",
-        "mmlu": "MMLU - Massive Multitask Language Understanding (14,042 problems, 57 subjects)",
-        "mtbench": "MT-Bench - Multi-turn conversation (80 problems)",
-        "tool_calling": "Tool Calling - Function invocation (6 scenarios)",
-        "matric_cli": "Matric-CLI - Code generation & tool calling (12 scenarios)",
-        "matric_memory": "Matric-Memory - Title generation & semantics (30 cases)",
-    }
+    # Ensure all task modules are imported (triggers @register_benchmark decorators)
+    import matric_eval.tasks  # noqa: F401
+
+    from matric_eval.tasks.registry import get_registry
+
+    registry = get_registry()
+    benchmarks_info = registry.get_descriptions()
 
     # Discover external datasets
     try:
         from matric_eval.discovery import get_external_datasets
 
         for name, dataset in get_external_datasets().items():
-            if name not in benchmarks_info:  # Builtins take priority
+            if name not in benchmarks_info:  # Registered benchmarks take priority
                 display_name = dataset.manifest.name or name
                 desc = (
                     dataset.manifest.description

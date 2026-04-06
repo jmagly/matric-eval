@@ -20,6 +20,7 @@ from inspect_ai.solver import generate, system_message
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.prompts import get_prompt
 from matric_eval.scorers.ds1000_scorer import ds1000_scorer
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to DS-1000 dataset
 DS1000_PATH = "/home/roctinam/data/evals/ds1000/ds1000.jsonl"
@@ -122,6 +123,13 @@ def load_ds1000(tier: str = "smoke") -> list[Sample]:
     return sampled
 
 
+@register_benchmark(
+    name="ds1000",
+    description="DS-1000 - Data science tasks (1,000 problems)",
+    category="data_science",
+    tier_samples={"smoke": 5, "quick": 50, "full": 1000},
+    total_samples=1000,
+)
 @task
 def ds1000(tier: str = "smoke", thinking: bool = True) -> Task:
     """

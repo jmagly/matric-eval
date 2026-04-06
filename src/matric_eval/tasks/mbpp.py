@@ -23,6 +23,7 @@ from inspect_ai.solver import generate, system_message
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.prompts import get_prompt
 from matric_eval.scorers.code_execution import code_execution_scorer
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to MBPP dataset
 MBPP_PATH = "/home/roctinam/data/evals/mbpp/mbpp.jsonl"
@@ -203,6 +204,13 @@ def load_mbpp(tier: str = "smoke") -> list[Sample]:
     return sampled
 
 
+@register_benchmark(
+    name="mbpp",
+    description="MBPP - Mostly Basic Python Problems (974 problems)",
+    category="code",
+    tier_samples={"smoke": 5, "quick": 75, "full": 974},
+    total_samples=974,
+)
 @task
 def mbpp(tier: str = "smoke", thinking: bool = True) -> Task:
     """

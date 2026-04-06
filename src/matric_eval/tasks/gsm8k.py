@@ -19,6 +19,7 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState, generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to GSM8K dataset
 GSM8K_PATH = "/home/roctinam/data/evals/gsm8k/test.jsonl"
@@ -243,6 +244,13 @@ def gsm8k_scorer() -> Scorer:
     return score
 
 
+@register_benchmark(
+    name="gsm8k",
+    description="GSM8K - Grade school math problems (1,319 problems)",
+    category="math",
+    tier_samples={"smoke": 5, "quick": 75, "full": 1319},
+    total_samples=1319,
+)
 @task
 def gsm8k(tier: str = "smoke") -> Task:
     """

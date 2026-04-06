@@ -18,6 +18,7 @@ from inspect_ai.scorer import Scorer, Score, Target, mean, scorer
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to tool calling dataset (BFCL-style format)
 TOOL_CALLING_PATH = Path("/home/roctinam/data/evals/bfcl/tool_calling.jsonl")
@@ -624,6 +625,13 @@ def tool_call_scorer() -> Scorer:
     return score
 
 
+@register_benchmark(
+    name="tool_calling",
+    description="Tool Calling - Function invocation (6 scenarios)",
+    category="tool_use",
+    tier_samples={"smoke": 5, "quick": 30, "full": 100},
+    total_samples=100,
+)
 @task
 def tool_calling(
     tier: str = "smoke",

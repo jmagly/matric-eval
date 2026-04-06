@@ -16,6 +16,7 @@ from inspect_ai.scorer import Score, Target, accuracy, scorer
 from inspect_ai.solver import generate
 
 from matric_eval.config import get_sample_count
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to test data
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_memory" / "data"
@@ -195,6 +196,13 @@ def title_quality_scorer():
     return score
 
 
+@register_benchmark(
+    name="matric_memory",
+    description="Matric-Memory - Title generation & semantics (30 cases)",
+    category="application",
+    tier_samples={"smoke": 10, "quick": 20, "full": 30},
+    total_samples=30,
+)
 @task
 def matric_memory(tier: str = "smoke") -> Task:
     """

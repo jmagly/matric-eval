@@ -16,6 +16,7 @@ from inspect_ai.scorer import Score, Target, accuracy, scorer
 from inspect_ai.solver import generate
 
 from matric_eval.config import get_sample_count
+from matric_eval.tasks.registry import register_benchmark
 
 # Path to test data
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_cli" / "data"
@@ -158,6 +159,13 @@ def matric_cli_scorer():
     return score
 
 
+@register_benchmark(
+    name="matric_cli",
+    description="Matric-CLI - Code generation & tool calling (12 scenarios)",
+    category="application",
+    tier_samples={"smoke": 6, "quick": 12, "full": 12},
+    total_samples=12,
+)
 @task
 def matric_cli(tier: str = "smoke") -> Task:
     """

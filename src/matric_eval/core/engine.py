@@ -294,26 +294,79 @@ class EvaluationEngine:
 
         return results
 
-    # Map benchmark names to (module_path, function_name) for tier-aware loaders
-    TASK_MAP: dict[str, str] = {
-        "humaneval": "matric_eval.tasks.humaneval.humaneval",
-        "mbpp": "matric_eval.tasks.mbpp.mbpp",
-        "gsm8k": "matric_eval.tasks.gsm8k.gsm8k",
-        "arc": "matric_eval.tasks.arc.arc",
-        "ifeval": "matric_eval.tasks.ifeval.ifeval",
-        "ds1000": "matric_eval.tasks.ds1000.ds1000",
-        "livecodebench": "matric_eval.tasks.livecodebench.livecodebench",
-        "mmlu": "matric_eval.tasks.mmlu.mmlu",
-        "mtbench": "matric_eval.tasks.mtbench.mtbench",
-        "tool_calling": "matric_eval.tasks.tool_calling.tool_calling",
-        # Application-specific benchmarks
-        "matric_cli": "matric_eval.tasks.matric_cli.matric_cli",
-        "matric_memory": "matric_eval.tasks.matric_memory.matric_memory",
-    }
+    def run_pass_k_benchmark(
+        self,
+        benchmark: str,
+        k: int = 3,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run a benchmark k times and aggregate with pass^k scoring.
+
+        Each of the k runs uses the same base random seed per NFR-REPRO-003,
+        ensuring reproducible sampling across runs. The final score uses
+        pass_power_k semantics: the benchmark is considered solved only if
+        all k runs succeed.
+
+        Args:
+            benchmark: Benchmark name (e.g., "humaneval", "mbpp")
+            k: Number of independent runs (default: 3)
+            **kwargs: Additional arguments forwarded to run_benchmark()
+
+        Returns:
+            Dictionary containing:
+            - benchmark: Benchmark name
+            - model: Model identifier
+            - tier: Evaluation tier
+            - k: Number of runs performed
+            - pass_power_k: 1.0 if all k runs passed, 0.0 otherwise
+            - run_results: List of individual run result dicts
+            - pass_rate: Fraction of runs that succeeded (c/k)
+            - status: "success" if all runs completed, "partial" if some failed
+              to execute (not benchmark failure), "error" if none completed
+        """
+        from matric_eval.scorers.pass_k import pass_power_k
+
+        # Base seed for reproducibility (NFR-REPRO-003)
+        base_seed = 42
+
+        run_results: list[dict[str, Any]] = []
+        run_pass_flags: list[bool] = []
+
+        for i in range(k):
+            # Each run uses the same seed for reproducible sampling
+            run_kwargs = {"seed": base_seed, **kwargs}
+            result = self.run_benchmark(benchmark, **run_kwargs)
+            run_results.append(result)
+
+            # A run "passes" if it succeeded and scored > 0
+            passed = result.get("status") == "success" and result.get("score", 0.0) > 0
+            run_pass_flags.append(passed)
+
+        successful_runs = [r for r in run_results if r.get("status") == "success"]
+
+        if len(successful_runs) == k:
+            exec_status = "success"
+        elif successful_runs:
+            exec_status = "partial"
+        else:
+            exec_status = "error"
+
+        pass_rate = sum(1 for f in run_pass_flags if f) / k if k > 0 else 0.0
+
+        return {
+            "benchmark": benchmark,
+            "model": self.model,
+            "tier": self.tier,
+            "k": k,
+            "pass_power_k": pass_power_k(run_pass_flags),
+            "run_results": run_results,
+            "pass_rate": pass_rate,
+            "status": exec_status,
+        }
 
     def _load_task(self, benchmark: str) -> Task:
         """
-        Dynamically load a tier-aware task from matric_eval.tasks module,
+        Dynamically load a tier-aware task from the task registry,
         falling back to external dataset discovery.
 
         Each task function accepts a ``tier`` parameter and returns a Task with
@@ -328,16 +381,13 @@ class EvaluationEngine:
         Raises:
             ValueError: If benchmark is not found
         """
-        # Check builtin tasks first
-        if benchmark in self.TASK_MAP:
-            module_path = self.TASK_MAP[benchmark]
-            module_name, task_name = module_path.rsplit(".", 1)
+        from matric_eval.tasks.registry import get_registry
 
-            import importlib
-            module = importlib.import_module(module_name)
-            task_fn = getattr(module, task_name)
+        registry = get_registry()
 
-            return task_fn(tier=self.tier)
+        # Check registered benchmarks first
+        if benchmark in registry:
+            return registry.load_task(benchmark, tier=self.tier)
 
         # Fallback: check external dataset registry
         from matric_eval.discovery import (
@@ -351,7 +401,7 @@ class EvaluationEngine:
             return create_external_task(dataset, tier=self.tier)
 
         # Not found
-        available = list(self.TASK_MAP.keys())
+        available = registry.list_names()
         external = list(get_external_datasets().keys())
         if external:
             available.extend(external)
