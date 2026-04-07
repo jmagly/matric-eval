@@ -82,6 +82,25 @@ from matric_eval.tasks.matric_memory import (
     title_quality_scorer,
 )
 
+# Benchmark expansion (issues #38-49)
+from matric_eval.tasks.swebench.verified import swebench_verified
+from matric_eval.tasks.swebench.pro import swebench_pro
+from matric_eval.tasks.swebench.multilingual import swebench_multilingual
+from matric_eval.tasks.swebench.factory import (
+    create_swebench_task,
+    swebench_record_to_sample,
+)
+from matric_eval.tasks.terminalbench import terminalbench, load_terminalbench
+from matric_eval.tasks.nl2repo import nl2repo, load_nl2repo
+from matric_eval.tasks.claweval import claweval, load_claweval
+from matric_eval.tasks.qwenclawbench import qwenclawbench, load_qwenclawbench
+from matric_eval.tasks.qwenwebbench import qwenwebbench, load_qwenwebbench
+from matric_eval.tasks.mmmu import mmmu as mmmu_task
+from matric_eval.tasks.mmmu import load_mmmu
+from matric_eval.tasks.realworldqa import realworldqa, load_realworldqa
+from matric_eval.tasks.omnidocbench import omnidocbench, load_omnidocbench
+from matric_eval.tasks.videomme import videomme, load_videomme
+
 __all__ = [
     # Registry
     "BenchmarkCategory",
@@ -150,4 +169,28 @@ __all__ = [
     "load_matric_memory",
     "matric_memory",
     "title_quality_scorer",
+    # Benchmark expansion
+    "swebench_verified",
+    "swebench_pro",
+    "swebench_multilingual",
+    "create_swebench_task",
+    "swebench_record_to_sample",
+    "terminalbench",
+    "load_terminalbench",
+    "nl2repo",
+    "load_nl2repo",
+    "claweval",
+    "load_claweval",
+    "qwenclawbench",
+    "load_qwenclawbench",
+    "qwenwebbench",
+    "load_qwenwebbench",
+    "mmmu_task",
+    "load_mmmu",
+    "realworldqa",
+    "load_realworldqa",
+    "omnidocbench",
+    "load_omnidocbench",
+    "videomme",
+    "load_videomme",
 ]

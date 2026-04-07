@@ -430,3 +430,20 @@ requires_mtbench_data = pytest.mark.skipif(
 requires_mmlu_data = pytest.mark.skipif(
     not MMLU_DATA_AVAILABLE, reason="MMLU dataset not available in CI"
 )
+
+
+# =============================================================================
+# Infrastructure Skip Markers (3-tier CI — issue #50)
+# =============================================================================
+
+import shutil
+
+DOCKER_AVAILABLE = shutil.which("docker") is not None
+FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
+
+requires_docker = pytest.mark.skipif(
+    not DOCKER_AVAILABLE, reason="Docker not available — skipped in unit CI tier"
+)
+requires_ffmpeg = pytest.mark.skipif(
+    not FFMPEG_AVAILABLE, reason="ffmpeg not available — skipped in unit CI tier"
+)

@@ -75,6 +75,8 @@ markers = [
     "integration: Integration tests (require external services)",
     "slow: Slow tests (>1s)",
     "smoke: Smoke tests",
+    "requires_docker: Requires Docker (integration/smoke tier only)",
+    "requires_ffmpeg: Requires ffmpeg binary (video benchmarks)",
 ]
 asyncio_mode = "auto"
 
