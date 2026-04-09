@@ -51,6 +51,7 @@ class EvaluationEngine:
         log_dir: Optional[Path | str] = None,
         thinking_mode: Optional[str] = None,
         provider: Any = None,
+        judge_spec: Optional[str] = None,
     ):
         """
         Initialize the evaluation engine.
@@ -67,11 +68,15 @@ class EvaluationEngine:
                 is formatted through the provider and provider-specific eval
                 kwargs are applied. If None, model string is used as-is
                 (backwards-compatible with existing ollama/ prefix behavior).
+            judge_spec: Optional judge specification string for LLM-as-judge
+                evaluation (e.g., "ollama:llama3.1:8b", "openai:gpt-4o").
+                When set, adds judge scoring alongside deterministic scorers.
         """
         self.provider = provider
         self.tier = tier
         self.tier_config = get_tier(tier)
         self.thinking_mode = thinking_mode
+        self.judge_spec = judge_spec
         self.log_dir = Path(log_dir) if log_dir else Path("./logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -274,6 +279,10 @@ class EvaluationEngine:
         # Include thinking mode if set
         if self.thinking_mode:
             results["thinking_mode"] = self.thinking_mode
+
+        # Include judge info if set
+        if self.judge_spec:
+            results["judge"] = self.judge_spec
 
         successful_scores = []
 

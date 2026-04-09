@@ -191,6 +191,7 @@ def run_evaluation(
     output_dir: Optional[Path] = None,
     thinking_mode: Optional[str] = None,
     provider: Any = None,
+    judge_spec: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
@@ -202,6 +203,7 @@ def run_evaluation(
         output_dir: Output directory for logs
         thinking_mode: Thinking mode ("on", "off", or None)
         provider: Provider instance. If None, defaults to Ollama behavior.
+        judge_spec: Optional judge specification (e.g., "ollama:llama3.1:8b")
 
     Returns:
         Results dictionary
@@ -227,6 +229,7 @@ def run_evaluation(
         log_dir=output_dir / "logs" if output_dir else None,
         thinking_mode=thinking_mode,
         provider=provider,
+        judge_spec=judge_spec,
     )
 
     return engine.run_all(benchmarks)
@@ -350,6 +353,13 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     help="YAML evaluation matrix config file for multi-provider runs.",
 )
 @click.option(
+    "--judge",
+    "judge_spec",
+    type=str,
+    default=None,
+    help="LLM judge for subjective evaluation (e.g., ollama:llama3.1:8b, openai:gpt-4o). Adds judge scoring alongside deterministic scorers.",
+)
+@click.option(
     "--resume",
     type=str,
     help="Resume from checkpoint (provide run-id or path to run directory)",
@@ -371,6 +381,7 @@ def run(
     provider_url: Optional[str],
     api_key: Optional[str],
     matrix_file: Optional[Path],
+    judge_spec: Optional[str],
     resume: Optional[str],
     fill_gaps: bool,
 ):
@@ -532,6 +543,8 @@ def run(
         console.print(f"Output: {output_dir}")
         if benchmarks_to_run:
             console.print(f"Benchmarks: {', '.join(benchmarks_to_run)}")
+        if judge_spec:
+            console.print(f"Judge: {judge_spec}")
         console.print()
 
     all_results = []
@@ -589,6 +602,7 @@ def run(
                         output_dir=output_dir,
                         thinking_mode=thinking_mode,
                         provider=active_provider,
+                        judge_spec=judge_spec,
                     )
                     all_results.append(result)
 

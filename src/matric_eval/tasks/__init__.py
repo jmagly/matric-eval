@@ -48,6 +48,22 @@ from matric_eval.tasks.mbpp import (
     mbpp,
 )
 from matric_eval.tasks.mbpp import record_to_sample as mbpp_record_to_sample
+from matric_eval.tasks.cyberseceval import (
+    cyberseceval,
+    cyberseceval_scorer,
+    check_insecure_patterns,
+    load_cyberseceval,
+)
+from matric_eval.tasks.cyberseceval import record_to_sample as cyberseceval_record_to_sample
+from matric_eval.tasks.gaia import (
+    gaia,
+    gaia_scorer,
+    load_gaia,
+    normalize_answer,
+)
+from matric_eval.tasks.gaia import record_to_sample as gaia_record_to_sample
+from matric_eval.tasks.gpqa import gpqa, load_gpqa, format_gpqa_prompt
+from matric_eval.tasks.gpqa import record_to_sample as gpqa_record_to_sample
 from matric_eval.tasks.mmlu import mmlu, load_mmlu, format_mmlu_prompt
 from matric_eval.tasks.mmlu import record_to_sample as mmlu_record_to_sample
 from matric_eval.tasks.mtbench import mtbench, load_mtbench
@@ -111,6 +127,10 @@ __all__ = [
     # Benchmarks
     "arc",
     "check_constraint",
+    "check_insecure_patterns",
+    "cyberseceval",
+    "cyberseceval_record_to_sample",
+    "cyberseceval_scorer",
     "custom_task",
     "CustomTestMetadata",
     "CustomTestNotFoundError",
@@ -121,6 +141,12 @@ __all__ = [
     "extract_function_name",
     "extract_function_signature",
     "format_arc_prompt",
+    "format_gpqa_prompt",
+    "gaia",
+    "gaia_record_to_sample",
+    "gaia_scorer",
+    "gpqa",
+    "gpqa_record_to_sample",
     "gsm8k",
     "gsm8k_record_to_sample",
     "gsm8k_scorer",
@@ -134,7 +160,10 @@ __all__ = [
     "livecodebench_record_to_sample",
     "load_arc",
     "load_custom_tests",
+    "load_cyberseceval",
     "load_ds1000",
+    "load_gaia",
+    "load_gpqa",
     "load_gsm8k",
     "load_humaneval",
     "load_ifeval",
@@ -143,6 +172,7 @@ __all__ = [
     "load_mmlu",
     "load_mtbench",
     "mbpp",
+    "normalize_answer",
     "mbpp_record_to_sample",
     "mmlu",
     "mmlu_record_to_sample",

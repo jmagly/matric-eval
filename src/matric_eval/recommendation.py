@@ -53,8 +53,14 @@ DEFAULT_CAPABILITIES = {
     "reasoning": Capability(
         name="reasoning",
         description="General reasoning and knowledge",
-        benchmarks=["arc"],
+        benchmarks=["arc", "gpqa"],
         weight=1.0,
+    ),
+    "knowledge": Capability(
+        name="knowledge",
+        description="Broad domain knowledge across many subjects",
+        benchmarks=["mmlu", "gpqa"],
+        weight=0.9,
     ),
     "conversation": Capability(
         name="conversation",
@@ -84,6 +90,16 @@ class ModelScore:
 
 
 @dataclass
+class ModelConstraints:
+    """Constraints for filtering model recommendations."""
+
+    max_size_gb: Optional[float] = None
+    min_score: Optional[float] = None
+    required_benchmarks: Optional[list[str]] = None
+    prefer: str = "quality"  # "quality", "speed", "balanced", "cost_efficiency"
+
+
+@dataclass
 class Recommendation:
     """A model recommendation for a capability."""
 
@@ -92,6 +108,9 @@ class Recommendation:
     score: float
     alternatives: list[tuple[str, float]] = field(default_factory=list)
     rationale: str = ""
+    strengths: list[str] = field(default_factory=list)
+    weaknesses: list[str] = field(default_factory=list)
+    confidence: float = 1.0
 
 
 @dataclass
@@ -116,6 +135,9 @@ class RecommendationReport:
                         {"model": m, "score": s} for m, s in rec.alternatives
                     ],
                     "rationale": rec.rationale,
+                    "strengths": rec.strengths,
+                    "weaknesses": rec.weaknesses,
+                    "confidence": rec.confidence,
                 }
                 for cap, rec in self.recommendations.items()
             },
@@ -284,12 +306,21 @@ class RecommendationEngine:
             # Get alternatives
             alternatives = scored_models[1 : self.top_n_alternatives + 1]
 
+            best_model_score = model_scores[best_model]
+            strengths, weaknesses = self._compute_strengths_weaknesses(
+                best_model_score, model_scores
+            )
+            confidence = self._compute_confidence(best_model_score)
+
             recommendations[cap_name] = Recommendation(
                 capability=cap_name,
                 recommended_model=best_model,
                 score=best_score,
                 alternatives=alternatives,
                 rationale=f"Best performing model for {cap.description}",
+                strengths=strengths,
+                weaknesses=weaknesses,
+                confidence=confidence,
             )
 
         # Find best overall model
@@ -320,6 +351,185 @@ class RecommendationEngine:
             best_balanced=best_balanced,
             metadata={"num_models": len(model_scores)},
         )
+
+    def filter_by_constraints(
+        self,
+        model_scores: dict[str, ModelScore],
+        constraints: ModelConstraints,
+    ) -> dict[str, ModelScore]:
+        """
+        Filter models by constraints.
+
+        Args:
+            model_scores: All model scores
+            constraints: Filtering constraints
+
+        Returns:
+            Filtered model scores meeting all constraints
+        """
+        filtered = {}
+        for model, score in model_scores.items():
+            # Size constraint
+            if constraints.max_size_gb is not None and score.size_gb > constraints.max_size_gb:
+                continue
+
+            # Minimum score constraint
+            if constraints.min_score is not None and score.overall_score < constraints.min_score:
+                continue
+
+            # Required benchmarks constraint
+            if constraints.required_benchmarks:
+                has_all = all(
+                    b in score.benchmark_scores for b in constraints.required_benchmarks
+                )
+                if not has_all:
+                    continue
+
+            filtered[model] = score
+
+        return filtered
+
+    def pareto_frontier(
+        self,
+        model_scores: dict[str, ModelScore],
+        dimensions: list[str],
+    ) -> list[str]:
+        """
+        Find Pareto-optimal models across the given dimensions.
+
+        A model is Pareto-optimal if no other model is strictly better
+        in all dimensions simultaneously.
+
+        Args:
+            model_scores: Model scores to analyze
+            dimensions: Benchmark or capability names to use as dimensions
+
+        Returns:
+            List of Pareto-optimal model names
+        """
+        models = list(model_scores.keys())
+        if not models:
+            return []
+
+        def get_dim_score(model: str, dim: str) -> float:
+            score = model_scores[model]
+            if dim in score.benchmark_scores:
+                return score.benchmark_scores[dim]
+            if dim in score.capability_scores:
+                return score.capability_scores[dim]
+            if dim == "size" and score.size_gb > 0:
+                # Smaller is better for size — invert
+                return 1.0 / score.size_gb
+            return 0.0
+
+        pareto = []
+        for i, model in enumerate(models):
+            dominated = False
+            for j, other in enumerate(models):
+                if i == j:
+                    continue
+                # Check if 'other' dominates 'model'
+                all_ge = True
+                any_gt = False
+                for dim in dimensions:
+                    s_model = get_dim_score(model, dim)
+                    s_other = get_dim_score(other, dim)
+                    if s_other < s_model:
+                        all_ge = False
+                        break
+                    if s_other > s_model:
+                        any_gt = True
+                if all_ge and any_gt:
+                    dominated = True
+                    break
+            if not dominated:
+                pareto.append(model)
+
+        return pareto
+
+    def _compute_strengths_weaknesses(
+        self,
+        score: ModelScore,
+        all_scores: dict[str, ModelScore],
+    ) -> tuple[list[str], list[str]]:
+        """
+        Compute strengths and weaknesses relative to all models.
+
+        Args:
+            score: The model's scores
+            all_scores: All model scores for comparison
+
+        Returns:
+            Tuple of (strengths, weaknesses) lists
+        """
+        if len(all_scores) < 2:
+            return [], []
+
+        strengths = []
+        weaknesses = []
+
+        for cap_name, cap_score in score.capability_scores.items():
+            # Get average across all models for this capability
+            all_cap_scores = [
+                s.capability_scores.get(cap_name, 0.0) for s in all_scores.values()
+            ]
+            avg = sum(all_cap_scores) / len(all_cap_scores) if all_cap_scores else 0.0
+
+            cap = self.capabilities.get(cap_name)
+            label = cap.description if cap else cap_name
+
+            if cap_score > avg * 1.2:  # 20% above average
+                strengths.append(f"Strong at {label} ({cap_score:.1%})")
+            elif cap_score < avg * 0.8 and cap_score > 0:  # 20% below average
+                weaknesses.append(f"Below average at {label} ({cap_score:.1%})")
+
+        return strengths, weaknesses
+
+    def _compute_confidence(
+        self,
+        score: ModelScore,
+    ) -> float:
+        """
+        Compute confidence in a recommendation based on evaluation coverage.
+
+        Confidence is higher when more benchmarks have been evaluated.
+
+        Args:
+            score: The model's scores
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        total_benchmarks = sum(
+            len(cap.benchmarks) for cap in self.capabilities.values()
+        )
+        if total_benchmarks == 0:
+            return 0.0
+
+        evaluated = len(score.benchmark_scores)
+        return min(1.0, evaluated / max(1, total_benchmarks * 0.5))
+
+    def recommend(
+        self,
+        results: list[dict[str, Any]],
+        constraints: Optional[ModelConstraints] = None,
+    ) -> RecommendationReport:
+        """
+        Generate recommendations with optional constraint filtering.
+
+        Convenience method combining process_results, filter, and recommend.
+
+        Args:
+            results: List of evaluation result dictionaries
+            constraints: Optional model constraints
+
+        Returns:
+            RecommendationReport
+        """
+        model_scores = self.process_results(results)
+        if constraints:
+            model_scores = self.filter_by_constraints(model_scores, constraints)
+        return self.generate_recommendations(model_scores)
 
     def from_summary_file(self, path: Path | str) -> RecommendationReport:
         """

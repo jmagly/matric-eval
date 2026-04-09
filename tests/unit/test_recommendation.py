@@ -16,6 +16,7 @@ from tempfile import TemporaryDirectory
 
 from matric_eval.recommendation import (
     Capability,
+    ModelConstraints,
     ModelScore,
     Recommendation,
     RecommendationEngine,
@@ -612,3 +613,334 @@ class TestRecommendationIntegration:
         # Generalist should be best balanced (more consistent)
         assert report.best_overall == "specialist"
         assert report.best_balanced == "generalist"
+
+
+# =============================================================================
+# Constraint Filtering Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestConstraintFiltering:
+    """Tests for model constraint filtering."""
+
+    def _make_scores(self) -> dict[str, ModelScore]:
+        """Create test model scores."""
+        return {
+            "small_model": ModelScore(
+                model="small_model",
+                benchmark_scores={"humaneval": 0.6, "mbpp": 0.5},
+                capability_scores={"code_generation": 0.55},
+                overall_score=0.55,
+                size_gb=3.0,
+            ),
+            "medium_model": ModelScore(
+                model="medium_model",
+                benchmark_scores={"humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.9},
+                capability_scores={"code_generation": 0.75, "math_reasoning": 0.9},
+                overall_score=0.8,
+                size_gb=8.0,
+            ),
+            "large_model": ModelScore(
+                model="large_model",
+                benchmark_scores={"humaneval": 0.95, "mbpp": 0.9, "gsm8k": 0.95},
+                capability_scores={"code_generation": 0.925, "math_reasoning": 0.95},
+                overall_score=0.93,
+                size_gb=70.0,
+            ),
+        }
+
+    def test_filter_by_max_size(self) -> None:
+        """Should filter out models exceeding max size."""
+        engine = RecommendationEngine()
+        scores = self._make_scores()
+        constraints = ModelConstraints(max_size_gb=10.0)
+
+        filtered = engine.filter_by_constraints(scores, constraints)
+        assert "small_model" in filtered
+        assert "medium_model" in filtered
+        assert "large_model" not in filtered
+
+    def test_filter_by_min_score(self) -> None:
+        """Should filter out models below min score."""
+        engine = RecommendationEngine()
+        scores = self._make_scores()
+        constraints = ModelConstraints(min_score=0.7)
+
+        filtered = engine.filter_by_constraints(scores, constraints)
+        assert "small_model" not in filtered
+        assert "medium_model" in filtered
+        assert "large_model" in filtered
+
+    def test_filter_by_required_benchmarks(self) -> None:
+        """Should filter out models missing required benchmarks."""
+        engine = RecommendationEngine()
+        scores = self._make_scores()
+        constraints = ModelConstraints(required_benchmarks=["gsm8k"])
+
+        filtered = engine.filter_by_constraints(scores, constraints)
+        assert "small_model" not in filtered
+        assert "medium_model" in filtered
+        assert "large_model" in filtered
+
+    def test_filter_combined_constraints(self) -> None:
+        """Should apply all constraints simultaneously."""
+        engine = RecommendationEngine()
+        scores = self._make_scores()
+        constraints = ModelConstraints(max_size_gb=10.0, min_score=0.7)
+
+        filtered = engine.filter_by_constraints(scores, constraints)
+        assert len(filtered) == 1
+        assert "medium_model" in filtered
+
+    def test_filter_no_constraints_returns_all(self) -> None:
+        """Should return all models with empty constraints."""
+        engine = RecommendationEngine()
+        scores = self._make_scores()
+        constraints = ModelConstraints()
+
+        filtered = engine.filter_by_constraints(scores, constraints)
+        assert len(filtered) == 3
+
+
+# =============================================================================
+# Pareto Frontier Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestParetoFrontier:
+    """Tests for Pareto frontier analysis."""
+
+    def test_single_model_is_pareto_optimal(self) -> None:
+        """A single model should be on the Pareto frontier."""
+        engine = RecommendationEngine()
+        scores = {
+            "only_model": ModelScore(
+                model="only_model",
+                benchmark_scores={"humaneval": 0.8},
+                overall_score=0.8,
+            ),
+        }
+        pareto = engine.pareto_frontier(scores, ["humaneval"])
+        assert pareto == ["only_model"]
+
+    def test_dominated_model_excluded(self) -> None:
+        """Dominated models should not be on the frontier."""
+        engine = RecommendationEngine()
+        scores = {
+            "good": ModelScore(
+                model="good",
+                benchmark_scores={"humaneval": 0.9, "gsm8k": 0.8},
+                overall_score=0.85,
+            ),
+            "bad": ModelScore(
+                model="bad",
+                benchmark_scores={"humaneval": 0.5, "gsm8k": 0.4},
+                overall_score=0.45,
+            ),
+        }
+        pareto = engine.pareto_frontier(scores, ["humaneval", "gsm8k"])
+        assert "good" in pareto
+        assert "bad" not in pareto
+
+    def test_tradeoff_models_both_pareto(self) -> None:
+        """Models with tradeoffs should both be on the frontier."""
+        engine = RecommendationEngine()
+        scores = {
+            "code_specialist": ModelScore(
+                model="code_specialist",
+                benchmark_scores={"humaneval": 0.95, "gsm8k": 0.3},
+                overall_score=0.6,
+            ),
+            "math_specialist": ModelScore(
+                model="math_specialist",
+                benchmark_scores={"humaneval": 0.4, "gsm8k": 0.95},
+                overall_score=0.65,
+            ),
+        }
+        pareto = engine.pareto_frontier(scores, ["humaneval", "gsm8k"])
+        assert "code_specialist" in pareto
+        assert "math_specialist" in pareto
+
+    def test_empty_returns_empty(self) -> None:
+        """Empty model set should return empty frontier."""
+        engine = RecommendationEngine()
+        pareto = engine.pareto_frontier({}, ["humaneval"])
+        assert pareto == []
+
+
+# =============================================================================
+# Strengths/Weaknesses Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestStrengthsWeaknesses:
+    """Tests for strengths and weaknesses computation."""
+
+    def test_strengths_detected_above_average(self) -> None:
+        """Should identify strengths above 20% of average."""
+        engine = RecommendationEngine()
+        all_scores = {
+            "model_a": ModelScore(
+                model="model_a",
+                capability_scores={"code_generation": 0.9, "reasoning": 0.3},
+            ),
+            "model_b": ModelScore(
+                model="model_b",
+                capability_scores={"code_generation": 0.4, "reasoning": 0.7},
+            ),
+        }
+        strengths, weaknesses = engine._compute_strengths_weaknesses(
+            all_scores["model_a"], all_scores
+        )
+        assert any("code" in s.lower() for s in strengths)
+
+    def test_weaknesses_detected_below_average(self) -> None:
+        """Should identify weaknesses below 20% of average."""
+        engine = RecommendationEngine()
+        all_scores = {
+            "model_a": ModelScore(
+                model="model_a",
+                capability_scores={"code_generation": 0.9, "reasoning": 0.3},
+            ),
+            "model_b": ModelScore(
+                model="model_b",
+                capability_scores={"code_generation": 0.4, "reasoning": 0.7},
+            ),
+        }
+        strengths, weaknesses = engine._compute_strengths_weaknesses(
+            all_scores["model_a"], all_scores
+        )
+        assert any("reasoning" in w.lower() for w in weaknesses)
+
+    def test_single_model_no_strengths_weaknesses(self) -> None:
+        """Single model should have no comparative strengths/weaknesses."""
+        engine = RecommendationEngine()
+        scores = {
+            "only": ModelScore(
+                model="only",
+                capability_scores={"code_generation": 0.7},
+            ),
+        }
+        strengths, weaknesses = engine._compute_strengths_weaknesses(
+            scores["only"], scores
+        )
+        assert strengths == []
+        assert weaknesses == []
+
+
+# =============================================================================
+# Confidence Score Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestConfidenceScores:
+    """Tests for recommendation confidence computation."""
+
+    def test_full_coverage_high_confidence(self) -> None:
+        """Should have high confidence with many benchmarks evaluated."""
+        engine = RecommendationEngine()
+        score = ModelScore(
+            model="well_tested",
+            benchmark_scores={
+                "humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.9,
+                "arc": 0.7, "ifeval": 0.8, "mtbench": 0.6,
+            },
+        )
+        confidence = engine._compute_confidence(score)
+        assert confidence > 0.5
+
+    def test_no_benchmarks_zero_confidence(self) -> None:
+        """Should have zero confidence with no benchmarks."""
+        engine = RecommendationEngine()
+        score = ModelScore(model="untested", benchmark_scores={})
+        confidence = engine._compute_confidence(score)
+        assert confidence == 0.0
+
+    def test_few_benchmarks_lower_confidence(self) -> None:
+        """Should have lower confidence with fewer benchmarks."""
+        engine = RecommendationEngine()
+        score_few = ModelScore(
+            model="few", benchmark_scores={"humaneval": 0.8}
+        )
+        score_many = ModelScore(
+            model="many",
+            benchmark_scores={
+                "humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.9,
+                "arc": 0.7, "ifeval": 0.8,
+            },
+        )
+        assert engine._compute_confidence(score_few) < engine._compute_confidence(score_many)
+
+
+# =============================================================================
+# Recommend Method Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestRecommendMethod:
+    """Tests for the convenience recommend() method."""
+
+    def test_recommend_with_constraints(self) -> None:
+        """Should apply constraints in recommend()."""
+        engine = RecommendationEngine()
+        results = [
+            {
+                "model": "ollama/small",
+                "status": "success",
+                "overall_score": 0.5,
+                "benchmarks": {"humaneval": {"score": 0.5}},
+            },
+            {
+                "model": "ollama/large",
+                "status": "success",
+                "overall_score": 0.9,
+                "benchmarks": {"humaneval": {"score": 0.9}},
+                "size_gb": 70.0,
+            },
+        ]
+        constraints = ModelConstraints(max_size_gb=10.0)
+        report = engine.recommend(results, constraints)
+        assert "large" not in report.model_scores
+
+    def test_recommend_without_constraints(self) -> None:
+        """Should work without constraints."""
+        engine = RecommendationEngine()
+        results = [
+            {
+                "model": "ollama/model",
+                "status": "success",
+                "overall_score": 0.8,
+                "benchmarks": {"humaneval": {"score": 0.8}},
+            },
+        ]
+        report = engine.recommend(results)
+        assert "model" in report.model_scores
+
+
+# =============================================================================
+# Knowledge Capability Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestKnowledgeCapability:
+    """Tests for the new knowledge capability with GPQA."""
+
+    def test_knowledge_capability_exists(self) -> None:
+        """Should have knowledge capability in defaults."""
+        assert "knowledge" in DEFAULT_CAPABILITIES
+
+    def test_knowledge_includes_gpqa(self) -> None:
+        """Should include GPQA in knowledge capability benchmarks."""
+        cap = DEFAULT_CAPABILITIES["knowledge"]
+        assert "gpqa" in cap.benchmarks
+
+    def test_reasoning_includes_gpqa(self) -> None:
+        """Should include GPQA in reasoning capability benchmarks."""
+        cap = DEFAULT_CAPABILITIES["reasoning"]
+        assert "gpqa" in cap.benchmarks

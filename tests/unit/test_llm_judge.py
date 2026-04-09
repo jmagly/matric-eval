@@ -24,14 +24,18 @@ from matric_eval.scorers.llm_judge import (
     agentic_judge_scorer,
     build_judge_prompt,
     get_judge_template,
+    hallucination_judge_scorer,
     list_judge_templates,
     llm_judge_scorer,
     normalize_score,
     pairwise_judge_scorer,
+    parse_hallucination_flag,
     parse_judge_score,
     parse_pairwise_winner,
     reference_judge_scorer,
     register_judge_template,
+    revision_quality_scorer,
+    tag_quality_scorer,
 )
 
 
@@ -980,4 +984,331 @@ class TestLLMJudgeScorerWithTemplates:
             score = await scorer(state, target)
 
             assert score.metadata["template"] == "mtbench"
+            assert score.metadata["raw_score"] == 8
+
+
+# =============================================================================
+# Matric-Memory Ported Template Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestMatricMemoryTemplates:
+    """Tests for judge templates ported from matric-memory."""
+
+    def test_revision_quality_template_exists(self) -> None:
+        """Should have revision quality template."""
+        assert "revision_quality" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["revision_quality"]
+        assert t.prompt_type == JudgeType.SINGLE
+        assert t.category == "revision"
+        assert "{original}" in t.prompt_template
+        assert "{revised}" in t.prompt_template
+        assert "{context}" in t.prompt_template
+
+    def test_title_pairwise_template_exists(self) -> None:
+        """Should have title pairwise comparison template."""
+        assert "title_pairwise" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["title_pairwise"]
+        assert t.prompt_type == JudgeType.PAIRWISE
+        assert t.category == "title"
+        assert "{title_a}" in t.prompt_template
+        assert "{title_b}" in t.prompt_template
+
+    def test_revision_pairwise_template_exists(self) -> None:
+        """Should have revision pairwise comparison template."""
+        assert "revision_pairwise" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["revision_pairwise"]
+        assert t.prompt_type == JudgeType.PAIRWISE
+        assert t.category == "revision"
+        assert "{revision_a}" in t.prompt_template
+        assert "{revision_b}" in t.prompt_template
+
+    def test_semantic_relevance_template_exists(self) -> None:
+        """Should have semantic relevance template."""
+        assert "semantic_relevance" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["semantic_relevance"]
+        assert t.prompt_type == JudgeType.SINGLE
+        assert t.category == "semantic"
+        assert "{query}" in t.prompt_template
+        assert "{result_title}" in t.prompt_template
+
+    def test_factual_accuracy_template_exists(self) -> None:
+        """Should have factual accuracy template."""
+        assert "factual_accuracy" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["factual_accuracy"]
+        assert t.prompt_type == JudgeType.SINGLE
+        assert "{source}" in t.prompt_template
+        assert "{output}" in t.prompt_template
+        assert "hallucination" in t.prompt_template.lower()
+
+    def test_format_compliance_template_exists(self) -> None:
+        """Should have format compliance template."""
+        assert "format_compliance" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["format_compliance"]
+        assert t.prompt_type == JudgeType.SINGLE
+        assert "{constraints}" in t.prompt_template
+        assert "{output}" in t.prompt_template
+
+    def test_tag_quality_template_exists(self) -> None:
+        """Should have tag quality template."""
+        assert "tag_quality" in JUDGE_PROMPTS
+        t = JUDGE_PROMPTS["tag_quality"]
+        assert t.prompt_type == JudgeType.SINGLE
+        assert t.category == "semantic"
+        assert "{content}" in t.prompt_template
+        assert "{tags}" in t.prompt_template
+
+    def test_title_quality_updated_from_matric_memory(self) -> None:
+        """Should have updated title quality template with matric-memory criteria."""
+        t = JUDGE_PROMPTS["title_quality"]
+        assert t.category == "title"
+        assert "Relevance" in t.prompt_template
+        assert "Conciseness" in t.prompt_template
+        assert "Informativeness" in t.prompt_template
+        assert "Format Compliance" in t.prompt_template
+
+    def test_all_matric_memory_templates_have_scoring_config(self) -> None:
+        """All matric-memory templates should have valid scoring config."""
+        matric_templates = [
+            "title_quality", "revision_quality", "title_pairwise",
+            "revision_pairwise", "semantic_relevance", "factual_accuracy",
+            "format_compliance", "tag_quality",
+        ]
+        for name in matric_templates:
+            assert name in JUDGE_PROMPTS, f"Missing template: {name}"
+            t = JUDGE_PROMPTS[name]
+            assert t.scoring.min_score == 1
+            assert t.scoring.max_score == 10
+
+    def test_template_count_includes_all_matric_memory(self) -> None:
+        """Should have at least 13 templates (6 original + 7 new)."""
+        assert len(JUDGE_PROMPTS) >= 13
+
+    def test_revision_quality_format_method(self) -> None:
+        """Should format revision quality template correctly."""
+        t = JUDGE_PROMPTS["revision_quality"]
+        result = t.format(
+            original="Original text",
+            revised="Revised text",
+            context="Some context",
+        )
+        assert "Original text" in result
+        assert "Revised text" in result
+        assert "Some context" in result
+
+    def test_semantic_relevance_format_method(self) -> None:
+        """Should format semantic relevance template correctly."""
+        t = JUDGE_PROMPTS["semantic_relevance"]
+        result = t.format(
+            query="python async",
+            result_title="Async Python Guide",
+            result_content="This guide covers async/await...",
+        )
+        assert "python async" in result
+        assert "Async Python Guide" in result
+
+
+# =============================================================================
+# Hallucination Flag Parsing Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestParseHallucinationFlag:
+    """Tests for parse_hallucination_flag() function."""
+
+    def test_detects_no_hallucinations(self) -> None:
+        """Should return False for 'None' hallucinations."""
+        response = "Rating: 9\nReasoning: Good.\nHallucinations: None"
+        detected, claims = parse_hallucination_flag(response)
+        assert detected is False
+        assert claims == []
+
+    def test_detects_none_detected(self) -> None:
+        """Should handle 'None detected' variant."""
+        response = "Rating: 8\nHallucinations: None detected"
+        detected, claims = parse_hallucination_flag(response)
+        assert detected is False
+
+    def test_detects_hallucinations(self) -> None:
+        """Should detect listed hallucination claims."""
+        response = (
+            "Rating: 4\nReasoning: Issues found.\n"
+            "Hallucinations: The claim about 50% market share is fabricated"
+        )
+        detected, claims = parse_hallucination_flag(response)
+        assert detected is True
+        assert len(claims) >= 1
+        assert "market share" in claims[0].lower()
+
+    def test_detects_multiple_hallucinations(self) -> None:
+        """Should detect multiple hallucination claims."""
+        response = (
+            "Rating: 3\nHallucinations:\n"
+            "- Invented statistic about 80% adoption\n"
+            "- Fabricated quote from CEO"
+        )
+        detected, claims = parse_hallucination_flag(response)
+        assert detected is True
+        assert len(claims) == 2
+
+    def test_handles_empty_response(self) -> None:
+        """Should return False for empty response."""
+        detected, claims = parse_hallucination_flag("")
+        assert detected is False
+        assert claims == []
+
+    def test_handles_no_hallucination_section(self) -> None:
+        """Should return False when no Hallucinations section exists."""
+        response = "Rating: 8\nReasoning: Good quality output."
+        detected, claims = parse_hallucination_flag(response)
+        assert detected is False
+
+
+# =============================================================================
+# Hallucination Judge Scorer Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestHallucinationJudgeScorer:
+    """Tests for hallucination_judge_scorer()."""
+
+    def test_returns_callable(self) -> None:
+        """Should return a callable scorer."""
+        scorer = hallucination_judge_scorer(judge_model="llama3.2:3b")
+        assert callable(scorer)
+
+    @pytest.mark.asyncio
+    async def test_detects_clean_content(self) -> None:
+        """Should score high for content without hallucinations."""
+        scorer = hallucination_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Paris is the capital of France."
+        state.input_text = "Summarize the source."
+        state.metadata = {}
+
+        target = Target(target="France's capital is Paris.")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Rating: 9\nReasoning: Accurate.\nHallucinations: None detected"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, target)
+
+            assert score.value > 0.7
+            assert score.metadata["hallucinated"] is False
+
+    @pytest.mark.asyncio
+    async def test_flags_hallucinated_content(self) -> None:
+        """Should flag content with hallucinations."""
+        scorer = hallucination_judge_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Paris has 50 million residents."
+        state.input_text = "Summarize the source."
+        state.metadata = {}
+
+        target = Target(target="Paris is the capital of France.")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Rating: 3\nReasoning: Fabricated stat.\nHallucinations: The population of 50 million is fabricated"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, target)
+
+            assert score.value < 0.5
+            assert score.metadata["hallucinated"] is True
+            assert len(score.metadata["hallucination_claims"]) >= 1
+
+
+# =============================================================================
+# Revision Quality Scorer Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestRevisionQualityScorer:
+    """Tests for revision_quality_scorer()."""
+
+    def test_returns_callable(self) -> None:
+        """Should return a callable scorer."""
+        scorer = revision_quality_scorer(judge_model="llama3.2:3b")
+        assert callable(scorer)
+
+    @pytest.mark.asyncio
+    async def test_scores_revision(self) -> None:
+        """Should score a revision against original."""
+        scorer = revision_quality_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "Improved version with better structure."
+        state.input_text = "Revise this content."
+        state.metadata = {
+            "original": "Original messy text.",
+            "context": "Related notes about the topic.",
+        }
+
+        target = Target(target="")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Rating: 8\nReasoning: Good improvement.\nHallucinations: None"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, target)
+
+            assert isinstance(score, Score)
+            assert 0.0 <= score.value <= 1.0
+            assert score.metadata["raw_score"] == 8
+            assert score.metadata["hallucinated"] is False
+
+
+# =============================================================================
+# Tag Quality Scorer Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestTagQualityScorer:
+    """Tests for tag_quality_scorer()."""
+
+    def test_returns_callable(self) -> None:
+        """Should return a callable scorer."""
+        scorer = tag_quality_scorer(judge_model="llama3.2:3b")
+        assert callable(scorer)
+
+    @pytest.mark.asyncio
+    async def test_scores_tags(self) -> None:
+        """Should score generated tags."""
+        scorer = tag_quality_scorer(judge_model="llama3.2:3b")
+
+        state = Mock()
+        state.output.completion = "python, async, concurrency"
+        state.input_text = "Content about Python async programming."
+        state.metadata = {"content": "Guide to async/await in Python."}
+
+        target = Target(target="")
+
+        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "Rating: 8\nReasoning: Good tags.\nSuggested Additions: None"
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, target)
+
+            assert isinstance(score, Score)
+            assert 0.0 <= score.value <= 1.0
             assert score.metadata["raw_score"] == 8

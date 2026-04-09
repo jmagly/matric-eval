@@ -24,6 +24,10 @@ class TierConfig(BaseSettings):
     mmlu: int = 0
     tool_calling: int = 0
     custom: int = 0
+    # Extended benchmarks
+    gpqa: int = 0
+    cyberseceval: int = 0
+    gaia: int = 0
     # Application-specific benchmarks
     matric_cli: int = 0
     matric_memory: int = 0
@@ -43,6 +47,9 @@ TIERS: dict[str, TierConfig] = {
         mmlu=5,
         tool_calling=5,
         custom=5,
+        gpqa=5,
+        cyberseceval=10,
+        gaia=5,
         matric_cli=6,
         matric_memory=10,
     ),
@@ -58,6 +65,9 @@ TIERS: dict[str, TierConfig] = {
         mmlu=75,
         tool_calling=30,
         custom=50,
+        gpqa=50,
+        cyberseceval=100,
+        gaia=50,
         matric_cli=12,
         matric_memory=20,
     ),
@@ -73,6 +83,9 @@ TIERS: dict[str, TierConfig] = {
         mmlu=14042,  # All (57 subjects)
         tool_calling=100,  # All synthetic
         custom=1000,  # All custom tests
+        gpqa=198,  # All (Diamond subset)
+        cyberseceval=500,  # Full instruct set
+        gaia=466,  # All
         matric_cli=12,
         matric_memory=30,
     ),

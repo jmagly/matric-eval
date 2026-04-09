@@ -378,6 +378,9 @@ DATA_PATHS = {
     "ds1000": "/home/roctinam/data/evals/ds1000/ds1000.jsonl",
     "mtbench": "/home/roctinam/data/evals/mtbench/question.jsonl",
     "mmlu": "/home/roctinam/data/evals/mmlu/data/test",
+    "gpqa": "/home/roctinam/data/evals/gpqa",
+    "cyberseceval": "/home/roctinam/data/evals/cyberseceval",
+    "gaia": "/home/roctinam/data/evals/gaia",
 }
 
 
@@ -429,6 +432,18 @@ requires_mtbench_data = pytest.mark.skipif(
 )
 requires_mmlu_data = pytest.mark.skipif(
     not MMLU_DATA_AVAILABLE, reason="MMLU dataset not available in CI"
+)
+GPQA_DATA_AVAILABLE = has_data_file("gpqa")
+requires_gpqa_data = pytest.mark.skipif(
+    not GPQA_DATA_AVAILABLE, reason="GPQA dataset not available in CI"
+)
+CYBERSECEVAL_DATA_AVAILABLE = has_data_file("cyberseceval")
+requires_cyberseceval_data = pytest.mark.skipif(
+    not CYBERSECEVAL_DATA_AVAILABLE, reason="CyberSecEval dataset not available in CI"
+)
+GAIA_DATA_AVAILABLE = has_data_file("gaia")
+requires_gaia_data = pytest.mark.skipif(
+    not GAIA_DATA_AVAILABLE, reason="GAIA dataset not available in CI"
 )
 
 
