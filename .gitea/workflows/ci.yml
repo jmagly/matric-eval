@@ -102,7 +102,8 @@ jobs:
 
       - name: Retain benchmark freshness report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # v3.2.2-node20 retains GHES/Gitea artifact backend compatibility.
+        uses: actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de
         with:
           name: benchmark-freshness
           path: benchmark-freshness.json
