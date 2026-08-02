@@ -58,8 +58,8 @@ jobs:
     timeout-minutes: 15
     needs: lint
     steps:
-      - name: Install git
-        run: apt-get update && apt-get install -y git
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git nodejs
 
       - name: Checkout code
         run: |
