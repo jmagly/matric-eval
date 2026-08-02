@@ -298,7 +298,10 @@ class TestEngineIntegration:
             log_dir=tmp_path,
         )
 
-        with patch("matric_eval.core.engine.eval") as mock_eval:
+        with (
+            patch("matric_eval.core.engine.eval") as mock_eval,
+            patch.object(engine, "_load_task", return_value=Mock()),
+        ):
             mock_eval.return_value = [mock_eval_log]
 
             # Run multiple benchmarks
