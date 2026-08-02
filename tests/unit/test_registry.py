@@ -3,8 +3,13 @@
 import pytest
 
 from matric_eval.tasks.registry import (
+    BenchmarkAccess,
     BenchmarkCategory,
     BenchmarkMetadata,
+    BenchmarkReleasePolicy,
+    BenchmarkSourceKind,
+    BenchmarkStatus,
+    BenchmarkUnavailableError,
     TaskRegistry,
     get_registry,
 )
@@ -27,6 +32,7 @@ class TestBenchmarkMetadata:
         assert meta.tier_samples["smoke"] == 5
         assert meta.requires_sandbox is False
         assert meta.requires_vision is False
+        assert meta.status == BenchmarkStatus.STABLE
 
     def test_frozen(self) -> None:
         """BenchmarkMetadata is immutable."""
@@ -62,6 +68,35 @@ class TestBenchmarkMetadata:
             requires_vision=True,
         )
         assert meta.requires_vision is True
+
+    def test_upstream_provenance_metadata(self) -> None:
+        meta = BenchmarkMetadata(
+            name="upstream",
+            description="Pinned upstream benchmark",
+            category=BenchmarkCategory.AGENTIC,
+            module_path="matric_eval.tasks.upstream.upstream",
+            protocol_version="2.1",
+            dataset_source="owner/dataset",
+            dataset_revision="a" * 40,
+            evaluator_source="owner/evaluator",
+            evaluator_revision="b" * 40,
+            license="Apache-2.0",
+            access=BenchmarkAccess.PUBLIC,
+            source_kind=BenchmarkSourceKind.HUGGINGFACE,
+            release_policy=BenchmarkReleasePolicy.IMMUTABLE,
+            dataset_configs=("default",),
+            dataset_splits=("test",),
+        )
+        assert meta.protocol_version == "2.1"
+        assert meta.dataset_source == "owner/dataset"
+        assert meta.dataset_revision == "a" * 40
+        assert meta.evaluator_source == "owner/evaluator"
+        assert meta.evaluator_revision == "b" * 40
+        assert meta.access == BenchmarkAccess.PUBLIC
+        assert meta.source_kind == BenchmarkSourceKind.HUGGINGFACE
+        assert meta.release_policy == BenchmarkReleasePolicy.IMMUTABLE
+        assert meta.dataset_configs == ("default",)
+        assert meta.dataset_splits == ("test",)
 
 
 class TestTaskRegistry:
@@ -247,6 +282,25 @@ class TestTaskRegistry:
         )
         with pytest.raises(ValueError, match="outside allowed namespace"):
             isolated_registry.load_task("evil")
+
+    def test_load_task_rejects_unavailable_before_import(
+        self, isolated_registry: TaskRegistry
+    ) -> None:
+        isolated_registry.register(
+            BenchmarkMetadata(
+                name="missing",
+                description="Missing upstream benchmark",
+                category=BenchmarkCategory.AGENTIC,
+                module_path="matric_eval.tasks.does_not_exist.task",
+                status=BenchmarkStatus.UNAVAILABLE,
+                status_reason="upstream dataset is not public",
+            )
+        )
+
+        with pytest.raises(
+            BenchmarkUnavailableError, match="upstream dataset is not public"
+        ):
+            isolated_registry.load_task("missing")
 
     def test_repr(self, isolated_registry: TaskRegistry) -> None:
         assert "0 benchmarks" in repr(isolated_registry)

@@ -28,7 +28,17 @@ def multilingual_record_to_sample(record: dict[str, Any]) -> Sample:
     which the sandbox uses to select the correct TestRunner.
     """
     sample = swebench_record_to_sample(record)
-    language = record.get("language", "python")
+    language = record.get("language") or record.get("repo_language")
+    if not language:
+        from swebench.harness.constants import MAP_REPO_TO_EXT
+
+        extension = MAP_REPO_TO_EXT.get(str(record.get("repo", "")), "py")
+        language = {
+            "py": "python",
+            "js": "javascript",
+            "rb": "ruby",
+            "rs": "rust",
+        }.get(extension, extension)
 
     # Create new metadata dict with language
     metadata = dict(sample.metadata or {})
@@ -44,13 +54,24 @@ def multilingual_record_to_sample(record: dict[str, Any]) -> Sample:
 
 @register_benchmark(
     name="swebench_multilingual",
-    description="SWE-bench Multilingual - multi-language issue resolution (TBD tasks)",
+    description="SWE-bench Multilingual - 300 tasks across 9 languages",
     category="agentic",
-    tier_samples={"smoke": 5, "quick": 50, "full": 0},
-    total_samples=0,  # TBD — dataset not yet confirmed
+    tier_samples={"smoke": 5, "quick": 50, "full": 300},
+    total_samples=300,
     requires_sandbox=True,
     sandbox_profile="agentic-dev",
-    scoring_type="standard",
+    scoring_type="official_resolved",
+    protocol_version="official-harness-2026",
+    dataset_source="SWE-bench/SWE-bench_Multilingual",
+    dataset_revision="e5c585e008e2cb5eecc7c64192d855c53279d788",
+    dataset_configs=("default",),
+    dataset_splits=("test",),
+    license="MIT",
+    access="public",
+    source_kind="huggingface",
+    release_policy="versioned",
+    evaluator_source="SWE-bench/SWE-bench",
+    evaluator_revision="6a35510e530f236fd1dbcd9df888f01937c8494a",
 )
 @task
 def swebench_multilingual(tier: str = "smoke") -> Task:

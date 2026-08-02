@@ -250,6 +250,17 @@ def gsm8k_scorer() -> Scorer:
     category="math",
     tier_samples={"smoke": 5, "quick": 75, "full": 1319},
     total_samples=1319,
+    protocol_version="GSM8K-original",
+    dataset_source="openai/gsm8k",
+    dataset_revision="740312add88f781978c0658806c59bc2815b9866",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_configs=("main",),
+    dataset_splits=("test",),
 )
 @task
 def gsm8k(tier: str = "smoke") -> Task:

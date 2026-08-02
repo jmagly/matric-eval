@@ -17,12 +17,85 @@ Extended (issue #37, ADR-005):
 import hashlib
 import os
 import random
+import re
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
-from inspect_ai.dataset import Sample, MemoryDataset, json_dataset
+from inspect_ai.dataset import MemoryDataset, Sample, json_dataset
 
-from .config import get_seed, get_sample_count
+from .config import get_sample_count, get_seed
+
+
+class DatasetSourceError(RuntimeError):
+    """Base error for remote dataset source failures."""
+
+
+class DatasetAccessError(DatasetSourceError):
+    """Dataset requires authentication or access approval."""
+
+
+class DatasetRevisionError(DatasetSourceError):
+    """Requested dataset revision is missing or not immutable."""
+
+
+class DatasetOfflineError(DatasetSourceError):
+    """Pinned dataset is unavailable from the local offline cache."""
+
+
+_IMMUTABLE_HF_REVISION = re.compile(r"^[0-9a-f]{40,64}$", re.IGNORECASE)
+
+
+def is_immutable_hf_revision(revision: str | None) -> bool:
+    """Return whether a Hugging Face revision is a full commit hash."""
+    return bool(revision and _IMMUTABLE_HF_REVISION.fullmatch(revision))
+
+
+def _attach_dataset_provenance(
+    samples: list[Sample],
+    *,
+    dataset_id: str,
+    revision: str | None,
+    subset: str | None,
+    split: str,
+) -> list[Sample]:
+    for sample in samples:
+        metadata = dict(sample.metadata or {})
+        metadata.update(
+            {
+                "dataset_source": dataset_id,
+                "dataset_revision": revision or "mutable:main",
+                "dataset_config": subset,
+                "dataset_split": split,
+            }
+        )
+        sample.metadata = metadata
+    return samples
+
+
+def _raise_dataset_source_error(
+    exc: Exception,
+    *,
+    dataset_id: str,
+    revision: str | None,
+    offline: bool,
+) -> None:
+    error_name = type(exc).__name__.lower()
+    if offline:
+        raise DatasetOfflineError(
+            f"Pinned dataset {dataset_id}@{revision or 'main'} is not available "
+            "in the offline cache"
+        ) from exc
+    if any(marker in error_name for marker in ("gated", "unauthorized", "forbidden")):
+        raise DatasetAccessError(
+            f"Dataset {dataset_id} requires Hugging Face authentication or access approval"
+        ) from exc
+    if "revision" in error_name:
+        raise DatasetRevisionError(
+            f"Dataset revision {dataset_id}@{revision or 'main'} does not exist"
+        ) from exc
+    if any(marker in error_name for marker in ("notfound", "not_found", "missing")):
+        raise DatasetSourceError(f"Dataset source {dataset_id} does not exist") from exc
+    raise exc
 
 
 def seeded_sample(
@@ -301,6 +374,11 @@ def load_hf_dataset(
     seed: int = 42,
     streaming: bool = False,
     record_to_sample: Callable | None = None,
+    revision: str | None = None,
+    token: bool | str | None = None,
+    cache_dir: str | Path | None = None,
+    offline: bool = False,
+    require_immutable_revision: bool = False,
 ) -> list[Sample]:
     """Load a dataset from HuggingFace Hub.
 
@@ -312,6 +390,12 @@ def load_hf_dataset(
         seed: Random seed for reproducible sampling
         streaming: Use streaming mode for huge datasets
         record_to_sample: Optional function to convert records to Samples
+        revision: Dataset commit hash or tag. Use a full hash for reproducible runs.
+        token: Hugging Face token behavior. ``True`` uses the locally configured token.
+            Token values are never retained in sample or result metadata.
+        cache_dir: Optional deterministic cache root.
+        offline: Restrict loading to files already present in the local cache.
+        require_immutable_revision: Reject branches, tags, and missing revisions.
 
     Returns:
         List of Sample objects
@@ -319,6 +403,11 @@ def load_hf_dataset(
     Raises:
         ImportError: If the `datasets` library is not installed
     """
+    if require_immutable_revision and not is_immutable_hf_revision(revision):
+        raise DatasetRevisionError(
+            f"Dataset {dataset_id} requires an immutable full commit revision; got {revision!r}"
+        )
+
     try:
         import datasets as hf_datasets
     except ImportError:
@@ -333,23 +422,57 @@ def load_hf_dataset(
         load_kwargs["name"] = subset
     if streaming:
         load_kwargs["streaming"] = True
+    if revision is not None:
+        load_kwargs["revision"] = revision
+    if token is not None:
+        load_kwargs["token"] = token
+    if cache_dir is not None:
+        load_kwargs["cache_dir"] = str(cache_dir)
+    if offline:
+        load_kwargs["download_config"] = hf_datasets.DownloadConfig(
+            cache_dir=str(cache_dir) if cache_dir is not None else None,
+            local_files_only=True,
+        )
 
-    ds = hf_datasets.load_dataset(dataset_id, **load_kwargs)
+    try:
+        ds = hf_datasets.load_dataset(dataset_id, **load_kwargs)
+    except Exception as exc:
+        _raise_dataset_source_error(
+            exc,
+            dataset_id=dataset_id,
+            revision=revision,
+            offline=offline,
+        )
+        raise AssertionError("unreachable") from exc
 
     # For streaming datasets, use reservoir sampling
     if streaming and sample_count is not None:
         if record_to_sample is not None:
             sampled_records = reservoir_sample(ds, k=sample_count, seed=seed)
-            return [record_to_sample(r) for r in sampled_records]
+            samples = [record_to_sample(r) for r in sampled_records]
+            return _attach_dataset_provenance(
+                samples,
+                dataset_id=dataset_id,
+                revision=revision,
+                subset=subset,
+                split=split,
+            )
         else:
             sampled_records = reservoir_sample(ds, k=sample_count, seed=seed)
-            return [
+            samples = [
                 Sample(
                     input=str(r.get("input", "")),
                     target=str(r.get("target", "")),
                 )
                 for r in sampled_records
             ]
+            return _attach_dataset_provenance(
+                samples,
+                dataset_id=dataset_id,
+                revision=revision,
+                subset=subset,
+                split=split,
+            )
 
     # Non-streaming: convert all records
     all_records = list(ds)
@@ -370,4 +493,10 @@ def load_hf_dataset(
         rng = random.Random(seed)
         all_samples = rng.sample(all_samples, sample_count)
 
-    return all_samples
+    return _attach_dataset_provenance(
+        all_samples,
+        dataset_id=dataset_id,
+        revision=revision,
+        subset=subset,
+        split=split,
+    )

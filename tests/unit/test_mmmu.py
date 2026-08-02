@@ -1,17 +1,17 @@
-"""
-Tests for MMMU benchmark task (multimodal).
-"""
+"""MMMU current multimodal protocol tests."""
 
-from typing import Any
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from inspect_ai import Task
-from inspect_ai.dataset import Sample
+from inspect_ai.model import ContentImage
+from inspect_ai.scorer import Target
+from PIL import Image
 
 from matric_eval.tasks.mmmu import (
+    MMMU_DATASET_REVISION,
     _extract_answer,
-    load_mmmu,
+    _parse_open_response,
     mmmu,
     mmmu_scorer,
     record_to_sample,
@@ -20,128 +20,67 @@ from matric_eval.tasks.mmmu import (
 
 @pytest.fixture(autouse=True)
 def _isolated_registry(isolated_registry):
-    """Use isolated registry."""
+    pass
 
 
-@pytest.fixture
-def sample_record() -> dict[str, Any]:
-    return {
-        "id": "mmmu-art-001",
-        "question": "What art movement does this painting belong to?",
-        "options": ["A. Impressionism", "B. Cubism", "C. Surrealism", "D. Baroque"],
-        "answer": "A",
-        "subject": "Art",
-        "subfield": "Art History",
+def test_record_contains_ordered_real_images_and_options() -> None:
+    sample = record_to_sample(
+        {
+            "id": "Art_1",
+            "question": "What style is shown?",
+            "options": ["Impressionism", "Cubism"],
+            "answer": "A",
+            "question_type": "multiple-choice",
+            "image_1": Image.new("RGB", (2, 2)),
+        }
+    )
+    content = sample.input[0].content
+    assert any(isinstance(item, ContentImage) for item in content)
+    assert sample.choices == ["Impressionism", "Cubism"]
+    assert sample.metadata["options"] == ["Impressionism", "Cubism"]
+    assert sample.metadata["requires_vision"] is True
+    assert sample.metadata["dataset_revision"] == MMMU_DATASET_REVISION
+
+
+def test_multiple_choice_parser_uses_declared_options() -> None:
+    assert _extract_answer("The final answer is (E).", ["1", "2", "3", "4", "5"]) == "E"
+    assert (
+        _extract_answer(
+            "After reviewing every option, I choose Cubism as the answer",
+            ["Impressionism", "Cubism"],
+        )
+        == "B"
+    )
+
+
+def test_open_parser_extracts_numeric_answer() -> None:
+    assert 42.0 in _parse_open_response("Therefore, the answer is 42.")
+
+
+@pytest.mark.asyncio
+async def test_official_scorer() -> None:
+    score_fn = mmmu_scorer()
+    state = Mock()
+    state.output.completion = "(B)"
+    state.metadata = {
         "question_type": "multiple-choice",
-        "image_1": "mock_image",  # would be PIL.Image in practice
-    }
-
-
-@pytest.fixture
-def sample_record_no_images() -> dict[str, Any]:
-    return {
-        "id": "mmmu-math-001",
-        "question": "Solve: 2x + 3 = 7",
-        "options": ["A. 1", "B. 2", "C. 3", "D. 4"],
-        "answer": "B",
+        "options": ["one", "two"],
         "subject": "Math",
-        "subfield": "Algebra",
-        "question_type": "multiple-choice",
+        "discipline": "Science",
+        "split": "test",
     }
+    result = await score_fn(state, Target(target="B"))
+    assert result.value == 1.0
 
 
-# =============================================================================
-# Record to Sample
-# =============================================================================
-
-
-class TestRecordToSample:
-    def test_basic_conversion(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.id == "mmmu-art-001"
-        assert "art movement" in sample.input
-        assert sample.target == "A"
-
-    def test_options_in_input(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert "Impressionism" in sample.input
-        assert "Cubism" in sample.input
-
-    def test_metadata_subject(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["subject"] == "Art"
-        assert sample.metadata["subfield"] == "Art History"
-
-    def test_image_detection(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["has_images"] is True
-        assert sample.metadata["image_count"] == 1
-
-    def test_no_images(self, sample_record_no_images: dict) -> None:
-        sample = record_to_sample(sample_record_no_images)
-        assert sample.metadata["has_images"] is False
-        assert sample.metadata["image_count"] == 0
-
-
-# =============================================================================
-# Answer Extraction
-# =============================================================================
-
-
-class TestExtractAnswer:
-    def test_single_letter(self) -> None:
-        assert _extract_answer("A") == "A"
-        assert _extract_answer("B") == "B"
-        assert _extract_answer("E") == "E"
-
-    def test_letter_with_period(self) -> None:
-        assert _extract_answer("A.") == "A"
-        assert _extract_answer("C.") == "C"
-
-    def test_parenthesized(self) -> None:
-        assert _extract_answer("The answer is (B)") == "B"
-
-    def test_answer_is_pattern(self) -> None:
-        assert _extract_answer("The answer is C") == "C"
-        assert _extract_answer("Answer: D") == "D"
-
-    def test_lowercase_normalized(self) -> None:
-        assert _extract_answer("a") == "A"
-        assert _extract_answer("b.") == "B"
-
-    def test_empty_string(self) -> None:
-        assert _extract_answer("") == ""
-
-    def test_no_valid_answer(self) -> None:
-        assert _extract_answer("I don't know") == ""
-
-    def test_trailing_letter(self) -> None:
-        assert _extract_answer("After analysis, the answer is B") == "B"
-
-
-# =============================================================================
-# Registration
-# =============================================================================
-
-
-class TestRegistration:
-    def test_registered(self) -> None:
-        meta = mmmu._benchmark_metadata
-        assert meta.name == "mmmu"
-        assert meta.requires_vision is True
-        assert meta.category.value == "multimodal"
-        assert meta.total_samples == 11500
-
-    @patch("matric_eval.tasks.mmmu.load_mmmu")
-    def test_task_creation(self, mock_load) -> None:
-        mock_load.return_value = [Sample(input="q", target="A", id="1")]
-        task = mmmu(tier="smoke")
-        assert isinstance(task, Task)
-        assert task.name == "mmmu"
-
-
-class TestMmmuScorer:
-    @pytest.mark.asyncio
-    async def test_scorer_factory(self) -> None:
-        scorer_fn = mmmu_scorer()
-        assert callable(scorer_fn)
+def test_registration_and_explicit_split_name() -> None:
+    metadata = mmmu._benchmark_metadata
+    assert metadata.total_samples == 11400
+    assert metadata.requires_vision is True
+    with patch(
+        "matric_eval.tasks.mmmu.load_mmmu",
+        return_value=[record_to_sample({"id": "x", "question": "q", "answer": "a"})],
+    ):
+        result = mmmu(split="test")
+    assert isinstance(result, Task)
+    assert result.name == "mmmu_test"

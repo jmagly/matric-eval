@@ -1,0 +1,52 @@
+# Wave 1 benchmark protocols
+
+The Wave 1 adapters pin both data and evaluator revisions. Do not substitute a
+generic exact-match or completion scorer for an upstream sandbox, trajectory,
+or batch evaluator.
+
+| Benchmark | Protocol | Tasks | Execution |
+| --- | --- | ---: | --- |
+| CyberSecEval 4 | Eight retained public suites | 7,883 suite items | Native Inspect via `inspect-evals==0.16.0` |
+| GAIA classic | 2023, official answer normalization and attachments | 466 | Native Inspect; gated Hugging Face access and Docker |
+| NL2RepoBench | Pinned 104-task release | 104 | Native Inspect agent in published per-project GHCR images |
+| Terminal-Bench | 2.1 task manifests, Harbor 0.20.0 | 89 | Native Inspect verifier or leaderboard-compatible Harbor run |
+| SWE-bench Verified | Current official snapshot | 500 | Native Inspect agent and upstream SWE-bench harness |
+| SWE-bench Pro | Current ScaleAI snapshot | 731 | Native Inspect agent with the Pro image, run script, and parser |
+| SWE-bench Multilingual | Current 9-language snapshot | 300 | Native Inspect agent and upstream SWE-bench harness |
+| Claw-Eval | v1.1.0, exactly three successful trials | 300 | Pinned upstream trajectory runner; Pass^3 |
+| QwenClawBench | v1.1 | 100 | Pinned upstream OpenClaw runner and penalized hybrid grading |
+| MMMU | Public-answer test or validation split | 11,400 | Native Inspect with ordered image content and official parsing |
+| OmniDocBench | v1.7 MGAM | 1,651 pages | Pinned upstream batch evaluator with Edit Distance, TEDS, and CDM |
+| Video-MME-v2 | 64-frame or 1-fps configurations | 800 videos / 3,200 questions | Native Inspect with official grouped nonlinear rating |
+
+## Local data
+
+Set benchmark paths through the existing `MATRIC_EVAL_<BENCHMARK>_DATA_PATH`
+settings. NL2RepoBench and Terminal-Bench expect pinned repository checkouts.
+QwenClawBench, OmniDocBench, and Video-MME-v2 require locally accepted dataset
+snapshots. Video-MME-v2 media is never downloaded automatically because its
+terms prohibit redistribution and commercial use.
+
+GAIA uses the authenticated `gaia-benchmark/GAIA` snapshot unless a local
+JSONL override is configured. MMMU can use the public Hugging Face snapshot and
+keeps `dev`, `validation`, and `test` explicit.
+
+## External runners
+
+Claw-Eval, QwenClawBench, and OmniDocBench cannot be reduced to per-completion
+Inspect scoring without changing their protocols. Their task modules expose
+`build_*_command()` and `run_*()` helpers and reject the former placeholder
+scorers.
+
+Terminal-Bench exposes `build_harbor_command()` for leaderboard-compatible
+runs. The native adapter runs the same hidden `tests/test.sh` verifier after the
+agent exits, while Harbor remains the source of truth for submission packaging,
+multi-trial jobs, and uploads.
+
+## Reproducibility
+
+Every registry entry records `protocol_version`, `dataset_source`,
+`dataset_revision`, `evaluator_source`, and `evaluator_revision`. Tier sampling
+is deterministic using the configured matric-eval seed. SWE-bench and
+Video-MME-v2 infrastructure failures raise errors instead of being converted to
+model failures.

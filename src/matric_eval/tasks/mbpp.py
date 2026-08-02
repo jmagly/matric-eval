@@ -210,6 +210,18 @@ def load_mbpp(tier: str = "smoke") -> list[Sample]:
     category="code",
     tier_samples={"smoke": 5, "quick": 75, "full": 974},
     total_samples=974,
+    protocol_version="MBPP-original-974",
+    dataset_source="google-research-datasets/mbpp",
+    dataset_revision="4bb6404fdc6cacfda99d4ac4205087b89d32030c",
+    dataset_configs=("full",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="CC-BY-4.0",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("test",),
+    successor="mbpp_plus",
 )
 @task
 def mbpp(tier: str = "smoke", thinking: bool = True) -> Task:

@@ -110,6 +110,18 @@ def load_humaneval(tier: str = "smoke") -> list[Sample]:
     category="code",
     tier_samples={"smoke": 5, "quick": 75, "full": 164},
     total_samples=164,
+    protocol_version="HumanEval-original-164",
+    dataset_source="openai/openai_humaneval",
+    dataset_revision="7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544",
+    dataset_configs=("openai_humaneval",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("test",),
+    successor="humaneval_plus",
 )
 @task
 def humaneval(tier: str = "smoke", thinking: bool = True) -> Task:

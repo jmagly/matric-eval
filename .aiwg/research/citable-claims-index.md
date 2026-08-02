@@ -1,6 +1,6 @@
 # Citable Claims Index - matric-eval
 
-This document indexes claims made in the matric-eval framework that are backed by research papers from the [research-papers](https://git.integrolabs.net/roctinam/research-papers) repository.
+This document indexes claims made in the matric-eval framework that are backed by research papers from the [research-papers](https://git.integrolabs.net/section9/research-papers) repository.
 
 **Last Updated**: 2026-01-25
 **Status**: Complete - All core benchmark papers acquired
@@ -157,7 +157,7 @@ def pass_at_k(n: int, c: int, k: int) -> float:
 
 ## Cross-References
 
-- **Research Papers Repo**: https://git.integrolabs.net/roctinam/research-papers
+- **Research Papers Repo**: https://git.integrolabs.net/section9/research-papers
 - **Self-Evaluation**: `.aiwg/research/self-evaluation-research-based.md`
 - **Gap Analysis**: `.aiwg/research/research-gap-analysis.md`
 

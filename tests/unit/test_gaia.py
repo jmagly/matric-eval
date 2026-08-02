@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 import pytest
 from inspect_ai import Task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Target
+from inspect_ai.scorer import Target
 
 from matric_eval.tasks.gaia import (
     _extract_final_answer,
@@ -27,7 +27,6 @@ from matric_eval.tasks.gaia import (
     normalize_answer,
     record_to_sample,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -40,6 +39,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_GAIA_SAMPLES", raising=False)
     monkeypatch.delenv("EVAL_SEED", raising=False)
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -97,11 +97,11 @@ class TestNormalizeAnswer:
         """Should lowercase."""
         assert normalize_answer("PARIS") == "paris"
 
-    def test_removes_articles(self) -> None:
-        """Should remove leading articles."""
-        assert normalize_answer("the Eiffel Tower") == "eiffel tower"
-        assert normalize_answer("a dog") == "dog"
-        assert normalize_answer("an apple") == "apple"
+    def test_preserves_articles_without_spaces(self) -> None:
+        """Official GAIA normalization removes whitespace, not articles."""
+        assert normalize_answer("the Eiffel Tower") == "theeiffeltower"
+        assert normalize_answer("a dog") == "adog"
+        assert normalize_answer("an apple") == "anapple"
 
     def test_removes_trailing_punctuation(self) -> None:
         """Should remove trailing punctuation."""
@@ -110,7 +110,7 @@ class TestNormalizeAnswer:
 
     def test_collapses_whitespace(self) -> None:
         """Should collapse multiple spaces."""
-        assert normalize_answer("New   York   City") == "new york city"
+        assert normalize_answer("New   York   City") == "newyorkcity"
 
 
 # =============================================================================
@@ -243,7 +243,7 @@ class TestGaiaScorer:
 
         target = Target(target="Paris")
         score = await scorer(state, target)
-        assert score.value == 1.0
+        assert score.value == "C"
 
     @pytest.mark.asyncio
     async def test_case_insensitive_match(self) -> None:
@@ -256,11 +256,11 @@ class TestGaiaScorer:
 
         target = Target(target="Paris")
         score = await scorer(state, target)
-        assert score.value == 1.0
+        assert score.value == "C"
 
     @pytest.mark.asyncio
-    async def test_partial_credit_for_contained(self) -> None:
-        """Should give 0.5 for answer contained in response."""
+    async def test_no_partial_credit_for_contained(self) -> None:
+        """Official GAIA scoring is strict and gives no substring credit."""
         scorer = gaia_scorer()
 
         state = Mock()
@@ -269,7 +269,7 @@ class TestGaiaScorer:
 
         target = Target(target="Paris")
         score = await scorer(state, target)
-        assert score.value >= 0.5
+        assert score.value == "I"
 
     @pytest.mark.asyncio
     async def test_no_match_scores_0(self) -> None:
@@ -282,11 +282,11 @@ class TestGaiaScorer:
 
         target = Target(target="Paris")
         score = await scorer(state, target)
-        assert score.value == 0.0
+        assert score.value == "I"
 
     @pytest.mark.asyncio
-    async def test_extracts_answer_from_explanation(self) -> None:
-        """Should extract answer from verbose response."""
+    async def test_rejects_verbose_numeric_response(self) -> None:
+        """The official scorer expects the final answer only."""
         scorer = gaia_scorer()
 
         state = Mock()
@@ -295,7 +295,7 @@ class TestGaiaScorer:
 
         target = Target(target="1889")
         score = await scorer(state, target)
-        assert score.value == 1.0
+        assert score.value == "I"
 
 
 # =============================================================================
@@ -332,11 +332,13 @@ class TestGaiaTierConfig:
     def test_smoke_tier_configured(self) -> None:
         """Should have gaia in smoke tier."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.gaia > 0
 
     def test_full_tier_configured(self) -> None:
         """Should have gaia in full tier."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
         assert tier.gaia == 466

@@ -128,6 +128,16 @@ def load_realworldqa(tier: str = "smoke") -> list[Sample]:
     total_samples=700,
     requires_vision=True,
     scoring_type="standard",
+    protocol_version="RealWorldQA-700",
+    dataset_source="xai-org/RealworldQA",
+    dataset_revision="17e7f75e092e47169732462ea3cdfebe911105dd",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="CC-BY-ND-4.0",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("test",),
 )
 @task
 def realworldqa(tier: str = "smoke") -> Task:

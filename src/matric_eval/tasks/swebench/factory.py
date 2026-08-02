@@ -1,223 +1,219 @@
-"""
-Shared factory for SWE-bench benchmark variants.
-
-All SWE-bench variants share the same task structure:
-1. Load dataset (repo + issue description + base commit)
-2. Provision sandbox at the correct commit
-3. Model receives issue context and generates a patch
-4. Score via patch_apply_scorer (binary: applies + tests pass)
-
-Variants differ only in dataset source and difficulty.
-"""
+"""Pinned SWE-bench loaders using the maintained agent and official harness."""
 
 from __future__ import annotations
 
-import random
+import ast
+import json
+import tempfile
+from pathlib import Path
 from typing import Any, Callable
 
-from inspect_ai import Task, task
+from inspect_ai import Task
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import generate, system_message
+from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_evals.swe_bench.scorers import swe_bench_scorer
+from inspect_evals.swe_bench.solvers import swe_bench_agent_with_inspect_tool_support
 
 from matric_eval.config import get_sample_count, get_seed
-from matric_eval.datasets import get_dataset_path, load_hf_dataset
-from matric_eval.scorers.patch_apply import patch_apply_scorer
+from matric_eval.datasets import get_dataset_path, seeded_sample
+
+SWEBENCH_EVALUATOR_REVISION = "6a35510e530f236fd1dbcd9df888f01937c8494a"
+SWEBENCH_SYSTEM_PROMPT = (
+    "Please solve the following coding issue by editing the repository. "
+    "Your changes will be evaluated as a git patch.\n\n{issue_text}"
+)
+
+VARIANT_CONFIG: dict[str, dict[str, Any]] = {
+    "verified": {
+        "dataset_id": "SWE-bench/SWE-bench_Verified",
+        "revision": "91aa3ed51b709be6457e12d00300a6a596d4c6a3",
+        "split": "test",
+        "total_samples": 500,
+    },
+    "multilingual": {
+        "dataset_id": "SWE-bench/SWE-bench_Multilingual",
+        "revision": "e5c585e008e2cb5eecc7c64192d855c53279d788",
+        "split": "test",
+        "total_samples": 300,
+    },
+    "pro": {
+        "dataset_id": "ScaleAI/SWE-bench_Pro",
+        "revision": "7ab5114912baf22bb098818e604c02fe7ad2c11f",
+        "split": "test",
+        "total_samples": 731,
+    },
+}
 
 
-# ---------------------------------------------------------------------------
-# Dataset schema → Sample conversion
-# ---------------------------------------------------------------------------
-
-def swebench_record_to_sample(record: dict[str, Any]) -> Sample:
-    """Convert a SWE-bench HuggingFace record to an Inspect AI Sample.
-
-    SWE-bench schema (princeton-nlp/SWE-bench_Verified):
-        - instance_id: str (e.g., "django__django-11099")
-        - repo: str (e.g., "django/django")
-        - base_commit: str (40-char SHA)
-        - patch: str (gold patch)
-        - test_patch: str (test additions for verification)
-        - problem_statement: str (GitHub issue body)
-        - hints_text: str (optional hints)
-        - version: str (e.g., "4.0")
-
-    Returns:
-        Sample with input=problem_statement, target=patch, metadata with
-        repo info needed by the sandbox and patch_apply_scorer.
-    """
-    instance_id = record.get("instance_id", "")
-    repo = record.get("repo", "")
-    base_commit = record.get("base_commit", "")
-    problem_statement = record.get("problem_statement", "")
-    patch = record.get("patch", "")
-    test_patch = record.get("test_patch", "")
-    hints = record.get("hints_text", "")
-
-    # Build the prompt context
-    prompt_parts = [
-        f"Repository: {repo}",
-        f"Base commit: {base_commit}",
-        "",
-        "## Issue Description",
-        problem_statement,
-    ]
-    if hints:
-        prompt_parts.extend(["", "## Hints", hints])
-
-    prompt_parts.extend([
-        "",
-        "## Task",
-        "Generate a git patch that resolves the issue described above.",
-        "Output ONLY the patch content (unified diff format).",
-    ])
-
-    return Sample(
-        input="\n".join(prompt_parts),
-        target=patch,
-        id=instance_id,
-        metadata={
-            "instance_id": instance_id,
-            "repo": repo,
-            "base_commit": base_commit,
-            "test_patch": test_patch,
-            "repo_path": f"/workspace/{repo.replace('/', '_')}",
-            "test_path": _extract_test_path(test_patch),
-        },
-    )
+def _test_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if not value:
+        return []
+    parsed = json.loads(value)
+    return [str(item) for item in parsed]
 
 
 def _extract_test_path(test_patch: str) -> str:
-    """Extract the primary test file path from a test patch.
-
-    Looks for the first +++ b/path/to/test.py line in the diff.
-    Returns empty string if no test path found.
-    """
     for line in test_patch.splitlines():
         if line.startswith("+++ b/"):
             path = line[6:].strip()
-            if path and not path.startswith("/dev/null"):
+            if path and path != "/dev/null":
                 return path
     return ""
 
 
-# ---------------------------------------------------------------------------
-# Shared loader
-# ---------------------------------------------------------------------------
+def swebench_record_to_sample(record: dict[str, Any]) -> Sample:
+    """Convert both string-list and Arrow-list SWE-bench snapshots."""
+    instance_id = str(record.get("instance_id", ""))
+    repo = str(record.get("repo", ""))
+    issue = str(record.get("problem_statement", ""))
+    hints = str(record.get("hints_text", "") or "")
+    prompt = f"Repository: {repo}\n\n" + SWEBENCH_SYSTEM_PROMPT.format(issue_text=issue)
+    if hints:
+        prompt += f"\n\nHints:\n{hints}"
+    metadata = {
+        key: record.get(key, "")
+        for key in (
+            "base_commit",
+            "patch",
+            "test_patch",
+            "version",
+            "repo",
+            "environment_setup_commit",
+            "hints_text",
+            "created_at",
+        )
+    }
+    metadata.update(
+        {
+            "instance_id": instance_id,
+            "FAIL_TO_PASS": _test_list(record.get("FAIL_TO_PASS")),
+            "PASS_TO_PASS": _test_list(record.get("PASS_TO_PASS")),
+            "repo_path": f"/workspace/{repo.replace('/', '_')}",
+            "test_path": _extract_test_path(str(record.get("test_patch", ""))),
+        }
+    )
+    return Sample(
+        input=prompt,
+        target=str(record.get("patch", "")),
+        id=instance_id,
+        metadata=metadata,
+    )
 
-SWEBENCH_SYSTEM_PROMPT = """\
-You are an expert software engineer. You will be given a GitHub issue \
-description from a real open-source repository. Your task is to generate \
-a git patch (unified diff format) that resolves the issue.
 
-Output ONLY the patch content. Do not include explanations or markdown fences.\
-"""
+def _records(variant: str) -> list[dict[str, Any]]:
+    config = VARIANT_CONFIG[variant]
+    local_path = get_dataset_path(f"swebench_{variant}")
+    if local_path:
+        path = Path(local_path)
+        if path.is_dir():
+            path = path / f"{config['split']}.jsonl"
+        with path.open(encoding="utf-8") as source:
+            return [json.loads(line) for line in source if line.strip()]
 
-# Dataset IDs and known sizes per variant
-VARIANT_CONFIG: dict[str, dict[str, Any]] = {
-    "verified": {
-        "dataset_id": "princeton-nlp/SWE-bench_Verified",
-        "split": "test",
-        "total_samples": 500,
-    },
-    "pro": {
-        "dataset_id": "princeton-nlp/SWE-bench_Pro",
-        "split": "test",
-        "total_samples": 0,  # TBD — dataset not yet confirmed
-    },
-    "multilingual": {
-        "dataset_id": "princeton-nlp/SWE-bench_Multilingual",
-        "split": "test",
-        "total_samples": 0,  # TBD — dataset not yet confirmed
-    },
-}
+    from datasets import load_dataset
+
+    dataset = load_dataset(
+        config["dataset_id"],
+        split=config["split"],
+        revision=config["revision"],
+    )
+    return [dict(record) for record in dataset]
+
+
+def _official_image(record: dict[str, Any]) -> str:
+    from swebench.harness.test_spec.test_spec import make_test_spec
+
+    image = make_test_spec(record).instance_image_key
+    return image if "/" in image else f"swebench/{image}"
+
+
+def _sandbox(
+    image: str,
+    instance_id: str,
+    working_dir: str = "/testbed",
+    *,
+    allow_internet: bool = False,
+) -> SandboxEnvironmentSpec:
+    directory = Path(tempfile.gettempdir()) / "matric-eval-sandboxes" / "swebench"
+    directory.mkdir(parents=True, exist_ok=True)
+    config = directory / f"{instance_id}.yaml"
+    content = (
+        "services:\n"
+        "  default:\n"
+        f"    image: {image}\n"
+        '    entrypoint: ["sleep", "infinity"]\n'
+        "    command: []\n"
+        f"    working_dir: {working_dir}\n"
+    )
+    if not allow_internet:
+        content += "    network_mode: none\n"
+    config.write_text(content, encoding="utf-8")
+    return SandboxEnvironmentSpec(type="docker", config=str(config))
 
 
 def load_swebench(
     variant: str,
     tier: str = "smoke",
-    record_to_sample_fn: Callable | None = None,
+    record_to_sample_fn: Callable[[dict[str, Any]], Sample] | None = None,
 ) -> list[Sample]:
-    """Load SWE-bench samples for a given variant and tier.
-
-    Args:
-        variant: One of "verified", "pro", "multilingual"
-        tier: Evaluation tier ("smoke", "quick", "full")
-        record_to_sample_fn: Override record converter (for multilingual)
-
-    Returns:
-        List of Sample objects
-
-    Raises:
-        ValueError: If variant is unknown
-    """
     if variant not in VARIANT_CONFIG:
         raise ValueError(
-            f"Unknown SWE-bench variant '{variant}'. "
-            f"Available: {', '.join(sorted(VARIANT_CONFIG))}"
+            f"Unknown SWE-bench variant '{variant}'. Available: {', '.join(sorted(VARIANT_CONFIG))}"
         )
-
-    config = VARIANT_CONFIG[variant]
-    benchmark_name = f"swebench_{variant}"
+    if variant == "pro":
+        raise ValueError("SWE-bench Pro uses its dedicated official evaluator adapter")
     converter = record_to_sample_fn or swebench_record_to_sample
-
-    # Check for local path override
-    local_path = get_dataset_path(benchmark_name)
-    if local_path:
-        import json
-        from pathlib import Path
-
-        records = []
-        with open(Path(local_path)) as f:
-            for line in f:
-                if line.strip():
-                    records.append(json.loads(line))
-
-        all_samples = [converter(r) for r in records]
-    else:
-        sample_count = get_sample_count(benchmark_name, tier)
-        all_samples = load_hf_dataset(
-            config["dataset_id"],
-            split=config["split"],
-            sample_count=sample_count,
-            seed=get_seed(),
-            record_to_sample=converter,
+    records = _records(variant)
+    sample_count = get_sample_count(f"swebench_{variant}", tier)
+    if 0 < sample_count < len(records):
+        records = seeded_sample(records, sample_count, get_seed())
+    samples = []
+    for record in records:
+        sample = converter(record)
+        sample.metadata = sample.metadata or {}
+        sample.metadata.update(
+            {
+                "image_name": _official_image(record),
+                "allow_internet": False,
+                "dataset_revision": VARIANT_CONFIG[variant]["revision"],
+                "evaluator_revision": SWEBENCH_EVALUATOR_REVISION,
+            }
         )
-        return all_samples
-
-    # Apply tier sampling
-    sample_count = get_sample_count(benchmark_name, tier)
-    if sample_count >= len(all_samples):
-        return all_samples
-
-    rng = random.Random(get_seed())
-    sampled = rng.sample(all_samples, sample_count)
-    sampled.sort(key=lambda s: s.id or "")
-    return sampled
+        sample.sandbox = _sandbox(sample.metadata["image_name"], str(sample.id))
+        samples.append(sample)
+    return samples
 
 
 def create_swebench_task(
     variant: str,
     tier: str = "smoke",
-    record_to_sample_fn: Callable | None = None,
+    record_to_sample_fn: Callable[[dict[str, Any]], Sample] | None = None,
 ) -> Task:
-    """Create an Inspect AI Task for a SWE-bench variant.
-
-    Args:
-        variant: One of "verified", "pro", "multilingual"
-        tier: Evaluation tier
-        record_to_sample_fn: Override record converter
-
-    Returns:
-        Inspect AI Task configured for SWE-bench evaluation
-    """
-    samples = load_swebench(variant, tier, record_to_sample_fn)
-
+    config = VARIANT_CONFIG[variant]
     return Task(
-        dataset=samples,
-        solver=[
-            system_message(SWEBENCH_SYSTEM_PROMPT),
-            generate(),
-        ],
-        scorer=patch_apply_scorer(),
+        dataset=load_swebench(variant, tier, record_to_sample_fn),
+        solver=swe_bench_agent_with_inspect_tool_support(),
+        scorer=swe_bench_scorer(),
+        message_limit=30,
         name=f"swebench_{variant}",
+        metadata={
+            "protocol_version": "official-harness-2026",
+            "dataset_source": config["dataset_id"],
+            "dataset_revision": config["revision"],
+            "evaluator_revision": SWEBENCH_EVALUATOR_REVISION,
+        },
     )
+
+
+def parse_pro_test_list(value: Any) -> list[str]:
+    """Parse SWE-bench Pro's Python-literal test list without eval()."""
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if not value:
+        return []
+    parsed = ast.literal_eval(str(value))
+    if not isinstance(parsed, list):
+        raise ValueError("SWE-bench Pro test list is not a list")
+    return [str(item) for item in parsed]

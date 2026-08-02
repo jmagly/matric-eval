@@ -613,6 +613,17 @@ def ifeval_scorer() -> Scorer:
     category="instruction",
     tier_samples={"smoke": 10, "quick": 100, "full": 541},
     total_samples=541,
+    protocol_version="IFEval-541",
+    dataset_source="google/IFEval",
+    dataset_revision="966cd89545d6b6acfd7638bc708b98261ca58e84",
+    dataset_configs=("default",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="Apache-2.0",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("train",),
 )
 @task
 def ifeval(tier: str = "smoke") -> Task:

@@ -524,6 +524,8 @@ class TestListBenchmarksCommand:
         assert "humaneval" in result.output.lower()
         assert "mbpp" in result.output.lower()
         assert "gsm8k" in result.output.lower()
+        assert "qwenwebbench" in result.output.lower()
+        assert "unavailable" in result.output.lower()
 
     def test_list_benchmarks_with_tier_info(self) -> None:
         """Should show sample counts for each tier."""

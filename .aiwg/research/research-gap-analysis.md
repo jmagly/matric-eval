@@ -211,6 +211,6 @@ After papers are added to research-papers:
 
 ## References
 
-- [research-papers repo](https://git.integrolabs.net/roctinam/research-papers)
+- [research-papers repo](https://git.integrolabs.net/section9/research-papers)
 - [ai-writing-guide research structure](https://git.integrolabs.net/roctinam/ai-writing-guide/.aiwg/research/)
 - [matric-eval benchmarks](./../../src/matric_eval/tasks/)

@@ -631,6 +631,13 @@ def tool_call_scorer() -> Scorer:
     category="tool_use",
     tier_samples={"smoke": 5, "quick": 30, "full": 100},
     total_samples=100,
+    protocol_version="project-v1",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="local",
+    source_kind="local",
+    release_policy="local",
 )
 @task
 def tool_calling(

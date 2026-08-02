@@ -28,6 +28,11 @@ class TierConfig(BaseSettings):
     gpqa: int = 0
     cyberseceval: int = 0
     gaia: int = 0
+    # Conversation benchmarks
+    longmemeval: int = 0
+    locomo: int = 0
+    # Memory and agent benchmarks
+    memoryagentbench: int = 0
     # Application-specific benchmarks
     matric_cli: int = 0
     matric_memory: int = 0
@@ -50,6 +55,9 @@ TIERS: dict[str, TierConfig] = {
         gpqa=5,
         cyberseceval=10,
         gaia=5,
+        longmemeval=10,
+        locomo=10,
+        memoryagentbench=10,
         matric_cli=6,
         matric_memory=10,
     ),
@@ -68,6 +76,9 @@ TIERS: dict[str, TierConfig] = {
         gpqa=50,
         cyberseceval=100,
         gaia=50,
+        longmemeval=100,
+        locomo=50,
+        memoryagentbench=50,
         matric_cli=12,
         matric_memory=20,
     ),
@@ -84,8 +95,11 @@ TIERS: dict[str, TierConfig] = {
         tool_calling=100,  # All synthetic
         custom=1000,  # All custom tests
         gpqa=198,  # All (Diamond subset)
-        cyberseceval=500,  # Full instruct set
+        cyberseceval=1916,  # Largest retained CyberSecEval 4 suite
         gaia=466,  # All
+        longmemeval=500,  # All
+        locomo=0,  # All (0 = use all available)
+        memoryagentbench=0,  # All
         matric_cli=12,
         matric_memory=30,
     ),

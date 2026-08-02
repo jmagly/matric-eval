@@ -1,160 +1,162 @@
-"""
-OmniDocBench v1.5 — document recognition and understanding benchmark.
-
-Tests OCR, layout analysis, table extraction, and document comprehension
-across diverse document types.
-
-Dataset: OmniDocBench v1.5 (TBD — version confirmation needed).
-"""
+"""OmniDocBench v1.7 manifest support and official batch-evaluator routing."""
 
 from __future__ import annotations
 
-import random
+import json
+import subprocess
+from pathlib import Path
 from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import TaskState, generate, system_message
+from inspect_ai.model import ChatMessageUser, ContentText
 
 from matric_eval.config import get_sample_count, get_seed
-from matric_eval.datasets import get_dataset_path, load_hf_dataset
-from matric_eval.tasks.registry import register_benchmark
+from matric_eval.datasets import get_dataset_path, seeded_sample
+from matric_eval.multimodal import image_content
+from matric_eval.tasks.registry import (
+    BenchmarkStatus,
+    BenchmarkUnavailableError,
+    register_benchmark,
+)
+
+OMNIDOC_DATASET = "opendatalab/OmniDocBench"
+OMNIDOC_REPOSITORY = "opendatalab/OmniDocBench"
+OMNIDOC_EVALUATOR_REVISION = "193627ae9e97d89188468ed1ee3b7a856ff76044"
+OMNIDOC_VERSION = "1.7"
+OMNIDOC_PAGES = 1651
+OMNIDOC_PROMPT = (
+    "Convert this complete document page to Markdown. Preserve reading order, text, "
+    "display formulas, and tables. Return only the page Markdown."
+)
 
 
-OMNIDOCBENCH_SYSTEM_PROMPT = """\
-You are a document understanding expert. You will be given a document image \
-and a question about it. The question may involve OCR (reading text), layout \
-analysis, table extraction, or document comprehension.
-
-Provide a precise answer to the question based on the document.\
-"""
-
-# Task types for per-category scoring
-TASK_TYPES = frozenset({"ocr", "layout", "table", "comprehension"})
+def omnidoc_overall(
+    *,
+    text_edit_distance: float,
+    table_teds: float,
+    formula_cdm: float,
+) -> float:
+    """Compute the official v1.5+ three-component overall score."""
+    return ((1.0 - text_edit_distance) * 100.0 + table_teds + formula_cdm) / 3.0
 
 
-def record_to_sample(record: dict[str, Any]) -> Sample:
-    """Convert an OmniDocBench record to an Inspect AI Sample.
-
-    Expected schema:
-        - id: str
-        - question: str
-        - image: PIL.Image or path
-        - answer: str
-        - task_type: str (ocr, layout, table, comprehension)
-        - document_type: str
-    """
-    doc_id = record.get("id", "")
-    question = record.get("question", record.get("input", ""))
-    answer = record.get("answer", record.get("target", ""))
-    task_type = record.get("task_type", "comprehension")
-
+def record_to_sample(
+    record: dict[str, Any],
+    *,
+    image_path: str | Path | None = None,
+) -> Sample:
+    page_info = record.get("page_info", {})
+    relative_image = str(page_info.get("image_path", record.get("image_path", "")))
+    source = image_path or record.get("image") or relative_image
+    content = [image_content(source), ContentText(text=OMNIDOC_PROMPT)]
+    attributes = page_info.get("page_attribute", {})
     return Sample(
-        input=question,
-        target=str(answer).strip(),
-        id=str(doc_id),
+        input=[ChatMessageUser(content=content)],
+        target="",
+        id=relative_image,
         metadata={
-            "task_type": task_type,
-            "document_type": record.get("document_type", ""),
-            "has_images": True,
+            "image_path": relative_image,
+            "page_no": page_info.get("page_no"),
+            "width": page_info.get("width"),
+            "height": page_info.get("height"),
+            "page_attribute": attributes,
             "requires_vision": True,
+            "protocol_version": OMNIDOC_VERSION,
+            "evaluator_revision": OMNIDOC_EVALUATOR_REVISION,
         },
     )
 
 
-@scorer(metrics=[mean()])
-def omnidocbench_scorer() -> Scorer:
-    """Accuracy scorer for OmniDocBench with per-task-type metadata."""
-
-    async def score(state: TaskState, target: Target) -> Score:
-        completion = state.output.completion
-        if not completion or not completion.strip():
-            return Score(value=0.0, explanation="No answer provided")
-
-        predicted = completion.strip()
-        expected = str(target.text).strip()
-
-        # Normalized comparison (case-insensitive, strip whitespace)
-        correct = predicted.lower() == expected.lower()
-        task_type = (state.metadata or {}).get("task_type", "unknown")
-
-        return Score(
-            value=1.0 if correct else 0.0,
-            explanation=f"Predicted: {predicted!r}, Expected: {expected!r}",
-            metadata={
-                "task_type": task_type,
-                "predicted": predicted,
-                "expected": expected,
-            },
-        )
-
-    return score
-
-
 def load_omnidocbench(tier: str = "smoke") -> list[Sample]:
-    """Load OmniDocBench samples for the given tier."""
-    benchmark_name = "omnidocbench"
-    sample_count = get_sample_count(benchmark_name, tier)
-
-    local_path = get_dataset_path(benchmark_name)
-    if local_path:
-        import json
-        from pathlib import Path
-
-        records = []
-        with open(Path(local_path)) as f:
-            for line in f:
-                if line.strip():
-                    records.append(json.loads(line))
-        all_samples = [record_to_sample(r) for r in records]
-    else:
-        all_samples = load_hf_dataset(
-            "OmniDocBench/OmniDocBench",
-            split="test",
-            sample_count=sample_count,
-            seed=get_seed(),
-            record_to_sample=record_to_sample,
+    """Load page images and annotations from an accepted local v1.7 snapshot."""
+    root_value = get_dataset_path("omnidocbench")
+    if not root_value:
+        raise FileNotFoundError(
+            "OmniDocBench v1.7 requires its local images and ground-truth JSON. Set "
+            "MATRIC_EVAL_OMNIDOCBENCH_DATA_PATH to the accepted dataset snapshot."
         )
-        return all_samples
+    root = Path(root_value)
+    annotation_candidates = [
+        root / "OmniDocBench.json",
+        root / "OmniDocBench_v1.7.json",
+        root / "annotations.json",
+    ]
+    annotation = next((path for path in annotation_candidates if path.exists()), None)
+    if annotation is None:
+        raise FileNotFoundError(f"OmniDocBench v1.7 ground-truth JSON not found under {root}")
+    records = json.loads(annotation.read_text(encoding="utf-8"))
+    if len(records) != OMNIDOC_PAGES:
+        raise ValueError(f"Expected {OMNIDOC_PAGES} OmniDocBench pages, found {len(records)}")
+    samples = []
+    for record in records:
+        relative = Path(record["page_info"]["image_path"])
+        candidates = [root / relative, root / "images" / relative, root / "imgs" / relative]
+        image_path = next((path for path in candidates if path.exists()), candidates[0])
+        if not image_path.exists():
+            raise FileNotFoundError(f"OmniDocBench page image not found: {relative}")
+        samples.append(record_to_sample(record, image_path=image_path))
+    sample_count = get_sample_count("omnidocbench", tier)
+    if 0 < sample_count < len(samples):
+        samples = seeded_sample(samples, sample_count, get_seed())
+    return samples
 
-    if sample_count >= len(all_samples):
-        return all_samples
 
-    rng = random.Random(get_seed())
-    sampled = rng.sample(all_samples, sample_count)
-    sampled.sort(key=lambda s: s.id or "")
-    return sampled
+def build_omnidocbench_command(
+    repository: str | Path,
+    *,
+    config: str | Path,
+) -> list[str]:
+    """Build the official MGAM/CDM/TEDS batch-evaluation command."""
+    return ["uv", "run", "python", "pdf_validation.py", "--config", str(config)]
+
+
+def run_omnidocbench(
+    repository: str | Path,
+    *,
+    config: str | Path,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        build_omnidocbench_command(repository, config=config),
+        cwd=repository,
+        check=True,
+        text=True,
+    )
+
+
+def omnidocbench_scorer():
+    raise BenchmarkUnavailableError(
+        "OmniDocBench v1.7 uses batch MGAM matching plus Edit Distance, TEDS, and CDM. "
+        "Use run_omnidocbench() after writing one Markdown prediction per page."
+    )
 
 
 @register_benchmark(
     name="omnidocbench",
-    description="OmniDocBench v1.5 - document understanding (OCR, layout, tables)",
+    description="OmniDocBench v1.7 - 1,651-page document parsing benchmark",
     category="multimodal",
-    tier_samples={"smoke": 5, "quick": 50, "full": 0},
-    total_samples=0,  # TBD — version needs confirmation
+    tier_samples={"smoke": 5, "quick": 50, "full": OMNIDOC_PAGES},
+    total_samples=OMNIDOC_PAGES,
     requires_vision=True,
-    scoring_type="standard",
+    scoring_type="official_mgam_edit_teds_cdm",
+    provider_requirements=("vision", "omnidocbench-runtime"),
+    status=BenchmarkStatus.GATED,
+    status_reason="Requires accepted page images and the official batch evaluator runtime.",
+    protocol_version=OMNIDOC_VERSION,
+    dataset_source=OMNIDOC_DATASET,
+    dataset_revision="v1.7-2026-04-30",
+    dataset_splits=("test",),
+    license="Apache-2.0 code; upstream dataset terms",
+    access="gated",
+    source_kind="github",
+    release_policy="versioned",
+    evaluator_source=OMNIDOC_REPOSITORY,
+    evaluator_revision=OMNIDOC_EVALUATOR_REVISION,
 )
 @task
 def omnidocbench(tier: str = "smoke") -> Task:
-    """OmniDocBench v1.5 benchmark — document understanding.
-
-    Multi-task scoring across OCR, layout, table extraction, and comprehension.
-    Gracefully skips for text-only providers.
-
-    Args:
-        tier: Evaluation tier
-
-    Returns:
-        Task configured for OmniDocBench evaluation
-    """
-    return Task(
-        dataset=load_omnidocbench(tier),
-        solver=[
-            system_message(OMNIDOCBENCH_SYSTEM_PROMPT),
-            generate(),
-        ],
-        scorer=omnidocbench_scorer(),
-        name="omnidocbench",
+    del tier
+    raise BenchmarkUnavailableError(
+        "OmniDocBench is batch-scored across page predictions. Use run_omnidocbench() "
+        "with a pinned upstream checkout and generated prediction directory."
     )

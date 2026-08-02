@@ -202,6 +202,18 @@ def load_mmlu(tier: str = "smoke") -> list[Sample]:
     category="knowledge",
     tier_samples={"smoke": 5, "quick": 75, "full": 14042},
     total_samples=14042,
+    protocol_version="MMLU-original-57-subject",
+    dataset_source="cais/mmlu",
+    dataset_revision="c30699e8356da336a370243923dbaf21066bb9fe",
+    dataset_configs=("all",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("test",),
+    successor="mmlu_pro",
 )
 @task
 def mmlu(tier: str = "smoke") -> Task:

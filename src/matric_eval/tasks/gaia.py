@@ -1,283 +1,202 @@
-"""
-GAIA (General AI Assistants) benchmark task.
+"""Classic GAIA 2023 integration using the maintained official protocol."""
 
-Complex multi-step real-world tasks requiring web browsing, file handling,
-and multi-step reasoning. Uses exact match scoring on final answers.
-
-Based on Mialon et al. (2023): https://arxiv.org/abs/2311.12983
-
-Dataset: https://huggingface.co/datasets/gaia-benchmark/GAIA
-"""
+from __future__ import annotations
 
 import json
-import random
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import TaskState, generate, system_message
+from inspect_evals.gaia.gaia import (
+    DATASET_REVISION,
+    DEFAULT_DOCKER_SANDBOX,
+    default_solver,
+)
+from inspect_evals.gaia.gaia import (
+    gaia as upstream_gaia,
+)
+from inspect_evals.gaia.scorer import gaia_scorer, normalize_str
 
 from matric_eval.config import get_sample_count, get_seed
+from matric_eval.datasets import get_dataset_path, seeded_sample
 from matric_eval.tasks.registry import register_benchmark
+from matric_eval.tasks.upstream import INSPECT_EVALS_REVISION, adapt_upstream_task
 
-# Local dataset path
-GAIA_PATH = "/home/roctinam/data/evals/gaia"
-
-# GAIA difficulty levels
+GAIA_DATASET = "gaia-benchmark/GAIA"
+GAIA_PATH: str | None = None
 LEVELS = {1: "simple", 2: "moderate", 3: "complex"}
 
 
 def normalize_answer(answer: str) -> str:
-    """
-    Normalize an answer for comparison.
-
-    Strips whitespace, lowercases, removes articles and punctuation.
-
-    Args:
-        answer: Raw answer string
-
-    Returns:
-        Normalized answer
-    """
-    answer = answer.strip().lower()
-    # Remove leading articles
-    answer = re.sub(r"^(the|a|an)\s+", "", answer)
-    # Remove trailing punctuation
-    answer = re.sub(r"[.\,;:!?]+$", "", answer)
-    # Collapse whitespace
-    answer = " ".join(answer.split())
-    return answer
+    """Normalize with the official GAIA string normalization."""
+    return normalize_str(answer)
 
 
-def record_to_sample(record: dict[str, Any]) -> Sample:
-    """
-    Convert a GAIA record to an Inspect AI Sample.
+def _extract_final_answer(response: str) -> str:
+    """Extract a concise answer for compatibility with legacy callers."""
+    for pattern in (
+        r"(?i)final\s+answer\s*:\s*(.+)$",
+        r"(?i)answer\s*:\s*(.+)$",
+        r"\*\*([^*]+)\*\*",
+    ):
+        match = re.search(pattern, response, re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    lines = [line.strip() for line in response.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
 
-    Args:
-        record: Dict with Question, Final answer, Level, etc.
 
-    Returns:
-        Sample with the question as input and expected answer as target
-    """
-    question = record.get("Question", record.get("question", ""))
-    answer = record.get("Final answer", record.get("answer", record.get("final_answer", "")))
-    level = record.get("Level", record.get("level", 1))
-    task_id = record.get("task_id", record.get("id", str(hash(question))))
+def record_to_sample(record: dict[str, Any], base_dir: Path | None = None) -> Sample:
+    """Convert either current Parquet or legacy JSONL GAIA records."""
+    question = str(record.get("Question", record.get("question", "")))
+    answer = str(record.get("Final answer", record.get("answer", record.get("final_answer", ""))))
+    level = int(record.get("Level", record.get("level", 1)))
+    task_id = str(record.get("task_id", record.get("id", "")))
+    file_path = record.get("file_path") or record.get("file_name")
 
-    # Build the prompt with context about what's expected
-    prompt = f"""{question}
-
-Provide your final answer as a short, direct response. Do not explain your reasoning — just give the answer."""
+    files: dict[str, str] | None = None
+    file_note = ""
+    if file_path:
+        source = Path(str(file_path))
+        if base_dir is not None and not source.is_absolute():
+            source = base_dir / source
+        destination = f"/shared_files/{source.name}"
+        files = {destination: str(source)}
+        file_note = f"\nReferenced file: {destination}\n"
 
     return Sample(
-        input=prompt,
-        target=str(answer),
+        input=(
+            "Return only the final answer as a number, short phrase, or comma-separated "
+            f"list.{file_note}\nQuestion:\n{question}"
+        ),
+        target=answer,
         id=task_id,
         metadata={
             "level": level,
             "level_name": LEVELS.get(level, "unknown"),
             "question": question,
+            "split": record.get("split", "validation"),
+            "dataset_source": GAIA_DATASET,
+            "dataset_revision": DATASET_REVISION,
             "annotator_metadata": record.get("Annotator Metadata", {}),
-            "tools_needed": record.get("tools", []),
         },
+        files=files,
+        setup="mkdir -p /shared_files" if files else None,
     )
+
+
+def _load_local_records(path: Path) -> list[dict[str, Any]]:
+    if path.is_dir():
+        candidates = [
+            path / "gaia.jsonl",
+            path / "gaia_validation.jsonl",
+            path / "validation.jsonl",
+        ]
+        path = next((candidate for candidate in candidates if candidate.exists()), path)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"GAIA local override does not contain a supported JSONL file: {path}"
+        )
+    with path.open(encoding="utf-8") as source:
+        return [json.loads(line) for line in source if line.strip()]
 
 
 def load_gaia(
     tier: str = "smoke",
-    levels: Optional[list[int]] = None,
+    levels: list[int] | None = None,
+    split: str = "validation",
 ) -> list[Sample]:
-    """
-    Load GAIA samples for the given tier.
-
-    Args:
-        tier: Evaluation tier ("smoke", "quick", "full")
-        levels: Optional filter for difficulty levels (1, 2, 3)
-
-    Returns:
-        List of Sample objects
-
-    Raises:
-        FileNotFoundError: If dataset not found
-    """
+    """Load GAIA through a local override or the pinned authenticated snapshot."""
     sample_count = get_sample_count("gaia", tier)
     if sample_count == 0:
         return []
+    local_path = get_dataset_path("gaia") or GAIA_PATH
+    if local_path:
+        path = Path(local_path)
+        records = _load_local_records(path)
+        records = [
+            record
+            for record in records
+            if not levels or int(record.get("Level", record.get("level", 1))) in levels
+        ]
+        samples = [record_to_sample(record, path.parent) for record in records]
+    else:
+        subset = "2023_all" if not levels or len(levels) != 1 else f"2023_level{levels[0]}"
+        upstream = upstream_gaia(subset=subset, split=split)
+        samples = list(upstream.dataset)
 
-    data_dir = Path(GAIA_PATH)
-
-    # Try multiple file patterns
-    jsonl_candidates = [
-        data_dir / "gaia.jsonl",
-        data_dir / "gaia_validation.jsonl",
-        data_dir / "validation.jsonl",
-    ]
-
-    jsonl_path = None
-    for candidate in jsonl_candidates:
-        if candidate.exists():
-            jsonl_path = candidate
-            break
-
-    if jsonl_path is None:
-        raise FileNotFoundError(
-            f"GAIA dataset not found in {data_dir}. "
-            f"Download from https://huggingface.co/datasets/gaia-benchmark/GAIA "
-            f"and save as {data_dir}/gaia.jsonl"
-        )
-
-    records = []
-    with open(jsonl_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            record = json.loads(line)
-            # Filter by level if specified
-            record_level = record.get("Level", record.get("level", 1))
-            if levels and record_level not in levels:
-                continue
-            records.append(record)
-
-    if not records:
-        raise ValueError(f"No GAIA records found in {jsonl_path}")
-
-    all_samples = [record_to_sample(r) for r in records]
-
-    if sample_count >= len(all_samples):
-        return all_samples
-
-    seed = get_seed()
-    rng = random.Random(seed)
-    return rng.sample(all_samples, sample_count)
+    if sample_count > 0 and sample_count < len(samples):
+        samples = seeded_sample(samples, sample_count, get_seed())
+    return samples
 
 
-@scorer(metrics=[mean()])
-def gaia_scorer() -> Scorer:
-    """
-    Score GAIA responses using normalized exact match.
-
-    GAIA uses exact match on the final answer after normalization.
-    This is stricter than fuzzy matching but accounts for minor
-    formatting differences.
-
-    Returns:
-        Scorer function
-    """
-
-    async def score(state: TaskState, target: Target) -> Score:
-        response = state.output.completion
-        expected = target.text or ""
-
-        # Extract the final answer from the response
-        # Models often include explanations despite instructions
-        final_answer = _extract_final_answer(response)
-
-        # Normalize both for comparison
-        norm_response = normalize_answer(final_answer)
-        norm_expected = normalize_answer(expected)
-
-        # Exact match after normalization
-        is_match = norm_response == norm_expected
-
-        # Also check if expected is contained in response (partial credit)
-        contains_answer = norm_expected in normalize_answer(response)
-
-        if is_match:
-            score_value = 1.0
-            explanation = "Exact match"
-        elif contains_answer:
-            score_value = 0.5
-            explanation = "Answer present but not exact format"
-        else:
-            score_value = 0.0
-            explanation = f"No match. Expected: '{expected}', Got: '{final_answer}'"
-
-        return Score(
-            value=score_value,
-            explanation=explanation,
-            metadata={
-                "expected": expected,
-                "extracted_answer": final_answer,
-                "exact_match": is_match,
-                "contains_answer": contains_answer,
-                "level": state.metadata.get("level", 0),
-            },
-        )
-
-    return score
-
-
-def _extract_final_answer(response: str) -> str:
-    """
-    Extract the final answer from a model response.
-
-    Looks for common answer patterns or takes the last line.
-
-    Args:
-        response: Full model response
-
-    Returns:
-        Extracted answer string
-    """
-    # Look for explicit answer markers
-    patterns = [
-        r"(?:final answer|answer):\s*(.+?)(?:\n|$)",
-        r"(?:the answer is|result is)\s*\*\*(.+?)\*\*",  # Bold after "the answer is"
-        r"(?:the answer is|result is)\s*(.+?)(?:\n|$)",
-        r"\*\*(.+?)\*\*",  # Standalone bold text (often the answer)
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, response, re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-
-    # Fall back to the last non-empty line
-    lines = [l.strip() for l in response.strip().split("\n") if l.strip()]
-    return lines[-1] if lines else response.strip()
-
-
+@register_benchmark(
+    name="gaia",
+    description="GAIA 2023 classic - official agent, attachments, and exact scoring (466 tasks)",
+    category="agentic",
+    tier_samples={"smoke": 5, "quick": 50, "full": 466},
+    total_samples=466,
+    requires_sandbox=True,
+    sandbox_profile="docker",
+    scoring_type="official_exact_match",
+    provider_requirements=("docker", "network"),
+    status="gated",
+    status_reason="GAIA requires accepting the Hugging Face dataset terms and authentication.",
+    protocol_version="2023",
+    dataset_source=GAIA_DATASET,
+    dataset_revision=DATASET_REVISION,
+    dataset_configs=("2023_all", "2023_level1", "2023_level2", "2023_level3"),
+    dataset_splits=("validation", "test"),
+    license="GAIA dataset terms",
+    access="gated",
+    source_kind="huggingface",
+    release_policy="immutable",
+    evaluator_source="inspect-evals/gaia",
+    evaluator_revision=INSPECT_EVALS_REVISION,
+)
 @task
 def gaia(
     tier: str = "smoke",
-    levels: Optional[list[int]] = None,
+    levels: list[int] | None = None,
+    split: str = "validation",
 ) -> Task:
-    """
-    GAIA benchmark task — complex multi-step reasoning.
+    """Run classic GAIA with the maintained agent, sandbox, and official scorer."""
+    if get_dataset_path("gaia") or GAIA_PATH:
+        return Task(
+            dataset=load_gaia(tier=tier, levels=levels, split=split),
+            solver=default_solver(max_attempts=1),
+            scorer=gaia_scorer(),
+            sandbox=DEFAULT_DOCKER_SANDBOX,
+            message_limit=100,
+            name=f"gaia_2023_{split}",
+            metadata={
+                "protocol_version": "2023",
+                "dataset_source": GAIA_DATASET,
+                "dataset_revision": DATASET_REVISION,
+                "evaluator_revision": INSPECT_EVALS_REVISION,
+                "split": split,
+                "local_override": True,
+            },
+        )
 
-    Tests end-to-end assistant capability with real-world questions
-    requiring web browsing, calculation, and file handling.
-
-    Args:
-        tier: Evaluation tier
-        levels: Optional difficulty level filter (1=simple, 2=moderate, 3=complex)
-
-    Returns:
-        Inspect AI Task
-    """
-    samples = load_gaia(tier, levels)
-
-    return Task(
-        dataset=samples,
-        solver=[
-            system_message(
-                "You are a helpful assistant. Answer the question as precisely "
-                "as possible. Give only the final answer with no explanation."
-            ),
-            generate(),
-        ],
-        scorer=gaia_scorer(),
-        name="gaia",
+    subset = "2023_all" if not levels or len(levels) != 1 else f"2023_level{levels[0]}"
+    upstream = upstream_gaia(subset=subset, split=split)
+    # The current public release includes answers; retain the official scorer when present.
+    if any(str(sample.target) for sample in upstream.dataset):
+        upstream.scorer = gaia_scorer()
+    return adapt_upstream_task(
+        upstream,
+        benchmark="gaia",
+        tier=tier,
+        task_name=f"gaia_2023_{split}",
+        protocol_metadata={
+            "protocol_version": "2023",
+            "dataset_source": GAIA_DATASET,
+            "dataset_revision": DATASET_REVISION,
+            "evaluator_revision": INSPECT_EVALS_REVISION,
+            "split": split,
+            "local_override": False,
+        },
     )
-
-
-register_benchmark(
-    name="gaia",
-    description="GAIA — 466 complex multi-step real-world tasks requiring reasoning and tool use",
-    category="agentic",
-    total_samples=466,
-)

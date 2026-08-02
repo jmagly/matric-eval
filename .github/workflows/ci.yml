@@ -33,6 +33,18 @@ jobs:
       - name: Run top-level tests
         run: uv run pytest tests/ --ignore=tests/unit --ignore=tests/integration --ignore=tests/smoke -q
 
+      - name: Audit public benchmark sources
+        run: >-
+          uv run matric-eval audit-benchmarks --live --output-format json
+          --output benchmark-freshness.json
+
+      - name: Retain benchmark freshness report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: benchmark-freshness
+          path: benchmark-freshness.json
+
   # =========================================================================
   # Tier 2: Integration CI — triggered by path filters, requires Docker
   # =========================================================================

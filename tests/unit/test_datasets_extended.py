@@ -575,6 +575,108 @@ class TestLoadHFDataset:
 
         assert len(result) == 50
 
+    def test_revision_auth_cache_and_provenance(self, tmp_path: Path) -> None:
+        """Pinned authenticated loads must not retain credentials in metadata."""
+        from matric_eval.datasets import load_hf_dataset
+
+        revision = "a" * 40
+        mock_module = MagicMock()
+        mock_module.load_dataset = Mock(
+            return_value=[{"input": "question", "target": "answer"}]
+        )
+        with patch.dict("sys.modules", {"datasets": mock_module}):
+            result = load_hf_dataset(
+                "owner/dataset",
+                subset="config",
+                split="validation",
+                revision=revision,
+                token="secret-token",
+                cache_dir=tmp_path,
+                require_immutable_revision=True,
+            )
+
+        mock_module.load_dataset.assert_called_once_with(
+            "owner/dataset",
+            split="validation",
+            name="config",
+            revision=revision,
+            token="secret-token",
+            cache_dir=str(tmp_path),
+        )
+        assert result[0].metadata == {
+            "dataset_source": "owner/dataset",
+            "dataset_revision": revision,
+            "dataset_config": "config",
+            "dataset_split": "validation",
+        }
+        assert "secret-token" not in repr(result)
+
+    @pytest.mark.parametrize("revision", [None, "main", "v1.0", "abc123"])
+    def test_immutable_revision_requirement(self, revision: str | None) -> None:
+        from matric_eval.datasets import DatasetRevisionError, load_hf_dataset
+
+        with pytest.raises(DatasetRevisionError, match="immutable full commit"):
+            load_hf_dataset(
+                "owner/dataset",
+                revision=revision,
+                require_immutable_revision=True,
+            )
+
+    def test_offline_loading_uses_local_cache_only(self, tmp_path: Path) -> None:
+        from matric_eval.datasets import load_hf_dataset
+
+        download_config = object()
+        mock_module = MagicMock()
+        mock_module.DownloadConfig = Mock(return_value=download_config)
+        mock_module.load_dataset = Mock(return_value=[])
+        with patch.dict("sys.modules", {"datasets": mock_module}):
+            load_hf_dataset(
+                "owner/dataset",
+                revision="b" * 40,
+                cache_dir=tmp_path,
+                offline=True,
+            )
+
+        mock_module.DownloadConfig.assert_called_once_with(
+            cache_dir=str(tmp_path), local_files_only=True
+        )
+        assert mock_module.load_dataset.call_args.kwargs["download_config"] is download_config
+
+    @pytest.mark.parametrize(
+        ("exception_name", "expected_error"),
+        [
+            ("GatedRepoError", "DatasetAccessError"),
+            ("RevisionNotFoundError", "DatasetRevisionError"),
+            ("RepositoryNotFoundError", "DatasetSourceError"),
+        ],
+    )
+    def test_remote_failures_are_classified(
+        self, exception_name: str, expected_error: str
+    ) -> None:
+        import matric_eval.datasets as dataset_module
+
+        error_type = type(exception_name, (RuntimeError,), {})
+        mock_module = MagicMock()
+        mock_module.load_dataset = Mock(side_effect=error_type("upstream detail"))
+        with patch.dict("sys.modules", {"datasets": mock_module}):
+            with pytest.raises(getattr(dataset_module, expected_error)) as exc_info:
+                dataset_module.load_hf_dataset(
+                    "owner/dataset", revision="c" * 40
+                )
+        assert "upstream detail" not in str(exc_info.value)
+
+    def test_offline_failure_is_classified(self) -> None:
+        from matric_eval.datasets import DatasetOfflineError, load_hf_dataset
+
+        mock_module = MagicMock()
+        mock_module.DownloadConfig = Mock(return_value=object())
+        mock_module.load_dataset = Mock(side_effect=FileNotFoundError("cache path"))
+        with patch.dict("sys.modules", {"datasets": mock_module}):
+            with pytest.raises(DatasetOfflineError, match="offline cache"):
+                load_hf_dataset(
+                    "owner/dataset", revision="d" * 40, offline=True
+                )
+
 
 # =============================================================================
 # load_parquet() Tests

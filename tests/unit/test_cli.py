@@ -198,6 +198,49 @@ class TestCLICommands:
         result = runner.invoke(cli, ["validate", "--help"])
         assert result.exit_code == 0
 
+    def test_audit_benchmarks_json_artifact(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        output = tmp_path / "audit.json"
+        result = runner.invoke(
+            cli,
+            ["audit-benchmarks", "--output-format", "json", "--output", str(output)],
+        )
+
+        assert result.exit_code == 0
+        report = json.loads(result.output)
+        assert report["summary"]["error"] == 0
+        assert json.loads(output.read_text())["schema_version"] == "1"
+
+    def test_audit_benchmarks_exit_policy(self, runner: CliRunner) -> None:
+        report = {
+            "schema_version": "1",
+            "generated_at": "2026-08-02T00:00:00+00:00",
+            "live": False,
+            "summary": {
+                "benchmarks": 0,
+                "info": 0,
+                "warning": 0,
+                "error": 1,
+                "classifications": {},
+            },
+            "benchmarks": [],
+        }
+        with patch("matric_eval.freshness.audit_registry", return_value=report):
+            failed = runner.invoke(cli, ["audit-benchmarks", "--output-format", "json"])
+            allowed = runner.invoke(
+                cli,
+                [
+                    "audit-benchmarks",
+                    "--output-format",
+                    "json",
+                    "--no-fail-on-error",
+                ],
+            )
+
+        assert failed.exit_code == 1
+        assert allowed.exit_code == 0
+
 
 # =============================================================================
 # Integration Tests

@@ -173,6 +173,17 @@ def load_arc(tier: str = "smoke") -> list[Sample]:
     category="reasoning",
     tier_samples={"smoke": 5, "quick": 75, "full": 1172},
     total_samples=1172,
+    protocol_version="ARC-Challenge-2018",
+    dataset_source="allenai/ai2_arc",
+    dataset_revision="210d026faf9955653af8916fad021475a3f00453",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="CC-BY-SA-4.0",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_configs=("ARC-Challenge",),
+    dataset_splits=("test",),
 )
 @task
 def arc(tier: str = "smoke") -> Task:

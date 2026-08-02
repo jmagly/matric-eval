@@ -90,6 +90,19 @@ jobs:
             --cov-fail-under=75 \
             -v --tb=short || true
 
+      - name: Audit public benchmark sources
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run matric-eval audit-benchmarks --live --output-format json \
+            --output benchmark-freshness.json
+
+      - name: Retain benchmark freshness report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: benchmark-freshness
+          path: benchmark-freshness.json
+
   smoke:
     name: Smoke Tests
     runs-on: ubuntu-latest

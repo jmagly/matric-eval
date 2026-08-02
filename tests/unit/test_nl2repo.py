@@ -1,68 +1,50 @@
-"""
-Tests for NL2Repo benchmark task.
-"""
+"""NL2RepoBench canonical adapter tests."""
 
-from typing import Any
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from inspect_ai import Task
-from inspect_ai.dataset import Sample
 
-from matric_eval.tasks.nl2repo import (
-    load_nl2repo,
-    nl2repo,
-    record_to_sample,
-)
+from matric_eval.tasks.nl2repo import NL2REPO_REVISION, load_nl2repo, nl2repo, record_to_sample
 
 
 @pytest.fixture(autouse=True)
 def _isolated_registry(isolated_registry):
-    """Use isolated registry."""
+    pass
 
 
-@pytest.fixture
-def sample_record() -> dict[str, Any]:
-    return {
-        "id": "nl2r-001",
-        "specification": "Create a REST API with user authentication using Flask.",
-        "build_command": "pip install -r requirements.txt",
-        "test_command": "pytest tests/",
-        "language": "python",
-        "expected_structure": {"src/app.py": True, "tests/": True},
-    }
+def test_record_uses_official_test_metadata() -> None:
+    sample = record_to_sample(
+        {
+            "id": "demo",
+            "specification": "Create a complete package.",
+            "test_commands": ["pip install -e .", "pytest tests"],
+            "test_case_count": 12,
+        }
+    )
+    assert sample.id == "demo"
+    assert "complete package" in sample.input
+    assert sample.metadata["test_commands"] == ["pip install -e .", "pytest tests"]
+    assert sample.metadata["test_case_count"] == 12
+    assert sample.metadata["dataset_revision"] == NL2REPO_REVISION
+    assert "nl2repobench/demo:1.0" in Path(sample.sandbox.config).read_text()
 
 
-class TestRecordToSample:
-    def test_basic_conversion(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.id == "nl2r-001"
-        assert "REST API" in sample.input
-        assert sample.target == ""  # No single target for project gen
-
-    def test_metadata_fields(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["language"] == "python"
-        assert sample.metadata["build_command"] == "pip install -r requirements.txt"
-        assert sample.metadata["test_command"] == "pytest tests/"
-
-    def test_empty_record(self) -> None:
-        sample = record_to_sample({})
-        assert sample.id == ""
-        assert sample.metadata["language"] == "python"  # default
+def test_missing_snapshot_fails_clearly() -> None:
+    with patch("matric_eval.tasks.nl2repo.get_dataset_path", return_value=None):
+        with pytest.raises(FileNotFoundError, match="canonical snapshot"):
+            load_nl2repo()
 
 
-class TestRegistration:
-    def test_registered(self) -> None:
-        meta = nl2repo._benchmark_metadata
-        assert meta.name == "nl2repo"
-        assert meta.requires_sandbox is True
-        assert meta.scoring_type == "project"
-        assert meta.category.value == "agentic"
-
-    @patch("matric_eval.tasks.nl2repo.load_nl2repo")
-    def test_task_creation(self, mock_load) -> None:
-        mock_load.return_value = [Sample(input="spec", target="", id="1")]
-        task = nl2repo(tier="smoke")
-        assert isinstance(task, Task)
-        assert task.name == "nl2repo"
+def test_registration_and_task() -> None:
+    metadata = nl2repo._benchmark_metadata
+    assert metadata.total_samples == 104
+    assert metadata.scoring_type == "official_test_pass_rate"
+    assert metadata.dataset_revision == NL2REPO_REVISION
+    with patch(
+        "matric_eval.tasks.nl2repo.load_nl2repo", return_value=[record_to_sample({"id": "x"})]
+    ):
+        result = nl2repo()
+    assert isinstance(result, Task)
+    assert result.name == "nl2repobench_104"

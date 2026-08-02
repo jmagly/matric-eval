@@ -1,20 +1,19 @@
-"""
-Tests for Video-MME benchmark task (multimodal video).
-"""
+"""Video-MME-v2 official configuration and grouped-metric tests."""
 
-from typing import Any
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from inspect_ai import Task
-from inspect_ai.dataset import Sample
+from inspect_ai.model import ContentImage
+from inspect_ai.scorer import Target
 
 from matric_eval.tasks.videomme import (
     DEFAULT_MAX_FRAMES,
-    PROVIDER_FRAME_CAPS,
+    VIDEOMME_DATASET_REVISION,
     _extract_answer,
-    load_videomme,
+    logic_rating,
     record_to_sample,
+    relevance_rating,
     videomme,
     videomme_scorer,
 )
@@ -22,108 +21,64 @@ from matric_eval.tasks.videomme import (
 
 @pytest.fixture(autouse=True)
 def _isolated_registry(isolated_registry):
-    """Use isolated registry."""
+    pass
 
 
 @pytest.fixture
-def sample_record() -> dict[str, Any]:
+def record() -> dict:
     return {
-        "video_id": "vmme-001",
-        "question": "What happens at the end of the video?",
-        "options": [
-            "A. The cat jumps",
-            "B. The dog barks",
-            "C. Nothing happens",
-            "D. The scene changes",
-        ],
+        "video_id": "video-1",
+        "question_id": "video-1-0",
+        "question": "What happens?",
+        "options": ["A. One", "B. Two", "C. Three", "D. Four"],
         "answer": "A",
-        "video_path": "/data/videos/sample.mp4",
-        "subtitle_path": "/data/subs/sample.srt",
-        "duration": "short",
+        "group_type": "relevance",
+        "group_structure": [1, 2, 3, 4],
+        "level": 1,
+        "second_head": "perception",
+        "third_head": "detail",
     }
 
 
-# =============================================================================
-# Record to Sample
-# =============================================================================
+def test_record_contains_actual_ordered_frames(record: dict) -> None:
+    sample = record_to_sample(record, frame_paths=["/tmp/a.jpg", "/tmp/b.jpg"])
+    images = [item for item in sample.input[0].content if isinstance(item, ContentImage)]
+    assert [image.image for image in images] == ["/tmp/a.jpg", "/tmp/b.jpg"]
+    assert sample.metadata["frame_count"] == 2
+    assert sample.metadata["dataset_revision"] == VIDEOMME_DATASET_REVISION
 
 
-class TestRecordToSample:
-    def test_basic_conversion(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.id == "vmme-001"
-        assert "cat jumps" in sample.input
-        assert sample.target == "A"
-
-    def test_metadata(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["video_path"] == "/data/videos/sample.mp4"
-        assert sample.metadata["subtitle_path"] == "/data/subs/sample.srt"
-        assert sample.metadata["duration_category"] == "short"
-        assert sample.metadata["requires_vision"] is True
-        assert sample.metadata["requires_ffmpeg"] is True
+def test_answer_parser_matches_upstream() -> None:
+    assert _extract_answer("Final Answer: H") == "H"
+    assert _extract_answer("Answer: A") == "A"
+    assert _extract_answer("") == ""
 
 
-# =============================================================================
-# Answer Extraction
-# =============================================================================
+def test_official_group_ratings() -> None:
+    assert relevance_rating([True, True, True, True]) == 100.0
+    assert relevance_rating([True, False, False, False]) == 6.25
+    assert logic_rating([True, True, True, True], [1, 2, 3, 4]) == 100.0
+    assert logic_rating([True, False, False, False], [1, [2, 3], 4]) == pytest.approx(100 / 12)
 
 
-class TestExtractAnswer:
-    def test_single_letter(self) -> None:
-        assert _extract_answer("A") == "A"
-        assert _extract_answer("D") == "D"
-
-    def test_letter_with_period(self) -> None:
-        assert _extract_answer("B.") == "B"
-
-    def test_parenthesized(self) -> None:
-        assert _extract_answer("I think (C)") == "C"
-
-    def test_answer_pattern(self) -> None:
-        assert _extract_answer("The answer is D") == "D"
-        assert _extract_answer("Answer: A") == "A"
-
-    def test_lowercase(self) -> None:
-        assert _extract_answer("b") == "B"
-
-    def test_empty(self) -> None:
-        assert _extract_answer("") == ""
-
-    def test_no_match(self) -> None:
-        assert _extract_answer("I'm not sure") == ""
+@pytest.mark.asyncio
+async def test_question_scorer() -> None:
+    score_fn = videomme_scorer()
+    state = Mock()
+    state.output.completion = "Final Answer: B"
+    result = await score_fn(state, Target(target="B"))
+    assert result.value == 1.0
 
 
-# =============================================================================
-# Constants
-# =============================================================================
-
-
-class TestConstants:
-    def test_default_max_frames(self) -> None:
-        assert DEFAULT_MAX_FRAMES == 64
-
-    def test_provider_caps(self) -> None:
-        assert PROVIDER_FRAME_CAPS["ollama"] == 16
-        assert PROVIDER_FRAME_CAPS["openrouter"] == 32
-
-
-# =============================================================================
-# Registration
-# =============================================================================
-
-
-class TestRegistration:
-    def test_registered(self) -> None:
-        meta = videomme._benchmark_metadata
-        assert meta.name == "videomme"
-        assert meta.requires_vision is True
-        assert meta.category.value == "multimodal"
-        assert "ffmpeg" in meta.provider_requirements
-
-    @patch("matric_eval.tasks.videomme.load_videomme")
-    def test_task_creation(self, mock_load) -> None:
-        mock_load.return_value = [Sample(input="q", target="A", id="1")]
-        task = videomme(tier="smoke")
-        assert isinstance(task, Task)
-        assert task.name == "videomme"
+def test_registration_and_configuration_name(record: dict) -> None:
+    assert DEFAULT_MAX_FRAMES == 64
+    metadata = videomme._benchmark_metadata
+    assert metadata.total_samples == 3200
+    assert metadata.protocol_version == "v2"
+    with patch(
+        "matric_eval.tasks.videomme.load_videomme",
+        return_value=[record_to_sample(record, frame_paths=["/tmp/a.jpg"])],
+    ):
+        result = videomme(frame_mode="1fps", subtitle_mode="interleave", reasoning=True)
+    assert isinstance(result, Task)
+    assert result.name == "videomme_v2_1fps_interleave_reasoning"

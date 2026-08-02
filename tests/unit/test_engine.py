@@ -85,6 +85,10 @@ class TestRunBenchmark:
             assert result["model"] == "ollama/test"
             assert result["score"] == 0.8
             assert result["samples"] == 5
+            assert result["provenance"]["schema_version"] == "1"
+            assert result["provenance"]["framework"]["inspect_ai"] == "0.3.251"
+            assert result["provenance"]["benchmark"]["name"] == "humaneval"
+            assert "dataset_revision" in result["provenance"]["benchmark"]
 
     def test_benchmark_with_error(self, tmp_path: Path) -> None:
         """Should handle evaluation errors gracefully."""
@@ -104,6 +108,7 @@ class TestRunBenchmark:
             assert result["status"] == "error"
             assert "Model timeout" in result["error"]
             assert result["score"] == 0.0
+            assert result["provenance"]["benchmark"]["name"] == "humaneval"
 
     def test_benchmark_no_logs_returned(self, tmp_path: Path) -> None:
         """Should handle case when eval() returns empty log list."""
@@ -155,6 +160,7 @@ class TestRunAll:
             assert result["model"] == "ollama/test"
             assert len(result["benchmarks"]) == 3
             assert result["overall_score"] == pytest.approx(0.7)  # (0.8 + 0.7 + 0.6) / 3
+            assert result["provenance"]["framework"]["inspect_evals"] == "0.16.0"
 
     def test_run_all_with_failures(
         self,

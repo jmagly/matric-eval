@@ -165,6 +165,13 @@ def matric_cli_scorer():
     category="application",
     tier_samples={"smoke": 6, "quick": 12, "full": 12},
     total_samples=12,
+    protocol_version="project-v1",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="local",
+    source_kind="local",
+    release_policy="local",
 )
 @task
 def matric_cli(tier: str = "smoke") -> Task:

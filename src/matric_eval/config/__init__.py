@@ -19,7 +19,20 @@ def get_tier(name: str = "smoke") -> TierConfig:
 
 def get_sample_count(benchmark: str, tier: str = "smoke") -> int:
     """Get sample count for benchmark (legacy compatibility function)."""
-    return get_settings().get_sample_count(benchmark, tier)
+    settings = get_settings()
+    configured = settings.get_sample_count(benchmark, tier)
+    normalized = benchmark.lower()
+
+    # Preserve explicit zero overrides and legacy TierConfig zero semantics.
+    override = getattr(settings, f"{normalized}_samples", None)
+    if override is not None or hasattr(settings.get_tier_config(tier), normalized):
+        return configured
+
+    # Newer benchmarks define tiers in the registry rather than TierConfig.
+    # Import lazily to avoid a configuration/registry import cycle.
+    from matric_eval.tasks.registry import get_registry
+
+    return get_registry().get_sample_count(benchmark, tier)
 
 
 def get_datasets_dir() -> str:

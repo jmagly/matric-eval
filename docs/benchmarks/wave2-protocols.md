@@ -1,0 +1,120 @@
+# Wave 2 Successor and Security Benchmarks
+
+This note records the upstream research and implementation decisions for issues #64,
+#66, #68, #84, and #85. All successors have separate task names so existing score
+series retain their original meaning.
+
+## InjecAgent
+
+- Upstream: `uiuc-kang-lab/InjecAgent` at
+  `f19c9f2c79a41046eb13c03c51a24c567a8ffa07` (MIT).
+- Data: 510 direct-harm and 544 data-stealing cases per setting. Both `base` and
+  `enhanced` settings are supported.
+- Protocol: prompted/ReAct. The initial user-tool action and injected observation are
+  prefilled exactly as data. Data-stealing cases use a second generated step after a
+  deterministic simulated attacker-tool observation.
+- Safety: no Inspect tool is registered and no external action is executed. Tool
+  descriptions, observations, and stage-two responses are inert text fixtures.
+- Metrics: valid rate, ASR-valid, ASR-all, direct-harm ASR, data-stealing S1/S2/final
+  ASR, and a utility-preservation proxy for valid runs that reject the attack.
+
+Run:
+
+```bash
+matric-eval run --benchmark injecagent --tier smoke
+```
+
+Set `MATRIC_EVAL_INJECAGENT_DATA_PATH` to a checkout at the pinned revision for
+offline use. Otherwise, pinned JSON files are cached under
+`$XDG_CACHE_HOME/matric-eval/injecagent/`.
+
+Higher ASR means the agent is more vulnerable. ASR-valid excludes parser-invalid runs;
+ASR-all counts invalid runs in the denominator. The utility value is a protocol proxy,
+not a separate semantic grader of the original user request.
+
+## EvalPlus
+
+- Evaluator: EvalPlus 0.3.1, repository commit
+  `e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2` (Apache-2.0).
+- HumanEval+: v0.1.10, content hash `fe585eb4df8c88d844eeb463ea4d0302`, 164 tasks.
+- MBPP+: v0.2.0, content hash `ee43ecabebf20deef4bb776a405ac5b1`, 378 tasks.
+- Isolation: generated code and the upstream `untrusted_check` run inside the dedicated
+  `docker/evalplus` image. Runtime networking is disabled; the container is read-only,
+  drops Linux capabilities, limits processes, memory, and CPU, and uses bounded scorer
+  timeouts.
+- Reporting: each result carries separate base and plus statuses. Plus pass requires
+  both the base and expanded test suites to pass.
+
+Install and run:
+
+```bash
+uv sync --extra evalplus
+matric-eval run --benchmark humaneval_plus --tier smoke
+matric-eval run --benchmark mbpp_plus --tier smoke
+```
+
+Docker must be available to Inspect. `humaneval` and `mbpp` remain unchanged for
+historical comparison. The `*_plus` tasks must not be merged into those score series.
+
+## MMLU-Pro
+
+- Dataset: `TIGER-Lab/MMLU-Pro` at
+  `527feea0afed1de15a8c115abf7be4c912123315` (MIT), 12,032 test questions.
+- Evaluator: Inspect Evals 0.16.0 at
+  `6a35510e530f236fd1dbcd9df888f01937c8494a`, protocol 2-A.
+- Protocol: up to ten options, maintained chain-of-thought/final-answer prompt and
+  parser, category-level and aggregate accuracy.
+- Tiers: deterministic, category-stratified selection. Legacy `mmlu` is unchanged.
+
+```bash
+matric-eval run --benchmark mmlu_pro --tier smoke
+```
+
+## MMMU-Pro
+
+- Dataset: `MMMU/MMMU_Pro` at
+  `563f3e84bb3b90893083a1f039cfa13077f2302b` (Apache-2.0), 1,730 test items per
+  official configuration.
+- Evaluator: `MMMU-Benchmark/MMMU` at
+  `268471d0d488258990025331c7528359c324aa25`.
+- Settings: `standard` uses the official ten-option records and preserves every
+  numbered image token in encounter order; `vision` uses the official rendered-image
+  records. Each setting has distinct task metadata and names.
+- Scoring: official multiple-choice extraction with discipline and aggregate accuracy.
+
+The published MMMU-Pro schema contains multiple-choice records only. It does not
+contain an open-answer setting; inputs without options are rejected instead of being
+assigned a locally invented protocol.
+
+```bash
+matric-eval run --benchmark mmmu_pro --tier smoke
+```
+
+## GAIA2 CLI
+
+- Dataset: `meta-agents-research-environments/gaia2-cli` at
+  `240ac47bfc62b24c934f95d014ffa5a3cab8b04c`, 800 public scenarios across
+  `execution`, `search`, `adaptability`, `ambiguity`, and `time`.
+- Runtime/evaluator: `facebookresearch/meta-agents-research-environments` at
+  `7946367413129784139e785ae4c351090002a0bb`; GAIA2 CLI 1.2.0 and runner 0.1.0
+  (MIT runtime; consult the current dataset card for data terms).
+- Execution: the official Python 3.12 runner launches a Podman container per scenario,
+  collects traces, and records `success` as true, false, or null for infrastructure
+  errors. Average reward excludes null infrastructure results. Official pass@k remains
+  available from the upstream runner.
+
+GAIA2 cannot be run as a completion-only Inspect task. Build an official runtime image,
+configure agent and judge credentials, and route through the adapter:
+
+```python
+from matric_eval.tasks.gaia2 import run_gaia2
+
+run_gaia2(
+    "/path/to/meta-agents-research-environments",
+    config="gaia2-cli/runner/examples/quickstart_hermes.toml",
+)
+```
+
+Requirements are Python 3.12, `uv`, Podman, provider network access, an agent runtime
+image, and agent/judge credentials. `gaia2` is separate from classic `gaia`; their
+datasets, action models, evaluators, and scores are not interchangeable.

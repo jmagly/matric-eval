@@ -112,6 +112,17 @@ def load_mtbench(tier: str = "smoke") -> list[Sample]:
     category="conversation",
     tier_samples={"smoke": 5, "quick": 30, "full": 80},
     total_samples=80,
+    protocol_version="MT-Bench-v1",
+    dataset_source="lm-sys/FastChat",
+    dataset_revision="587d5cfa1609a43d192cedb8441cac3c17db105d",
+    dataset_configs=("mt_bench",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="Apache-2.0",
+    access="public",
+    source_kind="github",
+    release_policy="immutable",
+    dataset_splits=("question",),
 )
 @task
 def mtbench(tier: str = "smoke", judge_model: str = "ollama/llama3.2:3b") -> Task:

@@ -1,35 +1,28 @@
-"""
-QwenWebBench — web artifact generation benchmark with Elo rating.
+"""Quarantined QwenWebBench integration scaffold.
 
-Models generate web pages/components and are compared pairwise using
-LLM-as-judge, producing Elo ratings.
-
-Scoring: EloAggregator (base 1200, K=32) with pairwise LLM judge.
-Dataset: TBD from Qwen team (RISK-008).
+No canonical public dataset and evaluator are currently available. The task is
+kept visible in the registry, but execution and scoring are disabled until a
+reproducible upstream protocol can be pinned.
 """
 
 from __future__ import annotations
 
-import random
 from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import TaskState, generate, system_message
+from inspect_ai.scorer import Scorer, scorer
 
-from matric_eval.config import get_sample_count, get_seed
-from matric_eval.datasets import get_dataset_path, load_hf_dataset
-from matric_eval.tasks.registry import register_benchmark
+from matric_eval.tasks.registry import (
+    BenchmarkStatus,
+    BenchmarkUnavailableError,
+    register_benchmark,
+)
 
-
-QWENWEBBENCH_SYSTEM_PROMPT = """\
-You are an expert web developer. You will be given a specification for a \
-web page or component. Generate the complete HTML, CSS, and JavaScript \
-needed to implement it.
-
-Output clean, production-quality code that matches the specification.\
-"""
+QWENWEBBENCH_UNAVAILABLE_REASON = (
+    "no canonical public dataset, license, renderer, pairwise evaluator, "
+    "or reproducible Elo protocol has been verified"
+)
 
 
 def record_to_sample(record: dict[str, Any]) -> Sample:
@@ -49,67 +42,20 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
     )
 
 
-@scorer(metrics=[mean()])
+@scorer(metrics=[])
 def webbench_scorer() -> Scorer:
-    """Placeholder scorer for QwenWebBench.
-
-    Actual Elo scoring requires pairwise comparison of multiple models.
-    Use EloAggregator for cross-model comparison after individual evals.
-    """
-
-    async def score(state: TaskState, target: Target) -> Score:
-        completion = state.output.completion
-        if not completion or not completion.strip():
-            return Score(value=0.0, explanation="No web artifact generated")
-
-        # Check for basic HTML presence
-        has_html = "<" in completion and ">" in completion
-        return Score(
-            value=0.5 if has_html else 0.0,
-            explanation="Elo ranking requires pairwise comparison via EloAggregator",
-            metadata={
-                "scoring_type": "elo",
-                "has_html": has_html,
-                "artifact_length": len(completion),
-            },
-        )
-
-    return score
+    """Reject scoring until the official pairwise protocol is available."""
+    raise BenchmarkUnavailableError(
+        f"Benchmark 'qwenwebbench' is unavailable: {QWENWEBBENCH_UNAVAILABLE_REASON}"
+    )
 
 
 def load_qwenwebbench(tier: str = "smoke") -> list[Sample]:
-    """Load QwenWebBench samples for the given tier."""
-    benchmark_name = "qwenwebbench"
-    sample_count = get_sample_count(benchmark_name, tier)
-
-    local_path = get_dataset_path(benchmark_name)
-    if local_path:
-        import json
-        from pathlib import Path
-
-        records = []
-        with open(Path(local_path)) as f:
-            for line in f:
-                if line.strip():
-                    records.append(json.loads(line))
-        all_samples = [record_to_sample(r) for r in records]
-    else:
-        all_samples = load_hf_dataset(
-            "Qwen/QwenWebBench",
-            split="test",
-            sample_count=sample_count,
-            seed=get_seed(),
-            record_to_sample=record_to_sample,
-        )
-        return all_samples
-
-    if sample_count >= len(all_samples):
-        return all_samples
-
-    rng = random.Random(get_seed())
-    sampled = rng.sample(all_samples, sample_count)
-    sampled.sort(key=lambda s: s.id or "")
-    return sampled
+    """Reject loading until the official dataset and protocol are available."""
+    del tier
+    raise BenchmarkUnavailableError(
+        f"Benchmark 'qwenwebbench' is unavailable: {QWENWEBBENCH_UNAVAILABLE_REASON}"
+    )
 
 
 @register_benchmark(
@@ -120,26 +66,17 @@ def load_qwenwebbench(tier: str = "smoke") -> list[Sample]:
     total_samples=0,  # TBD
     requires_sandbox=False,
     scoring_type="elo",
+    status=BenchmarkStatus.UNAVAILABLE,
+    status_reason=QWENWEBBENCH_UNAVAILABLE_REASON,
+    protocol_version="unreleased",
+    access="unavailable",
+    source_kind="other",
+    release_policy="unreleased",
 )
 @task
 def qwenwebbench(tier: str = "smoke") -> Task:
-    """QwenWebBench benchmark with Elo-based scoring.
-
-    Models generate web artifacts rated via pairwise LLM judge comparison.
-    Use EloAggregator for cross-model Elo ratings after evaluation.
-
-    Args:
-        tier: Evaluation tier
-
-    Returns:
-        Task configured for QwenWebBench evaluation
-    """
-    return Task(
-        dataset=load_qwenwebbench(tier),
-        solver=[
-            system_message(QWENWEBBENCH_SYSTEM_PROMPT),
-            generate(),
-        ],
-        scorer=webbench_scorer(),
-        name="qwenwebbench",
+    """Reject execution until QwenWebBench has a reproducible public release."""
+    del tier
+    raise BenchmarkUnavailableError(
+        f"Benchmark 'qwenwebbench' is unavailable: {QWENWEBBENCH_UNAVAILABLE_REASON}"
     )

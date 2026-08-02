@@ -1,156 +1,140 @@
-"""
-Claw-Eval benchmark — real-world agent tasks with pass^3 scoring.
-
-Three independent sandbox runs per sample, all must pass for score 1.0.
-Tests agent reliability and consistency.
-
-Scoring: pass_power_k(k=3) — all 3 runs must succeed.
-
-Dataset: Claw-Eval public dataset (TBD)
-"""
+"""Claw-Eval v1.1 discovery and canonical-runner routing."""
 
 from __future__ import annotations
 
-import random
+import subprocess
+from pathlib import Path
 from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import TaskState, generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
-from matric_eval.datasets import get_dataset_path, load_hf_dataset
-from matric_eval.tasks.registry import register_benchmark
+from matric_eval.datasets import seeded_sample
+from matric_eval.tasks.registry import (
+    BenchmarkStatus,
+    BenchmarkUnavailableError,
+    register_benchmark,
+)
+
+CLAW_DATASET = "claw-eval/Claw-Eval"
+CLAW_DATASET_REVISION = "ca978fd82edb77d52f26f4ccf3f9684a8df84341"
+CLAW_REPOSITORY = "claw-eval/claw-eval"
+CLAW_EVALUATOR_REVISION = "d3f02d4938ab0832377d90535013def2b1a2fdc0"
+CLAW_SPLITS = ("general", "multimodal", "multi_turn")
+CLAW_TASKS = 300
+CLAW_TRIALS = 3
 
 
-CLAWEVAL_SYSTEM_PROMPT = """\
-You are an autonomous coding agent. You will be given a real-world task \
-to accomplish in a sandboxed environment. Complete the task by generating \
-the necessary code and commands.
-
-Your solution must be reliable — it will be tested across multiple \
-independent runs.\
-"""
-
-
-def record_to_sample(record: dict[str, Any]) -> Sample:
-    """Convert a Claw-Eval record to an Inspect AI Sample.
-
-    Expected schema:
-        - task_id: str
-        - description: str
-        - verification: str (verification command/script)
-        - setup: dict (environment setup)
-        - difficulty: str
-    """
-    task_id = record.get("task_id", record.get("id", ""))
-    description = record.get("description", record.get("input", ""))
-    verification = record.get("verification", record.get("target", ""))
-
+def record_to_sample(record: dict[str, Any], *, split: str = "general") -> Sample:
     return Sample(
-        input=description,
-        target=verification,
-        id=str(task_id),
+        input=str(record.get("query", record.get("description", ""))),
+        target="",
+        id=str(record.get("task_id", record.get("id", ""))),
         metadata={
-            "verification": verification,
-            "setup": record.get("setup", {}),
-            "difficulty": record.get("difficulty", "medium"),
-            "k": 3,  # pass^3
+            "split": split,
+            "fixture": list(record.get("fixture", [])),
+            "language": record.get("language", ""),
+            "category": record.get("category", ""),
+            "trials": CLAW_TRIALS,
+            "dataset_revision": CLAW_DATASET_REVISION,
+            "evaluator_revision": CLAW_EVALUATOR_REVISION,
         },
     )
 
 
-@scorer(metrics=[mean()])
-def claweval_scorer() -> Scorer:
-    """Scorer placeholder for Claw-Eval pass^3 evaluation.
-
-    Actual scoring requires 3 independent sandbox runs via
-    EvaluationEngine.run_pass_k_benchmark(k=3).
-    """
-
-    async def score(state: TaskState, target: Target) -> Score:
-        completion = state.output.completion
-        if not completion or not completion.strip():
-            return Score(value=0.0, explanation="No output generated")
-
-        return Score(
-            value=0.0,
-            explanation="pass^3 scoring requires 3 sandbox runs via EvaluationEngine",
-            metadata={
-                "sandbox_required": True,
-                "scoring_type": "pass_k",
-                "k": 3,
-            },
-        )
-
-    return score
-
-
 def load_claweval(tier: str = "smoke") -> list[Sample]:
-    """Load Claw-Eval samples for the given tier."""
-    benchmark_name = "claweval"
-    sample_count = get_sample_count(benchmark_name, tier)
+    """Load all three pinned public manifests for inspection and tier selection."""
+    from datasets import load_dataset
 
-    local_path = get_dataset_path(benchmark_name)
-    if local_path:
-        import json
-        from pathlib import Path
-
-        records = []
-        with open(Path(local_path)) as f:
-            for line in f:
-                if line.strip():
-                    records.append(json.loads(line))
-        all_samples = [record_to_sample(r) for r in records]
-    else:
-        all_samples = load_hf_dataset(
-            "claw-eval/claw-eval",
-            split="test",
-            sample_count=sample_count,
-            seed=get_seed(),
-            record_to_sample=record_to_sample,
+    samples = []
+    for split in CLAW_SPLITS:
+        dataset = load_dataset(
+            CLAW_DATASET,
+            split=split,
+            revision=CLAW_DATASET_REVISION,
         )
-        return all_samples
+        samples.extend(record_to_sample(dict(record), split=split) for record in dataset)
+    if len(samples) != CLAW_TASKS:
+        raise ValueError(f"Expected {CLAW_TASKS} Claw-Eval v1.1 tasks, found {len(samples)}")
+    sample_count = get_sample_count("claweval", tier)
+    if 0 < sample_count < len(samples):
+        samples = seeded_sample(samples, sample_count, get_seed())
+    return samples
 
-    if sample_count >= len(all_samples):
-        return all_samples
 
-    rng = random.Random(get_seed())
-    sampled = rng.sample(all_samples, sample_count)
-    sampled.sort(key=lambda s: s.id or "")
-    return sampled
+def build_claweval_command(
+    repository: str | Path,
+    *,
+    config: str | Path,
+    parallel: int = 16,
+) -> list[str]:
+    """Build the official v1.1 Pass^3 runner command."""
+    return [
+        "uv",
+        "run",
+        "claw-eval",
+        "batch",
+        "--config",
+        str(Path(repository) / config),
+        "--sandbox",
+        "--trials",
+        str(CLAW_TRIALS),
+        "--parallel",
+        str(parallel),
+    ]
+
+
+def run_claweval(
+    repository: str | Path,
+    *,
+    config: str | Path,
+    parallel: int = 16,
+) -> subprocess.CompletedProcess[str]:
+    """Execute the pinned upstream runner from its checked-out repository."""
+    return subprocess.run(
+        build_claweval_command(repository, config=config, parallel=parallel),
+        cwd=repository,
+        check=True,
+        text=True,
+    )
+
+
+def claweval_scorer():
+    raise BenchmarkUnavailableError(
+        "Claw-Eval v1.1 grades complete tool trajectories with task-specific graders; "
+        "use run_claweval() so Pass^3 is computed from exactly three successful trials."
+    )
 
 
 @register_benchmark(
     name="claweval",
-    description="Claw-Eval - agentic tasks with pass^3 reliability scoring",
+    description="Claw-Eval v1.1 - 300 tasks with official trajectory grading and Pass^3",
     category="agentic",
-    tier_samples={"smoke": 3, "quick": 20, "full": 0},
-    total_samples=0,  # TBD
+    tier_samples={"smoke": 3, "quick": 20, "full": CLAW_TASKS},
+    total_samples=CLAW_TASKS,
     requires_sandbox=True,
-    sandbox_profile="agentic-dev",
-    scoring_type="pass_k",
+    requires_vision=True,
+    sandbox_profile="claw-eval",
+    scoring_type="official_pass_power_3",
+    provider_requirements=("claw-eval", "docker", "judge-model"),
+    status=BenchmarkStatus.GATED,
+    status_reason="Runs through the upstream sandbox, mock services, and trajectory graders.",
+    protocol_version="1.1.0",
+    dataset_source=CLAW_DATASET,
+    dataset_revision=CLAW_DATASET_REVISION,
+    dataset_splits=CLAW_SPLITS,
+    license="MIT",
+    access="gated",
+    source_kind="huggingface",
+    release_policy="versioned",
+    evaluator_source=CLAW_REPOSITORY,
+    evaluator_revision=CLAW_EVALUATOR_REVISION,
 )
 @task
 def claweval(tier: str = "smoke") -> Task:
-    """Claw-Eval benchmark with pass^3 scoring.
-
-    Each sample is run 3 times independently; all must pass for score 1.0.
-    Use EvaluationEngine.run_pass_k_benchmark(k=3) for full evaluation.
-
-    Args:
-        tier: Evaluation tier
-
-    Returns:
-        Task configured for Claw-Eval evaluation
-    """
-    return Task(
-        dataset=load_claweval(tier),
-        solver=[
-            system_message(CLAWEVAL_SYSTEM_PROMPT),
-            generate(),
-        ],
-        scorer=claweval_scorer(),
-        name="claweval",
+    del tier
+    raise BenchmarkUnavailableError(
+        "Claw-Eval is an external trajectory benchmark, not an Inspect completion task. "
+        "Use run_claweval() with the pinned upstream checkout."
     )

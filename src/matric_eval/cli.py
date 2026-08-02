@@ -158,6 +158,12 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
 
     registry = get_registry()
     benchmarks_info = registry.get_descriptions()
+    for metadata in registry.list_metadata():
+        if metadata.status.value != "stable":
+            reason = f": {metadata.status_reason}" if metadata.status_reason else ""
+            benchmarks_info[metadata.name] = (
+                f"[{metadata.status.value}{reason}] {metadata.description}"
+            )
 
     # Discover external datasets
     try:
@@ -909,7 +915,7 @@ def list_models(max_size: float, output_format: str):
 )
 def list_benchmarks(tier: Optional[str], output_format: str):
     """
-    List available benchmarks.
+    List registered and discovered benchmarks, including unavailable entries.
 
     Examples:
 
@@ -939,11 +945,20 @@ def list_benchmarks(tier: Optional[str], output_format: str):
         else:
             click.echo(json.dumps(benchmarks_info, indent=2))
     else:
-        console.print("\n[bold]Available benchmarks:[/bold]\n")
+        console.print("\n[bold]Benchmarks:[/bold]\n")
 
         table = Table(show_header=True, header_style="bold cyan")
         table.add_column("Benchmark", style="cyan")
+        table.add_column("Status")
         table.add_column("Description")
+
+        from matric_eval.tasks.registry import get_registry
+
+        registry = get_registry()
+
+        def benchmark_status(name: str) -> str:
+            metadata = registry.get(name)
+            return metadata.status.value if metadata is not None else "external"
 
         if tier:
             tier_config = get_tier(tier)
@@ -951,13 +966,79 @@ def list_benchmarks(tier: Optional[str], output_format: str):
 
             for name, desc in benchmarks_info.items():
                 samples = getattr(tier_config, name, 0)
-                table.add_row(name, desc, str(samples))
+                table.add_row(name, benchmark_status(name), desc, str(samples))
         else:
             for name, desc in benchmarks_info.items():
-                table.add_row(name, desc)
+                table.add_row(name, benchmark_status(name), desc)
 
         console.print(table)
         console.print(f"\n[dim]Total: {len(benchmarks_info)} benchmarks[/dim]")
+
+
+@cli.command("audit-benchmarks")
+@click.option(
+    "--live",
+    is_flag=True,
+    help="Probe public canonical sources without downloading benchmark payloads.",
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    help="Output format (default: table).",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Retain the machine-readable audit report at this path.",
+)
+@click.option(
+    "--fail-on-error/--no-fail-on-error",
+    default=True,
+    help="Exit nonzero when audit errors are present.",
+)
+def audit_benchmarks(
+    live: bool,
+    output_format: str,
+    output: Path | None,
+    fail_on_error: bool,
+) -> None:
+    """Audit benchmark source health, revisions, protocols, and lifecycle state."""
+    from matric_eval.freshness import audit_registry
+
+    report = audit_registry(live=live)
+    serialized = json.dumps(report, indent=2)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(serialized + "\n", encoding="utf-8")
+
+    if output_format == "json":
+        click.echo(serialized)
+    else:
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Benchmark", style="cyan")
+        table.add_column("Classification")
+        table.add_column("Errors", justify="right")
+        table.add_column("Warnings", justify="right")
+        for benchmark in report["benchmarks"]:
+            findings = benchmark["findings"]
+            errors = sum(item["severity"] == "error" for item in findings)
+            warnings = sum(item["severity"] == "warning" for item in findings)
+            table.add_row(
+                benchmark["name"],
+                benchmark["classification"],
+                str(errors),
+                str(warnings),
+            )
+        console.print(table)
+        summary = report["summary"]
+        console.print(
+            f"\n[dim]{summary['benchmarks']} benchmarks; "
+            f"{summary['error']} errors; {summary['warning']} warnings[/dim]"
+        )
+
+    if fail_on_error and report["summary"]["error"]:
+        raise click.exceptions.Exit(1)
 
 
 @cli.command("recommend")

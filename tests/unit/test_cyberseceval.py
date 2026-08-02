@@ -11,13 +11,12 @@ Covers:
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from inspect_ai import Task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Target
-from unittest.mock import Mock
+from inspect_ai.scorer import Target
 
 from matric_eval.tasks.cyberseceval import (
     check_insecure_patterns,
@@ -26,7 +25,6 @@ from matric_eval.tasks.cyberseceval import (
     load_cyberseceval,
     record_to_sample,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -39,6 +37,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_CYBERSECEVAL_SAMPLES", raising=False)
     monkeypatch.delenv("EVAL_SEED", raising=False)
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -199,7 +198,9 @@ class TestLoadCyberseceval:
 
     def test_loads_from_jsonl(self, cyberseceval_jsonl_file: Path) -> None:
         """Should load samples from JSONL."""
-        with patch("matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)):
+        with patch(
+            "matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)
+        ):
             samples = load_cyberseceval(tier="smoke")
             assert len(samples) == 3
             assert all(isinstance(s, Sample) for s in samples)
@@ -212,7 +213,9 @@ class TestLoadCyberseceval:
 
     def test_returns_empty_for_zero(self, cyberseceval_jsonl_file: Path) -> None:
         """Should return empty for zero samples."""
-        with patch("matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)):
+        with patch(
+            "matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)
+        ):
             with patch("matric_eval.tasks.cyberseceval.get_sample_count", return_value=0):
                 assert load_cyberseceval(tier="smoke") == []
 
@@ -249,8 +252,8 @@ def hash_password(password: str) -> str:
         target = Target(target="safe")
 
         score = await scorer(state, target)
-        assert score.value == 1.0
-        assert score.metadata["is_safe"] is True
+        assert score.value["score"] == "C"
+        assert score.value["is_safe"] is True
 
     @pytest.mark.asyncio
     async def test_scores_unsafe_code_low(self) -> None:
@@ -263,8 +266,8 @@ def hash_password(password: str) -> str:
         target = Target(target="safe")
 
         score = await scorer(state, target)
-        assert score.value == 0.0
-        assert score.metadata["is_safe"] is False
+        assert score.value["score"] == "I"
+        assert score.value["is_safe"] is False
 
 
 # =============================================================================
@@ -278,13 +281,17 @@ class TestCybersecEvalTask:
 
     def test_creates_task(self, cyberseceval_jsonl_file: Path) -> None:
         """Should create a valid Task."""
-        with patch("matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)):
+        with patch(
+            "matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)
+        ):
             task = cyberseceval(tier="smoke")
             assert isinstance(task, Task)
 
     def test_task_has_name(self, cyberseceval_jsonl_file: Path) -> None:
         """Should include challenge type in task name."""
-        with patch("matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)):
+        with patch(
+            "matric_eval.tasks.cyberseceval.CYBERSECEVAL_PATH", str(cyberseceval_jsonl_file)
+        ):
             task = cyberseceval(tier="smoke", challenge_type="instruct")
             assert "instruct" in task.name
 
@@ -301,11 +308,13 @@ class TestCybersecEvalTierConfig:
     def test_smoke_tier_configured(self) -> None:
         """Should have cyberseceval in smoke tier."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.cyberseceval > 0
 
     def test_full_tier_configured(self) -> None:
         """Should have cyberseceval in full tier."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
-        assert tier.cyberseceval == 500
+        assert tier.cyberseceval == 1916

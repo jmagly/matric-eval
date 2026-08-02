@@ -129,6 +129,16 @@ def load_ds1000(tier: str = "smoke") -> list[Sample]:
     category="data_science",
     tier_samples={"smoke": 5, "quick": 50, "full": 1000},
     total_samples=1000,
+    protocol_version="DS-1000-1.0",
+    dataset_source="xlangai/DS-1000",
+    dataset_revision="4416080ac5cb80bdf7576aefb8f9a0b4d5426a44",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="CC-BY-SA-4.0",
+    access="public",
+    source_kind="huggingface",
+    release_policy="immutable",
+    dataset_splits=("test",),
 )
 @task
 def ds1000(tier: str = "smoke", thinking: bool = True) -> Task:

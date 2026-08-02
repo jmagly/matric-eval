@@ -379,8 +379,11 @@ DATA_PATHS = {
     "mtbench": "/home/roctinam/data/evals/mtbench/question.jsonl",
     "mmlu": "/home/roctinam/data/evals/mmlu/data/test",
     "gpqa": "/home/roctinam/data/evals/gpqa",
+    "longmemeval": "/home/roctinam/data/evals/longmemeval",
     "cyberseceval": "/home/roctinam/data/evals/cyberseceval",
     "gaia": "/home/roctinam/data/evals/gaia",
+    "memoryagentbench": "/home/roctinam/data/evals/memoryagentbench",
+    "locomo": "/home/roctinam/data/evals/locomo",
 }
 
 
@@ -444,6 +447,18 @@ requires_cyberseceval_data = pytest.mark.skipif(
 GAIA_DATA_AVAILABLE = has_data_file("gaia")
 requires_gaia_data = pytest.mark.skipif(
     not GAIA_DATA_AVAILABLE, reason="GAIA dataset not available in CI"
+)
+LONGMEMEVAL_DATA_AVAILABLE = has_data_file("longmemeval")
+requires_longmemeval_data = pytest.mark.skipif(
+    not LONGMEMEVAL_DATA_AVAILABLE, reason="LongMemEval dataset not available in CI"
+)
+MEMORYAGENTBENCH_DATA_AVAILABLE = has_data_file("memoryagentbench")
+requires_memoryagentbench_data = pytest.mark.skipif(
+    not MEMORYAGENTBENCH_DATA_AVAILABLE, reason="MemoryAgentBench dataset not available in CI"
+)
+LOCOMO_DATA_AVAILABLE = has_data_file("locomo")
+requires_locomo_data = pytest.mark.skipif(
+    not LOCOMO_DATA_AVAILABLE, reason="LoCoMo dataset not available in CI"
 )
 
 

@@ -25,7 +25,7 @@ from matric_eval.tasks.swebench.factory import (
     swebench_record_to_sample,
 )
 from matric_eval.tasks.swebench.multilingual import multilingual_record_to_sample
-
+from matric_eval.tasks.swebench.pro import load_swebench_pro, parse_pro_test_list
 
 # =============================================================================
 # Fixtures
@@ -40,8 +40,14 @@ def sample_swebench_record() -> dict[str, Any]:
         "repo": "django/django",
         "base_commit": "a" * 40,
         "problem_statement": "Fix bug in URL resolver when using namespaces.",
-        "patch": "--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n@@ -1 +1 @@\n-old\n+new\n",
-        "test_patch": "+++ b/tests/urlpatterns/tests.py\n@@ -100 +100 @@\n+def test_namespace_fix():\n",
+        "patch": (
+            "--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+        ),
+        "test_patch": (
+            "+++ b/tests/urlpatterns/tests.py\n"
+            "@@ -100 +100 @@\n+def test_namespace_fix():\n"
+        ),
         "hints_text": "Check the URL resolver logic.",
         "version": "4.0",
     }
@@ -193,6 +199,40 @@ class TestVariantConfig:
     def test_unknown_variant_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown SWE-bench variant"):
             load_swebench("nonexistent")
+
+
+class TestSwebenchPro:
+    """Tests for the dedicated SWE-bench Pro adapter."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (["test_a"], ["test_a"]),
+            ("['test_a', 'test_b']", ["test_a", "test_b"]),
+            (None, []),
+        ],
+    )
+    def test_parse_test_list(self, value: object, expected: list[str]) -> None:
+        assert parse_pro_test_list(value) == expected
+
+    @patch("matric_eval.tasks.swebench.pro.pro_record_to_sample")
+    @patch("matric_eval.tasks.swebench.pro.get_sample_count", return_value=1)
+    @patch("matric_eval.tasks.swebench.pro._records")
+    def test_samples_before_loading_harness_scripts(
+        self, mock_records, _mock_count, mock_convert
+    ) -> None:
+        mock_records.return_value = [
+            {"instance_id": "one"},
+            {"instance_id": "two"},
+        ]
+        mock_convert.side_effect = lambda record: Sample(
+            input="task", target="", id=record["instance_id"]
+        )
+
+        samples = load_swebench_pro("smoke")
+
+        assert len(samples) == 1
+        assert mock_convert.call_count == 1
 
 
 # =============================================================================

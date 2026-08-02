@@ -40,6 +40,49 @@ class BenchmarkCategory(str, Enum):
     DATA_SCIENCE = "data_science"
 
 
+class BenchmarkStatus(str, Enum):
+    """Lifecycle status controlling whether a benchmark can be executed."""
+
+    STABLE = "stable"
+    LEGACY = "legacy"
+    EXPERIMENTAL = "experimental"
+    GATED = "gated"
+    UNAVAILABLE = "unavailable"
+
+
+class BenchmarkAccess(str, Enum):
+    """How benchmark data and evaluators are accessed."""
+
+    PUBLIC = "public"
+    GATED = "gated"
+    PRIVATE = "private"
+    LOCAL = "local"
+    UNAVAILABLE = "unavailable"
+
+
+class BenchmarkSourceKind(str, Enum):
+    """Canonical source transport used by freshness checks."""
+
+    HUGGINGFACE = "huggingface"
+    GITHUB = "github"
+    LOCAL = "local"
+    OTHER = "other"
+
+
+class BenchmarkReleasePolicy(str, Enum):
+    """How upstream releases are expected to evolve."""
+
+    IMMUTABLE = "immutable"
+    VERSIONED = "versioned"
+    CONTINUOUS = "continuous"
+    LOCAL = "local"
+    UNRELEASED = "unreleased"
+
+
+class BenchmarkUnavailableError(RuntimeError):
+    """Raised when execution is requested for an unavailable benchmark."""
+
+
 @dataclass(frozen=True)
 class BenchmarkMetadata:
     """Metadata for a registered benchmark.
@@ -48,7 +91,8 @@ class BenchmarkMetadata:
         name: Unique benchmark identifier (e.g., "humaneval")
         description: Human-readable description for CLI display
         category: Classification category
-        module_path: Fully qualified path to task function (e.g., "matric_eval.tasks.humaneval.humaneval")
+        module_path: Fully qualified path to task function
+            (e.g., "matric_eval.tasks.humaneval.humaneval")
         tier_samples: Sample counts per tier {"smoke": 5, "quick": 75, "full": 164}
         total_samples: Total available samples in the dataset
         requires_sandbox: Whether this benchmark needs agentic-sandbox
@@ -56,6 +100,24 @@ class BenchmarkMetadata:
         sandbox_profile: agentic-sandbox profile to use (e.g., "agentic-dev", "basic")
         scoring_type: Scoring methodology ("standard", "pass_k", "elo", "project")
         provider_requirements: List of required provider capabilities
+        status: Lifecycle status controlling benchmark availability
+        status_reason: Human-readable explanation for a non-stable status
+        protocol_version: Upstream benchmark protocol version
+        dataset_source: Canonical dataset identifier or repository URL
+        dataset_revision: Immutable dataset revision used by default
+        evaluator_source: Canonical evaluator package or repository
+        evaluator_revision: Immutable evaluator revision used by default
+        release_date: Upstream release date in ISO-8601 form
+        license: Dataset/benchmark license identifier
+        access: Data access classification
+        source_kind: Canonical source transport
+        release_policy: Expected upstream release lifecycle
+        prompt_revision: Immutable prompt/template identity
+        container_revision: Immutable runtime image identity
+        dataset_configs: Expected dataset configurations
+        dataset_splits: Expected dataset splits
+        latest_protocol_version: Latest verified protocol, for freshness comparisons
+        successor: Separately named successor benchmark, when one exists
     """
 
     name: str
@@ -69,6 +131,24 @@ class BenchmarkMetadata:
     sandbox_profile: Optional[str] = None
     scoring_type: str = "standard"
     provider_requirements: tuple[str, ...] = ()
+    status: BenchmarkStatus = BenchmarkStatus.STABLE
+    status_reason: Optional[str] = None
+    protocol_version: Optional[str] = None
+    dataset_source: Optional[str] = None
+    dataset_revision: Optional[str] = None
+    evaluator_source: Optional[str] = None
+    evaluator_revision: Optional[str] = None
+    release_date: Optional[str] = None
+    license: Optional[str] = None
+    access: Optional[BenchmarkAccess] = None
+    source_kind: Optional[BenchmarkSourceKind] = None
+    release_policy: Optional[BenchmarkReleasePolicy] = None
+    prompt_revision: Optional[str] = None
+    container_revision: Optional[str] = None
+    dataset_configs: tuple[str, ...] = ()
+    dataset_splits: tuple[str, ...] = ()
+    latest_protocol_version: Optional[str] = None
+    successor: Optional[str] = None
 
 
 class TaskRegistry:
@@ -119,8 +199,7 @@ class TaskRegistry:
         meta = self._benchmarks.get(name)
         if meta is None:
             raise KeyError(
-                f"Unknown benchmark: '{name}'. "
-                f"Available: {', '.join(sorted(self._benchmarks))}"
+                f"Unknown benchmark: '{name}'. Available: {', '.join(sorted(self._benchmarks))}"
             )
         return meta
 
@@ -161,10 +240,7 @@ class TaskRegistry:
 
     def get_descriptions(self) -> dict[str, str]:
         """Get name→description mapping for all benchmarks (for CLI)."""
-        return {
-            name: meta.description
-            for name, meta in sorted(self._benchmarks.items())
-        }
+        return {name: meta.description for name, meta in sorted(self._benchmarks.items())}
 
     def load_task(self, name: str, tier: str = "smoke") -> Any:
         """Dynamically load and invoke a benchmark's task function.
@@ -182,6 +258,9 @@ class TaskRegistry:
             ValueError: If module path is outside allowed namespace
         """
         meta = self.get_or_raise(name)
+        if meta.status == BenchmarkStatus.UNAVAILABLE:
+            reason = meta.status_reason or "No runnable upstream release is available."
+            raise BenchmarkUnavailableError(f"Benchmark '{name}' is unavailable: {reason}")
         module_path = meta.module_path
 
         # Security: restrict to matric_eval.tasks.* namespace
@@ -242,6 +321,24 @@ def register_benchmark(
     sandbox_profile: str | None = None,
     scoring_type: str = "standard",
     provider_requirements: tuple[str, ...] = (),
+    status: BenchmarkStatus | str = BenchmarkStatus.STABLE,
+    status_reason: str | None = None,
+    protocol_version: str | None = None,
+    dataset_source: str | None = None,
+    dataset_revision: str | None = None,
+    evaluator_source: str | None = None,
+    evaluator_revision: str | None = None,
+    release_date: str | None = None,
+    license: str | None = None,
+    access: BenchmarkAccess | str | None = None,
+    source_kind: BenchmarkSourceKind | str | None = None,
+    release_policy: BenchmarkReleasePolicy | str | None = None,
+    prompt_revision: str | None = None,
+    container_revision: str | None = None,
+    dataset_configs: tuple[str, ...] = (),
+    dataset_splits: tuple[str, ...] = (),
+    latest_protocol_version: str | None = None,
+    successor: str | None = None,
 ) -> Callable:
     """Decorator to register a benchmark task function.
 
@@ -259,6 +356,14 @@ def register_benchmark(
     """
     if isinstance(category, str):
         category = BenchmarkCategory(category)
+    if isinstance(status, str):
+        status = BenchmarkStatus(status)
+    if isinstance(access, str):
+        access = BenchmarkAccess(access)
+    if isinstance(source_kind, str):
+        source_kind = BenchmarkSourceKind(source_kind)
+    if isinstance(release_policy, str):
+        release_policy = BenchmarkReleasePolicy(release_policy)
 
     def decorator(func: Callable) -> Callable:
         # Derive module_path from the function's qualified name
@@ -278,6 +383,24 @@ def register_benchmark(
             sandbox_profile=sandbox_profile,
             scoring_type=scoring_type,
             provider_requirements=provider_requirements,
+            status=status,
+            status_reason=status_reason,
+            protocol_version=protocol_version,
+            dataset_source=dataset_source,
+            dataset_revision=dataset_revision,
+            evaluator_source=evaluator_source,
+            evaluator_revision=evaluator_revision,
+            release_date=release_date,
+            license=license,
+            access=access,
+            source_kind=source_kind,
+            release_policy=release_policy,
+            prompt_revision=prompt_revision,
+            container_revision=container_revision,
+            dataset_configs=dataset_configs,
+            dataset_splits=dataset_splits,
+            latest_protocol_version=latest_protocol_version,
+            successor=successor,
         )
         _registry.register(metadata)
         # Attach metadata to function for introspection

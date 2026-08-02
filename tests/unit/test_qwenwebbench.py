@@ -3,18 +3,17 @@ Tests for QwenWebBench benchmark task (Elo rating).
 """
 
 from typing import Any
-from unittest.mock import patch
 
 import pytest
-from inspect_ai import Task
-from inspect_ai.dataset import Sample
 
 from matric_eval.tasks.qwenwebbench import (
+    QWENWEBBENCH_UNAVAILABLE_REASON,
     load_qwenwebbench,
     qwenwebbench,
     record_to_sample,
     webbench_scorer,
 )
+from matric_eval.tasks.registry import BenchmarkStatus, BenchmarkUnavailableError
 
 
 @pytest.fixture(autouse=True)
@@ -46,10 +45,15 @@ class TestRecordToSample:
 
 
 class TestWebbenchScorer:
-    @pytest.mark.asyncio
-    async def test_scorer_factory(self) -> None:
-        scorer_fn = webbench_scorer()
-        assert callable(scorer_fn)
+    def test_scorer_is_quarantined(self) -> None:
+        with pytest.raises(BenchmarkUnavailableError, match="unavailable"):
+            webbench_scorer()
+
+
+class TestUnavailableSource:
+    def test_loader_never_attempts_remote_source(self) -> None:
+        with pytest.raises(BenchmarkUnavailableError, match="unavailable"):
+            load_qwenwebbench()
 
 
 class TestRegistration:
@@ -58,10 +62,9 @@ class TestRegistration:
         assert meta.name == "qwenwebbench"
         assert meta.scoring_type == "elo"
         assert meta.requires_sandbox is False
+        assert meta.status == BenchmarkStatus.UNAVAILABLE
+        assert meta.status_reason == QWENWEBBENCH_UNAVAILABLE_REASON
 
-    @patch("matric_eval.tasks.qwenwebbench.load_qwenwebbench")
-    def test_task_creation(self, mock_load) -> None:
-        mock_load.return_value = [Sample(input="spec", target="html", id="1")]
-        task = qwenwebbench(tier="smoke")
-        assert isinstance(task, Task)
-        assert task.name == "qwenwebbench"
+    def test_task_execution_is_quarantined(self) -> None:
+        with pytest.raises(BenchmarkUnavailableError, match="unavailable"):
+            qwenwebbench(tier="smoke")

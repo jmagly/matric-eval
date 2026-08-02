@@ -202,6 +202,13 @@ def title_quality_scorer():
     category="application",
     tier_samples={"smoke": 10, "quick": 20, "full": 30},
     total_samples=30,
+    protocol_version="project-v1",
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="MIT",
+    access="local",
+    source_kind="local",
+    release_policy="local",
 )
 @task
 def matric_memory(tier: str = "smoke") -> Task:

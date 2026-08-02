@@ -10,11 +10,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from inspect_ai import eval, Task
+from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
 
 from matric_eval.config import get_tier
+from matric_eval.provenance import benchmark_provenance, framework_provenance
 
 
 class EvaluationEngine:
@@ -181,6 +182,10 @@ class EvaluationEngine:
             "status": "pending",
         }
 
+        from matric_eval.tasks.registry import get_registry
+
+        result["provenance"] = benchmark_provenance(benchmark, get_registry().get(benchmark))
+
         # Include thinking mode in result if set
         if self.thinking_mode:
             result["thinking_mode"] = self.thinking_mode
@@ -272,6 +277,10 @@ class EvaluationEngine:
             "model": self.model,
             "tier": self.tier,
             "provider": self._get_provider_name(),
+            "provenance": {
+                "schema_version": "1",
+                "framework": framework_provenance(),
+            },
             "benchmarks": {},
             "status": "pending",
         }

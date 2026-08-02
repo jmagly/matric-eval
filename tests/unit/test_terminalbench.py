@@ -1,15 +1,14 @@
-"""
-Tests for Terminal-Bench 2.0 benchmark task.
-"""
+"""Terminal-Bench 2.1 Harbor adapter tests."""
 
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 from inspect_ai import Task
-from inspect_ai.dataset import Sample
 
 from matric_eval.tasks.terminalbench import (
+    HARBOR_VERSION,
+    TERMINALBENCH_REVISION,
+    build_harbor_command,
     load_terminalbench,
     record_to_sample,
     terminal_task_scorer,
@@ -19,59 +18,50 @@ from matric_eval.tasks.terminalbench import (
 
 @pytest.fixture(autouse=True)
 def _isolated_registry(isolated_registry):
-    """Use isolated registry."""
+    pass
 
 
-@pytest.fixture
-def sample_record() -> dict[str, Any]:
-    return {
-        "task_id": "tb-001",
-        "description": "Create a directory named 'test' and a file 'test/hello.txt'",
-        "expected_output": "test/hello.txt exists",
-        "setup_commands": ["rm -rf test"],
-        "verification": "test -f test/hello.txt && echo PASS",
-    }
+def test_record_preserves_harbor_manifest() -> None:
+    sample = record_to_sample(
+        {
+            "task_id": "demo",
+            "instruction": "Repair the service.",
+            "docker_image": "example/task:1",
+            "verifier_timeout": 42,
+            "test_files": {"tests/test.sh": "/tmp/test.sh"},
+        }
+    )
+    assert sample.id == "demo"
+    assert sample.metadata["verification"] == "bash /tests/test.sh"
+    assert sample.metadata["timeout_sec"] == 42
+    assert sample.metadata["dataset_revision"] == TERMINALBENCH_REVISION
 
 
-class TestRecordToSample:
-    def test_basic_conversion(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.id == "tb-001"
-        assert "Create a directory" in sample.input
-        assert sample.metadata["sandbox_type"] == "terminal"
-
-    def test_verification_in_metadata(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["verification"] == "test -f test/hello.txt && echo PASS"
-
-    def test_setup_commands(self, sample_record: dict) -> None:
-        sample = record_to_sample(sample_record)
-        assert sample.metadata["setup_commands"] == ["rm -rf test"]
-
-    def test_empty_record_fallbacks(self) -> None:
-        sample = record_to_sample({})
-        assert sample.id == ""
-        assert sample.metadata["sandbox_type"] == "terminal"
+def test_scorer_is_runnable() -> None:
+    assert callable(terminal_task_scorer())
 
 
-class TestTerminalTaskScorer:
-    @pytest.mark.asyncio
-    async def test_scorer_factory(self) -> None:
-        scorer_fn = terminal_task_scorer()
-        assert callable(scorer_fn)
+def test_harbor_command_targets_2_1() -> None:
+    command = build_harbor_command(agent="codex", model="openai/model", environment="docker")
+    assert command[command.index("-d") + 1] == "terminal-bench/terminal-bench-2-1"
+    assert HARBOR_VERSION == "0.20.0"
 
 
-class TestRegistration:
-    def test_registered(self) -> None:
-        meta = terminalbench._benchmark_metadata
-        assert meta.name == "terminalbench"
-        assert meta.requires_sandbox is True
-        assert meta.category.value == "agentic"
-        assert meta.sandbox_profile == "basic"
+def test_missing_snapshot_fails_clearly() -> None:
+    with patch("matric_eval.tasks.terminalbench.get_dataset_path", return_value=None):
+        with pytest.raises(FileNotFoundError, match="local canonical snapshot"):
+            load_terminalbench()
 
-    @patch("matric_eval.tasks.terminalbench.load_terminalbench")
-    def test_task_creation(self, mock_load) -> None:
-        mock_load.return_value = [Sample(input="t", target="e", id="1")]
-        task = terminalbench(tier="smoke")
-        assert isinstance(task, Task)
-        assert task.name == "terminalbench"
+
+def test_registration_and_task() -> None:
+    metadata = terminalbench._benchmark_metadata
+    assert metadata.protocol_version == "2.1"
+    assert metadata.total_samples == 89
+    assert metadata.scoring_type == "official_harbor_verifier"
+    with patch(
+        "matric_eval.tasks.terminalbench.load_terminalbench",
+        return_value=[record_to_sample({"task_id": "x"})],
+    ):
+        result = terminalbench()
+    assert isinstance(result, Task)
+    assert result.name == "terminalbench_2_1"

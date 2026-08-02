@@ -189,6 +189,17 @@ def load_livecodebench(tier: str = "smoke") -> list[Sample]:
     category="code",
     tier_samples={"smoke": 5, "quick": 50, "full": 1055},
     total_samples=1055,
+    protocol_version="release_v6",
+    dataset_source="livecodebench/code_generation_lite",
+    dataset_revision="0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
+    dataset_configs=("release_v6",),
+    evaluator_source="matric-eval",
+    evaluator_revision="0.1.0",
+    license="CC",
+    access="public",
+    source_kind="huggingface",
+    release_policy="versioned",
+    dataset_splits=("test",),
 )
 @task
 def livecodebench(tier: str = "smoke", thinking: bool = True) -> Task:
