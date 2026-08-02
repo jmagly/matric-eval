@@ -23,9 +23,11 @@ jobs:
 
       - name: Checkout code
         run: |
-          git clone --depth 1 --single-branch \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git .
-          git checkout ${{ github.sha }}
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
 
       - name: Install uv
         run: |
@@ -61,9 +63,11 @@ jobs:
 
       - name: Checkout code
         run: |
-          git clone --depth 1 --single-branch \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git .
-          git checkout ${{ github.sha }}
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
 
       - name: Install uv
         run: |
@@ -115,9 +119,11 @@ jobs:
 
       - name: Checkout code
         run: |
-          git clone --depth 1 --single-branch \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git .
-          git checkout ${{ github.sha }}
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
 
       - name: Install uv
         run: |
@@ -154,9 +160,11 @@ jobs:
 
       - name: Checkout code
         run: |
-          git clone --depth 1 --single-branch \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git .
-          git checkout ${{ github.sha }}
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
 
       - name: Install uv
         run: |
@@ -188,9 +196,11 @@ jobs:
 
       - name: Checkout code
         run: |
-          git clone --depth 1 --single-branch \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git .
-          git checkout ${{ github.sha }}
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
 
       - name: Install uv
         run: |
