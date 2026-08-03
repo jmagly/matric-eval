@@ -1,0 +1,199 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, Audit, and Publish
+    runs-on: ubuntu-latest
+    container: python:3.11
+    timeout-minutes: 30
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl git jq nodejs npm
+          npm install --global npm@10.9.4
+
+      - name: Checkout exact source
+        run: |
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+
+      - name: Install locked build environment
+        run: |
+          python -m pip install uv==0.9.26
+          uv sync --all-extras --no-extra dev --no-dev --frozen
+          npm ci --prefix bindings/typescript
+
+      - name: Verify version contract
+        run: |
+          case "${GITHUB_REF}" in
+            refs/tags/v*)
+              python scripts/release_contract.py versions \
+                --expected "${GITHUB_REF#refs/tags/v}" \
+                --output release-artifacts/evidence/version-surfaces.json
+              ;;
+            *)
+              python scripts/release_contract.py versions \
+                --output release-artifacts/evidence/version-surfaces.json
+              ;;
+          esac
+
+      - name: Build Python packages
+        run: |
+          uv build --out-dir release-artifacts/packages/python
+          rm -f release-artifacts/packages/python/.gitignore
+
+      - name: Build and test TypeScript package
+        working-directory: bindings/typescript
+        run: |
+          npm run build
+          npm test
+          npm pack --pack-destination ../../release-artifacts/packages/typescript
+
+      - name: Verify package contents
+        run: |
+          python scripts/release_contract.py artifacts \
+            --artifact-root release-artifacts
+
+      - name: Generate CycloneDX SBOMs
+        run: |
+          uv export --format cyclonedx1.5 --preview-features sbom-export \
+            --all-extras --no-extra dev --no-dev --locked \
+            --output-file release-artifacts/evidence/python-sbom.cdx.json
+          npm sbom --prefix bindings/typescript --sbom-format cyclonedx \
+            > release-artifacts/evidence/typescript-sbom.cdx.json
+
+      - name: Review dependency licenses
+        run: |
+          python scripts/release_contract.py licenses \
+            --npm-sbom release-artifacts/evidence/typescript-sbom.cdx.json \
+            --policy release/license-policy.json \
+            --json-output release-artifacts/evidence/dependency-licenses.json \
+            --markdown-output release-artifacts/evidence/dependency-licenses.md
+
+      - name: Audit dependencies
+        run: |
+          uv export --format requirements.txt --all-extras --no-extra dev --no-dev --locked \
+            --no-emit-project \
+            --output-file release-artifacts/evidence/python-requirements.txt
+          set +e
+          uvx --from pip-audit==2.10.0 pip-audit \
+            --requirement release-artifacts/evidence/python-requirements.txt \
+            --format json \
+            --output release-artifacts/evidence/python-vulnerabilities.json
+          python_status=$?
+          npm audit --prefix bindings/typescript --json --audit-level=critical \
+            > release-artifacts/evidence/typescript-vulnerabilities.json
+          npm_status=$?
+          set -e
+          printf '{"python": %s, "typescript": %s}\n' \
+            "$python_status" "$npm_status" \
+            > release-artifacts/evidence/audit-exit-codes.json
+
+      - name: Review vulnerability findings
+        run: |
+          python scripts/release_contract.py vulnerabilities \
+            --python-audit release-artifacts/evidence/python-vulnerabilities.json \
+            --npm-audit release-artifacts/evidence/typescript-vulnerabilities.json \
+            --policy release/vulnerability-policy.json \
+            --json-output release-artifacts/evidence/vulnerability-review.json \
+            --markdown-output release-artifacts/evidence/vulnerability-review.md
+
+      - name: Generate manifest and checksums
+        run: |
+          python scripts/release_contract.py manifest \
+            --artifact-root release-artifacts \
+            --output release-artifacts/release-manifest.json \
+            --sums-output release-artifacts/SHA256SUMS
+          cd release-artifacts
+          sha256sum --check SHA256SUMS
+
+      - name: Package release bundle
+        run: |
+          version=$(python -c 'from matric_eval import __version__; print(__version__)')
+          tar -czf "matric-eval-${version}-release-bundle.tar.gz" \
+            -C release-artifacts .
+
+      - name: Verify publication credential
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: test -n "$RELEASE_TOKEN"
+
+      - name: Publish Python packages
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          uv publish \
+            --publish-url https://git.integrolabs.net/api/packages/roctinam/pypi/ \
+            --username "${{ github.actor }}" \
+            --password "$RELEASE_TOKEN" \
+            release-artifacts/packages/python/*
+
+      - name: Publish TypeScript package
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          npm config set \
+            //git.integrolabs.net/api/packages/roctinam/npm/:_authToken \
+            "$RELEASE_TOKEN" --location=user
+          npm publish release-artifacts/packages/typescript/*.tgz \
+            --registry https://git.integrolabs.net/api/packages/roctinam/npm/
+
+      - name: Create Gitea release and attach evidence
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version="${tag#v}"
+          notes_path="docs/releases/${version}.md"
+          test -f "$notes_path"
+          jq -n \
+            --arg tag "$tag" \
+            --arg name "matric-eval ${version}" \
+            --rawfile body "$notes_path" \
+            '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}' \
+            > /tmp/gitea-release.json
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: token ${RELEASE_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data @/tmp/gitea-release.json \
+            "https://git.integrolabs.net/api/v1/repos/${GITHUB_REPOSITORY}/releases" \
+            > /tmp/gitea-release-response.json
+          release_id=$(jq --exit-status --raw-output '.id' /tmp/gitea-release-response.json)
+          { find release-artifacts -type f -print0; find . -maxdepth 1 -name 'matric-eval-*-release-bundle.tar.gz' -print0; } |
+            while IFS= read -r -d '' asset; do
+              asset_name=$(basename "$asset")
+              curl --fail-with-body --silent --show-error \
+                --request POST \
+                --header "Authorization: token ${RELEASE_TOKEN}" \
+                --form "attachment=@${asset}" \
+                "https://git.integrolabs.net/api/v1/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${asset_name}" \
+                > /dev/null
+            done
+
+      - name: Retain release bundle
+        if: always()
+        uses: actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de
+        with:
+          name: release-candidate-${{ github.run_id }}
+          path: |
+            release-artifacts
+            matric-eval-*-release-bundle.tar.gz

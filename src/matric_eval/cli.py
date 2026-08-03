@@ -30,6 +30,7 @@ from matric_eval.providers import get_provider, list_providers
 from matric_eval.providers.base import ProviderConfig, ProviderConnectionError
 from matric_eval.state import StateManager
 from matric_eval.state.manager import Status
+from matric_eval.version import __version__
 
 console = Console()
 error_console = Console(stderr=True)
@@ -460,7 +461,7 @@ def _execute_targets(
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version=__version__)
 @click.option(
     "--log-level",
     type=click.Choice(["debug", "info", "warning", "error"], case_sensitive=False),

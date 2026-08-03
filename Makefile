@@ -1,6 +1,6 @@
 # Makefile for matric-eval development tasks
 
-.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail operational-validation ci
+.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail operational-validation ci release-workflow-required publish-pypi publish-npm publish release
 
 help:  ## Show this help message
 	@echo "matric-eval development commands:"
@@ -92,25 +92,14 @@ build-ts:  ## Build TypeScript bindings
 	cd bindings/typescript && npm run build
 	@echo "TypeScript bindings built"
 
-publish-pypi:  ## Publish to Gitea PyPI (requires GITEA_TOKEN env var)
-	@if [ -z "$$GITEA_TOKEN" ]; then echo "Error: GITEA_TOKEN not set. Get token from Gitea Settings > Applications"; exit 1; fi
-	uv publish --publish-url https://git.integrolabs.net/api/packages/roctinam/pypi/ \
-		--username roctinam --password "$$GITEA_TOKEN"
+release-workflow-required:
+	@echo "Direct publication is disabled. Dispatch .gitea/workflows/release.yml for a candidate, then publish the validated v* tag."
+	@false
 
-publish-npm:  ## Publish TypeScript to Gitea npm (requires GITEA_TOKEN env var)
-	@if [ -z "$$GITEA_TOKEN" ]; then echo "Error: GITEA_TOKEN not set. Get token from Gitea Settings > Applications"; exit 1; fi
-	cd bindings/typescript && \
-		npm config set //git.integrolabs.net/api/packages/roctinam/npm/:_authToken="$$GITEA_TOKEN" && \
-		npm publish
+publish-pypi: release-workflow-required  ## Disabled; publish through the validated release workflow
 
-publish:  ## Publish both Python and TypeScript packages
-	@echo "Publishing packages to Gitea..."
-	$(MAKE) publish-pypi
-	$(MAKE) publish-npm
-	@echo ""
-	@echo "Packages published successfully!"
+publish-npm: release-workflow-required  ## Disabled; publish through the validated release workflow
 
-release:  ## Full release process (build + publish)
-	$(MAKE) build
-	$(MAKE) build-ts
-	$(MAKE) publish
+publish: release-workflow-required  ## Disabled; publish through the validated release workflow
+
+release: release-workflow-required  ## Disabled; release through the validated release workflow

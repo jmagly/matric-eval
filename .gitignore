@@ -66,6 +66,7 @@ results/
 # TypeScript/Node
 node_modules/
 bindings/typescript/dist/
+release-artifacts/
 
 # Temporary files
 *.tmp

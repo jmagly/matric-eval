@@ -1,6 +1,6 @@
 # CI/CD Pipeline for matric-eval
 # Runs tests, linting, and coverage checks on every push and PR
-# Publishes packages on tagged releases
+# Package publication is handled by release.yml after candidate validation.
 
 name: CI
 
@@ -149,8 +149,10 @@ jobs:
     timeout-minutes: 10
     needs: [test, smoke]
     steps:
-      - name: Install git
-        run: apt-get update && apt-get install -y git
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y git nodejs npm
 
       - name: Checkout code
         run: |
@@ -164,6 +166,11 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Verify release versions
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          python scripts/release_contract.py versions
 
       - name: Build package
         run: |
@@ -177,43 +184,10 @@ jobs:
           pip install dist/*.whl
           python -c "import matric_eval; print('Version:', matric_eval.__version__)"
 
-  publish:
-    name: Publish to Gitea
-    runs-on: ubuntu-latest
-    container: python:3.11
-    timeout-minutes: 10
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - name: Install git
-        run: apt-get update && apt-get install -y git
-
-      - name: Checkout code
+      - name: Build and test TypeScript package
+        working-directory: bindings/typescript
         run: |
-          git init .
-          git remote add origin \
-            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
-          git fetch --depth 1 origin ${{ github.sha }}
-          git checkout --detach FETCH_HEAD
-
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Build package
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv build
-
-      - name: Publish to Gitea PyPI
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          pip install twine
-          twine upload \
-            --repository-url https://git.integrolabs.net/api/packages/roctinam/pypi \
-            --username roctinam \
-            --password "${GITEA_TOKEN}" \
-            dist/*
+          npm ci
+          npm run build
+          npm test
+          npm pack --dry-run

@@ -1,7 +1,5 @@
 """matric-eval: Consolidated model evaluation framework for the matric ecosystem."""
 
-__version__ = "0.1.0"
-
 from .config import Settings, TierConfig, get_settings
 
 # Legacy exports for backwards compatibility
@@ -38,6 +36,7 @@ from .recommendation import (
     RecommendationReport,
     generate_recommendations,
 )
+from .version import __version__
 
 __all__ = [
     # Config

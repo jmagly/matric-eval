@@ -55,6 +55,7 @@ CI/CD and release documentation.
 
 - [**CI/CD Pipeline**](deployment/cicd-pipeline.md) - Gitea Actions workflow
 - [**Release Notes Template**](deployment/release-notes-template.md) - Release documentation format
+- [**0.2.0 Release Notes**](releases/0.2.0.md) - Compatibility, installation, limits, and evidence
 
 ### Development
 

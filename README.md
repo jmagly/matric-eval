@@ -4,9 +4,11 @@ Consolidated model evaluation framework for the matric ecosystem.
 
 ## Status
 
-Version 0.1.0 is the latest released package. The current branch is preparing
-0.2.0; see the [supported-capability roadmap](./docs/development/roadmap.md) for
-release gates and deliberately deferred work.
+The source package version is 0.2.0. Published package availability and immutable
+release evidence are recorded in
+[Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases); see
+the [supported-capability roadmap](./docs/development/roadmap.md) for release
+gates and deliberately deferred work.
 
 Registry snapshot on 2026-08-03: 39 benchmarks (24 stable, 13 gated, one
 experimental, one unavailable). Generate the current inventory with
@@ -172,8 +174,8 @@ Then run: `matric-eval run --matrix eval-matrix.yaml`
 
 ## TypeScript Bindings
 
-The 0.1.0 client is published. Clean 0.2.0 package validation and actual
-matric-cli adoption are tracked by
+The TypeScript client source version matches the Python package. Clean 0.2.0
+package validation and actual matric-cli adoption are tracked by
 [#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) and
 [#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94); source-tree
 tests alone do not establish the consumer migration contract.

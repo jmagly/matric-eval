@@ -14,7 +14,7 @@ class TestPackageStructure:
         import matric_eval
 
         assert hasattr(matric_eval, "__version__")
-        assert matric_eval.__version__ == "0.1.0"
+        assert matric_eval.__version__ == "0.2.0"
 
     def test_config_module_import(self) -> None:
         """Test that config module can be imported."""

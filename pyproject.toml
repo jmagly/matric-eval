@@ -1,6 +1,6 @@
 [project]
 name = "matric-eval"
-version = "0.1.0"
+version = "0.2.0"
 description = "Consolidated model evaluation framework for the matric ecosystem"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,12 +49,28 @@ matric-eval = "matric_eval.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+exclude = [
+    "**/__pycache__",
+    "**/*.bak",
+    "**/*.pyc",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/matric_eval"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/matric_eval",
+    "/LICENSE",
+    "/README.md",
+    "/pyproject.toml",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

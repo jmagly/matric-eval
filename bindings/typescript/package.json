@@ -1,6 +1,6 @@
 {
   "name": "@matric/eval-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript client for matric-eval evaluation framework",
   "type": "module",
   "main": "dist/index.js",
@@ -12,8 +12,11 @@
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist/*.d.ts",
+    "dist/*.d.ts.map",
+    "dist/*.js",
+    "dist/*.js.map",
+    "src/*.ts"
   ],
   "scripts": {
     "build": "tsc",

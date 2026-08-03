@@ -2,7 +2,7 @@
 
 **Last reconciled**: 2026-08-03
 
-**Latest released version**: 0.1.0
+**Current source version**: 0.2.0
 
 **Current delivery target**: 0.2.0
 
@@ -68,7 +68,7 @@ Protocol details and immutable revisions are recorded in the
 | Parallel execution | Sequential and threaded result sets are equivalent for the pinned representative matrix | [Operational Validation v1](../validation/operational-validation-v1.md); this is not a universal provider throughput guarantee |
 | CI | Gitea Actions enforces quality, test/coverage, smoke, and package-build gates on PRs and `main` | [Issue #88](https://git.integrolabs.net/roctinam/matric-eval/issues/88) |
 | Real-provider smoke | Scheduled/manual Ollama workflow retains logs, results, checkpoints, and a model digest | [Issue #89](https://git.integrolabs.net/roctinam/matric-eval/issues/89), hosted run #51 |
-| TypeScript client | Version 0.1.0 is published; the current source client builds and is tested | Clean 0.2.0 package validation is tracked by #93; matric-cli adoption is tracked by #94 |
+| TypeScript client | The source client version matches the Python package and is tested | Clean 0.2.0 package validation is tracked by #93; matric-cli adoption is tracked by #94 |
 | Rust client | No supported Rust binding in the current release | Deferred issue #96 requires a stable 0.2.0 schema and consumer approval |
 
 The test inventory is intentionally not a timeless marketing count. On

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "accepted_licenses": [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CNRI-Python",
+    "ISC",
+    "LGPL-2.0-only",
+    "MIT",
+    "MIT-CMU",
+    "MPL-2.0",
+    "PSF-2.0",
+    "Zlib"
+  ],
+  "prohibited_licenses": [
+    "AGPL-3.0-only",
+    "GPL-2.0-only",
+    "GPL-3.0-only"
+  ],
+  "notes": {
+    "LGPL-2.0-only": "Accepted for dynamically installed transitive tooling; it is not bundled into matric-eval wheels or npm archives.",
+    "MPL-2.0": "Accepted for unmodified dependencies distributed separately under their original terms."
+  }
+}

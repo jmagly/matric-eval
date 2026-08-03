@@ -7,6 +7,7 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from matric_eval.tasks.registry import BenchmarkMetadata
+from matric_eval.version import __version__
 
 PROVENANCE_SCHEMA_VERSION = "1"
 
@@ -21,7 +22,7 @@ def _package_version(distribution: str, fallback: str = "unknown") -> str:
 def framework_provenance() -> dict[str, str]:
     """Return package/runtime versions that affect evaluation behavior."""
     return {
-        "matric_eval": _package_version("matric-eval", "0.1.0"),
+        "matric_eval": _package_version("matric-eval", __version__),
         "inspect_ai": _package_version("inspect-ai"),
         "inspect_evals": _package_version("inspect-evals"),
         "python": platform.python_version(),

@@ -20,8 +20,8 @@ estimates, and completion states must not be used for current scheduling.
 
 The Reliability & CI Hardening milestone closed on 2026-08-03 with issues #87
 through #90 complete. The repository is now in the Release 0.2 & Ecosystem
-Adoption milestone. Version 0.1.0 remains the latest released package until #92
-completes all release gates.
+Adoption milestone. Source packages are staged at version 0.2.0; Gitea Releases
+and package registries remain authoritative for publication status.
 
 ## Ordered Work
 
