@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
-from inspect_ai.model import GenerateConfig
 
 from matric_eval.config import get_tier
 from matric_eval.provenance import benchmark_provenance, framework_provenance
@@ -136,11 +135,9 @@ class EvaluationEngine:
         kwargs: dict[str, Any] = {}
 
         if self.thinking_mode == "off":
-            # Disable thinking via generate config
-            kwargs["generate_config"] = GenerateConfig(extra_body={"enable_thinking": False})
+            kwargs["extra_body"] = {"enable_thinking": False}
         elif self.thinking_mode == "on":
-            # Enable thinking (may be default for some models)
-            kwargs["generate_config"] = GenerateConfig(extra_body={"enable_thinking": True})
+            kwargs["extra_body"] = {"enable_thinking": True}
 
         return kwargs
 

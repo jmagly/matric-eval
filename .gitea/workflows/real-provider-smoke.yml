@@ -1,0 +1,61 @@
+name: Real Provider Smoke
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: real-provider-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Ollama CPU Smoke
+    runs-on: ubuntu-latest
+    container: python:3.11
+    timeout-minutes: 20
+    services:
+      ollama:
+        image: ollama/ollama:0.32.0
+        env:
+          OLLAMA_KEEP_ALIVE: "0"
+    steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y curl git
+
+      - name: Checkout code
+        run: |
+          git init .
+          git remote add origin \
+            https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
+          git fetch --depth 1 origin ${{ github.sha }}
+          git checkout --detach FETCH_HEAD
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv sync --extra dev
+
+      - name: Run real-provider smoke
+        env:
+          MATRIC_SMOKE_ACCELERATOR: cpu
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run python scripts/run_real_provider_smoke.py \
+            --provider-url http://ollama:11434 \
+            --model smollm2:135m \
+            --benchmark matric_cli \
+            --output artifacts/real-provider-smoke
+
+      - name: Retain provider diagnostics
+        if: always()
+        uses: actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de
+        with:
+          name: real-provider-smoke-${{ github.run_id }}
+          path: artifacts/real-provider-smoke

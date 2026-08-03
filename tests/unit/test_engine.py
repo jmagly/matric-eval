@@ -131,6 +131,25 @@ class TestRunBenchmark:
             assert result["status"] == "error"
             assert "No evaluation logs" in result["error"]
 
+    def test_thinking_config_is_expanded_into_inspect_eval_kwargs(
+        self,
+        tmp_path: Path,
+        mock_eval_log: MagicMock,
+    ) -> None:
+        """Inspect eval rejects a nested generate_config keyword."""
+        engine = EvaluationEngine(
+            model="ollama/test",
+            log_dir=tmp_path,
+            thinking_mode="off",
+        )
+
+        with patch("matric_eval.core.engine.eval", return_value=[mock_eval_log]) as mock_eval:
+            result = engine.run_benchmark("humaneval", task=Mock())
+
+        assert result["status"] == "success"
+        assert mock_eval.call_args.kwargs["extra_body"] == {"enable_thinking": False}
+        assert "generate_config" not in mock_eval.call_args.kwargs
+
 
 @pytest.mark.unit
 class TestRunAll:

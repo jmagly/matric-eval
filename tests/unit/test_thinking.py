@@ -396,7 +396,7 @@ class TestEngineThinkingMode:
         assert engine.thinking_mode is None
 
     def test_engine_thinking_mode_in_eval_kwargs(self, tmp_results_dir: Path) -> None:
-        """Engine should pass thinking mode to eval via generate_config."""
+        """Engine should pass thinking mode through Inspect's generate kwargs."""
         from matric_eval.core.engine import EvaluationEngine
 
         engine = EvaluationEngine(
@@ -409,11 +409,7 @@ class TestEngineThinkingMode:
         # Get eval kwargs
         eval_kwargs = engine._get_eval_kwargs()
 
-        assert "generate_config" in eval_kwargs
-        gen_config = eval_kwargs["generate_config"]
-        # Check that thinking is disabled in extra_body
-        assert hasattr(gen_config, "extra_body")
-        assert gen_config.extra_body.get("enable_thinking") is False
+        assert eval_kwargs == {"extra_body": {"enable_thinking": False}}
 
 
 # =============================================================================
