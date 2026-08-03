@@ -146,13 +146,16 @@ export class MatricEvalClient {
    * @returns Array of model names
    */
   async listModels(): Promise<string[]> {
-    const result = await this.execute(['list-models', '--format', 'json']);
+    const result = await this.execute(['list-models', '--output-format', 'json']);
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Failed to list models', result.exitCode, result.stderr);
     }
 
-    const data = JSON.parse(result.stdout) as { models: Array<{ name: string }> };
-    return data.models.map((m) => m.name);
+    const data = JSON.parse(result.stdout) as
+      | Array<{ name: string }>
+      | { models: Array<{ name: string }> };
+    const models = Array.isArray(data) ? data : data.models;
+    return models.map((model) => model.name);
   }
 
   /**
@@ -162,7 +165,7 @@ export class MatricEvalClient {
    * @returns Array of benchmark identifiers
    */
   async listBenchmarks(tier?: EvalTier): Promise<BenchmarkId[]> {
-    const args = ['list-benchmarks', '--format', 'json'];
+    const args = ['list-benchmarks', '--output-format', 'json'];
     if (tier) {
       args.push('--tier', tier);
     }
@@ -172,8 +175,13 @@ export class MatricEvalClient {
       throw new MatricEvalError('Failed to list benchmarks', result.exitCode, result.stderr);
     }
 
-    const data = JSON.parse(result.stdout) as { benchmarks: Array<{ name: string }> };
-    return data.benchmarks.map((b) => b.name as BenchmarkId);
+    const data = JSON.parse(result.stdout) as
+      | Record<string, unknown>
+      | { benchmarks: Array<{ name: string }> };
+    if ('benchmarks' in data && Array.isArray(data.benchmarks)) {
+      return data.benchmarks.map((benchmark) => benchmark.name as BenchmarkId);
+    }
+    return Object.keys(data) as BenchmarkId[];
   }
 
   /**

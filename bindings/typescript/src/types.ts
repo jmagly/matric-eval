@@ -42,7 +42,8 @@ export type BenchmarkId =
   | 'ds1000'
   | 'livecodebench'
   | 'mtbench'
-  | 'tool_calling';
+  | 'tool_calling'
+  | (string & Record<never, never>);
 
 /**
  * Benchmark result for a single benchmark.

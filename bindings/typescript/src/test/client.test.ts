@@ -4,6 +4,9 @@
 
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { MatricEvalClient, MatricEvalError, createClient } from '../client.js';
 import type { EvalSummary, RecommendationReport } from '../types.js';
@@ -30,6 +33,28 @@ describe('MatricEvalClient', () => {
     it('should create client with custom path', () => {
       const client = createClient('/custom/path');
       assert.ok(client instanceof MatricEvalClient);
+    });
+  });
+
+  describe('CLI integration', () => {
+    it('uses the current JSON option and parses benchmark mappings', async () => {
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'matric-eval-client-'));
+      const executable = path.join(directory, 'matric-eval');
+      await fs.writeFile(
+        executable,
+        `#!/bin/sh
+if [ "$1" = "list-benchmarks" ] && [ "$2" = "--output-format" ] && [ "$3" = "json" ]; then
+  printf '{"humaneval":"HumanEval","injecagent":"InjecAgent"}\\n'
+  exit 0
+fi
+printf 'unexpected arguments: %s\\n' "$*" >&2
+exit 2
+`,
+        { mode: 0o755 },
+      );
+
+      const client = createClient(executable);
+      assert.deepStrictEqual(await client.listBenchmarks(), ['humaneval', 'injecagent']);
     });
   });
 });

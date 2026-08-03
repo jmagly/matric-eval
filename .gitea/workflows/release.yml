@@ -113,6 +113,18 @@ jobs:
             --json-output release-artifacts/evidence/vulnerability-review.json \
             --markdown-output release-artifacts/evidence/vulnerability-review.md
 
+      - name: Validate clean package consumers
+        run: |
+          version=$(python -c 'import json; print(json.load(open("release-artifacts/evidence/version-surfaces.json"))["version"])')
+          python scripts/validate_release_candidate.py \
+            --artifact-root release-artifacts \
+            --output release-artifacts/evidence/clean-install-validation.json \
+            --expected "$version" \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
+            --python-version 3.14
+
       - name: Generate manifest and checksums
         run: |
           python scripts/release_contract.py manifest \
