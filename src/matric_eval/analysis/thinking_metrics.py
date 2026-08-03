@@ -17,7 +17,6 @@ Example:
 from dataclasses import dataclass
 from typing import Any, Optional
 
-
 # Pattern lists for detecting reasoning behaviors
 BACKTRACK_PATTERNS = [
     "Wait,",
@@ -212,9 +211,7 @@ def aggregate_metrics(metrics: list[ThinkingMetrics]) -> ThinkingAggregates:
     avg_cycles_per_sample = total_cycles / sample_count
 
     # Sum timing data (only for samples with timing)
-    total_reasoning_time = sum(
-        m.working_time for m in metrics if m.working_time is not None
-    )
+    total_reasoning_time = sum(m.working_time for m in metrics if m.working_time is not None)
 
     # Calculate reasoning to text ratio (average of individual ratios)
     ratios = []

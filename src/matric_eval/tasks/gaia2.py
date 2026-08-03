@@ -85,9 +85,7 @@ def load_gaia2(tier: str = "smoke", splits: list[str] | None = None) -> list[Sam
                 split="test",
                 revision=GAIA2_DATASET_REVISION,
                 require_immutable_revision=True,
-                record_to_sample=lambda record, split=split: record_to_sample(
-                    record, split=split
-                ),
+                record_to_sample=lambda record, split=split: record_to_sample(record, split=split),
             )
         )
     count = get_sample_count("gaia2", tier)
@@ -114,9 +112,7 @@ def build_gaia2_command(repository: str | Path, *, config: str | Path) -> list[s
     ]
 
 
-def run_gaia2(
-    repository: str | Path, *, config: str | Path
-) -> subprocess.CompletedProcess[str]:
+def run_gaia2(repository: str | Path, *, config: str | Path) -> subprocess.CompletedProcess[str]:
     """Run GAIA2 through its per-scenario Podman isolation boundary."""
     return subprocess.run(
         build_gaia2_command(repository, config=config),

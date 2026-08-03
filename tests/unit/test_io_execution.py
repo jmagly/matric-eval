@@ -1,6 +1,6 @@
 """Unit tests for I/O execution scorer (LiveCodeBench)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -95,7 +95,7 @@ class TestIoExecute:
 
     def test_execute_multiline_input(self) -> None:
         """Code can read multiple lines from stdin."""
-        code = 'a = input(); b = input(); print(a + b)'
+        code = "a = input(); b = input(); print(a + b)"
         result = io_execute(code, "hello\nworld")
         assert result["success"] is True
         assert "helloworld" in result["stdout"]
@@ -109,14 +109,14 @@ class TestIoExecute:
 
     def test_execute_runtime_error(self) -> None:
         """Runtime errors are caught and reported."""
-        code = 'x = 1 / 0'
+        code = "x = 1 / 0"
         result = io_execute(code, "")
         assert result["success"] is False
         assert result["error"] is not None
 
     def test_execute_timeout(self) -> None:
         """Infinite loops are timed out."""
-        code = 'while True: pass'
+        code = "while True: pass"
         result = io_execute(code, "", timeout=1)
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
@@ -145,7 +145,7 @@ class TestIoExecutionScorer:
 
         # Create mock state
         state = MagicMock()
-        state.output.completion = 'print(input())'
+        state.output.completion = "print(input())"
         state.metadata = {
             "public_test_cases": [
                 {"input": "hello", "output": "hello\n"},
@@ -220,7 +220,7 @@ class TestIoExecutionScorer:
         scorer = io_execution_scorer()
 
         state = MagicMock()
-        state.output.completion = '```python\nprint(input())\n```'
+        state.output.completion = "```python\nprint(input())\n```"
         state.metadata = {
             "public_test_cases": [
                 {"input": "test", "output": "test\n"},
@@ -249,11 +249,11 @@ class TestIoExecutionScorerRegressions:
         scorer = io_execution_scorer()
 
         # Typical competitive programming problem: sum N numbers
-        code = '''
+        code = """
 n = int(input())
 nums = list(map(int, input().split()))
 print(sum(nums))
-'''
+"""
 
         state = MagicMock()
         state.output.completion = code
@@ -268,7 +268,9 @@ print(sum(nums))
         target = MagicMock()
 
         result = await scorer(state, target)
-        assert result.value == 1.0, f"Competitive programming format should work: {result.explanation}"
+        assert result.value == 1.0, (
+            f"Competitive programming format should work: {result.explanation}"
+        )
 
     @pytest.mark.asyncio
     async def test_regression_output_normalization(self) -> None:

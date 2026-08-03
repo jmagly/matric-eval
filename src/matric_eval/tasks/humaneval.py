@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample, json_dataset
+from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed

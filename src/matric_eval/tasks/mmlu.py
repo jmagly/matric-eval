@@ -144,12 +144,14 @@ def load_mmlu_csv(data_dir: str | Path) -> list[dict[str, Any]]:
                 if len(row) < 6:
                     continue  # Skip malformed rows
 
-                records.append({
-                    "question": row[0],
-                    "choices": [row[1], row[2], row[3], row[4]],
-                    "answer": row[5].strip(),
-                    "subject": subject,
-                })
+                records.append(
+                    {
+                        "question": row[0],
+                        "choices": [row[1], row[2], row[3], row[4]],
+                        "answer": row[5].strip(),
+                        "subject": subject,
+                    }
+                )
 
     if not records:
         raise ValueError(f"MMLU dataset is empty: {data_dir}")

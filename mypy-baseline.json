@@ -1,0 +1,871 @@
+{
+  "schema_version": 1,
+  "command": "mypy src/ --output=json",
+  "policy": "Existing findings may decrease; new or increased findings fail.",
+  "errors": [
+    {
+      "file": "src/matric_eval/cli.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"Logger\", variable has type \"EvalLogger | None\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/cli.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 7
+    },
+    {
+      "file": "src/matric_eval/cli.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"EvalLogger | None\", expected \"EvalLogger\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/cli.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/cli.py",
+      "code": "union-attr",
+      "message": "Item \"list[str]\" of \"list[str] | dict[str, str]\" has no attribute \"items\"",
+      "count": 3
+    },
+    {
+      "file": "src/matric_eval/config/settings.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"int\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/contamination/detector.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/core/engine.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"Path\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/core/engine.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"Task\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/core/engine.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"str\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "attr-defined",
+      "message": "Module has no attribute \"DownloadConfig\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "attr-defined",
+      "message": "Module has no attribute \"load_dataset\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "import-untyped",
+      "message": "Skipping analyzing \"pyarrow\": module is installed, but missing library stubs or py.typed marker",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "import-untyped",
+      "message": "Skipping analyzing \"pyarrow.parquet\": module is installed, but missing library stubs or py.typed marker",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"Dataset\", expected \"MemoryDataset\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"Callable\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/datasets.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"list\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/discovery.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/discovery.py",
+      "code": "import-untyped",
+      "message": "Library stubs not installed for \"yaml\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/discovery.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[str, Any] | None\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/discovery.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/judges/base.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 3
+    },
+    {
+      "file": "src/matric_eval/judges/factory.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"Judge\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/judges/factory.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a type annotation for one or more parameters",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/judges/factory.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/judges/ollama.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/judges/openai_compat.py",
+      "code": "arg-type",
+      "message": "Argument \"winner\" to \"JudgeResult\" has incompatible type \"str\"; expected \"Literal['A', 'B', 'tie'] | None\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/judges/openai_compat.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 4
+    },
+    {
+      "file": "src/matric_eval/judges/scorer.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/logging.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"int\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/models/detection.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[str, Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/content.py",
+      "code": "no-untyped-call",
+      "message": "Call to untyped function \"to_content_image\" in typed context",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/content.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/content.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"list\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/multimodal/frames.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"str\", variable has type \"bytes\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/frames.py",
+      "code": "str-bytes-safe",
+      "message": "If x = b'abc' then f\"{x}\" or \"{}\".format(x) produces \"b'abc'\", not \"abc\". If this is desired behavior, use f\"{x!r}\" or \"{!r}\".format(x). Otherwise, decode the bytes",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/inputs.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"IPv6Network\", variable has type \"IPv4Network\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/inputs.py",
+      "code": "attr-defined",
+      "message": "Module has no attribute \"LANCZOS\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/multimodal/inputs.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/parallel.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"result\"",
+      "count": 5
+    },
+    {
+      "file": "src/matric_eval/providers/chutes.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[Any, Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/chutes.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/llamacpp.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"bool\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/matrix.py",
+      "code": "import-untyped",
+      "message": "Library stubs not installed for \"yaml\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/openrouter.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[Any, Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/openrouter.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/registry.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"Provider\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/providers/vllm.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"bool\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/recommendation.py",
+      "code": "arg-type",
+      "message": "Argument 1 to \"float\" has incompatible type \"Any | None\"; expected \"str | Buffer | SupportsFloat | SupportsIndex\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/sandbox/client.py",
+      "code": "index",
+      "message": "Unsupported target for indexed assignment (\"Collection[str]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/sandbox/client.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"bool\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/sandbox/client.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[str, Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/sandbox/client.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"list[dict[str, Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/sandbox/client.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"str\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/elo.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"float\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/io_execution.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"failed_cases\" (hint: \"failed_cases: list[<type>] = ...\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/llm_judge.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"str | None\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/llm_judge.py",
+      "code": "no-untyped-call",
+      "message": "Call to untyped function (unknown) in typed context",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/multidimensional.py",
+      "code": "list-item",
+      "message": "List item 0 has incompatible type \"str\"; expected \"MetricProtocol | MetricDeprecated | Mapping[str, Sequence[MetricProtocol | MetricDeprecated]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/multidimensional.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a type annotation for one or more parameters",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/multidimensional.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 7
+    },
+    {
+      "file": "src/matric_eval/scorers/retrieval.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"float\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/retrieval.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/scorers/retrieval.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"list\"",
+      "count": 4
+    },
+    {
+      "file": "src/matric_eval/scorers/retrieval.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"set\"",
+      "count": 3
+    },
+    {
+      "file": "src/matric_eval/tasks/__init__.py",
+      "code": "attr-defined",
+      "message": "Module \"matric_eval.tasks.gaia\" does not explicitly export attribute \"gaia_scorer\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/arc.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/arc.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/claweval.py",
+      "code": "attr-defined",
+      "message": "Module \"datasets\" has no attribute \"load_dataset\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/claweval.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/claweval.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"samples\" (hint: \"samples: list[<type>] = ...\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/cyberseceval.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"list[dict[str, Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/cyberseceval.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"function\", expected \"Callable[..., Task]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/ds1000.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/ds1000.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/evalplus.py",
+      "code": "import-not-found",
+      "message": "Cannot find implementation or library stub for module named \"evalplus\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/evalplus.py",
+      "code": "import-not-found",
+      "message": "Cannot find implementation or library stub for module named \"evalplus.data\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/evalplus.py",
+      "code": "import-not-found",
+      "message": "Cannot find implementation or library stub for module named \"evalplus.evaluate\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/evalplus.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[str, Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/evalplus.py",
+      "code": "unused-ignore",
+      "message": "Unused \"type: ignore\" comment",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/gaia.py",
+      "code": "arg-type",
+      "message": "Argument \"split\" to \"gaia\" has incompatible type \"str\"; expected \"Literal['test', 'validation']\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/gaia.py",
+      "code": "arg-type",
+      "message": "Argument \"subset\" to \"gaia\" has incompatible type \"str\"; expected \"Literal['2023_all', '2023_level1', '2023_level2', '2023_level3']\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/gaia.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"Scorer\", variable has type \"list[Scorer] | None\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/gsm8k.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/gsm8k.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/humaneval.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/humaneval.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/ifeval.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/ifeval.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"bool\"",
+      "count": 15
+    },
+    {
+      "file": "src/matric_eval/tasks/ifeval.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/injecagent.py",
+      "code": "arg-type",
+      "message": "Argument \"attack_family\" to \"record_to_sample\" has incompatible type \"str\"; expected \"Literal['direct_harm', 'data_stealing']\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/livecodebench.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/livecodebench.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"list[Any]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/livecodebench.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/livecodebench.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"list\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_cli.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"list[dict[str, Any]]\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_cli.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_cli.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a type annotation for one or more parameters",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_memory.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"list[dict[str, Any]]\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_memory.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_memory.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a type annotation for one or more parameters",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/matric_memory.py",
+      "code": "union-attr",
+      "message": "Item \"None\" of \"Match[str] | None\" has no attribute \"group\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mbpp.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mbpp.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mmlu.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mmlu.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mmmu.py",
+      "code": "arg-type",
+      "message": "Argument \"content\" to \"ChatMessageUser\" has incompatible type \"list[ContentText]\"; expected \"str | list[ContentText | ContentReasoning | ContentImage | ContentAudio | ContentVideo | ContentData | ContentToolUse | ContentDocument]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mmmu.py",
+      "code": "attr-defined",
+      "message": "Module \"datasets\" has no attribute \"concatenate_datasets\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mmmu.py",
+      "code": "attr-defined",
+      "message": "Module \"datasets\" has no attribute \"load_dataset\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/mtbench.py",
+      "code": "arg-type",
+      "message": "Argument 1 to \"int\" has incompatible type \"int | str | None\"; expected \"str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/omnidocbench.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/qwenclawbench.py",
+      "code": "import-untyped",
+      "message": "Library stubs not installed for \"yaml\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/qwenclawbench.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/registry.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"Callable\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/factory.py",
+      "code": "arg-type",
+      "message": "Argument 1 to \"seeded_sample\" has incompatible type \"list[dict[str, Any]]\"; expected \"Sequence[Sample]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/factory.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"list[Sample]\", variable has type \"list[dict[str, Any]]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/factory.py",
+      "code": "attr-defined",
+      "message": "Module \"datasets\" has no attribute \"load_dataset\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/factory.py",
+      "code": "import-untyped",
+      "message": "Skipping analyzing \"swebench.harness.test_spec.test_spec\": module is installed, but missing library stubs or py.typed marker",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/multilingual.py",
+      "code": "import-untyped",
+      "message": "Skipping analyzing \"swebench.harness.constants\": module is installed, but missing library stubs or py.typed marker",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/pro.py",
+      "code": "arg-type",
+      "message": "Argument 1 to \"seeded_sample\" has incompatible type \"list[dict[str, Any]]\"; expected \"Sequence[Sample]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/pro.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"list[Sample]\", variable has type \"list[dict[str, Any]]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/swebench/pro.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"str\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/terminalbench.py",
+      "code": "no-untyped-call",
+      "message": "Call to untyped function \"_terminal_agent\" in typed context",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/terminalbench.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "arg-type",
+      "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "arg-type",
+      "message": "Argument 1 to \"choice\" of \"Random\" has incompatible type \"object\"; expected \"SupportsLenAndGetItem[Never]\"",
+      "count": 3
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"list[dict[str, Any]]\", variable has type \"dict[str, Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "assignment",
+      "message": "Incompatible types in assignment (expression has type \"list[dict[str, Collection[str]]]\", variable has type \"dict[str, Any]\")",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"dict[Any, Any] | list[Any] | None\"",
+      "count": 3
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a type annotation for one or more parameters",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "return-value",
+      "message": "Incompatible return value type (got \"int | str | None\", expected \"SupportsDunderLT[Any] | SupportsDunderGT[Any]\")",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"list\"",
+      "count": 2
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"func_name\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"func_names\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"params\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"params_list\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/tool_calling.py",
+      "code": "var-annotated",
+      "message": "Need type annotation for \"query\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/videomme.py",
+      "code": "arg-type",
+      "message": "Argument \"frame_paths\" to \"record_to_sample\" has incompatible type \"list[Path]\"; expected \"list[str | Path] | None\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/tasks/videomme.py",
+      "code": "attr-defined",
+      "message": "Module \"datasets\" has no attribute \"load_dataset\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/trends/store.py",
+      "code": "no-any-return",
+      "message": "Returning Any from function declared to return \"int\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/trends/store.py",
+      "code": "no-untyped-def",
+      "message": "Function is missing a return type annotation",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/trends/store.py",
+      "code": "type-arg",
+      "message": "Missing type arguments for generic type \"dict\"",
+      "count": 1
+    },
+    {
+      "file": "src/matric_eval/trends/store.py",
+      "code": "union-attr",
+      "message": "Item \"None\" of \"datetime | None\" has no attribute \"isoformat\"",
+      "count": 1
+    }
+  ]
+}

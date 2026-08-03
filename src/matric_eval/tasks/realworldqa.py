@@ -21,7 +21,6 @@ from matric_eval.config import get_sample_count, get_seed
 from matric_eval.datasets import get_dataset_path, load_hf_dataset
 from matric_eval.tasks.registry import register_benchmark
 
-
 REALWORLDQA_SYSTEM_PROMPT = """\
 You are answering questions about real-world images. Look at the image \
 carefully and answer the question.

@@ -10,9 +10,8 @@ Covers:
 """
 
 import time
+
 import pytest
-from typing import Any
-from unittest.mock import MagicMock
 
 from matric_eval.parallel import (
     EvalTask,
@@ -24,7 +23,6 @@ from matric_eval.parallel import (
     TaskResult,
     run_parallel_eval,
 )
-
 
 # =============================================================================
 # ParallelStrategy Tests
@@ -472,6 +470,7 @@ class TestRunParallelEval:
 
     def test_basic_usage(self) -> None:
         """Should run parallel evaluation."""
+
         def mock_eval(model: str, benchmark: str) -> dict:
             return {"score": 0.9}
 
@@ -489,6 +488,7 @@ class TestRunParallelEval:
 
     def test_different_strategies(self) -> None:
         """Should support different strategies."""
+
         def mock_eval(model: str, benchmark: str) -> dict:
             return {"ok": True}
 
@@ -513,6 +513,7 @@ class TestParallelPerformance:
 
     def test_parallel_faster_than_sequential(self) -> None:
         """Parallel execution should be faster for I/O-bound tasks."""
+
         def slow_task(x: int) -> int:
             time.sleep(0.05)
             return x

@@ -8,9 +8,10 @@ Covers:
 """
 
 import json
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 from click.testing import CliRunner
 
 from matric_eval.cli import (
@@ -19,7 +20,6 @@ from matric_eval.cli import (
     get_available_benchmarks,
     get_ollama_models,
 )
-
 
 # =============================================================================
 # Model Discovery Tests
@@ -198,9 +198,7 @@ class TestCLICommands:
         result = runner.invoke(cli, ["validate", "--help"])
         assert result.exit_code == 0
 
-    def test_audit_benchmarks_json_artifact(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_audit_benchmarks_json_artifact(self, runner: CliRunner, tmp_path: Path) -> None:
         output = tmp_path / "audit.json"
         result = runner.invoke(
             cli,

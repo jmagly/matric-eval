@@ -10,21 +10,21 @@ Covers:
 """
 
 import json
-import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pytest
+
 from matric_eval.recommendation import (
+    DEFAULT_CAPABILITIES,
     Capability,
     ModelConstraints,
     ModelScore,
     Recommendation,
     RecommendationEngine,
     RecommendationReport,
-    DEFAULT_CAPABILITIES,
     generate_recommendations,
 )
-
 
 # =============================================================================
 # Capability Tests
@@ -368,9 +368,7 @@ class TestRecommendationEngine:
         assert "good" in model_scores
         assert "bad" not in model_scores
 
-    def test_process_results_strips_ollama_prefix(
-        self, engine: RecommendationEngine
-    ) -> None:
+    def test_process_results_strips_ollama_prefix(self, engine: RecommendationEngine) -> None:
         """Should strip ollama/ prefix from model names."""
         results = [
             {
@@ -824,9 +822,7 @@ class TestStrengthsWeaknesses:
                 capability_scores={"code_generation": 0.7},
             ),
         }
-        strengths, weaknesses = engine._compute_strengths_weaknesses(
-            scores["only"], scores
-        )
+        strengths, weaknesses = engine._compute_strengths_weaknesses(scores["only"], scores)
         assert strengths == []
         assert weaknesses == []
 
@@ -846,8 +842,12 @@ class TestConfidenceScores:
         score = ModelScore(
             model="well_tested",
             benchmark_scores={
-                "humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.9,
-                "arc": 0.7, "ifeval": 0.8, "mtbench": 0.6,
+                "humaneval": 0.8,
+                "mbpp": 0.7,
+                "gsm8k": 0.9,
+                "arc": 0.7,
+                "ifeval": 0.8,
+                "mtbench": 0.6,
             },
         )
         confidence = engine._compute_confidence(score)
@@ -863,14 +863,15 @@ class TestConfidenceScores:
     def test_few_benchmarks_lower_confidence(self) -> None:
         """Should have lower confidence with fewer benchmarks."""
         engine = RecommendationEngine()
-        score_few = ModelScore(
-            model="few", benchmark_scores={"humaneval": 0.8}
-        )
+        score_few = ModelScore(model="few", benchmark_scores={"humaneval": 0.8})
         score_many = ModelScore(
             model="many",
             benchmark_scores={
-                "humaneval": 0.8, "mbpp": 0.7, "gsm8k": 0.9,
-                "arc": 0.7, "ifeval": 0.8,
+                "humaneval": 0.8,
+                "mbpp": 0.7,
+                "gsm8k": 0.9,
+                "arc": 0.7,
+                "ifeval": 0.8,
             },
         )
         assert engine._compute_confidence(score_few) < engine._compute_confidence(score_many)

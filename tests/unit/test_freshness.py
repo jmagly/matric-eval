@@ -43,9 +43,7 @@ def _metadata(name: str, **overrides: object) -> BenchmarkMetadata:
 @pytest.mark.unit
 def test_audit_registry_classifies_and_serializes() -> None:
     registry = TaskRegistry()
-    registry.register(
-        _metadata("current", release_policy=BenchmarkReleasePolicy.VERSIONED)
-    )
+    registry.register(_metadata("current", release_policy=BenchmarkReleasePolicy.VERSIONED))
     registry.register(_metadata("immutable"))
     registry.register(_metadata("outdated", latest_protocol_version="2"))
     registry.register(_metadata("successor", successor="replacement"))

@@ -42,8 +42,7 @@ def test_schema_conversion_distinguishes_base_and_plus() -> None:
 
 def test_tier_selection_is_deterministic() -> None:
     records = {
-        f"HumanEval/{index}": {**_record(), "task_id": f"HumanEval/{index}"}
-        for index in range(4)
+        f"HumanEval/{index}": {**_record(), "task_id": f"HumanEval/{index}"} for index in range(4)
     }
     with (
         patch("matric_eval.tasks.evalplus._suite", return_value=(records, {})),

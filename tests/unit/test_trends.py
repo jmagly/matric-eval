@@ -11,10 +11,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from matric_eval.trends.analyzer import Trend, TrendAnalyzer
+from matric_eval.trends.regression import Regression, RegressionDetector
 from matric_eval.trends.store import EvalStore, EvaluationPoint
-from matric_eval.trends.regression import RegressionDetector, Regression
-from matric_eval.trends.analyzer import TrendAnalyzer, Trend
-
 
 # =============================================================================
 # Fixtures
@@ -33,30 +32,36 @@ def populated_store(store: EvalStore) -> EvalStore:
     """Create an EvalStore with sample data."""
     base_time = datetime(2026, 1, 1, 12, 0)
     for i in range(5):
-        store.add(EvaluationPoint(
-            model="llama3.2:3b",
-            benchmark="humaneval",
-            score=0.65 + i * 0.02,  # Gradually improving: 0.65 -> 0.73
-            tier="smoke",
-            run_id=f"run-{i}",
-            timestamp=base_time + timedelta(days=i),
-        ))
-        store.add(EvaluationPoint(
-            model="llama3.2:3b",
-            benchmark="gsm8k",
-            score=0.70 - i * 0.01,  # Slightly declining: 0.70 -> 0.66
-            tier="smoke",
-            run_id=f"run-{i}",
-            timestamp=base_time + timedelta(days=i),
-        ))
-        store.add(EvaluationPoint(
-            model="qwen3:8b",
-            benchmark="humaneval",
-            score=0.80 + i * 0.002,  # Stable: 0.80 -> 0.808
-            tier="smoke",
-            run_id=f"run-{i}",
-            timestamp=base_time + timedelta(days=i),
-        ))
+        store.add(
+            EvaluationPoint(
+                model="llama3.2:3b",
+                benchmark="humaneval",
+                score=0.65 + i * 0.02,  # Gradually improving: 0.65 -> 0.73
+                tier="smoke",
+                run_id=f"run-{i}",
+                timestamp=base_time + timedelta(days=i),
+            )
+        )
+        store.add(
+            EvaluationPoint(
+                model="llama3.2:3b",
+                benchmark="gsm8k",
+                score=0.70 - i * 0.01,  # Slightly declining: 0.70 -> 0.66
+                tier="smoke",
+                run_id=f"run-{i}",
+                timestamp=base_time + timedelta(days=i),
+            )
+        )
+        store.add(
+            EvaluationPoint(
+                model="qwen3:8b",
+                benchmark="humaneval",
+                score=0.80 + i * 0.002,  # Stable: 0.80 -> 0.808
+                tier="smoke",
+                run_id=f"run-{i}",
+                timestamp=base_time + timedelta(days=i),
+            )
+        )
     return store
 
 
@@ -135,25 +140,23 @@ class TestEvalStore:
 
     def test_upsert_on_conflict(self, store: EvalStore) -> None:
         """Should update on duplicate run_id/model/benchmark."""
-        store.add(EvaluationPoint(
-            model="m1", benchmark="b1", score=0.5, run_id="r1"
-        ))
-        store.add(EvaluationPoint(
-            model="m1", benchmark="b1", score=0.9, run_id="r1"
-        ))
+        store.add(EvaluationPoint(model="m1", benchmark="b1", score=0.5, run_id="r1"))
+        store.add(EvaluationPoint(model="m1", benchmark="b1", score=0.9, run_id="r1"))
         history = store.get_history("m1", "b1")
         assert len(history) == 1
         assert history[0].score == 0.9
 
     def test_metadata_roundtrip(self, store: EvalStore) -> None:
         """Should preserve metadata through store/retrieve."""
-        store.add(EvaluationPoint(
-            model="m1",
-            benchmark="b1",
-            score=0.7,
-            run_id="r1",
-            metadata={"tokens": 1000, "latency_ms": 150},
-        ))
+        store.add(
+            EvaluationPoint(
+                model="m1",
+                benchmark="b1",
+                score=0.7,
+                run_id="r1",
+                metadata={"tokens": 1000, "latency_ms": 150},
+            )
+        )
         history = store.get_history("m1", "b1")
         assert history[0].metadata["tokens"] == 1000
         assert history[0].metadata["latency_ms"] == 150

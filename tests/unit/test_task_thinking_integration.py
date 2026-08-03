@@ -24,7 +24,6 @@ from tests.conftest import (
     requires_mbpp_data,
 )
 
-
 # =============================================================================
 # Thinking Parameter Tests
 # =============================================================================
@@ -160,6 +159,7 @@ class TestPromptIntegration:
 
             # Both should be non-empty
             # (But off prompts may be shorter)
+            assert len(prompt_on) > 0
             assert len(prompt_off) > 0
 
     def test_prompts_mention_code_output(self) -> None:

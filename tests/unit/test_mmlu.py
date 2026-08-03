@@ -29,9 +29,7 @@ from matric_eval.tasks.mmlu import (
     mmlu,
     record_to_sample,
 )
-
 from tests.conftest import requires_mmlu_data
-
 
 # =============================================================================
 # Fixtures
@@ -45,6 +43,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -102,11 +101,13 @@ def temp_mmlu_dir(sample_mmlu_records: list[dict[str, Any]]) -> Path:
             with open(csv_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 for record in records:
-                    writer.writerow([
-                        record["question"],
-                        *record["choices"],
-                        record["answer"],
-                    ])
+                    writer.writerow(
+                        [
+                            record["question"],
+                            *record["choices"],
+                            record["answer"],
+                        ]
+                    )
 
         yield test_dir
 
@@ -123,14 +124,16 @@ def temp_mmlu_dir_large() -> Path:
             with open(csv_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 for i in range(10):
-                    writer.writerow([
-                        f"{subject.title()} question {i}?",
-                        f"Choice A{i}",
-                        f"Choice B{i}",
-                        f"Choice C{i}",
-                        f"Choice D{i}",
-                        "A",
-                    ])
+                    writer.writerow(
+                        [
+                            f"{subject.title()} question {i}?",
+                            f"Choice A{i}",
+                            f"Choice B{i}",
+                            f"Choice C{i}",
+                            f"Choice D{i}",
+                            "A",
+                        ]
+                    )
 
         yield test_dir
 
@@ -336,6 +339,7 @@ class TestLoadMmlu:
         """Should return empty list when sample count is 0."""
         monkeypatch.setenv("EVAL_MMLU_SAMPLES", "0")
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         result = load_mmlu(tier="smoke")
@@ -366,6 +370,7 @@ class TestLoadMmlu:
             samples1 = load_mmlu(tier="smoke")
             # Reset settings to ensure same seed
             import matric_eval.config.settings as settings_module
+
             settings_module._settings = None
             samples2 = load_mmlu(tier="smoke")
 
@@ -379,6 +384,7 @@ class TestLoadMmlu:
         """Should return all samples when tier count exceeds dataset size."""
         monkeypatch.setenv("EVAL_MMLU_SAMPLES", "999")
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         with patch("matric_eval.tasks.mmlu.MMLU_TEST_PATH", str(temp_mmlu_dir_large)):
@@ -391,24 +397,21 @@ class TestLoadMmlu:
         """Should respect EVAL_MMLU_SAMPLES environment override."""
         monkeypatch.setenv("EVAL_MMLU_SAMPLES", "3")
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         with patch("matric_eval.tasks.mmlu.MMLU_TEST_PATH", str(temp_mmlu_dir_large)):
             samples = load_mmlu(tier="smoke")
             assert len(samples) == 3
 
-    def test_all_samples_have_valid_targets(
-        self, temp_mmlu_dir_large: Path
-    ) -> None:
+    def test_all_samples_have_valid_targets(self, temp_mmlu_dir_large: Path) -> None:
         """All samples should have A/B/C/D as target."""
         with patch("matric_eval.tasks.mmlu.MMLU_TEST_PATH", str(temp_mmlu_dir_large)):
             samples = load_mmlu(tier="smoke")
             for sample in samples:
                 assert sample.target in ANSWER_LETTERS
 
-    def test_all_samples_have_unique_ids(
-        self, temp_mmlu_dir_large: Path
-    ) -> None:
+    def test_all_samples_have_unique_ids(self, temp_mmlu_dir_large: Path) -> None:
         """All samples should have unique IDs."""
         with patch("matric_eval.tasks.mmlu.MMLU_TEST_PATH", str(temp_mmlu_dir_large)):
             samples = load_mmlu(tier="smoke")
@@ -508,27 +511,32 @@ class TestMmluConfig:
     def test_mmlu_in_tier_config(self) -> None:
         """TierConfig should have an mmlu field."""
         from matric_eval.config.settings import TierConfig
+
         config = TierConfig()
         assert hasattr(config, "mmlu")
 
     def test_smoke_tier_has_mmlu(self) -> None:
         """Smoke tier should have mmlu samples configured."""
         from matric_eval.config.settings import TIERS
+
         assert TIERS["smoke"].mmlu == 5
 
     def test_quick_tier_has_mmlu(self) -> None:
         """Quick tier should have mmlu samples configured."""
         from matric_eval.config.settings import TIERS
+
         assert TIERS["quick"].mmlu == 75
 
     def test_full_tier_has_mmlu(self) -> None:
         """Full tier should have mmlu samples configured."""
         from matric_eval.config.settings import TIERS
+
         assert TIERS["full"].mmlu == 14042
 
     def test_mmlu_in_registry(self) -> None:
         """MMLU should be registered in the task registry."""
         from matric_eval.tasks.registry import get_registry
+
         registry = get_registry()
         assert "mmlu" in registry
         meta = registry.get("mmlu")
@@ -538,12 +546,14 @@ class TestMmluConfig:
     def test_mmlu_in_available_benchmarks(self) -> None:
         """MMLU should be listed in available benchmarks."""
         from matric_eval.cli import get_available_benchmarks
+
         benchmarks = get_available_benchmarks()
         assert "mmlu" in benchmarks
 
     def test_mmlu_has_description(self) -> None:
         """MMLU should have a description in available benchmarks."""
         from matric_eval.cli import get_available_benchmarks
+
         benchmarks = get_available_benchmarks(with_descriptions=True)
         assert "mmlu" in benchmarks
         assert "MMLU" in benchmarks["mmlu"]
@@ -553,9 +563,11 @@ class TestMmluConfig:
         """Should support EVAL_MMLU_SAMPLES environment override."""
         monkeypatch.setenv("EVAL_MMLU_SAMPLES", "42")
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.config import get_sample_count
+
         assert get_sample_count("mmlu", "smoke") == 42
 
 
@@ -570,16 +582,20 @@ class TestMmluImports:
 
     def test_import_mmlu_task(self) -> None:
         from matric_eval.tasks import mmlu as mmlu_task
+
         assert callable(mmlu_task)
 
     def test_import_load_mmlu(self) -> None:
         from matric_eval.tasks import load_mmlu as load_fn
+
         assert callable(load_fn)
 
     def test_import_record_to_sample(self) -> None:
         from matric_eval.tasks import mmlu_record_to_sample
+
         assert callable(mmlu_record_to_sample)
 
     def test_import_format_prompt(self) -> None:
         from matric_eval.tasks import format_mmlu_prompt as fmt
+
         assert callable(fmt)

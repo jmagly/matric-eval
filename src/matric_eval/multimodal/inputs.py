@@ -207,12 +207,10 @@ class ModalInput:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _validate_format(fmt: str) -> None:
     if fmt not in ALLOWED_FORMATS:
-        raise ValueError(
-            f"Unsupported image format '{fmt}'. "
-            f"Allowed: {sorted(ALLOWED_FORMATS)}"
-        )
+        raise ValueError(f"Unsupported image format '{fmt}'. Allowed: {sorted(ALLOWED_FORMATS)}")
 
 
 def _validate_file_size(size: int) -> None:
@@ -245,9 +243,7 @@ def _validate_url_safety(url: str) -> None:
         raise PermissionError(f"file:// URLs are not allowed: {url}")
 
     if parsed.scheme != "https":
-        raise ValueError(
-            f"Only HTTPS URLs are allowed. Got scheme '{parsed.scheme}' in: {url}"
-        )
+        raise ValueError(f"Only HTTPS URLs are allowed. Got scheme '{parsed.scheme}' in: {url}")
 
     host = parsed.hostname or ""
     # Strip IPv6 brackets if present
@@ -277,8 +273,8 @@ def _reject_private_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address, url:
         ipaddress.IPv4Network("169.254.0.0/16"),  # link-local
     ]
     BLOCKED_NETWORKS_V6 = [
-        ipaddress.IPv6Network("fc00::/7"),   # unique local (fc/fd)
-        ipaddress.IPv6Network("::1/128"),    # loopback
+        ipaddress.IPv6Network("fc00::/7"),  # unique local (fc/fd)
+        ipaddress.IPv6Network("::1/128"),  # loopback
         ipaddress.IPv6Network("fe80::/10"),  # link-local
     ]
 

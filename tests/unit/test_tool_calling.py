@@ -10,6 +10,7 @@ Covers:
 """
 
 import json
+
 import pytest
 from inspect_ai.dataset import Sample
 
@@ -23,7 +24,6 @@ from matric_eval.tasks.tool_calling import (
     tool_calling,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -36,6 +36,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -52,8 +53,14 @@ def simple_function_call() -> dict:
 def parallel_function_calls() -> list:
     """Sample parallel function calls."""
     return [
-        {"name": "search_flights", "parameters": {"origin": "NYC", "destination": "LAX", "date": "2024-03-15"}},
-        {"name": "search_hotels", "parameters": {"location": "LAX", "checkin": "2024-03-15", "checkout": "2024-03-20"}},
+        {
+            "name": "search_flights",
+            "parameters": {"origin": "NYC", "destination": "LAX", "date": "2024-03-15"},
+        },
+        {
+            "name": "search_hotels",
+            "parameters": {"location": "LAX", "checkin": "2024-03-15", "checkout": "2024-03-20"},
+        },
     ]
 
 
@@ -76,20 +83,20 @@ class TestExtractFunctionCall:
 
     def test_extract_json_in_code_block(self) -> None:
         """Should extract JSON from markdown code block."""
-        response = '''Here's the function call:
+        response = """Here's the function call:
 ```json
 {"name": "get_stock_price", "parameters": {"symbol": "AAPL"}}
-```'''
+```"""
         result = extract_function_call(response)
         assert result is not None
         assert result["name"] == "get_stock_price"
 
     def test_extract_json_in_generic_code_block(self) -> None:
         """Should extract JSON from generic code block."""
-        response = '''
+        response = """
 ```
 {"name": "send_email", "parameters": {"to": "test@example.com"}}
-```'''
+```"""
         result = extract_function_call(response)
         assert result is not None
         assert result["name"] == "send_email"
@@ -360,6 +367,7 @@ class TestToolCallingTask:
     def test_task_creation(self) -> None:
         """Should create a valid Task."""
         from inspect_ai import Task
+
         task = tool_calling(tier="smoke")
         assert isinstance(task, Task)
 
@@ -400,7 +408,14 @@ class TestScenarios:
 
     def test_all_scenarios_defined(self) -> None:
         """Should have all 6 scenarios defined."""
-        expected_scenarios = ["simple", "parallel", "nested", "error_handling", "complex_types", "multi_turn"]
+        expected_scenarios = [
+            "simple",
+            "parallel",
+            "nested",
+            "error_handling",
+            "complex_types",
+            "multi_turn",
+        ]
         for scenario in expected_scenarios:
             assert scenario in SCENARIOS
 
@@ -432,59 +447,21 @@ class TestEdgeCases:
 
     def test_deeply_nested_parameters(self) -> None:
         """Should handle deeply nested parameters."""
-        expected = {
-            "name": "complex_func",
-            "parameters": {
-                "nested": {
-                    "deeply": {
-                        "value": 42
-                    }
-                }
-            }
-        }
-        actual = {
-            "name": "complex_func",
-            "parameters": {
-                "nested": {
-                    "deeply": {
-                        "value": 42
-                    }
-                }
-            }
-        }
+        expected = {"name": "complex_func", "parameters": {"nested": {"deeply": {"value": 42}}}}
+        actual = {"name": "complex_func", "parameters": {"nested": {"deeply": {"value": 42}}}}
         score, _ = calculate_function_call_score(actual, expected)
         assert score > 0.5  # Structural match
 
     def test_array_parameters(self) -> None:
         """Should handle array parameters."""
-        expected = {
-            "name": "bulk_update",
-            "parameters": {
-                "ids": [1, 2, 3]
-            }
-        }
-        actual = {
-            "name": "bulk_update",
-            "parameters": {
-                "ids": [1, 2, 3]
-            }
-        }
+        expected = {"name": "bulk_update", "parameters": {"ids": [1, 2, 3]}}
+        actual = {"name": "bulk_update", "parameters": {"ids": [1, 2, 3]}}
         score, _ = calculate_function_call_score(actual, expected)
         assert score == 1.0
 
     def test_unicode_in_parameters(self) -> None:
         """Should handle unicode in parameters."""
-        expected = {
-            "name": "send_message",
-            "parameters": {
-                "text": "Hello 世界 🌍"
-            }
-        }
-        actual = {
-            "name": "send_message",
-            "parameters": {
-                "text": "Hello 世界 🌍"
-            }
-        }
+        expected = {"name": "send_message", "parameters": {"text": "Hello 世界 🌍"}}
+        actual = {"name": "send_message", "parameters": {"text": "Hello 世界 🌍"}}
         score, _ = calculate_function_call_score(actual, expected)
         assert score == 1.0

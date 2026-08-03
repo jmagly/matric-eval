@@ -9,6 +9,7 @@ Covers:
 
 import re
 import shlex
+
 import pytest
 
 from matric_eval.scorers.patch_apply import (
@@ -16,7 +17,6 @@ from matric_eval.scorers.patch_apply import (
     patch_apply_scorer,
     validate_test_path,
 )
-
 
 # =============================================================================
 # Path Validation Regex Tests
@@ -158,6 +158,6 @@ class TestPatchApplyScorerStructure:
     def test_scorer_returns_on_call(self) -> None:
         """Calling the factory should not raise."""
         try:
-            scorer_fn = patch_apply_scorer()
+            patch_apply_scorer()
         except Exception as e:
             pytest.fail(f"patch_apply_scorer() raised unexpectedly: {e}")

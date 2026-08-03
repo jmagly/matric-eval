@@ -9,7 +9,6 @@ from typing import Optional
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
 
-from matric_eval.judges.base import Judge
 from matric_eval.judges.factory import create_judge
 
 
@@ -53,8 +52,6 @@ def universal_judge_scorer(
         # Use template-based evaluation via existing llm_judge infrastructure
         from matric_eval.scorers.llm_judge import (
             JUDGE_PROMPTS,
-            normalize_score,
-            parse_judge_score,
         )
 
         judge_template = JUDGE_PROMPTS.get(template)

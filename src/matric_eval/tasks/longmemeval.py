@@ -103,9 +103,7 @@ def load_longmemeval(tier: str = "smoke", scale: str = "s") -> list[Sample]:
         ValueError: If scale is invalid or dataset is empty
     """
     if scale not in VALID_SCALES:
-        raise ValueError(
-            f"Invalid scale '{scale}'. Must be one of: {', '.join(VALID_SCALES)}"
-        )
+        raise ValueError(f"Invalid scale '{scale}'. Must be one of: {', '.join(VALID_SCALES)}")
 
     sample_count = get_sample_count("longmemeval", tier)
     if sample_count == 0:
@@ -187,8 +185,7 @@ def longmemeval(tier: str = "smoke", scale: str = "s", thinking: bool = False) -
 register_benchmark(
     name="longmemeval",
     description=(
-        "LongMemEval - 500 long-term memory questions across scalable chat histories "
-        "(ICLR 2025)"
+        "LongMemEval - 500 long-term memory questions across scalable chat histories (ICLR 2025)"
     ),
     category="conversation",
     total_samples=500,

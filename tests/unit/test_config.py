@@ -11,21 +11,18 @@ Covers:
 - MAX_MODEL_SIZE_GB constant
 """
 
-import os
 import pytest
 
 from matric_eval.config import (
-    DEFAULT_SEED,
     MAX_MODEL_SIZE_GB,
     TIERS,
-    TierConfig,
     Settings,
+    TierConfig,
     get_sample_count,
     get_seed,
     get_settings,
     get_tier,
 )
-
 
 # =============================================================================
 # TierConfig Tests

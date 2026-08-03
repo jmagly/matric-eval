@@ -14,7 +14,6 @@ Where:
 """
 
 import math
-from typing import Union
 
 
 def pass_at_k(n: int, c: int, k: int) -> float:
@@ -84,9 +83,7 @@ def pass_power_k(results: list[bool]) -> float:
     return 1.0 if all(results) else 0.0
 
 
-def aggregate_pass_k_results(
-    all_results: list[list[bool]], k: int
-) -> dict[str, float]:
+def aggregate_pass_k_results(all_results: list[list[bool]], k: int) -> dict[str, float]:
     """Aggregate pass@k results across multiple samples.
 
     For each sample, computes the number of correct runs (c) and uses

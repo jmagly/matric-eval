@@ -16,12 +16,10 @@ import json
 import tempfile
 from pathlib import Path
 from typing import Any, Generator
-from unittest.mock import patch
 
 import pytest
 import yaml
 from inspect_ai import Task
-from inspect_ai.dataset import Sample
 
 from matric_eval.discovery import (
     DatasetManifest,
@@ -37,7 +35,6 @@ from matric_eval.discovery import (
     scan_datasets_dir,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -50,6 +47,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
     # Reset the discovery registry
@@ -92,8 +90,7 @@ def _make_simple_dataset(
 
     if records is None:
         records = [
-            {"input": f"Question {i}?", "target": f"Answer {i}", "id": f"q{i}"}
-            for i in range(20)
+            {"input": f"Question {i}?", "target": f"Answer {i}", "id": f"q{i}"} for i in range(20)
         ]
 
     if subdir:
@@ -287,9 +284,7 @@ class TestLoadExternalSamples:
         path = tmp_datasets_dir / "test.jsonl"
         _write_jsonl(path, records)
 
-        samples = load_external_samples(
-            [path], {"input": "input", "target": "target"}, "myds"
-        )
+        samples = load_external_samples([path], {"input": "input", "target": "target"}, "myds")
         assert samples[0].id == "myds_0"
 
     def test_dict_target_serialized(self, tmp_datasets_dir: Path) -> None:
@@ -305,7 +300,9 @@ class TestLoadExternalSamples:
 
     def test_extra_fields_in_metadata(self, tmp_datasets_dir: Path) -> None:
         """Should put non-mapped fields into metadata."""
-        records = [{"input": "Q?", "target": "A", "id": "1", "difficulty": "hard", "category": "math"}]
+        records = [
+            {"input": "Q?", "target": "A", "id": "1", "difficulty": "hard", "category": "math"}
+        ]
         path = tmp_datasets_dir / "test.jsonl"
         _write_jsonl(path, records)
 
@@ -385,7 +382,8 @@ class TestScanDatasetsDir:
     def test_single_dataset_with_manifest(self, tmp_datasets_dir: Path) -> None:
         """Should read manifest when present."""
         _make_simple_dataset(
-            tmp_datasets_dir, "my-bench",
+            tmp_datasets_dir,
+            "my-bench",
             manifest={"name": "My Benchmark", "scorer": "includes", "tiers": {"smoke": 3}},
         )
 
@@ -469,8 +467,10 @@ class TestScanDatasetsDir:
     def test_discovers_jsonl_in_data_subdir(self, tmp_datasets_dir: Path) -> None:
         """Should find JSONL files in data/ subdirectory."""
         _make_simple_dataset(
-            tmp_datasets_dir, "nested",
-            subdir="data", filename="test.jsonl",
+            tmp_datasets_dir,
+            "nested",
+            subdir="data",
+            filename="test.jsonl",
         )
 
         results = scan_datasets_dir(tmp_datasets_dir)
@@ -479,10 +479,7 @@ class TestScanDatasetsDir:
 
     def test_auto_detects_field_mapping(self, tmp_datasets_dir: Path) -> None:
         """Should auto-detect prompt/expected fields when no manifest."""
-        records = [
-            {"prompt": f"Q{i}", "expected": f"A{i}", "id": f"q{i}"}
-            for i in range(5)
-        ]
+        records = [{"prompt": f"Q{i}", "expected": f"A{i}", "id": f"q{i}"} for i in range(5)]
         _make_simple_dataset(tmp_datasets_dir, "custom-format", records=records)
 
         results = scan_datasets_dir(tmp_datasets_dir)
@@ -509,10 +506,7 @@ class TestCreateExternalTask:
     ) -> DiscoveredDataset:
         """Helper to create a DiscoveredDataset."""
         if records is None:
-            records = [
-                {"input": f"Q{i}?", "target": f"A{i}", "id": f"q{i}"}
-                for i in range(20)
-            ]
+            records = [{"input": f"Q{i}?", "target": f"A{i}", "id": f"q{i}"} for i in range(20)]
         path = tmp_datasets_dir / f"{name}.jsonl"
         _write_jsonl(path, records)
 
@@ -585,6 +579,7 @@ class TestCreateExternalTask:
         ids1 = [s.id for s in task1.dataset]
 
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         task2 = create_external_task(ds, tier="smoke")
@@ -609,40 +604,52 @@ class TestCreateExternalTask:
 class TestRegistry:
     """Tests for the discovery registry (lazy cache)."""
 
-    def test_get_external_datasets_empty(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_external_datasets_empty(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return empty dict when no external datasets."""
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         result = get_external_datasets(force_rescan=True)
         assert result == {}
 
-    def test_get_external_datasets_discovers(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_external_datasets_discovers(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should discover datasets in configured directory."""
         _make_simple_dataset(tmp_datasets_dir, "test-bench")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         result = get_external_datasets(force_rescan=True)
         assert "test-bench" in result
 
-    def test_get_external_dataset_by_name(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_external_dataset_by_name(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should retrieve a single dataset by name."""
         _make_simple_dataset(tmp_datasets_dir, "my-ds")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         ds = get_external_dataset("my-ds")
         assert ds is not None
         assert ds.name == "my-ds"
 
-    def test_get_external_dataset_not_found(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_external_dataset_not_found(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return None for unknown dataset."""
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         assert get_external_dataset("nonexistent") is None
@@ -652,6 +659,7 @@ class TestRegistry:
         _make_simple_dataset(tmp_datasets_dir, "test-bench")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         result1 = get_external_datasets(force_rescan=True)
@@ -659,6 +667,7 @@ class TestRegistry:
         _make_simple_dataset(tmp_datasets_dir, "new-bench")
         result2 = get_external_datasets()  # no force_rescan
 
+        assert "test-bench" in result1
         assert "test-bench" in result2
         assert "new-bench" not in result2
 
@@ -667,6 +676,7 @@ class TestRegistry:
         _make_simple_dataset(tmp_datasets_dir, "test-bench")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         get_external_datasets(force_rescan=True)
@@ -688,29 +698,38 @@ class TestEngineIntegration:
     def test_builtin_takes_priority(self) -> None:
         """Builtin benchmarks should always be in the task registry."""
         from matric_eval.tasks.registry import get_registry
+
         assert "humaneval" in get_registry()
 
-    def test_load_external_task(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_external_task(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Engine should load external tasks not in TASK_MAP."""
         _make_simple_dataset(tmp_datasets_dir, "ext-bench")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.core.engine import EvaluationEngine
+
         engine = EvaluationEngine(model="test/model", tier="smoke")
         task = engine._load_task("ext-bench")
 
         assert isinstance(task, Task)
         assert task.name == "ext-bench"
 
-    def test_unknown_benchmark_raises(self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_unknown_benchmark_raises(
+        self, tmp_datasets_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should raise ValueError for unknown benchmark."""
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.core.engine import EvaluationEngine
+
         engine = EvaluationEngine(model="test/model", tier="smoke")
 
         with pytest.raises(ValueError, match="Unknown benchmark"):
@@ -731,14 +750,17 @@ class TestCLIIntegration:
     ) -> None:
         """External datasets should appear in available benchmarks."""
         _make_simple_dataset(
-            tmp_datasets_dir, "ext-bench",
+            tmp_datasets_dir,
+            "ext-bench",
             manifest={"description": "My external benchmark"},
         )
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.cli import get_available_benchmarks
+
         benchmarks = get_available_benchmarks(with_descriptions=True)
 
         assert "ext-bench" in benchmarks
@@ -751,9 +773,11 @@ class TestCLIIntegration:
         _make_simple_dataset(tmp_datasets_dir, "humaneval")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.cli import get_available_benchmarks
+
         benchmarks = get_available_benchmarks(with_descriptions=True)
 
         # Should still have the builtin description
@@ -766,9 +790,11 @@ class TestCLIIntegration:
         _make_simple_dataset(tmp_datasets_dir, "ext-bench")
         monkeypatch.setenv("EVAL_DATASETS_DIR", str(tmp_datasets_dir))
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.cli import get_available_benchmarks
+
         names = get_available_benchmarks(with_descriptions=False)
 
         assert "ext-bench" in names
@@ -786,13 +812,16 @@ class TestConfigIntegration:
     def test_default_datasets_dir(self) -> None:
         """Default datasets_dir should be 'datasets'."""
         from matric_eval.config import get_datasets_dir
+
         assert get_datasets_dir() == "datasets"
 
     def test_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should respect EVAL_DATASETS_DIR environment variable."""
         monkeypatch.setenv("EVAL_DATASETS_DIR", "/custom/path")
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         from matric_eval.config import get_datasets_dir
+
         assert get_datasets_dir() == "/custom/path"

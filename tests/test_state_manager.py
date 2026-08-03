@@ -153,9 +153,7 @@ class TestStateManager:
         assert loaded.model == "llama3.2:3b"
         assert loaded.status == Status.RUNNING
 
-    def test_update_model_state_creates_directory(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_update_model_state_creates_directory(self, state_manager: StateManager) -> None:
         """Test that updating model state creates directory."""
         model_state = ModelState(model="llama3.2:3b")
 
@@ -167,7 +165,7 @@ class TestStateManager:
 
     def test_atomic_writes(self, state_manager: StateManager) -> None:
         """Test that state writes are atomic."""
-        run_state = state_manager.initialize_run(
+        state_manager.initialize_run(
             run_id="run-test-006",
             tier="smoke",
             seed=42,

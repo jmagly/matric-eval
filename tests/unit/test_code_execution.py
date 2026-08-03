@@ -10,9 +10,7 @@ Covers:
 - Scorer integration with Inspect AI
 """
 
-import subprocess
-import sys
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from inspect_ai.scorer import Score, Target
@@ -22,7 +20,6 @@ from matric_eval.scorers.code_execution import (
     extract_code,
     safe_execute,
 )
-
 
 # =============================================================================
 # Code Extraction Tests
@@ -85,8 +82,11 @@ def second():
         response = """def no_fence():
     return True"""
         code = extract_code(response)
-        assert code == """def no_fence():
+        assert (
+            code
+            == """def no_fence():
     return True"""
+        )
 
     def test_extract_code_strips_whitespace(self) -> None:
         """Should strip leading and trailing whitespace."""
@@ -130,7 +130,7 @@ def func():
     return s
 ```"""
         code = extract_code(response)
-        assert 'string with `backticks`' in code
+        assert "string with `backticks`" in code
 
 
 # =============================================================================

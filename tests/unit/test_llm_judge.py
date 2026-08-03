@@ -12,9 +12,10 @@ Covers:
 - MT-Bench format parsing
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 from inspect_ai.scorer import Score, Target
-from unittest.mock import AsyncMock, Mock, patch
 
 from matric_eval.scorers.llm_judge import (
     JUDGE_PROMPTS,
@@ -38,7 +39,6 @@ from matric_eval.scorers.llm_judge import (
     tag_quality_scorer,
 )
 
-
 # =============================================================================
 # Judge Prompt Building Tests
 # =============================================================================
@@ -50,26 +50,19 @@ class TestBuildJudgePrompt:
 
     def test_build_judge_prompt_includes_question(self) -> None:
         """Should include the original question in the prompt."""
-        prompt = build_judge_prompt(
-            question="What is 2+2?",
-            response="The answer is 4."
-        )
+        prompt = build_judge_prompt(question="What is 2+2?", response="The answer is 4.")
         assert "What is 2+2?" in prompt
 
     def test_build_judge_prompt_includes_response(self) -> None:
         """Should include the model's response in the prompt."""
         prompt = build_judge_prompt(
-            question="Explain gravity.",
-            response="Gravity is a force that attracts objects."
+            question="Explain gravity.", response="Gravity is a force that attracts objects."
         )
         assert "Gravity is a force that attracts objects." in prompt
 
     def test_build_judge_prompt_includes_scoring_criteria(self) -> None:
         """Should include scoring criteria in the prompt."""
-        prompt = build_judge_prompt(
-            question="Test question",
-            response="Test response"
-        )
+        prompt = build_judge_prompt(question="Test question", response="Test response")
         assert "helpfulness" in prompt.lower()
         assert "relevance" in prompt.lower()
         assert "accuracy" in prompt.lower()
@@ -77,29 +70,20 @@ class TestBuildJudgePrompt:
 
     def test_build_judge_prompt_requests_1_10_scale(self) -> None:
         """Should request scoring on a 1-10 scale."""
-        prompt = build_judge_prompt(
-            question="Test",
-            response="Test"
-        )
+        prompt = build_judge_prompt(question="Test", response="Test")
         assert "1" in prompt
         assert "10" in prompt
 
     def test_build_judge_prompt_handles_empty_response(self) -> None:
         """Should handle empty response gracefully."""
-        prompt = build_judge_prompt(
-            question="Test question",
-            response=""
-        )
+        prompt = build_judge_prompt(question="Test question", response="")
         assert isinstance(prompt, str)
         assert len(prompt) > 0
 
     def test_build_judge_prompt_handles_long_response(self) -> None:
         """Should handle very long responses."""
         long_response = "A " * 1000
-        prompt = build_judge_prompt(
-            question="Test",
-            response=long_response
-        )
+        prompt = build_judge_prompt(question="Test", response=long_response)
         assert isinstance(prompt, str)
 
 
@@ -212,7 +196,7 @@ class TestLLMJudgeScorer:
         target = Target(target="Paris")
 
         # Mock the model call to return a fixed score
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
@@ -237,7 +221,7 @@ class TestLLMJudgeScorer:
         target = Target(target="")
 
         # Mock a judge response with score 8/10
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
@@ -262,7 +246,7 @@ class TestLLMJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             judge_response = "The response is clear and helpful. Score: 9/10"
@@ -287,7 +271,7 @@ class TestLLMJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_get_model.side_effect = Exception("Model not found")
 
             score = await scorer(state, target)
@@ -309,7 +293,7 @@ class TestLLMJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 7/10"
@@ -343,7 +327,7 @@ class TestLLMJudgeScorerEdgeCases:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 1/10"
@@ -367,7 +351,7 @@ class TestLLMJudgeScorerEdgeCases:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 7/10"
@@ -390,7 +374,7 @@ class TestLLMJudgeScorerEdgeCases:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
@@ -670,7 +654,7 @@ class TestPairwiseJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[A]] is better"
@@ -694,7 +678,7 @@ class TestPairwiseJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[B]] is better"
@@ -718,7 +702,7 @@ class TestPairwiseJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[C]] - tie"
@@ -760,7 +744,7 @@ class TestAgenticJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10. Good tool selection."
@@ -800,7 +784,7 @@ class TestReferenceJudgeScorer:
 
         target = Target(target="The capital of France is Paris.")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 9/10. Factually accurate."
@@ -853,14 +837,14 @@ class TestLLMJudgeScorerAPICompatibility:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
-            score = await scorer(state, target)
+            await scorer(state, target)
 
             # Verify generate was called
             mock_model.generate.assert_called_once()
@@ -869,13 +853,15 @@ class TestLLMJudgeScorerAPICompatibility:
             call_kwargs = mock_model.generate.call_args.kwargs
 
             # REGRESSION CHECK: 'system' should NOT be in kwargs
-            assert 'system' not in call_kwargs, \
-                "Model.generate() was called with 'system' kwarg which is not supported. " \
+            assert "system" not in call_kwargs, (
+                "Model.generate() was called with 'system' kwarg which is not supported. "
                 "Use GenerateConfig(system_message=...) instead."
+            )
 
             # Should use 'config' with system_message
-            assert 'config' in call_kwargs, \
+            assert "config" in call_kwargs, (
                 "Model.generate() should be called with config=GenerateConfig(...)"
+            )
 
     @pytest.mark.asyncio
     async def test_pairwise_scorer_uses_config_not_system_kwarg(self) -> None:
@@ -889,7 +875,7 @@ class TestLLMJudgeScorerAPICompatibility:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[A]]"
@@ -899,8 +885,7 @@ class TestLLMJudgeScorerAPICompatibility:
             await scorer(state, target)
 
             call_kwargs = mock_model.generate.call_args.kwargs
-            assert 'system' not in call_kwargs, \
-                "pairwise scorer: 'system' kwarg not supported"
+            assert "system" not in call_kwargs, "pairwise scorer: 'system' kwarg not supported"
 
     @pytest.mark.asyncio
     async def test_agentic_scorer_uses_config_not_system_kwarg(self) -> None:
@@ -914,7 +899,7 @@ class TestLLMJudgeScorerAPICompatibility:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
@@ -924,8 +909,7 @@ class TestLLMJudgeScorerAPICompatibility:
             await scorer(state, target)
 
             call_kwargs = mock_model.generate.call_args.kwargs
-            assert 'system' not in call_kwargs, \
-                "agentic scorer: 'system' kwarg not supported"
+            assert "system" not in call_kwargs, "agentic scorer: 'system' kwarg not supported"
 
     @pytest.mark.asyncio
     async def test_reference_scorer_uses_config_not_system_kwarg(self) -> None:
@@ -939,7 +923,7 @@ class TestLLMJudgeScorerAPICompatibility:
 
         target = Target(target="Reference answer")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Score: 8/10"
@@ -949,8 +933,7 @@ class TestLLMJudgeScorerAPICompatibility:
             await scorer(state, target)
 
             call_kwargs = mock_model.generate.call_args.kwargs
-            assert 'system' not in call_kwargs, \
-                "reference scorer: 'system' kwarg not supported"
+            assert "system" not in call_kwargs, "reference scorer: 'system' kwarg not supported"
 
 
 @pytest.mark.unit
@@ -974,7 +957,7 @@ class TestLLMJudgeScorerWithTemplates:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[8]]"  # MT-Bench format
@@ -1071,9 +1054,14 @@ class TestMatricMemoryTemplates:
     def test_all_matric_memory_templates_have_scoring_config(self) -> None:
         """All matric-memory templates should have valid scoring config."""
         matric_templates = [
-            "title_quality", "revision_quality", "title_pairwise",
-            "revision_pairwise", "semantic_relevance", "factual_accuracy",
-            "format_compliance", "tag_quality",
+            "title_quality",
+            "revision_quality",
+            "title_pairwise",
+            "revision_pairwise",
+            "semantic_relevance",
+            "factual_accuracy",
+            "format_compliance",
+            "tag_quality",
         ]
         for name in matric_templates:
             assert name in JUDGE_PROMPTS, f"Missing template: {name}"
@@ -1192,10 +1180,12 @@ class TestHallucinationJudgeScorer:
 
         target = Target(target="France's capital is Paris.")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
-            mock_result.completion = "Rating: 9\nReasoning: Accurate.\nHallucinations: None detected"
+            mock_result.completion = (
+                "Rating: 9\nReasoning: Accurate.\nHallucinations: None detected"
+            )
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
@@ -1216,7 +1206,7 @@ class TestHallucinationJudgeScorer:
 
         target = Target(target="Paris is the capital of France.")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 3\nReasoning: Fabricated stat.\nHallucinations: The population of 50 million is fabricated"
@@ -1259,7 +1249,7 @@ class TestRevisionQualityScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 8\nReasoning: Good improvement.\nHallucinations: None"
@@ -1300,7 +1290,7 @@ class TestTagQualityScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.scorers.llm_judge.get_model') as mock_get_model:
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 8\nReasoning: Good tags.\nSuggested Additions: None"

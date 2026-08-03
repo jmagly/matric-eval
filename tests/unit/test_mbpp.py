@@ -15,8 +15,7 @@ CRITICAL: Tests for function name extraction (commit 51382e2 from matric-cli)
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from inspect_ai import Task
@@ -33,7 +32,6 @@ from matric_eval.tasks.mbpp import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_mbpp_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -48,6 +46,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -277,7 +276,7 @@ class TestLoadMBPP:
 
     def test_load_mbpp_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -622,6 +621,7 @@ class TestMBPPConfigIntegration:
         monkeypatch.setenv("EVAL_MBPP_SAMPLES", "10")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         # Should load 10 samples instead of default tier counts
@@ -653,7 +653,7 @@ class TestMBPPErrorHandling:
 
     def test_load_mbpp_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -666,7 +666,7 @@ class TestMBPPErrorHandling:
 
     def test_load_mbpp_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"task_id": 1, "incomplete": \n')
             temp_path = f.name
 
@@ -693,11 +693,14 @@ class TestMBPPErrorHandling:
 class TestMBPPEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_mbpp_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_mbpp_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_MBPP_SAMPLES", "2000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_mbpp()
@@ -709,6 +712,7 @@ class TestMBPPEdgeCases:
         monkeypatch.setenv("EVAL_MBPP_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_mbpp()

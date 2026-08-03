@@ -72,10 +72,12 @@ class VLLMProvider:
         models = []
         for model_data in data.get("data", []):
             model_id = model_data.get("id", "unknown")
-            models.append(ModelInfo(
-                name=model_id,
-                metadata=model_data,
-            ))
+            models.append(
+                ModelInfo(
+                    name=model_id,
+                    metadata=model_data,
+                )
+            )
         return models
 
     def get_model_info(self, model: str) -> ModelInfo:
@@ -84,8 +86,7 @@ class VLLMProvider:
             if m.name == model:
                 return m
         raise ProviderModelNotFoundError(
-            f"Model '{model}' not served by vLLM. "
-            f"Available: {[m.name for m in models]}"
+            f"Model '{model}' not served by vLLM. Available: {[m.name for m in models]}"
         )
 
     def format_model_id(self, model: str) -> str:
@@ -106,8 +107,15 @@ class VLLMProvider:
         extra = self._config.extra
         if extra:
             generate_params = {}
-            for key in ("temperature", "top_p", "top_k", "max_tokens",
-                        "repetition_penalty", "best_of", "use_beam_search"):
+            for key in (
+                "temperature",
+                "top_p",
+                "top_k",
+                "max_tokens",
+                "repetition_penalty",
+                "best_of",
+                "use_beam_search",
+            ):
                 if key in extra:
                     generate_params[key] = extra[key]
             if generate_params:

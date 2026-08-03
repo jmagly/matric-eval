@@ -45,8 +45,7 @@ def sample_swebench_record() -> dict[str, Any]:
             "@@ -1 +1 @@\n-old\n+new\n"
         ),
         "test_patch": (
-            "+++ b/tests/urlpatterns/tests.py\n"
-            "@@ -100 +100 @@\n+def test_namespace_fix():\n"
+            "+++ b/tests/urlpatterns/tests.py\n@@ -100 +100 @@\n+def test_namespace_fix():\n"
         ),
         "hints_text": "Check the URL resolver logic.",
         "version": "4.0",
@@ -245,9 +244,7 @@ class TestCreateSwebenchTask:
 
     @patch("matric_eval.tasks.swebench.factory.load_swebench")
     def test_returns_task(self, mock_load) -> None:
-        mock_load.return_value = [
-            Sample(input="test", target="patch", id="test-1")
-        ]
+        mock_load.return_value = [Sample(input="test", target="patch", id="test-1")]
         task = create_swebench_task(variant="verified", tier="smoke")
         assert isinstance(task, Task)
         assert task.name == "swebench_verified"
@@ -275,6 +272,7 @@ class TestSwebenchRegistration:
 
     def test_verified_registered(self) -> None:
         from matric_eval.tasks.swebench.verified import swebench_verified
+
         meta = swebench_verified._benchmark_metadata
         assert meta.name == "swebench_verified"
         assert meta.requires_sandbox is True
@@ -283,12 +281,14 @@ class TestSwebenchRegistration:
 
     def test_pro_registered(self) -> None:
         from matric_eval.tasks.swebench.pro import swebench_pro
+
         meta = swebench_pro._benchmark_metadata
         assert meta.name == "swebench_pro"
         assert meta.requires_sandbox is True
 
     def test_multilingual_registered(self) -> None:
         from matric_eval.tasks.swebench.multilingual import swebench_multilingual
+
         meta = swebench_multilingual._benchmark_metadata
         assert meta.name == "swebench_multilingual"
         assert meta.requires_sandbox is True

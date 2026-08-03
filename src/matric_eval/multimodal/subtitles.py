@@ -85,7 +85,7 @@ def parse_srt(content: str) -> list[SubtitleEntry]:
         end_ms = _srt_ts_to_ms(*m.group(5, 6, 7, 8))
 
         # Text is everything after the timestamp line
-        text_lines = [l for l in lines[ts_line_idx + 1:] if l.strip()]
+        text_lines = [line for line in lines[ts_line_idx + 1 :] if line.strip()]
         if not text_lines:
             continue
 
@@ -168,7 +168,7 @@ def parse_vtt(content: str) -> list[SubtitleEntry]:
         start_ms = _vtt_ts_to_ms(m.group(1), m.group(2), m.group(3), m.group(4))
         end_ms = _vtt_ts_to_ms(m.group(5), m.group(6), m.group(7), m.group(8))
 
-        text_lines = [l for l in lines[ts_line_idx + 1:] if l.strip()]
+        text_lines = [line for line in lines[ts_line_idx + 1 :] if line.strip()]
         if not text_lines:
             continue
 

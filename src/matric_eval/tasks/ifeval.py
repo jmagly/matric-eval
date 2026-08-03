@@ -122,7 +122,7 @@ def _check_paragraph_count(response: str, kwargs: dict[str, Any]) -> bool:
     num_paragraphs = kwargs.get("num_paragraphs", 0)
 
     # Split by double newline or markdown separator (***), filter empty
-    paragraphs = re.split(r'\n\n+|\n\*\*\*\n', response)
+    paragraphs = re.split(r"\n\n+|\n\*\*\*\n", response)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
     return len(paragraphs) == num_paragraphs
@@ -150,7 +150,7 @@ def _check_sentence_count(response: str, kwargs: dict[str, Any]) -> bool:
     num_sentences = kwargs.get("num_sentences", 0)
 
     # Count sentences (ending with ., !, or ?)
-    sentences = re.split(r'[.!?]+', response)
+    sentences = re.split(r"[.!?]+", response)
     sentences = [s.strip() for s in sentences if s.strip()]
     sentence_count = len(sentences)
 
@@ -235,7 +235,7 @@ def _check_json_format(response: str, kwargs: dict[str, Any]) -> bool:
         pass
 
     # Try to extract JSON from response (between { } or [ ])
-    json_pattern = r'(\{[^{}]*\}|\[[^\[\]]*\])'
+    json_pattern = r"(\{[^{}]*\}|\[[^\[\]]*\])"
     matches = re.findall(json_pattern, response, re.DOTALL)
 
     for match in matches:
@@ -253,7 +253,7 @@ def _check_bullet_count(response: str, kwargs: dict[str, Any]) -> bool:
     num_bullets = kwargs.get("num_bullets", 0)
 
     # Count bullets (* or -)
-    bullet_pattern = r'^\s*[\*\-]\s+'
+    bullet_pattern = r"^\s*[\*\-]\s+"
     bullets = re.findall(bullet_pattern, response, re.MULTILINE)
 
     return len(bullets) == num_bullets
@@ -261,7 +261,7 @@ def _check_bullet_count(response: str, kwargs: dict[str, Any]) -> bool:
 
 def _check_title_format(response: str, kwargs: dict[str, Any]) -> bool:
     """Check if response contains title in <<title>> format."""
-    title_pattern = r'<<[^<>]+>>'
+    title_pattern = r"<<[^<>]+>>"
     return bool(re.search(title_pattern, response))
 
 
@@ -270,7 +270,7 @@ def _check_highlighted_sections(response: str, kwargs: dict[str, Any]) -> bool:
     num_highlights = kwargs.get("num_highlights", 0)
 
     # Count *highlighted* sections
-    highlight_pattern = r'\*[^\*]+\*'
+    highlight_pattern = r"\*[^\*]+\*"
     highlights = re.findall(highlight_pattern, response)
 
     return len(highlights) >= num_highlights
@@ -344,7 +344,7 @@ def _check_capital_word_frequency(response: str, kwargs: dict[str, Any]) -> bool
 
 def _check_no_comma(response: str, kwargs: dict[str, Any]) -> bool:
     """Check if response contains no commas."""
-    return ',' not in response
+    return "," not in response
 
 
 # =============================================================================
@@ -378,14 +378,14 @@ def _check_placeholder_count(response: str, kwargs: dict[str, Any]) -> bool:
     num_placeholders = kwargs.get("num_placeholders", 0)
 
     # Count [placeholder] patterns
-    placeholders = re.findall(r'\[[^\]]+\]', response)
+    placeholders = re.findall(r"\[[^\]]+\]", response)
 
     return len(placeholders) >= num_placeholders
 
 
 def _check_postscript(response: str, kwargs: dict[str, Any]) -> bool:
     """Check if response contains P.S. or P.P.S."""
-    return bool(re.search(r'\bP\.S\.|\bP\.P\.S\.', response))
+    return bool(re.search(r"\bP\.S\.|\bP\.P\.S\.", response))
 
 
 # =============================================================================
@@ -405,7 +405,7 @@ def _check_repeat_prompt(response: str, kwargs: dict[str, Any]) -> bool:
 
 def _check_two_responses(response: str, kwargs: dict[str, Any]) -> bool:
     """Check if response contains two parts separated by 6 asterisks."""
-    return '\n******\n' in response or '******' in response
+    return "\n******\n" in response or "******" in response
 
 
 # =============================================================================
@@ -430,7 +430,7 @@ def _check_response_language(response: str, kwargs: dict[str, Any]) -> bool:
 
     elif language_code == "kn":
         # Kannada: Unicode range 0C80-0CFF
-        kannada_count = sum(1 for c in response if '\u0C80' <= c <= '\u0CFF')
+        kannada_count = sum(1 for c in response if "\u0c80" <= c <= "\u0cff")
         return kannada_count > 0
 
     # For other languages, do basic check for non-ASCII

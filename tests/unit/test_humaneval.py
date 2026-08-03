@@ -12,8 +12,7 @@ Covers:
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from inspect_ai import Task
@@ -27,7 +26,6 @@ from matric_eval.tasks.humaneval import (
 
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_humaneval_data
-
 
 # =============================================================================
 # Fixtures
@@ -43,6 +41,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -146,7 +145,7 @@ class TestLoadHumanEval:
 
     def test_load_humaneval_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -174,7 +173,7 @@ class TestRecordToSample:
             "prompt": "def has_close_elements(numbers, threshold):\n    pass",
             "entry_point": "has_close_elements",
             "canonical_solution": "    return False",
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)
@@ -189,7 +188,7 @@ class TestRecordToSample:
             "prompt": "def has_close_elements(numbers, threshold):\n    pass",
             "entry_point": "has_close_elements",
             "canonical_solution": "    return False",
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)
@@ -204,7 +203,7 @@ class TestRecordToSample:
             "prompt": "def has_close_elements(numbers, threshold):\n    pass",
             "entry_point": "has_close_elements",
             "canonical_solution": "    return False",
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)
@@ -218,7 +217,7 @@ class TestRecordToSample:
             "prompt": "def has_close_elements(numbers, threshold):\n    pass",
             "entry_point": "has_close_elements",
             "canonical_solution": "    return False",
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)
@@ -236,7 +235,7 @@ class TestRecordToSample:
             "prompt": "def has_close_elements(numbers, threshold):\n    pass",
             "entry_point": "has_close_elements",
             "canonical_solution": "    return False",
-            "test": test_code
+            "test": test_code,
         }
 
         sample = record_to_sample(record)
@@ -420,11 +419,14 @@ class TestHumanEvalConfigIntegration:
         assert len(load_humaneval(tier="quick")) == quick_count
         assert len(load_humaneval(tier="full")) == full_count
 
-    def test_load_humaneval_respects_environment_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_humaneval_respects_environment_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should respect EVAL_HUMANEVAL_SAMPLES environment variable."""
         monkeypatch.setenv("EVAL_HUMANEVAL_SAMPLES", "10")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         # Should load 10 samples instead of default tier counts
@@ -456,7 +458,7 @@ class TestHumanEvalErrorHandling:
 
     def test_load_humaneval_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -469,7 +471,7 @@ class TestHumanEvalErrorHandling:
 
     def test_load_humaneval_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"task_id": "HumanEval/0", "incomplete": \n')
             temp_path = f.name
 
@@ -487,7 +489,7 @@ class TestHumanEvalErrorHandling:
             "prompt": "def foo():\n    pass",
             "entry_point": "foo",
             "canonical_solution": "    pass",
-            "test": ""
+            "test": "",
         }
 
         sample = record_to_sample(record)
@@ -504,11 +506,14 @@ class TestHumanEvalErrorHandling:
 class TestHumanEvalEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_humaneval_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_humaneval_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_HUMANEVAL_SAMPLES", "1000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_humaneval()
@@ -520,6 +525,7 @@ class TestHumanEvalEdgeCases:
         monkeypatch.setenv("EVAL_HUMANEVAL_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_humaneval()
@@ -529,10 +535,10 @@ class TestHumanEvalEdgeCases:
         """Should handle unicode characters in prompts."""
         record = {
             "task_id": "HumanEval/Test",
-            "prompt": "def foo():\n    \"\"\"Return π\"\"\"",
+            "prompt": 'def foo():\n    """Return π"""',
             "entry_point": "foo",
             "canonical_solution": "    return 3.14159",
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)
@@ -546,7 +552,7 @@ class TestHumanEvalEdgeCases:
             "prompt": "def long_function():\n    pass",
             "entry_point": "long_function",
             "canonical_solution": long_solution,
-            "test": "def check(candidate):\n    assert True"
+            "test": "def check(candidate):\n    assert True",
         }
 
         sample = record_to_sample(record)

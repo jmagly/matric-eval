@@ -13,11 +13,10 @@ This is particularly useful for benchmarks like MT-Bench where responses
 are subjective and don't have a single correct answer.
 """
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Literal, Optional
+from typing import Optional
 
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer

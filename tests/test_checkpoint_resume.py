@@ -10,15 +10,12 @@ Comprehensive tests for state management including:
 """
 
 import json
-import os
-import signal
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from matric_eval.state import RecoveryEngine, StateManager
-from matric_eval.state.manager import BenchmarkState, ModelState, ProblemResult, RunState, Status
+from matric_eval.state import StateManager
+from matric_eval.state.manager import BenchmarkState, ModelState, ProblemResult, Status
 
 
 class TestCheckpointSaveLoad:
@@ -36,9 +33,7 @@ class TestCheckpointSaveLoad:
         """Create StateManager instance."""
         return StateManager(temp_run_dir)
 
-    def test_save_checkpoint_creates_benchmark_results(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_save_checkpoint_creates_benchmark_results(self, state_manager: StateManager) -> None:
         """Test saving checkpoint with benchmark progress."""
         # Initialize run
         state_manager.initialize_run(
@@ -91,9 +86,7 @@ class TestCheckpointSaveLoad:
         assert saved_state.benchmarks["humaneval"].completed_problems == 3
         assert len(saved_state.benchmarks["humaneval"].problems) == 3
 
-    def test_load_checkpoint_restores_exact_state(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_load_checkpoint_restores_exact_state(self, state_manager: StateManager) -> None:
         """Test that loading checkpoint restores exact state."""
         # Initialize and create complex state
         state_manager.initialize_run(
@@ -152,9 +145,7 @@ class TestCheckpointSaveLoad:
         assert loaded_state.benchmarks["gsm8k"].status == Status.PENDING
         assert loaded_state.benchmarks["gsm8k"].completed_problems == 0
 
-    def test_checkpoint_persists_across_manager_instances(
-        self, temp_run_dir: Path
-    ) -> None:
+    def test_checkpoint_persists_across_manager_instances(self, temp_run_dir: Path) -> None:
         """Test that checkpoints persist when creating new StateManager instance."""
         # First manager - save checkpoint
         manager1 = StateManager(temp_run_dir)
@@ -242,9 +233,7 @@ class TestAtomicWrites:
         loaded_state = state_manager.load_run_state()
         assert loaded_state.current_model == "llama3.2:3b"
 
-    def test_atomic_write_handles_concurrent_writes(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_atomic_write_handles_concurrent_writes(self, state_manager: StateManager) -> None:
         """Test that atomic writes handle concurrent access safely."""
         state_manager.initialize_run(
             run_id="run-006",
@@ -285,9 +274,7 @@ class TestGapDetection:
         """Create StateManager instance."""
         return StateManager(temp_run_dir)
 
-    def test_find_gaps_detects_incomplete_benchmarks(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_find_gaps_detects_incomplete_benchmarks(self, state_manager: StateManager) -> None:
         """Test finding gaps in incomplete benchmark runs."""
         state_manager.initialize_run(
             run_id="run-007",
@@ -337,9 +324,7 @@ class TestGapDetection:
         assert "gsm8k" in model_gaps
         assert model_gaps["gsm8k"]["status"] == "not_started"
 
-    def test_find_gaps_detects_incomplete_models(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_find_gaps_detects_incomplete_models(self, state_manager: StateManager) -> None:
         """Test finding gaps for models that were never started."""
         state_manager.initialize_run(
             run_id="run-008",
@@ -373,9 +358,7 @@ class TestGapDetection:
         assert "humaneval" in gaps["model-c"]
         assert gaps["model-c"]["humaneval"]["status"] == "not_started"
 
-    def test_find_gaps_returns_empty_for_complete_run(
-        self, state_manager: StateManager
-    ) -> None:
+    def test_find_gaps_returns_empty_for_complete_run(self, state_manager: StateManager) -> None:
         """Test that complete runs return no gaps."""
         state_manager.initialize_run(
             run_id="run-009",

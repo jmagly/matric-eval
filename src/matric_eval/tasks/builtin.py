@@ -6,10 +6,9 @@ Based on matric-cli's smoke tier approach.
 """
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample, MemoryDataset
-from inspect_ai.scorer import match, includes, model_graded_fact
+from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.scorer import includes, match
 from inspect_ai.solver import generate, system_message
-
 
 # =============================================================================
 # HumanEval Smoke Samples (5 representative problems)
@@ -33,7 +32,7 @@ Return only the function code, no explanations.""",
                 return True
     return False""",
         id="humaneval_0",
-        metadata={"difficulty": "easy", "category": "code"}
+        metadata={"difficulty": "easy", "category": "code"},
     ),
     Sample(
         input="""Write a Python function `truncate_number(number: float) -> float` that returns the decimal part of a positive floating point number.
@@ -46,7 +45,7 @@ Return only the function code.""",
         target="""def truncate_number(number: float) -> float:
     return number % 1.0""",
         id="humaneval_2",
-        metadata={"difficulty": "easy", "category": "code"}
+        metadata={"difficulty": "easy", "category": "code"},
     ),
     Sample(
         input="""Write a Python function `below_zero(operations: List[int]) -> bool` that detects if a bank account balance goes below zero after a sequence of deposits (positive) and withdrawals (negative).
@@ -66,7 +65,7 @@ Return only the function code.""",
             return True
     return False""",
         id="humaneval_3",
-        metadata={"difficulty": "easy", "category": "code"}
+        metadata={"difficulty": "easy", "category": "code"},
     ),
     Sample(
         input="""Write a Python function `intersperse(numbers: List[int], delimiter: int) -> List[int]` that inserts a delimiter between every two consecutive elements of the input list.
@@ -88,7 +87,7 @@ Return only the function code.""",
             result.append(delimiter)
     return result""",
         id="humaneval_5",
-        metadata={"difficulty": "medium", "category": "code"}
+        metadata={"difficulty": "medium", "category": "code"},
     ),
     Sample(
         input="""Write a Python function `parse_nested_parens(paren_string: str) -> List[int]` that takes a string of groups of nested parentheses separated by spaces. Return a list of the maximum depth of nesting for each group.
@@ -112,7 +111,7 @@ Return only the function code.""",
         result.append(max_depth)
     return result""",
         id="humaneval_6",
-        metadata={"difficulty": "medium", "category": "code"}
+        metadata={"difficulty": "medium", "category": "code"},
     ),
 ]
 
@@ -133,7 +132,7 @@ Return only the function code.""",
         target="""def is_even(n):
     return n % 2 == 0""",
         id="mbpp_1",
-        metadata={"difficulty": "easy", "category": "code", "function_name": "is_even"}
+        metadata={"difficulty": "easy", "category": "code", "function_name": "is_even"},
     ),
     Sample(
         input="""Write a Python function `find_max(lst)` that returns the maximum element in a list.
@@ -146,7 +145,7 @@ Return only the function code.""",
         target="""def find_max(lst):
     return max(lst)""",
         id="mbpp_2",
-        metadata={"difficulty": "easy", "category": "code", "function_name": "find_max"}
+        metadata={"difficulty": "easy", "category": "code", "function_name": "find_max"},
     ),
     Sample(
         input="""Write a Python function `reverse_string(s)` that returns the reversed string.
@@ -159,7 +158,7 @@ Return only the function code.""",
         target="""def reverse_string(s):
     return s[::-1]""",
         id="mbpp_3",
-        metadata={"difficulty": "easy", "category": "code", "function_name": "reverse_string"}
+        metadata={"difficulty": "easy", "category": "code", "function_name": "reverse_string"},
     ),
     Sample(
         input="""Write a Python function `count_vowels(s)` that counts the number of vowels (a, e, i, o, u) in a string.
@@ -172,7 +171,7 @@ Return only the function code.""",
         target="""def count_vowels(s):
     return sum(1 for c in s.lower() if c in 'aeiou')""",
         id="mbpp_4",
-        metadata={"difficulty": "easy", "category": "code", "function_name": "count_vowels"}
+        metadata={"difficulty": "easy", "category": "code", "function_name": "count_vowels"},
     ),
     Sample(
         input="""Write a Python function `fibonacci(n)` that returns the nth Fibonacci number where fibonacci(0) = 0, fibonacci(1) = 1.
@@ -193,7 +192,7 @@ Return only the function code.""",
         a, b = b, a + b
     return b""",
         id="mbpp_5",
-        metadata={"difficulty": "medium", "category": "code", "function_name": "fibonacci"}
+        metadata={"difficulty": "medium", "category": "code", "function_name": "fibonacci"},
     ),
 ]
 
@@ -209,7 +208,7 @@ GSM8K_SAMPLES = [
 Think step by step, then provide the final numeric answer.""",
         target="18",
         id="gsm8k_1",
-        metadata={"difficulty": "easy", "category": "math"}
+        metadata={"difficulty": "easy", "category": "math"},
     ),
     Sample(
         input="""A robe takes 2 bolts of blue fiber and half that much white fiber. How many bolts in total does it take?
@@ -217,7 +216,7 @@ Think step by step, then provide the final numeric answer.""",
 Think step by step, then provide the final numeric answer.""",
         target="3",
         id="gsm8k_2",
-        metadata={"difficulty": "easy", "category": "math"}
+        metadata={"difficulty": "easy", "category": "math"},
     ),
     Sample(
         input="""Josh decides to try flipping a house. He buys a house for $80,000 and then puts in $50,000 in repairs. This increased the value of the house by 150%. How much profit did he make?
@@ -225,7 +224,7 @@ Think step by step, then provide the final numeric answer.""",
 Think step by step, then provide the final numeric answer.""",
         target="70000",
         id="gsm8k_3",
-        metadata={"difficulty": "medium", "category": "math"}
+        metadata={"difficulty": "medium", "category": "math"},
     ),
     Sample(
         input="""James decides to run 3 sprints 3 times a week. He runs 60 meters each sprint. How many total meters does he run a week?
@@ -233,7 +232,7 @@ Think step by step, then provide the final numeric answer.""",
 Think step by step, then provide the final numeric answer.""",
         target="540",
         id="gsm8k_4",
-        metadata={"difficulty": "easy", "category": "math"}
+        metadata={"difficulty": "easy", "category": "math"},
     ),
     Sample(
         input="""Every day, Wendi feeds each of her chickens three cups of mixed chicken feed, containing seeds, mealworms and vegetables to help keep them healthy. She gives the chickens their feed in three separate meals. In the morning, she gives her flock of chickens 15 cups of feed. In the afternoon, she gives her chickens another 25 cups of feed. If Wendi's flock has 20 chickens, how many cups of feed does she need to give her chickens in the final meal of the day?
@@ -241,7 +240,7 @@ Think step by step, then provide the final numeric answer.""",
 Think step by step, then provide the final numeric answer.""",
         target="20",
         id="gsm8k_5",
-        metadata={"difficulty": "medium", "category": "math"}
+        metadata={"difficulty": "medium", "category": "math"},
     ),
 ]
 
@@ -250,13 +249,16 @@ Think step by step, then provide the final numeric answer.""",
 # Task Definitions
 # =============================================================================
 
+
 @task
 def smoke_humaneval() -> Task:
     """HumanEval smoke test (5 samples)."""
     return Task(
         dataset=MemoryDataset(HUMANEVAL_SAMPLES),
         solver=[
-            system_message("You are a Python coding assistant. Write clean, correct code. Return only the function, no explanations."),
+            system_message(
+                "You are a Python coding assistant. Write clean, correct code. Return only the function, no explanations."
+            ),
             generate(),
         ],
         scorer=includes(),  # Check if target concepts are in response
@@ -270,7 +272,9 @@ def smoke_mbpp() -> Task:
     return Task(
         dataset=MemoryDataset(MBPP_SAMPLES),
         solver=[
-            system_message("You are a Python coding assistant. Write the function exactly as specified. Return only the function code."),
+            system_message(
+                "You are a Python coding assistant. Write the function exactly as specified. Return only the function code."
+            ),
             generate(),
         ],
         scorer=includes(),
@@ -284,7 +288,9 @@ def smoke_gsm8k() -> Task:
     return Task(
         dataset=MemoryDataset(GSM8K_SAMPLES),
         solver=[
-            system_message("You are a math problem solver. Show your work step by step, then provide the final numeric answer."),
+            system_message(
+                "You are a math problem solver. Show your work step by step, then provide the final numeric answer."
+            ),
             generate(),
         ],
         scorer=match(numeric=True),  # Match numeric answer
@@ -299,7 +305,9 @@ def smoke_suite() -> Task:
     return Task(
         dataset=MemoryDataset(all_samples),
         solver=[
-            system_message("You are a helpful coding and math assistant. For code problems, return only the function. For math problems, show your work and provide the numeric answer."),
+            system_message(
+                "You are a helpful coding and math assistant. For code problems, return only the function. For math problems, show your work and provide the numeric answer."
+            ),
             generate(),
         ],
         scorer=includes(),

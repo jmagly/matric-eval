@@ -5,7 +5,6 @@ Works with any OpenAI-compatible API: OpenAI, Ollama, vLLM, llama.cpp,
 OpenRouter, Together AI, Groq, etc.
 """
 
-import json
 import re
 from typing import Optional
 
@@ -14,10 +13,13 @@ from inspect_ai.model import GenerateConfig, get_model
 from matric_eval.judges.base import Judge, JudgeResult
 
 
-def _build_eval_prompt(prompt: str, response: str, criteria: dict, reference: Optional[str] = None) -> str:
+def _build_eval_prompt(
+    prompt: str, response: str, criteria: dict, reference: Optional[str] = None
+) -> str:
     """Build evaluation prompt for the judge."""
     criteria_text = "\n".join(
-        f"- {name}: weight {weight}" if isinstance(weight, (int, float))
+        f"- {name}: weight {weight}"
+        if isinstance(weight, (int, float))
         else f"- {name}: {weight.get('description', '')} (weight {weight.get('weight', 1.0)})"
         for name, weight in criteria.items()
     )
@@ -45,7 +47,8 @@ Reasoning: [Your explanation]"""
 def _build_compare_prompt(prompt: str, response_a: str, response_b: str, criteria: dict) -> str:
     """Build pairwise comparison prompt."""
     criteria_text = "\n".join(
-        f"- {name}: weight {weight}" if isinstance(weight, (int, float))
+        f"- {name}: weight {weight}"
+        if isinstance(weight, (int, float))
         else f"- {name}: {weight.get('description', '')} (weight {weight.get('weight', 1.0)})"
         for name, weight in criteria.items()
     )

@@ -10,7 +10,7 @@ git clone https://github.com/jmagly/matric-eval.git
 cd matric-eval
 
 # Install dependencies
-uv sync
+uv sync --extra dev
 
 # Run tests
 uv run pytest tests/ -q
@@ -28,10 +28,23 @@ This project uses:
 Run checks before submitting:
 
 ```bash
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
-uv run mypy src/
+make lint
+make format-check
+make type-check
+make test-coverage-fail
 ```
+
+Run all merge-blocking checks with `make ci`. Gitea Actions and GitHub Actions
+invoke these exact targets so local and hosted results have the same semantics.
+
+Strict mypy currently uses `mypy-baseline.json` as a debt ratchet: existing
+findings may be removed, but a new finding or an increased count fails
+`make type-check`. Use `make type-check-strict` to inspect all findings. Run
+`make type-check-update` only when a reviewed change reduces the baseline.
+
+Mainline protection should require the `Quality Gates`, `Test and Coverage`,
+and `Build Package` checks. Do not merge while any required check is pending,
+failed, skipped unexpectedly, or absent.
 
 ## Testing
 

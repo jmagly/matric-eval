@@ -9,11 +9,10 @@ Covers:
 - Edge cases: empty results, no relevant items, perfect retrieval
 """
 
-import math
+from unittest.mock import Mock
 
 import pytest
 from inspect_ai.scorer import Score, Target
-from unittest.mock import Mock
 
 from matric_eval.scorers.retrieval import (
     mrr,
@@ -25,7 +24,6 @@ from matric_eval.scorers.retrieval import (
     recall_at_k,
     recall_at_k_scorer,
 )
-
 
 # =============================================================================
 # Recall@K Pure Function Tests

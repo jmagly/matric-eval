@@ -86,9 +86,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
     )
 
 
-def load_memoryagentbench(
-    tier: str = "smoke", competency: str | None = None
-) -> list[Sample]:
+def load_memoryagentbench(tier: str = "smoke", competency: str | None = None) -> list[Sample]:
     """
     Load MemoryAgentBench samples for the given tier.
 
@@ -138,9 +136,7 @@ def load_memoryagentbench(
     if competency is not None:
         records = [r for r in records if r.get("competency") == competency]
         if not records:
-            raise ValueError(
-                f"No records found for competency '{competency}' in {jsonl_path}"
-            )
+            raise ValueError(f"No records found for competency '{competency}' in {jsonl_path}")
 
     all_samples = [record_to_sample(record) for record in records]
 

@@ -11,7 +11,6 @@ import pytest
 
 from matric_eval.state.recovery import ErrorType, RecoveryEngine
 
-
 # =============================================================================
 # ErrorType Tests
 # =============================================================================

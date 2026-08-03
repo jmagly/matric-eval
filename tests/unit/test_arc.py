@@ -13,7 +13,6 @@ Covers:
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -30,7 +29,6 @@ from matric_eval.tasks.arc import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_arc_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -45,6 +43,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -404,7 +403,7 @@ class TestLoadArc:
 
     def test_load_arc_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -593,6 +592,7 @@ class TestArcConfigIntegration:
         monkeypatch.setenv("EVAL_ARC_SAMPLES", "10")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         # Should load 10 samples instead of default tier counts
@@ -624,7 +624,7 @@ class TestArcErrorHandling:
 
     def test_load_arc_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -637,7 +637,7 @@ class TestArcErrorHandling:
 
     def test_load_arc_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"id": "Test", "incomplete": \n')
             temp_path = f.name
 
@@ -673,11 +673,14 @@ class TestArcErrorHandling:
 class TestArcEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_arc_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_arc_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_ARC_SAMPLES", "5000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_arc()
@@ -689,6 +692,7 @@ class TestArcEdgeCases:
         monkeypatch.setenv("EVAL_ARC_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_arc()

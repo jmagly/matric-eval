@@ -19,7 +19,9 @@ from matric_eval.config import get_sample_count
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to test data
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_cli" / "data"
+DATA_DIR = (
+    Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_cli" / "data"
+)
 
 
 def load_code_generation_scenarios() -> list[dict[str, Any]]:
@@ -88,6 +90,7 @@ def load_matric_cli(tier: str = "smoke") -> list[Sample]:
     if sample_count and len(samples) > sample_count:
         # Reproducible sampling
         import random
+
         rng = random.Random(42)
         samples = rng.sample(samples, sample_count)
 
@@ -101,6 +104,7 @@ def matric_cli_scorer():
 
     Checks for required code patterns based on scenario metadata.
     """
+
     async def score(state, target: Target) -> Score:
         response = state.output.completion if state.output else ""
         metadata = state.metadata or {}
@@ -108,44 +112,44 @@ def matric_cli_scorer():
 
         if not required_checks:
             # No specific checks - use basic heuristics
-            has_code = bool(re.search(r'```|function|const |let |def |class ', response))
+            has_code = bool(re.search(r"```|function|const |let |def |class ", response))
             return Score(value=1.0 if has_code else 0.0, answer=response[:200])
 
         # Pattern definitions for each check type
         patterns = {
             # Code generation checks
-            "hasFunctionDeclaration": r'function\s+\w+|const\s+\w+\s*=\s*(?:async\s*)?\(',
-            "hasParameter": r'\([^)]*\w+[^)]*\)',
-            "hasRecursion": r'fibonacci\s*\(.*fibonacci\s*\(|function\s+\w+.*\w+\s*\(',
-            "hasMemoization": r'memo|cache|Map|Record|WeakMap',
-            "hasTypeAnnotation": r':\s*(?:number|string|boolean|any|\w+\[\])',
-            "hasLoop": r'for\s*\(|while\s*\(|\.forEach|\.map\s*\(',
-            "hasReturn": r'return\s+',
-            "hasReturnBoolean": r'return\s+(?:true|false)',
-            "hasEdgeCaseHandling": r'[<>]=?\s*[012]|[012]\s*[<>]=?|if\s*\(',
-            "hasSplit": r'\.split\s*\(',
-            "hasLengthComparison": r'\.length\s*[<>=]|[<>=]\s*\w+\.length',
-            "removedTodos": r'^(?!.*//\s*TODO)',
-            "identifiedBug": r'off-by-one|<=\s*arr\.length|index|bound',
-            "hasCorrectLoop": r'i\s*<\s*arr\.length(?!\s*=)',
-            "hasMethodName": r'findUserByEmail|findByEmail',
-            "hasReturnType": r':\s*\w+\s*\|\s*undefined|:\s*\w+\s*\?',
-            "hasArraySearch": r'\.find\s*\(|\.filter\s*\(|for\s*\(',
-            "hasEmailComparison": r'\.email\s*===|===\s*\w*email',
-            "hasMiddleCalculation": r'Math\.floor|>>>\s*1|\/\s*2',
-            "hasBinaryLogic": r'left|right|mid|low|high',
-            "hasTypes": r':\s*number\[\].*:\s*number|:\s*number.*:\s*number\[\]',
-            "hasParameters": r'\([^)]*,\s*[^)]*\)',
+            "hasFunctionDeclaration": r"function\s+\w+|const\s+\w+\s*=\s*(?:async\s*)?\(",
+            "hasParameter": r"\([^)]*\w+[^)]*\)",
+            "hasRecursion": r"fibonacci\s*\(.*fibonacci\s*\(|function\s+\w+.*\w+\s*\(",
+            "hasMemoization": r"memo|cache|Map|Record|WeakMap",
+            "hasTypeAnnotation": r":\s*(?:number|string|boolean|any|\w+\[\])",
+            "hasLoop": r"for\s*\(|while\s*\(|\.forEach|\.map\s*\(",
+            "hasReturn": r"return\s+",
+            "hasReturnBoolean": r"return\s+(?:true|false)",
+            "hasEdgeCaseHandling": r"[<>]=?\s*[012]|[012]\s*[<>]=?|if\s*\(",
+            "hasSplit": r"\.split\s*\(",
+            "hasLengthComparison": r"\.length\s*[<>=]|[<>=]\s*\w+\.length",
+            "removedTodos": r"^(?!.*//\s*TODO)",
+            "identifiedBug": r"off-by-one|<=\s*arr\.length|index|bound",
+            "hasCorrectLoop": r"i\s*<\s*arr\.length(?!\s*=)",
+            "hasMethodName": r"findUserByEmail|findByEmail",
+            "hasReturnType": r":\s*\w+\s*\|\s*undefined|:\s*\w+\s*\?",
+            "hasArraySearch": r"\.find\s*\(|\.filter\s*\(|for\s*\(",
+            "hasEmailComparison": r"\.email\s*===|===\s*\w*email",
+            "hasMiddleCalculation": r"Math\.floor|>>>\s*1|\/\s*2",
+            "hasBinaryLogic": r"left|right|mid|low|high",
+            "hasTypes": r":\s*number\[\].*:\s*number|:\s*number.*:\s*number\[\]",
+            "hasParameters": r"\([^)]*,\s*[^)]*\)",
             # Tool calling checks
-            "hasToolCall": r'tool_call|function_call|<tool>|```json',
+            "hasToolCall": r"tool_call|function_call|<tool>|```json",
             "hasCorrectFunction": r'"name"\s*:\s*"',
-            "hasParameters": r'"parameters"|"arguments"|"params"',
+            "hasToolParameters": r'"parameters"|"arguments"|"params"',
             "hasValidJSON": r'\{[^}]*"[^"]+"\s*:',
         }
 
         passed = 0
         for check in required_checks:
-            pattern = patterns.get(check, r'.*')
+            pattern = patterns.get(check, r".*")
             if re.search(pattern, response, re.IGNORECASE | re.DOTALL):
                 passed += 1
 

@@ -238,7 +238,11 @@ def gsm8k_scorer() -> Scorer:
             value="C" if is_correct else "I",
             answer=model_answer,
             explanation=f"Expected: {expected_answer}, Got: {model_answer}"
-            + (f" (normalized: {normalized_expected} vs {normalized_model})" if not is_correct else ""),
+            + (
+                f" (normalized: {normalized_expected} vs {normalized_model})"
+                if not is_correct
+                else ""
+            ),
         )
 
     return score

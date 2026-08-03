@@ -40,7 +40,9 @@ class TestCodeGenerationData:
 
         for scenario in code_generation_scenarios:
             for field in required_fields:
-                assert field in scenario, f"Missing '{field}' in scenario {scenario.get('id', 'unknown')}"
+                assert field in scenario, (
+                    f"Missing '{field}' in scenario {scenario.get('id', 'unknown')}"
+                )
 
     def test_scenario_ids_are_unique(self, code_generation_scenarios):
         """Scenario IDs must be unique."""
@@ -52,8 +54,9 @@ class TestCodeGenerationData:
         valid_difficulties = {"easy", "medium", "hard"}
 
         for scenario in code_generation_scenarios:
-            assert scenario["difficulty"] in valid_difficulties, \
+            assert scenario["difficulty"] in valid_difficulties, (
                 f"Invalid difficulty '{scenario['difficulty']}' in {scenario['id']}"
+            )
 
     def test_prompts_contain_code_requirements(self, code_generation_scenarios):
         """Code gen prompts should mention functions, classes, or implementations."""
@@ -71,23 +74,30 @@ class TestCodeGenerationScenarioCategories:
     def test_has_algorithm_scenarios(self, code_generation_scenarios):
         """Should have algorithm-related scenarios."""
         algo_scenarios = [
-            s for s in code_generation_scenarios
-            if "algorithm" in s.get("tags", []) or "fibonacci" in s["id"].lower() or "binary" in s["id"].lower()
+            s
+            for s in code_generation_scenarios
+            if "algorithm" in s.get("tags", [])
+            or "fibonacci" in s["id"].lower()
+            or "binary" in s["id"].lower()
         ]
         assert len(algo_scenarios) >= 1, "Need algorithm scenarios"
 
     def test_has_bugfix_scenarios(self, code_generation_scenarios):
         """Should have bug fixing scenarios."""
         bugfix_scenarios = [
-            s for s in code_generation_scenarios
-            if "bugfix" in s["id"].lower() or "debugging" in s.get("tags", []) or "fix" in s["name"].lower()
+            s
+            for s in code_generation_scenarios
+            if "bugfix" in s["id"].lower()
+            or "debugging" in s.get("tags", [])
+            or "fix" in s["name"].lower()
         ]
         assert len(bugfix_scenarios) >= 1, "Need bug fixing scenarios"
 
     def test_has_multi_file_scenarios(self, code_generation_scenarios):
         """Should have multi-file reasoning scenarios."""
         multifile_scenarios = [
-            s for s in code_generation_scenarios
+            s
+            for s in code_generation_scenarios
             if "multifile" in s["id"].lower() or "multi-file" in s.get("tags", [])
         ]
         assert len(multifile_scenarios) >= 1, "Need multi-file scenarios"

@@ -19,7 +19,6 @@ from matric_eval.contamination.detector import (
     check_contamination,
 )
 
-
 # =============================================================================
 # N-gram Extraction Tests
 # =============================================================================
@@ -156,9 +155,7 @@ class TestBatchCheck:
         base = "the standard solution to this problem uses a hash map to track frequency of each element and then iterates through to find the maximum"
         outputs = [base, base, base]
         references = [base, base, base]
-        report = detector.check_batch(
-            outputs, references, model="memorizer", benchmark="humaneval"
-        )
+        report = detector.check_batch(outputs, references, model="memorizer", benchmark="humaneval")
         assert report.contamination_score > 0.5
         assert report.samples_flagged > 0
 

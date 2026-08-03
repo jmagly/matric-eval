@@ -9,11 +9,12 @@ Covers:
 - Prompt building and response parsing
 """
 
-import pytest
-from inspect_ai.scorer import Score, Target
 from unittest.mock import AsyncMock, Mock, patch
 
-from matric_eval.judges.base import Judge, JudgeResult
+import pytest
+from inspect_ai.scorer import Score, Target
+
+from matric_eval.judges.base import JudgeResult
 from matric_eval.judges.factory import JudgeFactory, create_judge
 from matric_eval.judges.ollama import OllamaJudge
 from matric_eval.judges.openai_compat import (
@@ -24,7 +25,6 @@ from matric_eval.judges.openai_compat import (
     _parse_winner,
 )
 from matric_eval.judges.scorer import universal_judge_scorer
-
 
 # =============================================================================
 # JudgeResult Tests
@@ -269,16 +269,14 @@ class TestOllamaJudge:
         """Should delegate evaluation to inner OpenAICompatibleJudge."""
         judge = OllamaJudge(model="llama3.1:8b")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 8\nReasoning: Good response."
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
-            result = await judge.evaluate(
-                "Question", "Response", {"quality": 1.0}
-            )
+            result = await judge.evaluate("Question", "Response", {"quality": 1.0})
 
             assert isinstance(result, JudgeResult)
             assert result.metadata["judge_type"] == "ollama"
@@ -289,16 +287,14 @@ class TestOllamaJudge:
         """Should delegate comparison to inner judge."""
         judge = OllamaJudge(model="llama3.1:8b")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[A]] is better"
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
-            result = await judge.compare(
-                "Question", "Response A", "Response B", {"quality": 1.0}
-            )
+            result = await judge.compare("Question", "Response A", "Response B", {"quality": 1.0})
 
             assert result.winner == "A"
             assert result.metadata["judge_type"] == "ollama"
@@ -323,16 +319,14 @@ class TestOpenAICompatibleJudge:
         """Should return score normalized to 0-1."""
         judge = OpenAICompatibleJudge(model="gpt-4o")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 9\nReasoning: Excellent."
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
-            result = await judge.evaluate(
-                "Question", "Response", {"quality": 1.0}
-            )
+            result = await judge.evaluate("Question", "Response", {"quality": 1.0})
 
             assert 0.0 <= result.score <= 1.0
             assert result.raw_score == 9.0
@@ -344,7 +338,7 @@ class TestOpenAICompatibleJudge:
         """Should propagate errors from model."""
         judge = OpenAICompatibleJudge(model="gpt-4o")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_get_model.side_effect = Exception("API error")
 
             with pytest.raises(Exception, match="API error"):
@@ -355,16 +349,14 @@ class TestOpenAICompatibleJudge:
         """Should return comparison result with winner."""
         judge = OpenAICompatibleJudge(model="gpt-4o")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Response B is more accurate. [[B]]"
             mock_model.generate.return_value = mock_result
             mock_get_model.return_value = mock_model
 
-            result = await judge.compare(
-                "Question", "Response A", "Response B", {"quality": 1.0}
-            )
+            result = await judge.compare("Question", "Response A", "Response B", {"quality": 1.0})
 
             assert result.winner == "B"
             assert result.score == 0.0  # B wins = 0.0 for A
@@ -396,7 +388,7 @@ class TestUniversalJudgeScorer:
 
         target = Target(target="Paris")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 9\nReasoning: Accurate and clear."
@@ -422,7 +414,7 @@ class TestUniversalJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_get_model.side_effect = Exception("Connection refused")
 
             score = await scorer(state, target)
@@ -442,7 +434,7 @@ class TestUniversalJudgeScorer:
 
         target = Target(target="")
 
-        with patch('matric_eval.judges.openai_compat.get_model') as mock_get_model:
+        with patch("matric_eval.judges.openai_compat.get_model") as mock_get_model:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "Rating: 7"

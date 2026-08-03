@@ -5,8 +5,8 @@ Provides model capability detection and configuration helpers.
 """
 
 from matric_eval.models.detection import (
-    has_thinking_capability,
     get_ollama_model_info,
+    has_thinking_capability,
 )
 
 __all__ = [

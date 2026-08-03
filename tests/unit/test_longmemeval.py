@@ -37,6 +37,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -366,30 +367,35 @@ class TestLongmemevalTierConfig:
     def test_smoke_tier_has_longmemeval(self) -> None:
         """Smoke tier should have LongMemEval samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.longmemeval > 0
 
     def test_smoke_tier_value(self) -> None:
         """Smoke tier should have 10 samples."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.longmemeval == 10
 
     def test_quick_tier_has_longmemeval(self) -> None:
         """Quick tier should have LongMemEval samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.longmemeval > 0
 
     def test_quick_tier_value(self) -> None:
         """Quick tier should have 100 samples."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.longmemeval == 100
 
     def test_full_tier_has_all_longmemeval(self) -> None:
         """Full tier should have all 500 questions."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
         assert tier.longmemeval == 500
 

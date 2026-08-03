@@ -10,9 +10,9 @@ Covers:
 """
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+
+import pytest
 
 from matric_eval.state.manager import (
     BenchmarkState,
@@ -22,7 +22,6 @@ from matric_eval.state.manager import (
     StateManager,
     Status,
 )
-
 
 # =============================================================================
 # Status Tests

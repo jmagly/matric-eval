@@ -9,7 +9,6 @@ Covers:
 """
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,7 +24,6 @@ from matric_eval.tasks.gpqa import (
     record_to_sample,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -38,6 +36,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -261,17 +260,20 @@ class TestGpqaTierConfig:
     def test_smoke_tier_has_gpqa(self) -> None:
         """Smoke tier should have GPQA samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.gpqa > 0
 
     def test_full_tier_has_all_gpqa(self) -> None:
         """Full tier should have all 198 Diamond questions."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
         assert tier.gpqa == 198
 
     def test_quick_tier_has_gpqa(self) -> None:
         """Quick tier should have GPQA samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.gpqa > 0

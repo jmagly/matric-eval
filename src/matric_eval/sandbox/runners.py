@@ -112,7 +112,6 @@ def get_runner(language: str) -> TestRunner:
     runner_cls = RUNNERS.get(language)
     if runner_cls is None:
         raise KeyError(
-            f"No test runner for language '{language}'. "
-            f"Available: {', '.join(sorted(RUNNERS))}"
+            f"No test runner for language '{language}'. Available: {', '.join(sorted(RUNNERS))}"
         )
     return runner_cls()

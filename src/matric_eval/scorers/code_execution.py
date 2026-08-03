@@ -48,16 +48,16 @@ def extract_code(response: str) -> str:
     # Remove common solution markers (DS-1000, HumanEval, etc.)
     # These markers may appear at the start or end of the code
     markers_to_remove = [
-        r'^.*?### BEGIN SOLUTION\s*\n?',  # DS-1000 begin marker
-        r'^.*?<code>\s*\n?',  # DS-1000 code tag
-        r'\n?### END SOLUTION.*$',  # DS-1000 end marker with ###
-        r'\n?END SOLUTION.*$',  # DS-1000 end marker without ###
-        r'\n?</code>.*$',  # DS-1000 closing code tag
-        r'^# Solution\s*\n?',  # Common solution header
+        r"^.*?### BEGIN SOLUTION\s*\n?",  # DS-1000 begin marker
+        r"^.*?<code>\s*\n?",  # DS-1000 code tag
+        r"\n?### END SOLUTION.*$",  # DS-1000 end marker with ###
+        r"\n?END SOLUTION.*$",  # DS-1000 end marker without ###
+        r"\n?</code>.*$",  # DS-1000 closing code tag
+        r"^# Solution\s*\n?",  # Common solution header
     ]
 
     for pattern in markers_to_remove:
-        code = re.sub(pattern, '', code, flags=re.DOTALL | re.IGNORECASE)
+        code = re.sub(pattern, "", code, flags=re.DOTALL | re.IGNORECASE)
 
     return code.strip()
 

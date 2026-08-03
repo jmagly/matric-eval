@@ -58,11 +58,13 @@ class EvaluationMatrix:
                 for benchmark in self.benchmarks:
                     if self._is_excluded(model, provider, benchmark):
                         continue
-                    runs.append({
-                        "model": model,
-                        "provider": provider,
-                        "benchmark": benchmark,
-                    })
+                    runs.append(
+                        {
+                            "model": model,
+                            "provider": provider,
+                            "benchmark": benchmark,
+                        }
+                    )
         return runs
 
     def _is_excluded(self, model: str, provider: str, benchmark: str) -> bool:
@@ -86,11 +88,13 @@ class EvaluationMatrix:
 
         excludes = []
         for exc_data in eval_data.get("exclude", []):
-            excludes.append(MatrixExclusion(
-                model=exc_data.get("model", ""),
-                provider=exc_data.get("provider", ""),
-                benchmark=exc_data.get("benchmark", ""),
-            ))
+            excludes.append(
+                MatrixExclusion(
+                    model=exc_data.get("model", ""),
+                    provider=exc_data.get("provider", ""),
+                    benchmark=exc_data.get("benchmark", ""),
+                )
+            )
 
         matrix_config = eval_data.get("matrix", {})
 
@@ -122,7 +126,15 @@ class EvaluationMatrix:
         }
         if self.exclude:
             result["exclude"] = [
-                {k: v for k, v in {"model": e.model, "provider": e.provider, "benchmark": e.benchmark}.items() if v}
+                {
+                    k: v
+                    for k, v in {
+                        "model": e.model,
+                        "provider": e.provider,
+                        "benchmark": e.benchmark,
+                    }.items()
+                    if v
+                }
                 for e in self.exclude
             ]
         if self.explicit_runs:

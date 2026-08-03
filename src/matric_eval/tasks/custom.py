@@ -153,26 +153,20 @@ def load_custom_tests(
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError as e:
-                    raise InvalidCustomTestError(
-                        test_name,
-                        f"Invalid JSON on line {line_num}: {e}"
-                    )
+                    raise InvalidCustomTestError(test_name, f"Invalid JSON on line {line_num}: {e}")
 
                 # Validate required fields
                 if "id" not in data:
                     raise InvalidCustomTestError(
-                        test_name,
-                        f"Missing required field 'id' on line {line_num}"
+                        test_name, f"Missing required field 'id' on line {line_num}"
                     )
                 if "prompt" not in data:
                     raise InvalidCustomTestError(
-                        test_name,
-                        f"Missing required field 'prompt' on line {line_num}"
+                        test_name, f"Missing required field 'prompt' on line {line_num}"
                     )
                 if "expected" not in data:
                     raise InvalidCustomTestError(
-                        test_name,
-                        f"Missing required field 'expected' on line {line_num}"
+                        test_name, f"Missing required field 'expected' on line {line_num}"
                     )
 
                 # Convert to Sample format
@@ -314,7 +308,8 @@ def discover_custom_tests(
                             try:
                                 data = json.loads(line)
                                 metadata_sample = {
-                                    k: v for k, v in data.items()
+                                    k: v
+                                    for k, v in data.items()
                                     if k not in ["id", "prompt", "expected"]
                                 }
                             except json.JSONDecodeError:
@@ -393,8 +388,6 @@ def _get_system_message_for_scorer_type(scorer_type: str) -> str:
             "Break down complex tasks into steps and execute them systematically."
         )
     elif scorer_type == "semantic_similarity":
-        return (
-            "You are a helpful assistant. Provide clear, accurate, and concise responses."
-        )
+        return "You are a helpful assistant. Provide clear, accurate, and concise responses."
     else:
         return "You are a helpful assistant."

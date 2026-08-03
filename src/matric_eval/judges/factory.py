@@ -34,7 +34,11 @@ class JudgeFactory:
         "openrouter": (OpenAICompatibleJudge, "anthropic/claude-3.5-sonnet", "OPENROUTER_API_KEY"),
         "vllm": (OpenAICompatibleJudge, "meta-llama/Llama-3.2-3B", None),
         "groq": (OpenAICompatibleJudge, "llama-3.1-8b-instant", "GROQ_API_KEY"),
-        "together": (OpenAICompatibleJudge, "meta-llama/Llama-3.2-3B-Instruct-Turbo", "TOGETHER_API_KEY"),
+        "together": (
+            OpenAICompatibleJudge,
+            "meta-llama/Llama-3.2-3B-Instruct-Turbo",
+            "TOGETHER_API_KEY",
+        ),
     }
 
     # Base URLs for known providers

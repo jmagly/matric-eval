@@ -9,14 +9,14 @@ Covers:
 """
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import Mock, patch
+
+import pytest
 from click.testing import CliRunner
 
-from matric_eval.models.detection import has_thinking_capability, get_ollama_model_info
 from matric_eval.cli import cli
-
+from matric_eval.models.detection import get_ollama_model_info, has_thinking_capability
 
 # =============================================================================
 # Model Detection Tests
@@ -76,11 +76,13 @@ class TestModelDetection:
 
     def test_get_ollama_model_info_success(self) -> None:
         """Should successfully retrieve model info from ollama show."""
-        mock_output = json.dumps({
-            "modelfile": "FROM qwen3:14b",
-            "parameters": {"temperature": 0.8},
-            "capabilities": ["thinking", "chat"],
-        })
+        mock_output = json.dumps(
+            {
+                "modelfile": "FROM qwen3:14b",
+                "parameters": {"temperature": 0.8},
+                "capabilities": ["thinking", "chat"],
+            }
+        )
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = Mock(
@@ -138,12 +140,18 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "llama3.2:3b",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             # Should succeed with auto mode
             assert result.exit_code == 0
@@ -159,13 +167,20 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "qwen3:14b",
-                "--thinking", "on",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "qwen3:14b",
+                    "--thinking",
+                    "on",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             # Verify thinking=on was passed to run_evaluation
@@ -184,13 +199,20 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "qwen3:14b",
-                "--thinking", "off",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "qwen3:14b",
+                    "--thinking",
+                    "off",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             call_args = mock_eval.call_args
@@ -201,9 +223,10 @@ class TestThinkingCLIParameter:
         """Should accept --thinking both and run twice."""
         runner = CliRunner()
 
-        with patch("matric_eval.cli.run_evaluation") as mock_eval, \
-             patch("matric_eval.cli.has_thinking_capability") as mock_detect:
-
+        with (
+            patch("matric_eval.cli.run_evaluation") as mock_eval,
+            patch("matric_eval.cli.has_thinking_capability") as mock_detect,
+        ):
             mock_detect.return_value = True  # qwen3 is thinking-capable
             mock_eval.return_value = {
                 "model": "ollama/qwen3:14b",
@@ -211,13 +234,20 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "qwen3:14b",
-                "--thinking", "both",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "qwen3:14b",
+                    "--thinking",
+                    "both",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             # Should call run_evaluation twice (once with on, once with off)
@@ -227,9 +257,10 @@ class TestThinkingCLIParameter:
         """Auto mode should detect thinking and run appropriate mode."""
         runner = CliRunner()
 
-        with patch("matric_eval.cli.run_evaluation") as mock_eval, \
-             patch("matric_eval.cli.has_thinking_capability") as mock_detect:
-
+        with (
+            patch("matric_eval.cli.run_evaluation") as mock_eval,
+            patch("matric_eval.cli.has_thinking_capability") as mock_detect,
+        ):
             mock_detect.return_value = True  # qwen3 is thinking-capable
             mock_eval.return_value = {
                 "model": "ollama/qwen3:14b",
@@ -237,13 +268,20 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "qwen3:14b",
-                "--thinking", "auto",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "qwen3:14b",
+                    "--thinking",
+                    "auto",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             # Auto should run thinking-off mode for thinking models by default
@@ -255,9 +293,10 @@ class TestThinkingCLIParameter:
         """Auto mode should use standard mode for non-thinking models."""
         runner = CliRunner()
 
-        with patch("matric_eval.cli.run_evaluation") as mock_eval, \
-             patch("matric_eval.cli.has_thinking_capability") as mock_detect:
-
+        with (
+            patch("matric_eval.cli.run_evaluation") as mock_eval,
+            patch("matric_eval.cli.has_thinking_capability") as mock_detect,
+        ):
             mock_detect.return_value = False  # llama3.2 is not thinking-capable
             mock_eval.return_value = {
                 "model": "ollama/llama3.2:3b",
@@ -265,13 +304,20 @@ class TestThinkingCLIParameter:
                 "overall_score": 0.8,
             }
 
-            result = runner.invoke(cli, [
-                "run",
-                "--tier", "smoke",
-                "--model", "llama3.2:3b",
-                "--thinking", "auto",
-                "--output-format", "json",
-            ])
+            result = runner.invoke(
+                cli,
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--thinking",
+                    "auto",
+                    "--output-format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             call_args = mock_eval.call_args
@@ -283,12 +329,18 @@ class TestThinkingCLIParameter:
         """Should reject invalid --thinking values."""
         runner = CliRunner()
 
-        result = runner.invoke(cli, [
-            "run",
-            "--tier", "smoke",
-            "--model", "llama3.2:3b",
-            "--thinking", "invalid",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "run",
+                "--tier",
+                "smoke",
+                "--model",
+                "llama3.2:3b",
+                "--thinking",
+                "invalid",
+            ],
+        )
 
         # Click should reject the invalid choice
         assert result.exit_code != 0

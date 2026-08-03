@@ -12,14 +12,13 @@ Supports both process-based and async parallelism.
 from __future__ import annotations
 
 import asyncio
-import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Generic, Optional, TypeVar
 
-from matric_eval.logging import EvalMetrics, configure_logging, get_logger, set_context
+from matric_eval.logging import get_logger, set_context
 
 T = TypeVar("T")
 R = TypeVar("R")

@@ -297,9 +297,7 @@ class TestTaskRegistry:
             )
         )
 
-        with pytest.raises(
-            BenchmarkUnavailableError, match="upstream dataset is not public"
-        ):
+        with pytest.raises(BenchmarkUnavailableError, match="upstream dataset is not public"):
             isolated_registry.load_task("missing")
 
     def test_repr(self, isolated_registry: TaskRegistry) -> None:
@@ -318,9 +316,18 @@ class TestGlobalRegistry:
 
         registry = get_registry()
         expected = {
-            "humaneval", "mbpp", "gsm8k", "arc", "ifeval",
-            "ds1000", "livecodebench", "mmlu", "mtbench",
-            "tool_calling", "matric_cli", "matric_memory",
+            "humaneval",
+            "mbpp",
+            "gsm8k",
+            "arc",
+            "ifeval",
+            "ds1000",
+            "livecodebench",
+            "mmlu",
+            "mtbench",
+            "tool_calling",
+            "matric_cli",
+            "matric_memory",
         }
         registered = set(registry.list_names())
         assert expected.issubset(registered), f"Missing: {expected - registered}"

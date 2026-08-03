@@ -10,9 +10,7 @@ from inspect_ai import Task
 from inspect_ai.dataset import Sample
 
 from matric_eval.tasks.realworldqa import (
-    load_realworldqa,
     realworldqa,
-    realworldqa_scorer,
     record_to_sample,
 )
 

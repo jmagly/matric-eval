@@ -38,6 +38,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -413,29 +414,34 @@ class TestLocomoTierConfig:
     def test_smoke_tier_has_locomo(self) -> None:
         """Smoke tier should have LoCoMo samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.locomo > 0
 
     def test_smoke_tier_value(self) -> None:
         """Smoke tier should have 10 LoCoMo samples."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.locomo == 10
 
     def test_quick_tier_has_locomo(self) -> None:
         """Quick tier should have LoCoMo samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.locomo > 0
 
     def test_quick_tier_value(self) -> None:
         """Quick tier should have 50 LoCoMo samples."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.locomo == 50
 
     def test_full_tier_locomo(self) -> None:
         """Full tier should have 0 (all available) LoCoMo samples."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
         assert tier.locomo == 0

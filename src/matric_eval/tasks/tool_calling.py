@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Scorer, Score, Target, mean, scorer
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import generate, system_message
 
 from matric_eval.config import get_sample_count, get_seed
@@ -188,9 +188,17 @@ SAMPLE_QUERIES = {
         (
             "Send an email to john@example.com with subject 'Meeting' and body 'Hi John, let's meet tomorrow.'",
             "send_email",
-            {"to": "john@example.com", "subject": "Meeting", "body": "Hi John, let's meet tomorrow."},
+            {
+                "to": "john@example.com",
+                "subject": "Meeting",
+                "body": "Hi John, let's meet tomorrow.",
+            },
         ),
-        ("What's the temperature in London in celsius?", "get_weather", {"location": "London", "unit": "celsius"}),
+        (
+            "What's the temperature in London in celsius?",
+            "get_weather",
+            {"location": "London", "unit": "celsius"},
+        ),
         ("Check the stock price for GOOGL", "get_stock_price", {"symbol": "GOOGL"}),
     ],
     "parallel": [
@@ -289,9 +297,7 @@ def _generate_synthetic_samples(
     rng = random.Random(seed if seed is not None else get_seed())
     samples = []
 
-    scenarios_to_use: list[ScenarioType] = (
-        [scenario] if scenario else list(SCENARIOS.keys())
-    )
+    scenarios_to_use: list[ScenarioType] = [scenario] if scenario else list(SCENARIOS.keys())
 
     for i in range(count):
         s = rng.choice(scenarios_to_use)
@@ -313,11 +319,16 @@ def _generate_synthetic_samples(
 
         elif s == "nested":
             # Nested: use weather result in another call
-            query = "Get the weather in Tokyo, and if it's cold (below 10C), search for hotels there."
+            query = (
+                "Get the weather in Tokyo, and if it's cold (below 10C), search for hotels there."
+            )
             functions = SAMPLE_FUNCTIONS["simple"] + SAMPLE_FUNCTIONS["parallel"][:1]
             expected = [
                 {"name": "get_weather", "parameters": {"location": "Tokyo", "unit": "celsius"}},
-                {"name": "search_hotels", "parameters": {"location": "Tokyo", "checkin": "today", "checkout": "tomorrow"}},
+                {
+                    "name": "search_hotels",
+                    "parameters": {"location": "Tokyo", "checkin": "today", "checkout": "tomorrow"},
+                },
             ]
 
         elif s == "error_handling":
@@ -338,11 +349,14 @@ def _generate_synthetic_samples(
             functions = SAMPLE_FUNCTIONS["simple"]
             expected = [
                 {"name": "get_weather", "parameters": {"location": "Boston"}},
-                {"name": "send_email", "parameters": {
-                    "to": "team@example.com",
-                    "subject": "Weather Update",
-                    "body": "Today's weather in Boston: [weather_result]",
-                }},
+                {
+                    "name": "send_email",
+                    "parameters": {
+                        "to": "team@example.com",
+                        "subject": "Weather Update",
+                        "body": "Today's weather in Boston: [weather_result]",
+                    },
+                },
             ]
 
         else:
@@ -357,7 +371,11 @@ def _generate_synthetic_samples(
             "query": query,
             "expected_call": expected,
             "scenario": s,
-            "difficulty": "easy" if s == "simple" else "medium" if s in ["parallel", "complex_types"] else "hard",
+            "difficulty": "easy"
+            if s == "simple"
+            else "medium"
+            if s in ["parallel", "complex_types"]
+            else "hard",
         }
 
         samples.append(record_to_sample(record))
@@ -513,7 +531,9 @@ def calculate_param_match(actual: Any, expected: Any) -> float:
     return matches / total if total > 0 else 1.0
 
 
-def calculate_function_call_score(actual: dict | list | None, expected: dict | list) -> tuple[float, str]:
+def calculate_function_call_score(
+    actual: dict | list | None, expected: dict | list
+) -> tuple[float, str]:
     """
     Calculate overall function call score.
 
@@ -679,7 +699,7 @@ def tool_calling(
                 "You are a helpful assistant with access to functions. "
                 "When the user makes a request, respond with the appropriate "
                 "function call(s) in valid JSON format. "
-                "Use this structure: {\"name\": \"function_name\", \"parameters\": {...}}"
+                'Use this structure: {"name": "function_name", "parameters": {...}}'
             ),
             generate(),
         ],

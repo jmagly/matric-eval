@@ -351,19 +351,19 @@ class RuleBasedClarityEvaluator(DimensionEvaluator):
             )
 
         # Check for structure indicators
-        has_structure = any([
-            "\n\n" in response,  # Paragraphs
-            re.search(r"\d\.", response),  # Numbered lists
-            "- " in response or "* " in response,  # Bullet points
-            ":" in response,  # Definitions/explanations
-        ])
+        has_structure = any(
+            [
+                "\n\n" in response,  # Paragraphs
+                re.search(r"\d\.", response),  # Numbered lists
+                "- " in response or "* " in response,  # Bullet points
+                ":" in response,  # Definitions/explanations
+            ]
+        )
 
         # Check for clear sentence structure
         sentences = re.split(r"[.!?]", response)
         avg_sentence_length = (
-            sum(len(s.split()) for s in sentences) / len(sentences)
-            if sentences
-            else 0
+            sum(len(s.split()) for s in sentences) / len(sentences) if sentences else 0
         )
 
         # Very long sentences are harder to read
@@ -426,9 +426,7 @@ class RuleBasedConcisenessEvaluator(DimensionEvaluator):
             "essentially",
             "actually",
         ]
-        filler_count = sum(
-            1 for phrase in filler_phrases if phrase in response.lower()
-        )
+        filler_count = sum(1 for phrase in filler_phrases if phrase in response.lower())
 
         # Repetition detection (simple)
         sentences = [s.strip() for s in re.split(r"[.!?]", response) if s.strip()]
@@ -466,7 +464,7 @@ class RuleBasedConcisenessEvaluator(DimensionEvaluator):
             self.dimension,
             final_score,
             self.weight,
-            f"Words: {response_words}, fillers: {filler_count}, repetition: {1-repetition_ratio:.0%}",
+            f"Words: {response_words}, fillers: {filler_count}, repetition: {1 - repetition_ratio:.0%}",
         )
 
 
@@ -549,16 +547,16 @@ class RuleBasedHelpfulnessEvaluator(DimensionEvaluator):
 
         # Check if response addresses the prompt topic
         prompt_keywords = set(
-            word.lower()
-            for word in prompt.split()
-            if len(word) > 3 and word.isalpha()
+            word.lower() for word in prompt.split() if len(word) > 3 and word.isalpha()
         )
         response_keywords = set(
-            word.lower()
-            for word in response.split()
-            if len(word) > 3 and word.isalpha()
+            word.lower() for word in response.split() if len(word) > 3 and word.isalpha()
         )
-        topic_overlap = len(prompt_keywords & response_keywords) / len(prompt_keywords) if prompt_keywords else 0
+        topic_overlap = (
+            len(prompt_keywords & response_keywords) / len(prompt_keywords)
+            if prompt_keywords
+            else 0
+        )
 
         if topic_overlap < 0.1:
             score = max(0.2, score - 0.3)  # Response may be off-topic

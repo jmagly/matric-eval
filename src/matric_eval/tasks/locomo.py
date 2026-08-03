@@ -100,10 +100,12 @@ def record_to_sample(
     # Build evidence metadata
     evidence_refs = []
     for ref in evidence:
-        evidence_refs.append({
-            "session_id": ref.get("session_id"),
-            "turn_id": ref.get("turn_id"),
-        })
+        evidence_refs.append(
+            {
+                "session_id": ref.get("session_id"),
+                "turn_id": ref.get("turn_id"),
+            }
+        )
 
     qa_id = f"{sample_id}_{category}_{hash(question) % 10000:04d}"
 
@@ -147,9 +149,7 @@ def load_locomo(
     if categories is not None:
         for cat in categories:
             if cat not in VALID_CATEGORIES:
-                raise ValueError(
-                    f"Invalid category '{cat}'. Valid categories: {VALID_CATEGORIES}"
-                )
+                raise ValueError(f"Invalid category '{cat}'. Valid categories: {VALID_CATEGORIES}")
 
     locomo_dir = Path(LOCOMO_PATH)
     json_path = locomo_dir / "locomo10.json"
@@ -238,8 +238,7 @@ def locomo(
 register_benchmark(
     name="locomo",
     description=(
-        "LoCoMo - Long-term conversational memory with multi-hop QA over "
-        "~600-turn dialogues"
+        "LoCoMo - Long-term conversational memory with multi-hop QA over ~600-turn dialogues"
     ),
     category="conversation",
     total_samples=0,

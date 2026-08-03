@@ -11,15 +11,11 @@ Covers:
 """
 
 import hashlib
-import json
-import os
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, call
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from inspect_ai.dataset import Sample
-
 
 # =============================================================================
 # get_dataset_path() Tests
@@ -291,7 +287,7 @@ class TestGenerateChecksumManifest:
 
     def test_generates_checksums_for_all_files(self, tmp_path: Path) -> None:
         """Should generate checksums for all files in directory."""
-        from matric_eval.datasets import compute_checksum, generate_checksum_manifest
+        from matric_eval.datasets import generate_checksum_manifest
 
         (tmp_path / "file1.txt").write_bytes(b"content1")
         (tmp_path / "file2.txt").write_bytes(b"content2")
@@ -384,7 +380,9 @@ class TestLoadHFDataset:
         mock_ds.__iter__ = Mock(return_value=iter(records))
         mock_ds.__len__ = Mock(return_value=n)
         # Support indexing
-        mock_ds.__getitem__ = Mock(side_effect=lambda k: records[k] if isinstance(k, int) else records)
+        mock_ds.__getitem__ = Mock(
+            side_effect=lambda k: records[k] if isinstance(k, int) else records
+        )
         return mock_ds
 
     def test_basic_loading_returns_samples(self) -> None:
@@ -395,6 +393,7 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = Mock(return_value=mock_ds)
 
             def simple_converter(record: dict) -> Sample:
@@ -421,6 +420,7 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = Mock(return_value=mock_ds)
 
             def simple_converter(record: dict) -> Sample:
@@ -457,6 +457,7 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = Mock(return_value=mock_ds)
 
             result = load_hf_dataset(
@@ -466,6 +467,7 @@ class TestLoadHFDataset:
             )
 
         assert len(converted_records) == 5
+        assert len(result) == 5
 
     def test_default_record_conversion_without_converter(self) -> None:
         """Should handle records without a custom converter (basic Sample creation)."""
@@ -479,6 +481,7 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = Mock(return_value=mock_ds)
 
             result = load_hf_dataset(
@@ -514,13 +517,16 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = capture_load_dataset
 
             load_hf_dataset(
                 "some/dataset",
                 split="train",
                 subset="subset_name",
-                record_to_sample=lambda r: Sample(input=r.get("input", ""), target=r.get("target", "")),
+                record_to_sample=lambda r: Sample(
+                    input=r.get("input", ""), target=r.get("target", "")
+                ),
             )
 
         # Subset should be passed as 'name' or 'config_name' to load_dataset
@@ -543,12 +549,15 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = capture_load_dataset
 
             load_hf_dataset(
                 "some/dataset",
                 split="validation",
-                record_to_sample=lambda r: Sample(input=r.get("input", ""), target=r.get("target", "")),
+                record_to_sample=lambda r: Sample(
+                    input=r.get("input", ""), target=r.get("target", "")
+                ),
             )
 
         assert captured_kwargs.get("split") == "validation"
@@ -563,6 +572,7 @@ class TestLoadHFDataset:
 
         with patch.dict("sys.modules", {"datasets": MagicMock()}):
             import datasets as mock_datasets_module
+
             mock_datasets_module.load_dataset = Mock(return_value=mock_ds)
 
             result = load_hf_dataset(
@@ -581,9 +591,7 @@ class TestLoadHFDataset:
 
         revision = "a" * 40
         mock_module = MagicMock()
-        mock_module.load_dataset = Mock(
-            return_value=[{"input": "question", "target": "answer"}]
-        )
+        mock_module.load_dataset = Mock(return_value=[{"input": "question", "target": "answer"}])
         with patch.dict("sys.modules", {"datasets": mock_module}):
             result = load_hf_dataset(
                 "owner/dataset",
@@ -650,9 +658,7 @@ class TestLoadHFDataset:
             ("RepositoryNotFoundError", "DatasetSourceError"),
         ],
     )
-    def test_remote_failures_are_classified(
-        self, exception_name: str, expected_error: str
-    ) -> None:
+    def test_remote_failures_are_classified(self, exception_name: str, expected_error: str) -> None:
         import matric_eval.datasets as dataset_module
 
         error_type = type(exception_name, (RuntimeError,), {})
@@ -660,9 +666,7 @@ class TestLoadHFDataset:
         mock_module.load_dataset = Mock(side_effect=error_type("upstream detail"))
         with patch.dict("sys.modules", {"datasets": mock_module}):
             with pytest.raises(getattr(dataset_module, expected_error)) as exc_info:
-                dataset_module.load_hf_dataset(
-                    "owner/dataset", revision="c" * 40
-                )
+                dataset_module.load_hf_dataset("owner/dataset", revision="c" * 40)
         assert "upstream detail" not in str(exc_info.value)
 
     def test_offline_failure_is_classified(self) -> None:
@@ -673,9 +677,7 @@ class TestLoadHFDataset:
         mock_module.load_dataset = Mock(side_effect=FileNotFoundError("cache path"))
         with patch.dict("sys.modules", {"datasets": mock_module}):
             with pytest.raises(DatasetOfflineError, match="offline cache"):
-                load_hf_dataset(
-                    "owner/dataset", revision="d" * 40, offline=True
-                )
+                load_hf_dataset("owner/dataset", revision="d" * 40, offline=True)
 
 
 # =============================================================================

@@ -36,6 +36,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SEED", raising=False)
 
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -284,9 +285,7 @@ class TestLoadMemoryagentbench:
             "matric_eval.tasks.memoryagentbench.MEMORYAGENTBENCH_PATH",
             str(mab_jsonl_file),
         ):
-            with patch(
-                "matric_eval.tasks.memoryagentbench.get_sample_count", return_value=0
-            ):
+            with patch("matric_eval.tasks.memoryagentbench.get_sample_count", return_value=0):
                 samples = load_memoryagentbench(tier="smoke")
                 assert samples == []
 
@@ -296,9 +295,7 @@ class TestLoadMemoryagentbench:
             "matric_eval.tasks.memoryagentbench.MEMORYAGENTBENCH_PATH",
             str(mab_jsonl_file),
         ):
-            with patch(
-                "matric_eval.tasks.memoryagentbench.get_sample_count", return_value=3
-            ):
+            with patch("matric_eval.tasks.memoryagentbench.get_sample_count", return_value=3):
                 samples_1 = load_memoryagentbench(tier="smoke")
                 samples_2 = load_memoryagentbench(tier="smoke")
                 assert [s.id for s in samples_1] == [s.id for s in samples_2]
@@ -431,24 +428,28 @@ class TestMemoryagentbenchTierConfig:
     def test_smoke_tier_has_memoryagentbench(self) -> None:
         """Smoke tier should have MemoryAgentBench samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("smoke")
         assert tier.memoryagentbench > 0
 
     def test_full_tier_has_all_memoryagentbench(self) -> None:
         """Full tier should have 0 (meaning all samples)."""
         from matric_eval.config import get_tier
+
         tier = get_tier("full")
         assert tier.memoryagentbench == 0
 
     def test_quick_tier_has_memoryagentbench(self) -> None:
         """Quick tier should have MemoryAgentBench samples configured."""
         from matric_eval.config import get_tier
+
         tier = get_tier("quick")
         assert tier.memoryagentbench > 0
 
     def test_smoke_less_than_quick(self) -> None:
         """Smoke tier should have fewer samples than quick tier."""
         from matric_eval.config import get_tier
+
         smoke = get_tier("smoke")
         quick = get_tier("quick")
         assert smoke.memoryagentbench < quick.memoryagentbench

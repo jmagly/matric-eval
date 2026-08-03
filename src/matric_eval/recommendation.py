@@ -131,9 +131,7 @@ class RecommendationReport:
                     "capability": rec.capability,
                     "recommended": rec.recommended_model,
                     "score": rec.score,
-                    "alternatives": [
-                        {"model": m, "score": s} for m, s in rec.alternatives
-                    ],
+                    "alternatives": [{"model": m, "score": s} for m, s in rec.alternatives],
                     "rationale": rec.rationale,
                     "strengths": rec.strengths,
                     "weaknesses": rec.weaknesses,
@@ -324,9 +322,7 @@ class RecommendationEngine:
             )
 
         # Find best overall model
-        overall_scores = [
-            (model, score.overall_score) for model, score in model_scores.items()
-        ]
+        overall_scores = [(model, score.overall_score) for model, score in model_scores.items()]
         overall_scores.sort(key=lambda x: x[1], reverse=True)
         best_overall = overall_scores[0][0] if overall_scores else ""
 
@@ -379,9 +375,7 @@ class RecommendationEngine:
 
             # Required benchmarks constraint
             if constraints.required_benchmarks:
-                has_all = all(
-                    b in score.benchmark_scores for b in constraints.required_benchmarks
-                )
+                has_all = all(b in score.benchmark_scores for b in constraints.required_benchmarks)
                 if not has_all:
                     continue
 
@@ -470,9 +464,7 @@ class RecommendationEngine:
 
         for cap_name, cap_score in score.capability_scores.items():
             # Get average across all models for this capability
-            all_cap_scores = [
-                s.capability_scores.get(cap_name, 0.0) for s in all_scores.values()
-            ]
+            all_cap_scores = [s.capability_scores.get(cap_name, 0.0) for s in all_scores.values()]
             avg = sum(all_cap_scores) / len(all_cap_scores) if all_cap_scores else 0.0
 
             cap = self.capabilities.get(cap_name)
@@ -500,9 +492,7 @@ class RecommendationEngine:
         Returns:
             Confidence score between 0.0 and 1.0
         """
-        total_benchmarks = sum(
-            len(cap.benchmarks) for cap in self.capabilities.values()
-        )
+        total_benchmarks = sum(len(cap.benchmarks) for cap in self.capabilities.values())
         if total_benchmarks == 0:
             return 0.0
 

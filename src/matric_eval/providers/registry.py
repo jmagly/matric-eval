@@ -51,8 +51,7 @@ class ProviderRegistry:
             # Create a fresh instance with custom config
             if name not in self._factories:
                 raise ValueError(
-                    f"Unknown provider: '{name}'. "
-                    f"Available: {', '.join(self._factories.keys())}"
+                    f"Unknown provider: '{name}'. Available: {', '.join(self._factories.keys())}"
                 )
             if config is None:
                 config = ProviderConfig(extra=kwargs)
@@ -62,8 +61,7 @@ class ProviderRegistry:
         if name not in self._instances:
             if name not in self._factories:
                 raise ValueError(
-                    f"Unknown provider: '{name}'. "
-                    f"Available: {', '.join(self._factories.keys())}"
+                    f"Unknown provider: '{name}'. Available: {', '.join(self._factories.keys())}"
                 )
             self._instances[name] = self._factories[name]()
         return self._instances[name]
@@ -83,11 +81,11 @@ _registry = ProviderRegistry()
 
 def _register_builtins() -> None:
     """Register all built-in providers."""
-    from matric_eval.providers.ollama import OllamaProvider
-    from matric_eval.providers.llamacpp import LlamaCppProvider
-    from matric_eval.providers.vllm import VLLMProvider
-    from matric_eval.providers.openrouter import OpenRouterProvider
     from matric_eval.providers.chutes import ChutesProvider
+    from matric_eval.providers.llamacpp import LlamaCppProvider
+    from matric_eval.providers.ollama import OllamaProvider
+    from matric_eval.providers.openrouter import OpenRouterProvider
+    from matric_eval.providers.vllm import VLLMProvider
 
     _registry.register("ollama", OllamaProvider)
     _registry.register("llama-cpp", LlamaCppProvider)

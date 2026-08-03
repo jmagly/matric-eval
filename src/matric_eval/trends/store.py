@@ -192,7 +192,9 @@ class EvalStore:
     def get_benchmarks(self) -> list[str]:
         """Get all unique benchmark names in the store."""
         conn = self._get_conn()
-        rows = conn.execute("SELECT DISTINCT benchmark FROM evaluations ORDER BY benchmark").fetchall()
+        rows = conn.execute(
+            "SELECT DISTINCT benchmark FROM evaluations ORDER BY benchmark"
+        ).fetchall()
         return [row["benchmark"] for row in rows]
 
     def count(self) -> int:

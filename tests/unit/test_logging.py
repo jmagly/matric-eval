@@ -11,10 +11,10 @@ Covers:
 
 import json
 import logging
-import pytest
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+
+import pytest
 
 from matric_eval.logging import (
     ColorFormatter,
@@ -32,7 +32,6 @@ from matric_eval.logging import (
     get_logger,
     set_context,
 )
-
 
 # =============================================================================
 # LogLevel Tests
@@ -376,9 +375,7 @@ class TestEvalLogger:
         assert metrics.total_tokens == 100
 
         # Record failure
-        eval_logger.record_sample_complete(
-            "run_1", success=False, error={"msg": "Test error"}
-        )
+        eval_logger.record_sample_complete("run_1", success=False, error={"msg": "Test error"})
         assert metrics.completed_samples == 2
         assert metrics.failed_samples == 1
         assert len(metrics.errors) == 1

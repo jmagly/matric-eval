@@ -13,7 +13,6 @@ import pytest
 from matric_eval.prompts import get_prompt
 from matric_eval.prompts.templates import PROMPTS
 
-
 # =============================================================================
 # Prompt Retrieval Tests
 # =============================================================================
@@ -185,8 +184,8 @@ class TestPromptTemplates:
             prompt_on = PROMPTS[benchmark]["thinking_on"]
             prompt_off = PROMPTS[benchmark]["thinking_off"]
             # Should mention code output
-            assert ("code" in prompt_on.lower() or "python" in prompt_on.lower())
-            assert ("code" in prompt_off.lower() or "python" in prompt_off.lower())
+            assert "code" in prompt_on.lower() or "python" in prompt_on.lower()
+            assert "code" in prompt_off.lower() or "python" in prompt_off.lower()
 
     def test_thinking_on_prompts_guide_reasoning(self) -> None:
         """Thinking-on prompts should guide reasoning structure."""

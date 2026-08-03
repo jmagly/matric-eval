@@ -6,14 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from matric_eval.sandbox.config import SandboxConfig
-from matric_eval.sandbox.context import SandboxInterface, get_sandbox
 from matric_eval.sandbox.client import (
     SandboxClient,
     SandboxTaskError,
     SandboxUnavailableError,
 )
-from matric_eval.sandbox.tools import UnsafePathError, validate_cwd, validate_path
+from matric_eval.sandbox.config import SandboxConfig
+from matric_eval.sandbox.context import SandboxInterface, get_sandbox
 from matric_eval.sandbox.runners import (
     GoTestRunner,
     JavaTestRunner,
@@ -23,7 +22,7 @@ from matric_eval.sandbox.runners import (
     TestRunner,
     get_runner,
 )
-
+from matric_eval.sandbox.tools import UnsafePathError, validate_cwd, validate_path
 
 # =============================================================================
 # SandboxConfig Tests
@@ -77,9 +76,7 @@ class TestSandboxClient:
         import httpx
 
         client = self._make_client()
-        with patch.object(
-            client._client, "get", side_effect=httpx.ConnectError("refused")
-        ):
+        with patch.object(client._client, "get", side_effect=httpx.ConnectError("refused")):
             assert client.check_health() is False
 
     def test_submit_task_success(self) -> None:
@@ -145,9 +142,7 @@ class TestSandboxClient:
         import httpx
 
         client = self._make_client()
-        with patch.object(
-            client._client, "post", side_effect=httpx.ConnectError("refused")
-        ):
+        with patch.object(client._client, "post", side_effect=httpx.ConnectError("refused")):
             with pytest.raises(SandboxUnavailableError):
                 client.submit_task("test", repo_url="https://example.com/r.git")
 
@@ -180,7 +175,12 @@ class TestSandboxClient:
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "artifacts": [
-                {"name": "output.json", "path": "/out/output.json", "size_bytes": 1024, "content_type": "application/json"}
+                {
+                    "name": "output.json",
+                    "path": "/out/output.json",
+                    "size_bytes": 1024,
+                    "content_type": "application/json",
+                }
             ]
         }
         with patch.object(client._client, "get", return_value=mock_resp):
@@ -354,8 +354,6 @@ class TestRunners:
             assert isinstance(runner, TestRunner)
 
     def test_test_result(self) -> None:
-        result = TestResult(
-            passed=True, exit_code=0, output="OK", tests_run=5, tests_passed=5
-        )
+        result = TestResult(passed=True, exit_code=0, output="OK", tests_run=5, tests_passed=5)
         assert result.passed is True
         assert result.tests_failed == 0

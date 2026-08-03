@@ -5,7 +5,6 @@ Compares model outputs against known benchmark solutions to detect
 potential memorization of evaluation data.
 """
 
-from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional
 

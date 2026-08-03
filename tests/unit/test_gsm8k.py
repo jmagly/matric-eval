@@ -30,7 +30,6 @@ from matric_eval.tasks.gsm8k import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_gsm8k_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -585,9 +584,7 @@ class TestGSM8KEdgeCases:
         # Should return all 1,319 samples, not 2000
         assert len(samples) == 1319
 
-    def test_load_gsm8k_zero_samples_requested(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_load_gsm8k_zero_samples_requested(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should handle zero sample request gracefully."""
         monkeypatch.setenv("EVAL_GSM8K_SAMPLES", "0")
         # Reset singleton to pick up new env var

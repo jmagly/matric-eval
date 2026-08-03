@@ -10,8 +10,6 @@ Tests cover:
 """
 
 import json
-from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -24,19 +22,18 @@ from matric_eval.providers.base import (
     ProviderError,
     ProviderModelNotFoundError,
 )
+from matric_eval.providers.chutes import ChutesProvider
+from matric_eval.providers.llamacpp import LlamaCppProvider
+from matric_eval.providers.matrix import EvaluationMatrix, MatrixExclusion
+from matric_eval.providers.ollama import OllamaProvider
+from matric_eval.providers.openrouter import OpenRouterProvider
 from matric_eval.providers.registry import (
     ProviderRegistry,
     get_provider,
     list_providers,
     register_provider,
 )
-from matric_eval.providers.ollama import OllamaProvider
-from matric_eval.providers.llamacpp import LlamaCppProvider
 from matric_eval.providers.vllm import VLLMProvider
-from matric_eval.providers.openrouter import OpenRouterProvider
-from matric_eval.providers.chutes import ChutesProvider
-from matric_eval.providers.matrix import EvaluationMatrix, MatrixExclusion
-
 
 # =============================================================================
 # ModelInfo Tests
@@ -114,35 +111,44 @@ class TestExceptions:
 class TestProviderProtocol:
     """Test that all providers satisfy the Provider protocol."""
 
-    @pytest.mark.parametrize("provider_cls", [
-        OllamaProvider,
-        LlamaCppProvider,
-        VLLMProvider,
-        OpenRouterProvider,
-        ChutesProvider,
-    ])
+    @pytest.mark.parametrize(
+        "provider_cls",
+        [
+            OllamaProvider,
+            LlamaCppProvider,
+            VLLMProvider,
+            OpenRouterProvider,
+            ChutesProvider,
+        ],
+    )
     def test_is_provider(self, provider_cls):
         provider = provider_cls()
         assert isinstance(provider, Provider)
 
-    @pytest.mark.parametrize("provider_cls,expected_name", [
-        (OllamaProvider, "ollama"),
-        (LlamaCppProvider, "llama-cpp"),
-        (VLLMProvider, "vllm"),
-        (OpenRouterProvider, "openrouter"),
-        (ChutesProvider, "chutes"),
-    ])
+    @pytest.mark.parametrize(
+        "provider_cls,expected_name",
+        [
+            (OllamaProvider, "ollama"),
+            (LlamaCppProvider, "llama-cpp"),
+            (VLLMProvider, "vllm"),
+            (OpenRouterProvider, "openrouter"),
+            (ChutesProvider, "chutes"),
+        ],
+    )
     def test_provider_names(self, provider_cls, expected_name):
         provider = provider_cls()
         assert provider.name == expected_name
 
-    @pytest.mark.parametrize("provider_cls,expected_display", [
-        (OllamaProvider, "Ollama"),
-        (LlamaCppProvider, "llama.cpp"),
-        (VLLMProvider, "vLLM"),
-        (OpenRouterProvider, "OpenRouter"),
-        (ChutesProvider, "Chutes"),
-    ])
+    @pytest.mark.parametrize(
+        "provider_cls,expected_display",
+        [
+            (OllamaProvider, "Ollama"),
+            (LlamaCppProvider, "llama.cpp"),
+            (VLLMProvider, "vLLM"),
+            (OpenRouterProvider, "OpenRouter"),
+            (ChutesProvider, "Chutes"),
+        ],
+    )
     def test_provider_display_names(self, provider_cls, expected_display):
         provider = provider_cls()
         assert provider.display_name == expected_display
@@ -213,6 +219,7 @@ qwen2.5:7b             e9c23b5a5d51    4.7 GB    3 days ago""",
     @patch("matric_eval.providers.ollama.subprocess.run")
     def test_list_models_connection_error(self, mock_run):
         from subprocess import CalledProcessError
+
         mock_run.side_effect = CalledProcessError(1, "ollama list")
         provider = OllamaProvider()
         with pytest.raises(ProviderConnectionError):
@@ -286,9 +293,7 @@ class TestLlamaCppProvider:
         mock_resp = MagicMock()
         mock_resp.__enter__ = Mock(return_value=mock_resp)
         mock_resp.__exit__ = Mock(return_value=False)
-        mock_resp.read.return_value = json.dumps({
-            "data": [{"id": "my-gguf-model"}]
-        }).encode()
+        mock_resp.read.return_value = json.dumps({"data": [{"id": "my-gguf-model"}]}).encode()
         mock_urlopen.return_value = mock_resp
 
         provider = LlamaCppProvider()
@@ -323,7 +328,9 @@ class TestVLLMProvider:
 
     def test_format_model_id(self):
         provider = VLLMProvider()
-        assert provider.format_model_id("meta-llama/Llama-3.2-3B") == "openai/meta-llama/Llama-3.2-3B"
+        assert (
+            provider.format_model_id("meta-llama/Llama-3.2-3B") == "openai/meta-llama/Llama-3.2-3B"
+        )
 
     @patch("matric_eval.providers.vllm.urllib.request.urlopen")
     def test_is_available_health(self, mock_urlopen):
@@ -341,12 +348,14 @@ class TestVLLMProvider:
         mock_resp = MagicMock()
         mock_resp.__enter__ = Mock(return_value=mock_resp)
         mock_resp.__exit__ = Mock(return_value=False)
-        mock_resp.read.return_value = json.dumps({
-            "data": [
-                {"id": "meta-llama/Llama-3.2-3B"},
-                {"id": "mistralai/Mistral-7B"},
-            ]
-        }).encode()
+        mock_resp.read.return_value = json.dumps(
+            {
+                "data": [
+                    {"id": "meta-llama/Llama-3.2-3B"},
+                    {"id": "mistralai/Mistral-7B"},
+                ]
+            }
+        ).encode()
         mock_urlopen.return_value = mock_resp
 
         provider = VLLMProvider()
@@ -384,22 +393,27 @@ class TestOpenRouterProvider:
 
     def test_format_model_id(self):
         provider = OpenRouterProvider()
-        assert provider.format_model_id("anthropic/claude-3.5-sonnet") == "openai/anthropic/claude-3.5-sonnet"
+        assert (
+            provider.format_model_id("anthropic/claude-3.5-sonnet")
+            == "openai/anthropic/claude-3.5-sonnet"
+        )
 
     @patch("matric_eval.providers.openrouter.urllib.request.urlopen")
     def test_list_models(self, mock_urlopen):
         mock_resp = MagicMock()
         mock_resp.__enter__ = Mock(return_value=mock_resp)
         mock_resp.__exit__ = Mock(return_value=False)
-        mock_resp.read.return_value = json.dumps({
-            "data": [
-                {
-                    "id": "anthropic/claude-3.5-sonnet",
-                    "pricing": {"prompt": "0.003", "completion": "0.015"},
-                    "context_length": 200000,
-                },
-            ]
-        }).encode()
+        mock_resp.read.return_value = json.dumps(
+            {
+                "data": [
+                    {
+                        "id": "anthropic/claude-3.5-sonnet",
+                        "pricing": {"prompt": "0.003", "completion": "0.015"},
+                        "context_length": 200000,
+                    },
+                ]
+            }
+        ).encode()
         mock_urlopen.return_value = mock_resp
 
         config = ProviderConfig(api_key="test-key")
@@ -537,14 +551,27 @@ class TestGlobalRegistry:
     def test_register_custom_provider(self):
         class CustomProvider:
             @property
-            def name(self): return "custom"
+            def name(self):
+                return "custom"
+
             @property
-            def display_name(self): return "Custom"
-            def is_available(self): return True
-            def list_models(self, max_size_gb=0): return []
-            def get_model_info(self, model): return ModelInfo(name=model)
-            def format_model_id(self, model): return f"custom/{model}"
-            def get_eval_kwargs(self, model, **kw): return {}
+            def display_name(self):
+                return "Custom"
+
+            def is_available(self):
+                return True
+
+            def list_models(self, max_size_gb=0):
+                return []
+
+            def get_model_info(self, model):
+                return ModelInfo(name=model)
+
+            def format_model_id(self, model):
+                return f"custom/{model}"
+
+            def get_eval_kwargs(self, model, **kw):
+                return {}
 
         register_provider("custom", CustomProvider)
         provider = get_provider("custom")
@@ -685,6 +712,7 @@ evaluation:
 class TestEngineProviderIntegration:
     def test_engine_with_provider(self):
         from matric_eval.core.engine import EvaluationEngine
+
         provider = OllamaProvider()
         engine = EvaluationEngine(
             model="llama3.2:3b",
@@ -697,6 +725,7 @@ class TestEngineProviderIntegration:
 
     def test_engine_without_provider(self):
         from matric_eval.core.engine import EvaluationEngine
+
         engine = EvaluationEngine(model="ollama/llama3.2:3b", tier="smoke")
         assert engine.model == "ollama/llama3.2:3b"
         assert engine.provider is None
@@ -704,6 +733,7 @@ class TestEngineProviderIntegration:
 
     def test_engine_provider_in_results(self):
         from matric_eval.core.engine import EvaluationEngine
+
         provider = VLLMProvider()
         engine = EvaluationEngine(
             model="test-model",
@@ -715,11 +745,13 @@ class TestEngineProviderIntegration:
 
     def test_engine_openai_prefix_detection(self):
         from matric_eval.core.engine import EvaluationEngine
+
         engine = EvaluationEngine(model="openai/gpt-4", tier="smoke")
         assert engine._get_provider_name() == "openai"
 
     def test_engine_unknown_prefix_detection(self):
         from matric_eval.core.engine import EvaluationEngine
+
         engine = EvaluationEngine(model="some-model", tier="smoke")
         assert engine._get_provider_name() == "unknown"
 
@@ -732,6 +764,7 @@ class TestEngineProviderIntegration:
 class TestCLIProviderIntegration:
     def test_list_providers_command(self):
         from click.testing import CliRunner
+
         from matric_eval.cli import cli
 
         runner = CliRunner()
@@ -745,6 +778,7 @@ class TestCLIProviderIntegration:
 
     def test_list_providers_json(self):
         from click.testing import CliRunner
+
         from matric_eval.cli import cli
 
         runner = CliRunner()
@@ -757,11 +791,19 @@ class TestCLIProviderIntegration:
 
     def test_run_with_unknown_provider(self):
         from click.testing import CliRunner
+
         from matric_eval.cli import cli
 
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "run", "--model", "test", "--provider", "nonexistent",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "run",
+                "--model",
+                "test",
+                "--provider",
+                "nonexistent",
+            ],
+        )
         assert result.exit_code == 1
         assert "Unknown provider" in result.output or "Available providers" in result.output

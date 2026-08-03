@@ -17,10 +17,10 @@ import base64
 import io
 import struct
 import zlib
-from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 # ---------------------------------------------------------------------------
 # Minimal 1×1 transparent PNG (67 bytes, no external files needed)
@@ -28,6 +28,7 @@ import pytest
 # PNG signature + IHDR + IDAT (single transparent white pixel) + IEND
 def _make_1x1_png() -> bytes:
     """Generate a valid 1×1 RGBA PNG in memory."""
+
     def _chunk(tag: bytes, data: bytes) -> bytes:
         c = zlib.crc32(tag + data) & 0xFFFFFFFF
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", c)
@@ -47,6 +48,7 @@ TINY_PNG = _make_1x1_png()
 # ===========================================================================
 # ModalInput tests
 # ===========================================================================
+
 
 class TestModalInputFromBytes:
     """ModalInput can be constructed from raw bytes."""
@@ -93,6 +95,7 @@ class TestModalInputResize:
     def test_resize_large_image_clips_to_max_dim(self):
         """A 200x100 image resized to max_dim=50 → 50x25."""
         from PIL import Image
+
         from matric_eval.multimodal import ModalInput
 
         buf = io.BytesIO()
@@ -125,6 +128,7 @@ class TestModalInputBase64:
         decoded = base64.b64decode(b64)
         # Re-open the decoded bytes as an image (should not raise)
         from PIL import Image
+
         img = Image.open(io.BytesIO(decoded))
         assert img.size == (1, 1)
 
@@ -142,6 +146,7 @@ class TestModalInputToContentImage:
 
     def test_returns_content_image(self):
         from inspect_ai.model import ContentImage
+
         from matric_eval.multimodal import ModalInput
 
         mi = ModalInput.from_bytes(TINY_PNG, format="png")
@@ -221,6 +226,7 @@ class TestModalInputValidation:
     def test_rejects_oversized_image(self):
         """Images larger than 4096×4096 are rejected."""
         from PIL import Image
+
         from matric_eval.multimodal import ModalInput
 
         # We must bypass PIL.MAX_IMAGE_PIXELS to create the test image
@@ -263,6 +269,7 @@ class TestModalInputValidation:
 # ===========================================================================
 # FrameBudget tests
 # ===========================================================================
+
 
 class TestFrameBudgetCalculate:
     """FrameBudget.calculate() returns correct frame counts per duration tier."""
@@ -327,6 +334,7 @@ class TestFrameBudgetCalculate:
 # FrameExtractor tests (mocked ffmpeg)
 # ===========================================================================
 
+
 class TestFrameExtractorMocked:
     """FrameExtractor uses subprocess to call ffmpeg; tests use mocks."""
 
@@ -349,7 +357,6 @@ class TestFrameExtractorMocked:
 
         def fake_run(cmd, **kwargs):
             # Simulate ffmpeg writing frame_000001.png into the temp dir
-            import re
             # Find the output pattern arg (e.g. /tmp/xxx/frame_%06d.png)
             out_pattern = None
             for arg in cmd:
@@ -357,10 +364,12 @@ class TestFrameExtractorMocked:
                     out_pattern = str(arg)
                     break
             if out_pattern:
-                import os
-                out_dir = os.path.dirname(out_pattern)
                 for i in range(1, 4):
-                    fname = out_pattern % i if "%" in out_pattern else out_pattern.replace("%06d", f"{i:06d}")
+                    fname = (
+                        out_pattern % i
+                        if "%" in out_pattern
+                        else out_pattern.replace("%06d", f"{i:06d}")
+                    )
                     with open(fname, "wb") as f:
                         f.write(frame_png)
             result = MagicMock()
@@ -563,6 +572,7 @@ class TestParseVTT:
 # SubtitleEntry dataclass tests
 # ===========================================================================
 
+
 class TestSubtitleEntry:
     """SubtitleEntry has start_ms, end_ms, text fields."""
 
@@ -579,11 +589,13 @@ class TestSubtitleEntry:
 # build_multimodal_content tests
 # ===========================================================================
 
+
 class TestBuildMultimodalContent:
     """build_multimodal_content assembles Inspect AI content lists."""
 
     def test_text_only_returns_list_with_one_content_text(self):
         from inspect_ai.model import ContentText
+
         from matric_eval.multimodal import build_multimodal_content
 
         result = build_multimodal_content("What is this?")
@@ -593,6 +605,7 @@ class TestBuildMultimodalContent:
 
     def test_text_plus_images(self):
         from inspect_ai.model import ContentImage, ContentText
+
         from matric_eval.multimodal import ModalInput, build_multimodal_content
 
         mi = ModalInput.from_bytes(TINY_PNG, format="png")
@@ -603,6 +616,7 @@ class TestBuildMultimodalContent:
 
     def test_text_plus_multiple_images(self):
         from inspect_ai.model import ContentImage
+
         from matric_eval.multimodal import ModalInput, build_multimodal_content
 
         images = [ModalInput.from_bytes(TINY_PNG, format="png") for _ in range(3)]
@@ -613,6 +627,7 @@ class TestBuildMultimodalContent:
 
     def test_text_plus_images_plus_subtitles(self):
         from inspect_ai.model import ContentText
+
         from matric_eval.multimodal import ModalInput, build_multimodal_content
         from matric_eval.multimodal.subtitles import SubtitleEntry
 
@@ -642,6 +657,7 @@ class TestBuildMultimodalContent:
 # ===========================================================================
 # supports_vision tests
 # ===========================================================================
+
 
 class TestSupportsVision:
     """supports_vision detects vision-capable models conservatively."""
@@ -695,6 +711,7 @@ class TestSupportsVision:
 # ===========================================================================
 # DocumentInput stub tests
 # ===========================================================================
+
 
 class TestDocumentInputStub:
     """DocumentInput is a stub placeholder for future OCR support."""

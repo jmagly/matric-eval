@@ -41,16 +41,6 @@ from matric_eval.scorers.multidimensional import (
     multidimensional_scorer,
     quality_scorer,
 )
-from matric_eval.scorers.retrieval import (
-    mrr,
-    mrr_scorer,
-    ndcg_at_k,
-    ndcg_at_k_scorer,
-    precision_at_k,
-    precision_at_k_scorer,
-    recall_at_k,
-    recall_at_k_scorer,
-)
 from matric_eval.scorers.pass_k import (
     aggregate_pass_k_results,
     pass_at_k,
@@ -62,6 +52,16 @@ from matric_eval.scorers.patch_apply import (
     validate_test_path,
 )
 from matric_eval.scorers.project import BUILD_WEIGHT, TEST_WEIGHT, project_scorer
+from matric_eval.scorers.retrieval import (
+    mrr,
+    mrr_scorer,
+    ndcg_at_k,
+    ndcg_at_k_scorer,
+    precision_at_k,
+    precision_at_k_scorer,
+    recall_at_k,
+    recall_at_k_scorer,
+)
 
 __all__ = [
     "agentic_judge_scorer",

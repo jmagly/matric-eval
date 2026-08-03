@@ -15,7 +15,6 @@ AtCoder, CodeForces, LeetCode with test cases for validation.
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -31,7 +30,6 @@ from matric_eval.tasks.livecodebench import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_livecodebench_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -46,6 +44,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -153,7 +152,7 @@ class TestLoadLiveCodeBench:
 
     def test_load_livecodebench_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -189,7 +188,7 @@ class TestRecordToSample:
                 {"input": "abcde\n3\n3 ab abc abcd\n4 f c cd bcde\n2 e de", "output": "2"}
             ],
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -210,7 +209,7 @@ class TestRecordToSample:
             "difficulty": "medium",
             "public_test_cases": [],
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -231,7 +230,7 @@ class TestRecordToSample:
             "difficulty": "easy",
             "public_test_cases": [],
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -251,10 +250,10 @@ class TestRecordToSample:
             "difficulty": "hard",
             "public_test_cases": [
                 {"input": "5\n", "output": "10"},
-                {"input": "3\n", "output": "6"}
+                {"input": "3\n", "output": "6"},
             ],
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -275,7 +274,7 @@ class TestRecordToSample:
             "difficulty": "medium",
             "public_test_cases": [{"input": "1", "output": "2"}],
             "private_test_cases": [{"input": "3", "output": "4"}],
-            "metadata": {"tags": ["dp", "greedy"]}
+            "metadata": {"tags": ["dp", "greedy"]},
         }
 
         sample = record_to_sample(record)
@@ -289,10 +288,7 @@ class TestRecordToSample:
 
     def test_record_to_sample_preserves_test_cases(self) -> None:
         """Should preserve all test cases in metadata for execution."""
-        test_cases = [
-            {"input": "5\n", "output": "10"},
-            {"input": "3\n", "output": "6"}
-        ]
+        test_cases = [{"input": "5\n", "output": "10"}, {"input": "3\n", "output": "6"}]
         record = {
             "question_title": "Test",
             "question_content": "Problem",
@@ -304,7 +300,7 @@ class TestRecordToSample:
             "difficulty": "easy",
             "public_test_cases": test_cases,
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -442,17 +438,19 @@ class TestLiveCodeBenchConfigIntegration:
         from matric_eval.config import TIERS
 
         smoke_count = TIERS["smoke"].livecodebench
-        quick_count = TIERS["quick"].livecodebench
 
         # Smoke tier should be 5 (or 0 if not configured)
         samples = load_livecodebench(tier="smoke")
         assert len(samples) == max(5, smoke_count)
 
-    def test_load_livecodebench_respects_environment_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_livecodebench_respects_environment_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should respect EVAL_LIVECODEBENCH_SAMPLES environment variable."""
         monkeypatch.setenv("EVAL_LIVECODEBENCH_SAMPLES", "10")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         # Should load 10 samples instead of default tier counts
@@ -484,7 +482,7 @@ class TestLiveCodeBenchErrorHandling:
 
     def test_load_livecodebench_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -497,7 +495,7 @@ class TestLiveCodeBenchErrorHandling:
 
     def test_load_livecodebench_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"question_id": "abc123", "incomplete": \n')
             temp_path = f.name
 
@@ -519,11 +517,14 @@ class TestLiveCodeBenchErrorHandling:
 class TestLiveCodeBenchEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_livecodebench_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_livecodebench_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_LIVECODEBENCH_SAMPLES", "10000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_livecodebench()
@@ -531,11 +532,14 @@ class TestLiveCodeBenchEdgeCases:
         assert len(samples) >= 880
         assert len(samples) <= 1100
 
-    def test_load_livecodebench_zero_samples_requested(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_livecodebench_zero_samples_requested(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should handle zero sample request gracefully."""
         monkeypatch.setenv("EVAL_LIVECODEBENCH_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_livecodebench()
@@ -554,7 +558,7 @@ class TestLiveCodeBenchEdgeCases:
             "difficulty": "easy",
             "public_test_cases": [{"input": "1", "output": "2"}],
             "private_test_cases": [],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)
@@ -574,7 +578,7 @@ class TestLiveCodeBenchEdgeCases:
             "difficulty": "hard",
             "public_test_cases": [],
             "private_test_cases": [{"input": "1", "output": "2"}],
-            "metadata": {}
+            "metadata": {},
         }
 
         sample = record_to_sample(record)

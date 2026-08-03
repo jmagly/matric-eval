@@ -13,7 +13,6 @@ import pytest
 
 from matric_eval.scorers.elo import EloAggregator, MatchResult
 
-
 # =============================================================================
 # MatchResult Tests
 # =============================================================================
@@ -138,12 +137,14 @@ class TestEloAggregatorMatches:
         """Multiple wins for same model should accumulate higher rating."""
         agg = EloAggregator(base_rating=1200, k_factor=32)
         for i in range(5):
-            agg.record_match(MatchResult(
-                model_a="strong",
-                model_b="weak",
-                winner="strong",
-                sample_id=f"s{i}",
-            ))
+            agg.record_match(
+                MatchResult(
+                    model_a="strong",
+                    model_b="weak",
+                    winner="strong",
+                    sample_id=f"s{i}",
+                )
+            )
         ratings = dict(agg.get_ratings())
         assert ratings["strong"] > 1200
         assert ratings["weak"] < 1200

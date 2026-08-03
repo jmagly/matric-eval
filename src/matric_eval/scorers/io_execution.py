@@ -183,12 +183,14 @@ def io_execution_scorer(timeout: int = 30) -> Scorer:
                 passed += 1
             else:
                 if len(failed_cases) < 3:  # Limit failed case logging
-                    failed_cases.append({
-                        "test": i + 1,
-                        "error": result.get("error") or "Output mismatch",
-                        "expected": expected_output[:100] if expected_output else "",
-                        "actual": result["stdout"][:100] if result["stdout"] else "",
-                    })
+                    failed_cases.append(
+                        {
+                            "test": i + 1,
+                            "error": result.get("error") or "Output mismatch",
+                            "expected": expected_output[:100] if expected_output else "",
+                            "actual": result["stdout"][:100] if result["stdout"] else "",
+                        }
+                    )
 
         # Calculate score as fraction of tests passed
         score_value = passed / total if total > 0 else 0.0

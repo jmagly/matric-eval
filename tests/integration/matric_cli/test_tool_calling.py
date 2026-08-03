@@ -40,7 +40,9 @@ class TestToolCallingData:
 
         for scenario in tool_calling_scenarios:
             for field in required_fields:
-                assert field in scenario, f"Missing '{field}' in scenario {scenario.get('id', 'unknown')}"
+                assert field in scenario, (
+                    f"Missing '{field}' in scenario {scenario.get('id', 'unknown')}"
+                )
 
     def test_scenario_ids_are_unique(self, tool_calling_scenarios):
         """Scenario IDs must be unique."""
@@ -52,8 +54,9 @@ class TestToolCallingData:
         valid_difficulties = {"easy", "medium", "hard"}
 
         for scenario in tool_calling_scenarios:
-            assert scenario["difficulty"] in valid_difficulties, \
+            assert scenario["difficulty"] in valid_difficulties, (
                 f"Invalid difficulty '{scenario['difficulty']}' in {scenario['id']}"
+            )
 
     def test_prompts_are_non_empty(self, tool_calling_scenarios):
         """Prompts must be non-empty strings."""
@@ -86,7 +89,8 @@ class TestToolCallingScenarioCategories:
     def test_covers_error_handling(self, tool_calling_scenarios):
         """Should have error handling scenarios."""
         error_scenarios = [
-            s for s in tool_calling_scenarios
+            s
+            for s in tool_calling_scenarios
             if "error" in s["id"].lower() or "error-handling" in s.get("tags", [])
         ]
         assert len(error_scenarios) >= 1, "Need error handling scenarios"
@@ -94,7 +98,8 @@ class TestToolCallingScenarioCategories:
     def test_covers_parallel_execution(self, tool_calling_scenarios):
         """Should have parallel execution scenarios."""
         parallel_scenarios = [
-            s for s in tool_calling_scenarios
+            s
+            for s in tool_calling_scenarios
             if "parallel" in s["id"].lower() or "parallel" in s.get("tags", [])
         ]
         assert len(parallel_scenarios) >= 1, "Need parallel execution scenarios"

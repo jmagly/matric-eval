@@ -39,9 +39,7 @@ def validate_path(path: str) -> str:
         )
     # Block directory traversal
     if ".." in path:
-        raise UnsafePathError(
-            f"Path contains directory traversal: {path!r}"
-        )
+        raise UnsafePathError(f"Path contains directory traversal: {path!r}")
     return path
 
 

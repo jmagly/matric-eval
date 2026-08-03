@@ -9,17 +9,18 @@ Covers:
 - Edge cases (empty reasoning, missing data)
 """
 
-import pytest
 from dataclasses import asdict
 
+import pytest
+
 from matric_eval.analysis.thinking_metrics import (
-    ThinkingMetrics,
-    ThinkingAggregates,
-    extract_thinking_metrics,
-    aggregate_metrics,
-    count_patterns,
     BACKTRACK_PATTERNS,
     CONCLUSION_PATTERNS,
+    ThinkingAggregates,
+    ThinkingMetrics,
+    aggregate_metrics,
+    count_patterns,
+    extract_thinking_metrics,
 )
 
 
@@ -383,7 +384,9 @@ class TestAggregateMetrics:
         assert agg.avg_reasoning_chars == 1500.0  # (1000 + 2000) / 2
         assert agg.avg_cycles_per_sample == 3.0  # (2 + 4) / 2
         assert agg.total_reasoning_time == 24.0  # 8.0 + 16.0
-        assert agg.reasoning_to_text_ratio == pytest.approx(2.0)  # (1000/500 + 2000/1000) / 2 = (2 + 2) / 2
+        assert agg.reasoning_to_text_ratio == pytest.approx(
+            2.0
+        )  # (1000/500 + 2000/1000) / 2 = (2 + 2) / 2
 
     def test_aggregate_with_zero_text(self) -> None:
         """Should handle samples with zero text chars."""

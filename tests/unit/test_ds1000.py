@@ -15,7 +15,6 @@ matplotlib, and other data science libraries.
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -31,7 +30,6 @@ from matric_eval.tasks.ds1000 import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_ds1000_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -46,6 +44,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -149,7 +148,7 @@ class TestLoadDS1000:
 
     def test_load_ds1000_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -181,9 +180,9 @@ class TestRecordToSample:
                 "library": "Pandas",
                 "test_case_cnt": 1,
                 "perturbation_type": "Origin",
-                "perturbation_origin_id": 0
+                "perturbation_origin_id": 0,
             },
-            "code_context": "import pandas as pd\n..."
+            "code_context": "import pandas as pd\n...",
         }
 
         sample = record_to_sample(record)
@@ -196,11 +195,8 @@ class TestRecordToSample:
         record = {
             "prompt": "Problem:\nHow to shuffle DataFrame rows?\n\nA:\n<code>\n",
             "reference_code": "result = df.iloc[List]",
-            "metadata": {
-                "problem_id": 0,
-                "library": "Pandas"
-            },
-            "code_context": "import pandas as pd\n"
+            "metadata": {"problem_id": 0, "library": "Pandas"},
+            "code_context": "import pandas as pd\n",
         }
 
         sample = record_to_sample(record)
@@ -212,11 +208,8 @@ class TestRecordToSample:
         record = {
             "prompt": "Problem:\nHow to do X?\n\nA:\n<code>\n",
             "reference_code": "result = solution()",
-            "metadata": {
-                "problem_id": 1,
-                "library": "Numpy"
-            },
-            "code_context": "import numpy as np\nimport pandas as pd\n"
+            "metadata": {"problem_id": 1, "library": "Numpy"},
+            "code_context": "import numpy as np\nimport pandas as pd\n",
         }
 
         sample = record_to_sample(record)
@@ -231,11 +224,8 @@ class TestRecordToSample:
         record = {
             "prompt": "Problem:\nGet first row\n\nA:\n<code>\n",
             "reference_code": reference,
-            "metadata": {
-                "problem_id": 2,
-                "library": "Pandas"
-            },
-            "code_context": "import pandas as pd\n"
+            "metadata": {"problem_id": 2, "library": "Pandas"},
+            "code_context": "import pandas as pd\n",
         }
 
         sample = record_to_sample(record)
@@ -252,9 +242,9 @@ class TestRecordToSample:
                 "library_problem_id": 10,
                 "library": "Matplotlib",
                 "test_case_cnt": 3,
-                "perturbation_type": "Semantic"
+                "perturbation_type": "Semantic",
             },
-            "code_context": "import matplotlib.pyplot as plt\n"
+            "code_context": "import matplotlib.pyplot as plt\n",
         }
 
         sample = record_to_sample(record)
@@ -268,15 +258,14 @@ class TestRecordToSample:
 
     def test_record_to_sample_preserves_code_context(self) -> None:
         """Should preserve code_context in metadata for execution."""
-        code_context = "import pandas as pd\nimport numpy as np\n\ndef generate_test_case():\n    pass"
+        code_context = (
+            "import pandas as pd\nimport numpy as np\n\ndef generate_test_case():\n    pass"
+        )
         record = {
             "prompt": "Problem:\nTest\n\nA:\n<code>\n",
             "reference_code": "result = 42",
-            "metadata": {
-                "problem_id": 10,
-                "library": "Pandas"
-            },
-            "code_context": code_context
+            "metadata": {"problem_id": 10, "library": "Pandas"},
+            "code_context": code_context,
         }
 
         sample = record_to_sample(record)
@@ -318,7 +307,13 @@ class TestDS1000SampleQuality:
             assert "library" in sample.metadata
             # Should be one of the main data science libraries
             assert sample.metadata["library"] in [
-                "Pandas", "Numpy", "Scipy", "Sklearn", "Matplotlib", "Tensorflow", "Pytorch"
+                "Pandas",
+                "Numpy",
+                "Scipy",
+                "Sklearn",
+                "Matplotlib",
+                "Tensorflow",
+                "Pytorch",
             ]
 
     def test_samples_have_problem_ids(self) -> None:
@@ -334,7 +329,10 @@ class TestDS1000SampleQuality:
         for sample in samples:
             assert "code_context" in sample.metadata
             # Code context should have imports or test generation code
-            assert "import" in sample.metadata["code_context"] or "def" in sample.metadata["code_context"]
+            assert (
+                "import" in sample.metadata["code_context"]
+                or "def" in sample.metadata["code_context"]
+            )
 
     def test_samples_have_reference_solutions(self) -> None:
         """Should have non-empty reference solutions as targets."""
@@ -437,11 +435,14 @@ class TestDS1000ConfigIntegration:
         assert len(load_ds1000(tier="quick")) == expected_quick
         assert len(load_ds1000(tier="full")) == full_count
 
-    def test_load_ds1000_respects_environment_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_ds1000_respects_environment_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should respect EVAL_DS1000_SAMPLES environment variable."""
         monkeypatch.setenv("EVAL_DS1000_SAMPLES", "15")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         # Should load 15 samples instead of default tier counts
@@ -473,7 +474,7 @@ class TestDS1000ErrorHandling:
 
     def test_load_ds1000_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -486,7 +487,7 @@ class TestDS1000ErrorHandling:
 
     def test_load_ds1000_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"prompt": "test", "incomplete": \n')
             temp_path = f.name
 
@@ -508,11 +509,14 @@ class TestDS1000ErrorHandling:
 class TestDS1000EdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_ds1000_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_ds1000_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_DS1000_SAMPLES", "2000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_ds1000()
@@ -524,6 +528,7 @@ class TestDS1000EdgeCases:
         monkeypatch.setenv("EVAL_DS1000_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_ds1000()
@@ -534,11 +539,8 @@ class TestDS1000EdgeCases:
         record = {
             "prompt": "Problem:\nTest",
             "reference_code": "result = 1",
-            "metadata": {
-                "problem_id": 0,
-                "library": "Pandas"
-            },
-            "code_context": "import pandas as pd"
+            "metadata": {"problem_id": 0, "library": "Pandas"},
+            "code_context": "import pandas as pd",
         }
 
         sample = record_to_sample(record)
@@ -551,11 +553,8 @@ class TestDS1000EdgeCases:
         record = {
             "prompt": "Problem:\nTest",
             "reference_code": "result = helper()",
-            "metadata": {
-                "problem_id": 99,
-                "library": "Pandas"
-            },
-            "code_context": long_context
+            "metadata": {"problem_id": 99, "library": "Pandas"},
+            "code_context": long_context,
         }
 
         sample = record_to_sample(record)

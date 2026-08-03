@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -116,14 +116,17 @@ class FrameExtractor:
 
         with tempfile.TemporaryDirectory(prefix="matric_frames_") as tmp_dir:
             out_pattern = os.path.join(tmp_dir, "frame_%06d.png")
-            # Use select filter to evenly sample n_frames across the video
-            fps_str = f"select='not(mod(n,{max(1, int(duration * 25 / n_frames))}))',setpts=N/FRAME_RATE/TB"
+            # Use the fps filter to sample n_frames evenly across the video.
             cmd = [
                 "ffmpeg",
-                "-i", str(video_path),
-                "-vf", f"fps={n_frames / max(duration, 1):.6f}",
-                "-frames:v", str(n_frames),
-                "-q:v", "2",
+                "-i",
+                str(video_path),
+                "-vf",
+                f"fps={n_frames / max(duration, 1):.6f}",
+                "-frames:v",
+                str(n_frames),
+                "-q:v",
+                "2",
                 out_pattern,
                 "-y",
             ]
@@ -142,9 +145,7 @@ class FrameExtractor:
                 stderr = result.stderr
                 if isinstance(stderr, bytes):
                     stderr = stderr.decode("utf-8", errors="replace")
-                raise RuntimeError(
-                    f"ffmpeg exited with code {result.returncode}: {stderr}"
-                )
+                raise RuntimeError(f"ffmpeg exited with code {result.returncode}: {stderr}")
 
             # Collect extracted frames in sorted order
             frame_files = sorted(Path(tmp_dir).glob("frame_*.png"))
@@ -168,9 +169,12 @@ class FrameExtractor:
         """
         cmd = [
             "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ]
         try:

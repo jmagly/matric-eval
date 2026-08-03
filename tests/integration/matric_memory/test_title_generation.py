@@ -56,15 +56,17 @@ class TestTitleCasesData:
         """Content should be substantial enough for title generation."""
         for case in title_cases:
             word_count = len(case["content"].split())
-            assert word_count >= 30, \
+            assert word_count >= 30, (
                 f"Case {case['id']} content too short ({word_count} words), need at least 30"
+            )
 
     def test_ideal_titles_are_non_empty(self, title_cases):
         """Each case should have at least 2 ideal titles."""
         for case in title_cases:
             assert isinstance(case["ideal_titles"], list)
-            assert len(case["ideal_titles"]) >= 2, \
+            assert len(case["ideal_titles"]) >= 2, (
                 f"Case {case['id']} needs at least 2 ideal titles"
+            )
             for title in case["ideal_titles"]:
                 assert isinstance(title, str)
                 assert len(title) > 5, f"Ideal title too short in case {case['id']}"
@@ -73,8 +75,7 @@ class TestTitleCasesData:
         """Each case should have at least 2 bad titles."""
         for case in title_cases:
             assert isinstance(case["bad_titles"], list)
-            assert len(case["bad_titles"]) >= 2, \
-                f"Case {case['id']} needs at least 2 bad titles"
+            assert len(case["bad_titles"]) >= 2, f"Case {case['id']} needs at least 2 bad titles"
             for title in case["bad_titles"]:
                 assert isinstance(title, str)
                 assert len(title) > 0, f"Bad title is empty in case {case['id']}"
@@ -89,28 +90,48 @@ class TestTitleQualityDistinction:
             for title in case["ideal_titles"]:
                 word_count = len(title.split())
                 # Good titles usually have 4-10 words
-                assert word_count >= 3, \
-                    f"Ideal title '{title}' in case {case['id']} is too short"
+                assert word_count >= 3, f"Ideal title '{title}' in case {case['id']} is too short"
                 # Ideal titles shouldn't be generic
                 generic_phrases = ["notes", "misc", "stuff", "thing", "update"]
                 is_generic = any(
-                    g in title.lower() and len(title.split()) <= 3
-                    for g in generic_phrases
+                    g in title.lower() and len(title.split()) <= 3 for g in generic_phrases
                 )
-                assert not is_generic, \
-                    f"Ideal title '{title}' in case {case['id']} seems generic"
+                assert not is_generic, f"Ideal title '{title}' in case {case['id']} seems generic"
 
     def test_bad_titles_are_vague(self, title_cases):
         """Bad titles should be clearly vague or non-descriptive."""
         # Generic/vague words that indicate a low-quality title
         vague_indicators = [
             # Meta words
-            "notes", "misc", "stuff", "today", "my", "new", "update",
-            "#", "untitled", "note", "meeting", "project", "issue",
+            "notes",
+            "misc",
+            "stuff",
+            "today",
+            "my",
+            "new",
+            "update",
+            "#",
+            "untitled",
+            "note",
+            "meeting",
+            "project",
+            "issue",
             # Generic topic names without specificity
-            "programming", "development", "technology", "learning", "memory",
-            "security", "process", "workflow", "habits", "techniques",
-            "skills", "practice", "system", "architecture", "design",
+            "programming",
+            "development",
+            "technology",
+            "learning",
+            "memory",
+            "security",
+            "process",
+            "workflow",
+            "habits",
+            "techniques",
+            "skills",
+            "practice",
+            "system",
+            "architecture",
+            "design",
         ]
 
         for case in title_cases:
@@ -122,8 +143,9 @@ class TestTitleQualityDistinction:
                 is_short = word_count <= 3
                 has_vague_word = any(v in title_lower for v in vague_indicators)
 
-                assert is_short or has_vague_word, \
+                assert is_short or has_vague_word, (
                     f"Bad title '{title}' in case {case['id']} doesn't seem vague enough"
+                )
 
     def test_ideal_and_bad_titles_dont_overlap(self, title_cases):
         """Ideal and bad titles should not overlap."""
@@ -131,8 +153,7 @@ class TestTitleQualityDistinction:
             ideal_set = set(t.lower() for t in case["ideal_titles"])
             bad_set = set(t.lower() for t in case["bad_titles"])
             overlap = ideal_set & bad_set
-            assert len(overlap) == 0, \
-                f"Case {case['id']} has overlapping titles: {overlap}"
+            assert len(overlap) == 0, f"Case {case['id']} has overlapping titles: {overlap}"
 
 
 class TestTitleCasesCoverage:
@@ -148,8 +169,7 @@ class TestTitleCasesCoverage:
             if any(kw in content_lower for kw in technical_keywords):
                 technical_cases += 1
 
-        assert technical_cases >= 5, \
-            f"Only {technical_cases} technical cases, need at least 5"
+        assert technical_cases >= 5, f"Only {technical_cases} technical cases, need at least 5"
 
     def test_covers_learning_content(self, title_cases):
         """Dataset should cover learning/knowledge content."""
@@ -161,8 +181,7 @@ class TestTitleCasesCoverage:
             if any(kw in content_lower for kw in learning_keywords):
                 learning_cases += 1
 
-        assert learning_cases >= 2, \
-            f"Only {learning_cases} learning cases, need at least 2"
+        assert learning_cases >= 2, f"Only {learning_cases} learning cases, need at least 2"
 
     def test_covers_productivity_content(self, title_cases):
         """Dataset should cover productivity/workflow content."""
@@ -174,10 +193,10 @@ class TestTitleCasesCoverage:
             if any(kw in content_lower for kw in productivity_keywords):
                 productivity_cases += 1
 
-        assert productivity_cases >= 2, \
+        assert productivity_cases >= 2, (
             f"Only {productivity_cases} productivity cases, need at least 2"
+        )
 
     def test_sufficient_sample_size(self, title_cases):
         """Should have at least 15 title cases for reliable evaluation."""
-        assert len(title_cases) >= 15, \
-            f"Only {len(title_cases)} cases, need at least 15"
+        assert len(title_cases) >= 15, f"Only {len(title_cases)} cases, need at least 15"

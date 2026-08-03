@@ -20,7 +20,6 @@ from matric_eval.config import (
     get_tier,
 )
 
-
 # =============================================================================
 # Tier Configuration Tests
 # =============================================================================
@@ -238,6 +237,7 @@ class TestEnvironmentVariables:
         # Would need to reload module to test this properly
         # Documenting expected behavior
         import os
+
         assert float(os.environ.get("MAX_MODEL_SIZE_GB", "15.0")) == 20.0
 
 
@@ -277,6 +277,7 @@ class TestConfigIntegration:
 
         # Reset the settings singleton so it re-reads from environment
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         assert get_seed() == 999

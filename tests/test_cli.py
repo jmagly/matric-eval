@@ -13,7 +13,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -24,7 +24,6 @@ from matric_eval.cli import (
     get_available_benchmarks,
     get_ollama_models,
 )
-
 
 # =============================================================================
 # Model Discovery Tests
@@ -224,7 +223,15 @@ class TestRunCommand:
 
             result = runner.invoke(
                 cli,
-                ["run", "--tier", "smoke", "--model", "llama3.2:3b", "--output", str(tmp_results_dir)],
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output",
+                    str(tmp_results_dir),
+                ],
             )
 
             assert result.exit_code == 0
@@ -254,7 +261,15 @@ class TestRunCommand:
 
             result = runner.invoke(
                 cli,
-                ["run", "--tier", "quick", "--model", "llama3.2:3b", "--output", str(tmp_results_dir)],
+                [
+                    "run",
+                    "--tier",
+                    "quick",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output",
+                    str(tmp_results_dir),
+                ],
             )
 
             assert result.exit_code == 0
@@ -285,7 +300,15 @@ class TestRunCommand:
 
             result = runner.invoke(
                 cli,
-                ["run", "--tier", "full", "--model", "llama3.2:3b", "--output", str(tmp_results_dir)],
+                [
+                    "run",
+                    "--tier",
+                    "full",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output",
+                    str(tmp_results_dir),
+                ],
             )
 
             assert result.exit_code == 0
@@ -320,10 +343,14 @@ class TestRunCommand:
                 cli,
                 [
                     "run",
-                    "--tier", "smoke",
-                    "--model", "llama3.2:3b",
-                    "--benchmark", "humaneval",
-                    "--output", str(tmp_results_dir),
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--benchmark",
+                    "humaneval",
+                    "--output",
+                    str(tmp_results_dir),
                 ],
             )
 
@@ -361,10 +388,14 @@ class TestRunCommand:
                 cli,
                 [
                     "run",
-                    "--tier", "smoke",
-                    "--model", "llama3.2:3b",
-                    "--output-format", "json",
-                    "--output", str(tmp_results_dir),
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output-format",
+                    "json",
+                    "--output",
+                    str(tmp_results_dir),
                 ],
             )
 
@@ -415,9 +446,12 @@ class TestRunCommand:
                 cli,
                 [
                     "run",
-                    "--tier", "smoke",
-                    "--max-size", "3.0",
-                    "--output", str(tmp_results_dir),
+                    "--tier",
+                    "smoke",
+                    "--max-size",
+                    "3.0",
+                    "--output",
+                    str(tmp_results_dir),
                 ],
             )
 
@@ -425,7 +459,11 @@ class TestRunCommand:
             # Verify max_size was passed to get_ollama_models
             # Verify max_size was passed to get_ollama_models
             assert mock_get_models.call_count == 1
-            assert mock_get_models.call_args[0][0] == 3.0 or mock_get_models.call_args[1].get("max_size_gb") == 3.0
+            assert (
+                mock_get_models.call_args[0][0] == 3.0
+                or mock_get_models.call_args[1].get("max_size_gb") == 3.0
+            )
+
 
 # =============================================================================
 # CLI Command Tests - list-models
@@ -590,10 +628,14 @@ class TestEdgeCases:
                 cli,
                 [
                     "run",
-                    "--tier", "smoke",
-                    "--model", "llama3.2:3b",
-                    "--benchmark", "invalid_benchmark",
-                    "--output", str(tmp_results_dir),
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--benchmark",
+                    "invalid_benchmark",
+                    "--output",
+                    str(tmp_results_dir),
                 ],
             )
 
@@ -634,7 +676,15 @@ class TestEdgeCases:
 
             result = runner.invoke(
                 cli,
-                ["run", "--tier", "smoke", "--model", "llama3.2:3b", "--output", str(tmp_results_dir)],
+                [
+                    "run",
+                    "--tier",
+                    "smoke",
+                    "--model",
+                    "llama3.2:3b",
+                    "--output",
+                    str(tmp_results_dir),
+                ],
             )
 
             # Should handle error gracefully

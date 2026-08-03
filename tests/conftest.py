@@ -5,7 +5,6 @@ Provides common test data, mocks, and utilities across all tests.
 """
 
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -15,7 +14,6 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalResults, EvalScore
-
 
 # =============================================================================
 # Directory Fixtures
@@ -244,6 +242,7 @@ def env_no_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -258,6 +257,7 @@ def env_custom_seed(monkeypatch: pytest.MonkeyPatch) -> int:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
     return seed
@@ -279,6 +279,7 @@ def env_custom_samples(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 
     # Reset the settings singleton so it re-reads from environment
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
     return samples
@@ -346,8 +347,8 @@ def isolated_registry(monkeypatch: pytest.MonkeyPatch):
 
     Use this in any test that registers benchmarks to avoid cross-test contamination.
     """
-    from matric_eval.tasks.registry import TaskRegistry
     import matric_eval.tasks.registry as registry_module
+    from matric_eval.tasks.registry import TaskRegistry
 
     fresh = TaskRegistry()
     monkeypatch.setattr(registry_module, "_registry", fresh)
@@ -357,9 +358,12 @@ def isolated_registry(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture
 def create_mock_dataset():
     """Factory fixture for creating mock datasets."""
+
     def _create(samples: list[Sample], name: str = "test_dataset"):
         from inspect_ai.dataset import MemoryDataset
+
         return MemoryDataset(samples=samples, name=name)
+
     return _create
 
 
@@ -466,7 +470,6 @@ requires_locomo_data = pytest.mark.skipif(
 # Infrastructure Skip Markers (3-tier CI — issue #50)
 # =============================================================================
 
-import shutil
 
 DOCKER_AVAILABLE = shutil.which("docker") is not None
 FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None

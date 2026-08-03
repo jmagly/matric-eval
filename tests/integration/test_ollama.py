@@ -14,7 +14,6 @@ import pytest
 
 from matric_eval.cli import filter_models, get_ollama_models
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -128,6 +127,7 @@ class TestEnvironment:
         """Should have Inspect AI installed."""
         try:
             import inspect_ai
+
             assert inspect_ai is not None
         except ImportError:
             pytest.fail("inspect_ai not installed")

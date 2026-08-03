@@ -1,6 +1,6 @@
 # Makefile for matric-eval development tasks
 
-.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean
+.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail ci
 
 help:  ## Show this help message
 	@echo "matric-eval development commands:"
@@ -31,19 +31,25 @@ test-coverage-fail:  ## Run tests with coverage, fail if below 80%
 	uv run pytest --cov=matric_eval --cov-report=term-missing --cov-fail-under=80
 
 lint:  ## Run code linters
-	uv run ruff check src/ tests/
+	uv run ruff check src/ tests/ scripts/
 
 lint-fix:  ## Fix linting issues automatically
-	uv run ruff check --fix src/ tests/
+	uv run ruff check --fix src/ tests/ scripts/
 
 format:  ## Format code with ruff
-	uv run ruff format src/ tests/
+	uv run ruff format src/ tests/ scripts/
 
 format-check:  ## Check code formatting
-	uv run ruff format --check src/ tests/
+	uv run ruff format --check src/ tests/ scripts/
 
 type-check:  ## Run type checking with mypy
+	uv run python scripts/check_mypy_baseline.py
+
+type-check-strict:  ## Show every strict mypy finding
 	uv run mypy src/
+
+type-check-update:  ## Reduce the mypy baseline to current reviewed findings
+	uv run python scripts/check_mypy_baseline.py --update
 
 clean:  ## Clean up generated files
 	rm -rf .pytest_cache
@@ -67,11 +73,7 @@ test-specific:  ## Run specific test (usage: make test-specific TEST=tests/test_
 smoke:  ## Run smoke tests
 	uv run pytest -m smoke -v
 
-ci:  ## Run CI test suite (lint + type-check + tests + coverage)
-	uv run ruff check src/ tests/
-	uv run ruff format --check src/ tests/
-	uv run mypy src/
-	uv run pytest --cov=matric_eval --cov-fail-under=80
+ci: lint format-check type-check test-coverage-fail  ## Run all authoritative CI gates
 
 dev:  ## Set up development environment
 	uv sync --extra dev

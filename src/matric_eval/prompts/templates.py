@@ -25,7 +25,6 @@ OUTPUT FORMAT:
 - Provide ONLY Python code in a ```python block
 - No explanations or comments outside the code
 - The code must be complete and runnable""",
-
         "thinking_off": """You are an expert competitive programmer.
 Solve the following problem with Python code.
 
@@ -34,7 +33,6 @@ RULES:
 - No explanations before or after
 - Code must be complete and runnable""",
     },
-
     "humaneval": {
         "thinking_on": """You are a Python coding assistant.
 
@@ -49,7 +47,6 @@ OUTPUT FORMAT:
 - Provide ONLY the function implementation
 - No explanations, examples, or additional functions
 - Code should match the exact function signature given""",
-
         "thinking_off": """You are a Python coding assistant.
 Complete the function based on the docstring.
 
@@ -58,7 +55,6 @@ RULES:
 - No explanations or examples
 - Match the exact function signature""",
     },
-
     "mbpp": {
         "thinking_on": """You are a Python coding assistant.
 
@@ -73,7 +69,6 @@ OUTPUT FORMAT:
 - Provide ONLY the function implementation
 - Use the exact function name and signature specified in the prompt
 - No explanations, test cases, or example usage""",
-
         "thinking_off": """You are a Python coding assistant.
 Write the function exactly as specified with the given name and signature.
 
@@ -82,7 +77,6 @@ RULES:
 - Use the exact function name specified
 - No explanations or examples""",
     },
-
     "ds1000": {
         "thinking_on": """You are an expert data scientist and Python programmer.
 
@@ -97,7 +91,6 @@ OUTPUT FORMAT:
 - Provide ONLY the solution code
 - Pay attention to the code context and variable names
 - No explanations or comments outside the code""",
-
         "thinking_off": """You are an expert data scientist and Python programmer.
 Solve the data science problem using pandas, numpy, matplotlib, or other appropriate libraries.
 
@@ -106,7 +99,6 @@ RULES:
 - Assign result to the specified variable
 - Follow the code context provided""",
     },
-
     "gsm8k": {
         "thinking_on": """You are a math problem solver.
 
@@ -121,7 +113,6 @@ OUTPUT FORMAT:
 - Show your work step by step
 - After your solution, write the final numeric answer on a new line after "####"
 - Example: "#### 42" """,
-
         "thinking_off": """You are a math problem solver.
 Solve the problem step by step.
 
@@ -130,7 +121,6 @@ RULES:
 - Provide final numeric answer after "####"
 - Example format: "#### 42" """,
     },
-
     "arc": {
         "thinking_on": """You are a helpful AI assistant answering multiple-choice questions.
 
@@ -144,7 +134,6 @@ THINKING APPROACH:
 OUTPUT FORMAT:
 - Respond with ONLY the letter of your choice (A, B, C, or D)
 - No explanations or additional text""",
-
         "thinking_off": """You are a helpful AI assistant answering multiple-choice questions.
 Read the question carefully and select the best answer.
 
@@ -152,7 +141,6 @@ RULES:
 - Respond with only the letter (A, B, C, or D)
 - No explanations or additional text""",
     },
-
     "ifeval": {
         "thinking_on": """You are a helpful AI assistant.
 
@@ -167,7 +155,6 @@ OUTPUT FORMAT:
 - Follow all formatting requirements (JSON, bullet points, sections, etc.)
 - Respect all length constraints (word count, paragraphs, sentences)
 - Include/exclude keywords as specified""",
-
         "thinking_off": """You are a helpful AI assistant.
 Follow the instructions in the prompt carefully and precisely.
 
@@ -176,7 +163,6 @@ RULES:
 - Respect all length and content constraints
 - Follow instructions exactly""",
     },
-
     "mtbench": {
         "thinking_on": """You are a helpful AI assistant.
 
@@ -191,7 +177,6 @@ OUTPUT FORMAT:
 - Give clear, accurate, and helpful responses
 - Be creative when appropriate
 - Maintain conversation context""",
-
         "thinking_off": """You are a helpful AI assistant.
 Provide thoughtful, accurate, and engaging responses to user questions.
 

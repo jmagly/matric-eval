@@ -140,9 +140,7 @@ class Settings(BaseSettings):
     )
 
     # Evaluation tier
-    tier: Literal["smoke", "quick", "full"] = Field(
-        default="smoke", description="Evaluation tier"
-    )
+    tier: Literal["smoke", "quick", "full"] = Field(default="smoke", description="Evaluation tier")
 
     # Output configuration
     output_dir: str = Field(default="results", description="Output directory for results")

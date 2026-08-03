@@ -30,7 +30,6 @@ from matric_eval.tasks.ifeval import (
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_ifeval_data
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -549,25 +548,19 @@ class TestConstraintCheckingLanguage:
     def test_response_language_detection_english(self) -> None:
         """Should detect English language correctly."""
         response = "This is a response in English."
-        result = check_constraint(
-            response, "language:response_language", {"language": "en"}
-        )
+        result = check_constraint(response, "language:response_language", {"language": "en"})
         assert result is True
 
     def test_response_language_kannada_text(self) -> None:
         """Should detect Kannada language (example)."""
         response = "ಇದು ಕನ್ನಡ ಭಾಷೆಯಲ್ಲಿ ಪ್ರತಿಕ್ರಿಯೆ"
-        result = check_constraint(
-            response, "language:response_language", {"language": "kn"}
-        )
+        result = check_constraint(response, "language:response_language", {"language": "kn"})
         assert result is True
 
     def test_response_language_wrong_language(self) -> None:
         """Should fail when response is in wrong language."""
         response = "This is English text."
-        result = check_constraint(
-            response, "language:response_language", {"language": "kn"}
-        )
+        result = check_constraint(response, "language:response_language", {"language": "kn"})
         assert result is False
 
 
@@ -686,9 +679,7 @@ class TestLoadIFEval:
 
     def test_load_ifeval_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".jsonl", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -764,9 +755,7 @@ class TestRecordToSample:
         assert sample.metadata is not None
         assert "instruction_id_list" in sample.metadata
         assert "kwargs" in sample.metadata
-        assert sample.metadata["instruction_id_list"] == [
-            "length_constraints:number_paragraphs"
-        ]
+        assert sample.metadata["instruction_id_list"] == ["length_constraints:number_paragraphs"]
         assert sample.metadata["kwargs"] == [{"num_paragraphs": 3}]
 
     def test_record_to_sample_multiple_constraints(self) -> None:
@@ -854,9 +843,7 @@ class TestIFEvalSampleQuality:
         """Instruction list and kwargs should have same length."""
         samples = load_ifeval(tier="smoke")
         for sample in samples:
-            assert len(sample.metadata["instruction_id_list"]) == len(
-                sample.metadata["kwargs"]
-            )
+            assert len(sample.metadata["instruction_id_list"]) == len(sample.metadata["kwargs"])
 
     def test_samples_have_empty_targets(self) -> None:
         """IFEval samples should have empty targets (constraint-based scoring)."""
@@ -986,9 +973,7 @@ class TestIFEvalErrorHandling:
 
     def test_load_ifeval_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".jsonl", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -1001,9 +986,7 @@ class TestIFEvalErrorHandling:
 
     def test_load_ifeval_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".jsonl", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"key": 1234, "incomplete": \n')
             temp_path = f.name
 
@@ -1049,9 +1032,7 @@ class TestIFEvalEdgeCases:
         # Should return all 541 samples, not 10000
         assert len(samples) == 541
 
-    def test_load_ifeval_zero_samples_requested(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_load_ifeval_zero_samples_requested(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should handle zero sample request gracefully."""
         monkeypatch.setenv("EVAL_IFEVAL_SAMPLES", "0")
         # Reset singleton to pick up new env var

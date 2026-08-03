@@ -301,8 +301,7 @@ def audit_registry(
                     "total_samples": metadata.total_samples,
                 },
                 "findings": [
-                    {**asdict(finding), "severity": finding.severity.value}
-                    for finding in findings
+                    {**asdict(finding), "severity": finding.severity.value} for finding in findings
                 ],
             }
         )

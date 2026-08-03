@@ -5,8 +5,6 @@ This test verifies that all modules can be imported and the package
 structure is correct.
 """
 
-import pytest
-
 
 class TestPackageStructure:
     """Test package structure and basic imports."""

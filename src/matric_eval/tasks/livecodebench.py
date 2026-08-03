@@ -76,23 +76,27 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
 
     # Include starter code if provided
     if record.get("starter_code", "").strip():
-        prompt_parts.extend([
-            "",
-            "## Starter Code",
-            "```python",
-            record["starter_code"],
-            "```",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "## Starter Code",
+                "```python",
+                record["starter_code"],
+                "```",
+            ]
+        )
 
     # Include sample test case if available
     if public_tests:
         first_test = public_tests[0]
-        prompt_parts.extend([
-            "",
-            "## Example",
-            f"Input: {first_test.get('input', '')}",
-            f"Output: {first_test.get('output', '')}",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "## Example",
+                f"Input: {first_test.get('input', '')}",
+                f"Output: {first_test.get('output', '')}",
+            ]
+        )
 
     prompt = "\n".join(prompt_parts)
 
@@ -149,9 +153,7 @@ def load_livecodebench(tier: str = "smoke") -> list[Sample]:
     # Load all records from JSONL
     dataset_path = Path(LIVECODEBENCH_PATH)
     if not dataset_path.exists():
-        raise FileNotFoundError(
-            f"LiveCodeBench dataset not found at {LIVECODEBENCH_PATH}"
-        )
+        raise FileNotFoundError(f"LiveCodeBench dataset not found at {LIVECODEBENCH_PATH}")
 
     records = []
     with open(dataset_path, "r") as f:

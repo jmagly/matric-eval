@@ -7,13 +7,13 @@ Provides tools for analyzing evaluation results, including:
 """
 
 from matric_eval.analysis.thinking_metrics import (
-    ThinkingMetrics,
-    ThinkingAggregates,
-    extract_thinking_metrics,
-    aggregate_metrics,
-    count_patterns,
     BACKTRACK_PATTERNS,
     CONCLUSION_PATTERNS,
+    ThinkingAggregates,
+    ThinkingMetrics,
+    aggregate_metrics,
+    count_patterns,
+    extract_thinking_metrics,
 )
 
 __all__ = [

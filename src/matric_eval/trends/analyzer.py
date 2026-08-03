@@ -8,7 +8,7 @@ and projects future performance.
 from dataclasses import dataclass
 from typing import Optional
 
-from matric_eval.trends.store import EvalStore, EvaluationPoint
+from matric_eval.trends.store import EvalStore
 
 
 @dataclass
@@ -94,10 +94,7 @@ class TrendAnalyzer:
             slope = numerator / denominator
 
         # Compute R-squared for confidence
-        ss_res = sum(
-            (s - (y_mean + slope * (i - x_mean))) ** 2
-            for i, s in enumerate(scores)
-        )
+        ss_res = sum((s - (y_mean + slope * (i - x_mean))) ** 2 for i, s in enumerate(scores))
         ss_tot = sum((s - y_mean) ** 2 for s in scores)
 
         if ss_tot == 0:

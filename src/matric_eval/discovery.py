@@ -13,16 +13,17 @@ Convention over configuration:
 import json
 import logging
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-from inspect_ai import Task, task
-from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import match, includes, model_graded_fact, pattern
+from inspect_ai import Task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes, match, model_graded_fact, pattern
 from inspect_ai.solver import generate, system_message
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel
+from pydantic import Field as PydanticField
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,9 @@ def load_external_samples(
                 if input_val is None:
                     logger.warning(
                         "Missing '%s' field in %s line %d, skipping",
-                        input_field, jsonl_path.name, line_num,
+                        input_field,
+                        jsonl_path.name,
+                        line_num,
                     )
                     continue
 
@@ -239,12 +242,14 @@ def load_external_samples(
                     skip_fields.add(id_field)
                 metadata = {k: v for k, v in record.items() if k not in skip_fields}
 
-                samples.append(Sample(
-                    input=str(input_val),
-                    target=target_val,
-                    id=sample_id,
-                    metadata=metadata,
-                ))
+                samples.append(
+                    Sample(
+                        input=str(input_val),
+                        target=target_val,
+                        id=sample_id,
+                        metadata=metadata,
+                    )
+                )
                 global_idx += 1
 
     return samples
@@ -404,14 +409,16 @@ def scan_datasets_dir(datasets_dir: Path) -> list[DiscoveredDataset]:
                         "id": detected.get("id", "id"),
                     }
 
-        discovered.append(DiscoveredDataset(
-            name=dir_name,
-            directory=entry,
-            manifest=manifest,
-            jsonl_files=jsonl_files,
-            total_samples=total_samples,
-            source_type=source_type,
-        ))
+        discovered.append(
+            DiscoveredDataset(
+                name=dir_name,
+                directory=entry,
+                manifest=manifest,
+                jsonl_files=jsonl_files,
+                total_samples=total_samples,
+                source_type=source_type,
+            )
+        )
 
     return discovered
 
@@ -426,6 +433,7 @@ _registry: dict[str, DiscoveredDataset] | None = None
 def _get_datasets_dir() -> Path:
     """Get the configured datasets directory."""
     from matric_eval.config import get_datasets_dir
+
     return Path(get_datasets_dir())
 
 

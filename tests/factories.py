@@ -9,7 +9,6 @@ from typing import Any
 
 from inspect_ai.dataset import Sample
 
-
 # =============================================================================
 # Sample Factories
 # =============================================================================
@@ -214,11 +213,7 @@ class ResultFactory:
                 "gsm8k": ResultFactory.create_benchmark_result("gsm8k", 0.5),
             }
 
-        scores = [
-            b.get("score", 0)
-            for b in benchmarks.values()
-            if b.get("status") == "success"
-        ]
+        scores = [b.get("score", 0) for b in benchmarks.values() if b.get("status") == "success"]
         overall_score = sum(scores) / len(scores) if scores else 0
 
         defaults = {
@@ -315,7 +310,7 @@ class OllamaFactory:
             size = sizes[i % len(sizes)]
             models.append(
                 OllamaFactory.create_model_info(
-                    name=f"model{i+1}:latest",
+                    name=f"model{i + 1}:latest",
                     size_gb=size,
                 )
             )
@@ -337,9 +332,7 @@ class OllamaFactory:
 
         for model in models:
             # Simplified formatting
-            lines.append(
-                f"{model['name']:<24} {'a'*12} {model['size_str']:<10} 1 week ago"
-            )
+            lines.append(f"{model['name']:<24} {'a' * 12} {model['size_str']:<10} 1 week ago")
 
         return "\n".join(lines)
 

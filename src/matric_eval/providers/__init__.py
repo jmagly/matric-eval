@@ -5,24 +5,24 @@ Supports multiple inference backends: Ollama, llama.cpp, vLLM, OpenRouter, Chute
 """
 
 from matric_eval.providers.base import (
+    ModelInfo,
     Provider,
     ProviderConfig,
-    ProviderError,
     ProviderConnectionError,
+    ProviderError,
     ProviderModelNotFoundError,
-    ModelInfo,
 )
+from matric_eval.providers.chutes import ChutesProvider
+from matric_eval.providers.llamacpp import LlamaCppProvider
+from matric_eval.providers.ollama import OllamaProvider
+from matric_eval.providers.openrouter import OpenRouterProvider
 from matric_eval.providers.registry import (
     ProviderRegistry,
     get_provider,
     list_providers,
     register_provider,
 )
-from matric_eval.providers.ollama import OllamaProvider
-from matric_eval.providers.llamacpp import LlamaCppProvider
 from matric_eval.providers.vllm import VLLMProvider
-from matric_eval.providers.openrouter import OpenRouterProvider
-from matric_eval.providers.chutes import ChutesProvider
 
 __all__ = [
     # Base

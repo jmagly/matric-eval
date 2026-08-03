@@ -13,22 +13,20 @@ Covers:
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from inspect_ai import Task
 from inspect_ai.dataset import Sample
 
 from matric_eval.tasks.mtbench import (
-    mtbench,
     load_mtbench,
+    mtbench,
     record_to_sample,
 )
 
 # Import skip marker for tests requiring external data
 from tests.conftest import requires_mtbench_data
-
 
 # =============================================================================
 # Fixtures
@@ -43,6 +41,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Reset settings singleton
     import matric_eval.config.settings as settings_module
+
     settings_module._settings = None
 
 
@@ -115,7 +114,7 @@ class TestLoadMTBench:
 
     def test_load_mtbench_invalid_json_raises_error(self) -> None:
         """Should raise error for malformed JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write("invalid json line\n")
             temp_path = f.name
 
@@ -149,8 +148,8 @@ class TestRecordToSample:
             "category": "writing",
             "turns": [
                 "Write a travel blog post about Hawaii.",
-                "Rewrite it starting every sentence with 'A'."
-            ]
+                "Rewrite it starting every sentence with 'A'.",
+            ],
         }
 
         sample = record_to_sample(record)
@@ -163,10 +162,7 @@ class TestRecordToSample:
         record = {
             "question_id": 82,
             "category": "writing",
-            "turns": [
-                "Draft a professional email.",
-                "Critique your response."
-            ]
+            "turns": ["Draft a professional email.", "Critique your response."],
         }
 
         sample = record_to_sample(record)
@@ -175,11 +171,7 @@ class TestRecordToSample:
 
     def test_record_to_sample_includes_metadata(self) -> None:
         """Should include turns and category in metadata."""
-        record = {
-            "question_id": 83,
-            "category": "roleplay",
-            "turns": ["First turn", "Second turn"]
-        }
+        record = {"question_id": 83, "category": "roleplay", "turns": ["First turn", "Second turn"]}
 
         sample = record_to_sample(record)
 
@@ -191,11 +183,7 @@ class TestRecordToSample:
     def test_record_to_sample_preserves_all_turns(self) -> None:
         """Should preserve all turns in metadata."""
         turns = ["Turn 1", "Turn 2", "Turn 3"]
-        record = {
-            "question_id": 84,
-            "category": "writing",
-            "turns": turns
-        }
+        record = {"question_id": 84, "category": "writing", "turns": turns}
 
         sample = record_to_sample(record)
 
@@ -217,7 +205,7 @@ class TestRecordToSample:
             "question_id": 86,
             "category": "writing",
             "turns": ["Turn 1", "Turn 2"],
-            "reference": ["Reference answer 1", "Reference answer 2"]
+            "reference": ["Reference answer 1", "Reference answer 2"],
         }
 
         sample = record_to_sample(record)
@@ -380,11 +368,14 @@ class TestMTBenchConfigIntegration:
 
         assert len(load_mtbench(tier="full")) == full_count
 
-    def test_load_mtbench_respects_environment_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_mtbench_respects_environment_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should respect EVAL_MTBENCH_SAMPLES environment variable."""
         monkeypatch.setenv("EVAL_MTBENCH_SAMPLES", "10")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_mtbench()
@@ -415,7 +406,7 @@ class TestMTBenchErrorHandling:
 
     def test_load_mtbench_empty_file_raises_error(self) -> None:
         """Should raise error for empty JSONL file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             # Write nothing
             temp_path = f.name
 
@@ -429,7 +420,7 @@ class TestMTBenchErrorHandling:
 
     def test_load_mtbench_corrupted_jsonl_raises_error(self) -> None:
         """Should raise error for corrupted JSONL."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write('{"question_id": 1, "incomplete": \n')
             temp_path = f.name
 
@@ -451,11 +442,14 @@ class TestMTBenchErrorHandling:
 class TestMTBenchEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
-    def test_load_mtbench_sample_count_exceeds_dataset_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_mtbench_sample_count_exceeds_dataset_size(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should return all available samples if requested count exceeds dataset size."""
         monkeypatch.setenv("EVAL_MTBENCH_SAMPLES", "1000")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_mtbench()
@@ -467,6 +461,7 @@ class TestMTBenchEdgeCases:
         monkeypatch.setenv("EVAL_MTBENCH_SAMPLES", "0")
         # Reset singleton to pick up new env var
         import matric_eval.config.settings as settings_module
+
         settings_module._settings = None
 
         samples = load_mtbench()
@@ -477,7 +472,7 @@ class TestMTBenchEdgeCases:
         record = {
             "question_id": 999,
             "category": "writing",
-            "turns": ["Write about café culture ☕", "Add more details"]
+            "turns": ["Write about café culture ☕", "Add more details"],
         }
 
         sample = record_to_sample(record)
@@ -489,7 +484,7 @@ class TestMTBenchEdgeCases:
         record = {
             "question_id": 998,
             "category": "writing",
-            "turns": [long_turn, "Follow up question"]
+            "turns": [long_turn, "Follow up question"],
         }
 
         sample = record_to_sample(record)

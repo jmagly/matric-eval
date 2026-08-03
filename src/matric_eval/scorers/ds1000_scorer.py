@@ -10,8 +10,6 @@ Based on https://github.com/xlang-ai/DS-1000
 import re
 import subprocess
 import sys
-import tempfile
-from pathlib import Path
 from typing import Any
 
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
@@ -37,10 +35,7 @@ def extract_solution_for_context(code: str, exec_context: str) -> str:
     """
     # Check if [insert] is inside a function definition
     # Pattern: def funcname(...):\n[insert] or def funcname(...):\n    [insert]
-    insert_in_function = re.search(
-        r'def\s+\w+\s*\([^)]*\)\s*:\s*\n\s*\[insert\]',
-        exec_context
-    )
+    insert_in_function = re.search(r"def\s+\w+\s*\([^)]*\)\s*:\s*\n\s*\[insert\]", exec_context)
 
     if not insert_in_function:
         # [insert] is at top level, use full code
@@ -52,9 +47,7 @@ def extract_solution_for_context(code: str, exec_context: str) -> str:
     # Look for function definitions in the code
     # Pattern: def funcname(...):\n    body
     func_match = re.search(
-        r'def\s+\w+\s*\([^)]*\)\s*:\s*\n((?:[ \t]+[^\n]*\n?)+)',
-        code,
-        re.MULTILINE
+        r"def\s+\w+\s*\([^)]*\)\s*:\s*\n((?:[ \t]+[^\n]*\n?)+)", code, re.MULTILINE
     )
 
     if func_match:
@@ -64,15 +57,15 @@ def extract_solution_for_context(code: str, exec_context: str) -> str:
         return body
 
     # No function found, check if code already looks like a function body (indented)
-    lines = code.split('\n')
-    if lines and (lines[0].startswith('    ') or lines[0].startswith('\t')):
+    lines = code.split("\n")
+    if lines and (lines[0].startswith("    ") or lines[0].startswith("\t")):
         # Already looks like function body
         return code
 
     # Fallback: indent the entire code as a function body
     # This handles cases where model outputs just the solution logic
-    indented_lines = ['    ' + line if line.strip() else line for line in lines]
-    return '\n'.join(indented_lines)
+    indented_lines = ["    " + line if line.strip() else line for line in lines]
+    return "\n".join(indented_lines)
 
 
 def execute_ds1000_test(
@@ -108,9 +101,7 @@ def execute_ds1000_test(
     # Extract exec_context from code_context to understand [insert] placement
     # DS-1000 uses triple-quoted strings: exec_context = r""" ... """
     exec_context_match = re.search(
-        r'exec_context\s*=\s*r?(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')',
-        code_context,
-        re.DOTALL
+        r'exec_context\s*=\s*r?(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', code_context, re.DOTALL
     )
     if exec_context_match:
         # Match group 1 for """ or group 2 for '''
@@ -124,6 +115,7 @@ def execute_ds1000_test(
     # Use base64 encoding to safely embed solution code
     # This avoids all escaping issues with quotes, backslashes, etc.
     import base64
+
     encoded_code = base64.b64encode(solution.encode()).decode()
 
     test_script = f'''
@@ -161,7 +153,8 @@ except Exception as e:
         else:
             # Extract error message
             error_lines = [
-                line for line in output.split("\n")
+                line
+                for line in output.split("\n")
                 if line.startswith("FAIL:") or "Error" in line or "error" in line
             ]
             error_msg = error_lines[0] if error_lines else "Test execution failed"

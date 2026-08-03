@@ -10,7 +10,6 @@ Covers:
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from matric_eval.scorers.multidimensional import (
     ALL_DIMENSIONS,
@@ -28,7 +27,6 @@ from matric_eval.scorers.multidimensional import (
     normalize_text,
     quality_scorer,
 )
-
 
 # =============================================================================
 # DimensionScore Tests
@@ -101,7 +99,7 @@ class TestMultidimensionalScore:
         score.dimensions["correctness"] = DimensionScore("correctness", 1.0, weight=2.0)
         score.dimensions["clarity"] = DimensionScore("clarity", 0.0, weight=1.0)
         # Weighted: (1.0*2.0 + 0.0*1.0) / (2.0 + 1.0) = 2.0/3.0
-        assert abs(score.overall - 2/3) < 0.001
+        assert abs(score.overall - 2 / 3) < 0.001
 
     def test_to_dict(self) -> None:
         """Should convert to dictionary correctly."""
@@ -286,7 +284,9 @@ class TestCompletenessEvaluator:
         assert score.value == 0.0
 
     @pytest.mark.asyncio
-    async def test_short_response_to_question(self, evaluator: RuleBasedCompletenessEvaluator) -> None:
+    async def test_short_response_to_question(
+        self, evaluator: RuleBasedCompletenessEvaluator
+    ) -> None:
         """Should penalize short response to question."""
         score = await evaluator.evaluate(
             prompt="What is the meaning of life?",

@@ -81,15 +81,17 @@ class OpenRouterProvider:
             pricing = model_data.get("pricing", {})
             context_length = model_data.get("context_length", 0)
 
-            models.append(ModelInfo(
-                name=model_id,
-                metadata={
-                    "context_length": context_length,
-                    "pricing": pricing,
-                    "description": model_data.get("description", ""),
-                    "top_provider": model_data.get("top_provider", {}),
-                },
-            ))
+            models.append(
+                ModelInfo(
+                    name=model_id,
+                    metadata={
+                        "context_length": context_length,
+                        "pricing": pricing,
+                        "description": model_data.get("description", ""),
+                        "top_provider": model_data.get("top_provider", {}),
+                    },
+                )
+            )
         return models
 
     def get_model_info(self, model: str) -> ModelInfo:
@@ -97,9 +99,7 @@ class OpenRouterProvider:
         for m in models:
             if m.name == model:
                 return m
-        raise ProviderModelNotFoundError(
-            f"Model '{model}' not found on OpenRouter."
-        )
+        raise ProviderModelNotFoundError(f"Model '{model}' not found on OpenRouter.")
 
     def format_model_id(self, model: str) -> str:
         # OpenRouter uses OpenAI-compatible API

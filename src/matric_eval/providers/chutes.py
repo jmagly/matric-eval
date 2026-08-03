@@ -54,9 +54,7 @@ class ChutesProvider:
             with urllib.request.urlopen(req, timeout=self._config.timeout) as resp:
                 return json.loads(resp.read())
         except urllib.error.URLError as e:
-            raise ProviderConnectionError(
-                f"Cannot reach Chutes at {self._config.base_url}: {e}"
-            )
+            raise ProviderConnectionError(f"Cannot reach Chutes at {self._config.base_url}: {e}")
 
     def is_available(self) -> bool:
         if not self._config.api_key:
@@ -73,10 +71,12 @@ class ChutesProvider:
         models = []
         for model_data in data.get("data", []):
             model_id = model_data.get("id", "unknown")
-            models.append(ModelInfo(
-                name=model_id,
-                metadata=model_data,
-            ))
+            models.append(
+                ModelInfo(
+                    name=model_id,
+                    metadata=model_data,
+                )
+            )
         return models
 
     def get_model_info(self, model: str) -> ModelInfo:
@@ -84,9 +84,7 @@ class ChutesProvider:
         for m in models:
             if m.name == model:
                 return m
-        raise ProviderModelNotFoundError(
-            f"Model '{model}' not found on Chutes."
-        )
+        raise ProviderModelNotFoundError(f"Model '{model}' not found on Chutes.")
 
     def format_model_id(self, model: str) -> str:
         if model.startswith("openai/"):

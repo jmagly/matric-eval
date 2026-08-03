@@ -11,11 +11,9 @@ MemoryAgentBench, and matric-memory retrieval evaluation.
 """
 
 import math
-from typing import Optional
 
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
-
 
 # =============================================================================
 # Pure functions (usable outside Inspect AI)
@@ -60,17 +58,11 @@ def ndcg_at_k(retrieved: list, relevance: dict, k: int = 10) -> float:
 
     # DCG of the actual retrieved list
     n = min(k, len(retrieved))
-    dcg = sum(
-        relevance.get(retrieved[i], 0) / math.log2(i + 2)
-        for i in range(n)
-    )
+    dcg = sum(relevance.get(retrieved[i], 0) / math.log2(i + 2) for i in range(n))
 
     # Ideal DCG (best possible ordering)
     ideal_gains = sorted(relevance.values(), reverse=True)[:k]
-    idcg = sum(
-        gain / math.log2(i + 2)
-        for i, gain in enumerate(ideal_gains)
-    )
+    idcg = sum(gain / math.log2(i + 2) for i, gain in enumerate(ideal_gains))
 
     if idcg == 0:
         return 0.0

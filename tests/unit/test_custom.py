@@ -21,7 +21,6 @@ from matric_eval.tasks.custom import (
     load_custom_tests,
 )
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -58,29 +57,20 @@ def tool_calling_samples() -> list[dict[str, Any]]:
         {
             "id": "tool-001",
             "prompt": "Read the file config.json",
-            "expected": {
-                "tool": "read_file",
-                "args": {"path": "config.json"}
-            },
-            "scorer_type": "tool_match"
+            "expected": {"tool": "read_file", "args": {"path": "config.json"}},
+            "scorer_type": "tool_match",
         },
         {
             "id": "tool-002",
             "prompt": "List all files in the current directory",
-            "expected": {
-                "tool": "list_files",
-                "args": {"path": "."}
-            },
-            "scorer_type": "tool_match"
+            "expected": {"tool": "list_files", "args": {"path": "."}},
+            "scorer_type": "tool_match",
         },
         {
             "id": "tool-003",
             "prompt": "Write 'Hello' to output.txt",
-            "expected": {
-                "tool": "write_file",
-                "args": {"path": "output.txt", "content": "Hello"}
-            },
-            "scorer_type": "tool_match"
+            "expected": {"tool": "write_file", "args": {"path": "output.txt", "content": "Hello"}},
+            "scorer_type": "tool_match",
         },
     ]
 
@@ -94,18 +84,18 @@ def agent_scenario_samples() -> list[dict[str, Any]]:
             "prompt": "Find and fix the bug in module.py",
             "expected": {
                 "steps": ["read_file", "analyze", "write_file", "test"],
-                "outcome": "bug_fixed"
+                "outcome": "bug_fixed",
             },
-            "scorer_type": "workflow_match"
+            "scorer_type": "workflow_match",
         },
         {
             "id": "agent-002",
             "prompt": "Create a new feature according to spec.md",
             "expected": {
                 "steps": ["read_file", "plan", "implement", "test"],
-                "outcome": "feature_created"
+                "outcome": "feature_created",
             },
-            "scorer_type": "workflow_match"
+            "scorer_type": "workflow_match",
         },
     ]
 
@@ -118,13 +108,13 @@ def title_generation_samples() -> list[dict[str, Any]]:
             "id": "title-001",
             "prompt": "This is a note about Python async programming patterns",
             "expected": "Python Async Programming Patterns",
-            "scorer_type": "semantic_similarity"
+            "scorer_type": "semantic_similarity",
         },
         {
             "id": "title-002",
             "prompt": "Meeting notes from the quarterly planning session",
             "expected": "Quarterly Planning Meeting Notes",
-            "scorer_type": "semantic_similarity"
+            "scorer_type": "semantic_similarity",
         },
     ]
 
@@ -136,11 +126,8 @@ def semantic_similarity_samples() -> list[dict[str, Any]]:
         {
             "id": "semantic-001",
             "prompt": "Find notes related to machine learning",
-            "expected": {
-                "keywords": ["ML", "neural networks", "training"],
-                "min_similarity": 0.8
-            },
-            "scorer_type": "semantic_similarity"
+            "expected": {"keywords": ["ML", "neural networks", "training"], "min_similarity": 0.8},
+            "scorer_type": "semantic_similarity",
         },
     ]
 
@@ -156,7 +143,9 @@ def tool_calling_file(matric_cli_dir: Path, tool_calling_samples: list[dict[str,
 
 
 @pytest.fixture
-def agent_scenarios_file(matric_cli_dir: Path, agent_scenario_samples: list[dict[str, Any]]) -> Path:
+def agent_scenarios_file(
+    matric_cli_dir: Path, agent_scenario_samples: list[dict[str, Any]]
+) -> Path:
     """Create agent_scenarios.jsonl test file."""
     test_file = matric_cli_dir / "agent_scenarios.jsonl"
     with open(test_file, "w") as f:
@@ -166,7 +155,9 @@ def agent_scenarios_file(matric_cli_dir: Path, agent_scenario_samples: list[dict
 
 
 @pytest.fixture
-def title_generation_file(matric_memory_dir: Path, title_generation_samples: list[dict[str, Any]]) -> Path:
+def title_generation_file(
+    matric_memory_dir: Path, title_generation_samples: list[dict[str, Any]]
+) -> Path:
     """Create title_generation.jsonl test file."""
     test_file = matric_memory_dir / "title_generation.jsonl"
     with open(test_file, "w") as f:
@@ -176,7 +167,9 @@ def title_generation_file(matric_memory_dir: Path, title_generation_samples: lis
 
 
 @pytest.fixture
-def semantic_similarity_file(matric_memory_dir: Path, semantic_similarity_samples: list[dict[str, Any]]) -> Path:
+def semantic_similarity_file(
+    matric_memory_dir: Path, semantic_similarity_samples: list[dict[str, Any]]
+) -> Path:
     """Create semantic_similarity.jsonl test file."""
     test_file = matric_memory_dir / "semantic_similarity.jsonl"
     with open(test_file, "w") as f:
@@ -198,14 +191,14 @@ class TestLoadCustomTests:
         self,
         tool_calling_file: Path,
         custom_test_dir: Path,
-        tool_calling_samples: list[dict[str, Any]]
+        tool_calling_samples: list[dict[str, Any]],
     ) -> None:
         """Test loading all samples in smoke tier (5 max)."""
         samples = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert len(samples) == min(len(tool_calling_samples), 5)
@@ -219,14 +212,14 @@ class TestLoadCustomTests:
         self,
         tool_calling_file: Path,
         custom_test_dir: Path,
-        tool_calling_samples: list[dict[str, Any]]
+        tool_calling_samples: list[dict[str, Any]],
     ) -> None:
         """Test loading all samples in quick tier (20 max)."""
         samples = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="quick",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert len(samples) == len(tool_calling_samples)
@@ -236,98 +229,83 @@ class TestLoadCustomTests:
         self,
         tool_calling_file: Path,
         custom_test_dir: Path,
-        tool_calling_samples: list[dict[str, Any]]
+        tool_calling_samples: list[dict[str, Any]],
     ) -> None:
         """Test loading all samples in full tier (no limit)."""
         samples = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="full",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert len(samples) == len(tool_calling_samples)
 
     def test_target_field_from_expected(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test that expected field is converted to target field."""
         samples = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert samples[0].target is not None
         # Target is JSON-serialized for Inspect AI compatibility
         import json
-        assert samples[0].target == json.dumps({
-            "tool": "read_file",
-            "args": {"path": "config.json"}
-        })
+
+        assert samples[0].target == json.dumps(
+            {"tool": "read_file", "args": {"path": "config.json"}}
+        )
         # Original value stored in metadata
         assert samples[0].metadata.get("expected_value") == {
             "tool": "read_file",
-            "args": {"path": "config.json"}
+            "args": {"path": "config.json"},
         }
 
     def test_metadata_includes_scorer_type(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test that metadata includes scorer_type."""
         samples = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert samples[0].metadata is not None
         assert "scorer_type" in samples[0].metadata
         assert samples[0].metadata["scorer_type"] == "tool_match"
 
-    def test_file_not_found_error(
-        self,
-        matric_cli_dir: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_file_not_found_error(self, matric_cli_dir: Path, custom_test_dir: Path) -> None:
         """Test error when custom test file doesn't exist."""
         with pytest.raises(CustomTestNotFoundError) as exc_info:
             load_custom_tests(
                 app="matric-cli",
                 test_name="nonexistent",
                 tier="smoke",
-                datasets_root=str(custom_test_dir)
+                datasets_root=str(custom_test_dir),
             )
 
         assert "nonexistent" in str(exc_info.value)
         assert "matric-cli" in str(exc_info.value)
 
-    def test_app_directory_not_found_error(
-        self,
-        custom_test_dir: Path
-    ) -> None:
+    def test_app_directory_not_found_error(self, custom_test_dir: Path) -> None:
         """Test error when app directory doesn't exist."""
         with pytest.raises(CustomTestNotFoundError) as exc_info:
             load_custom_tests(
                 app="nonexistent-app",
                 test_name="test",
                 tier="smoke",
-                datasets_root=str(custom_test_dir)
+                datasets_root=str(custom_test_dir),
             )
 
         assert "nonexistent-app" in str(exc_info.value)
 
-    def test_invalid_json_format_error(
-        self,
-        matric_cli_dir: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_invalid_json_format_error(self, matric_cli_dir: Path, custom_test_dir: Path) -> None:
         """Test error when JSONL file has invalid format."""
         invalid_file = matric_cli_dir / "invalid.jsonl"
         with open(invalid_file, "w") as f:
@@ -338,15 +316,13 @@ class TestLoadCustomTests:
                 app="matric-cli",
                 test_name="invalid",
                 tier="smoke",
-                datasets_root=str(custom_test_dir)
+                datasets_root=str(custom_test_dir),
             )
 
         assert "invalid" in str(exc_info.value).lower()
 
     def test_missing_required_fields_error(
-        self,
-        matric_cli_dir: Path,
-        custom_test_dir: Path
+        self, matric_cli_dir: Path, custom_test_dir: Path
     ) -> None:
         """Test error when sample is missing required fields."""
         incomplete_file = matric_cli_dir / "incomplete.jsonl"
@@ -359,48 +335,39 @@ class TestLoadCustomTests:
                 app="matric-cli",
                 test_name="incomplete",
                 tier="smoke",
-                datasets_root=str(custom_test_dir)
+                datasets_root=str(custom_test_dir),
             )
 
         assert "required" in str(exc_info.value).lower() or "prompt" in str(exc_info.value).lower()
 
     def test_default_datasets_root(
-        self,
-        tool_calling_file: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, monkeypatch: pytest.MonkeyPatch, custom_test_dir: Path
     ) -> None:
         """Test that default datasets_root is used when not specified."""
         # Change to parent directory so datasets/custom/ exists
         project_root = custom_test_dir.parent.parent
         monkeypatch.chdir(project_root)
 
-        samples = load_custom_tests(
-            app="matric-cli",
-            test_name="tool_calling",
-            tier="smoke"
-        )
+        samples = load_custom_tests(app="matric-cli", test_name="tool_calling", tier="smoke")
 
         assert len(samples) > 0
 
     def test_tiered_sampling_consistency(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test that tiered sampling is consistent across calls."""
         samples1 = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         samples2 = load_custom_tests(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert len(samples1) == len(samples2)
@@ -417,16 +384,14 @@ class TestCustomTask:
     """Tests for custom_task function."""
 
     def test_create_task_with_tool_calling(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test creating a task for tool calling tests."""
         task = custom_task(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert isinstance(task, Task)
@@ -435,16 +400,14 @@ class TestCustomTask:
         assert len(task.dataset) > 0
 
     def test_create_task_with_agent_scenarios(
-        self,
-        agent_scenarios_file: Path,
-        custom_test_dir: Path
+        self, agent_scenarios_file: Path, custom_test_dir: Path
     ) -> None:
         """Test creating a task for agent scenarios."""
         task = custom_task(
             app="matric-cli",
             test_name="agent_scenarios",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert isinstance(task, Task)
@@ -452,79 +415,65 @@ class TestCustomTask:
         assert len(task.dataset) > 0
 
     def test_create_task_with_title_generation(
-        self,
-        title_generation_file: Path,
-        custom_test_dir: Path
+        self, title_generation_file: Path, custom_test_dir: Path
     ) -> None:
         """Test creating a task for title generation."""
         task = custom_task(
             app="matric-memory",
             test_name="title_generation",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert isinstance(task, Task)
         assert task.name == "custom_matric-memory_title_generation"
 
-    def test_task_has_solver(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_task_has_solver(self, tool_calling_file: Path, custom_test_dir: Path) -> None:
         """Test that created task has a solver configured."""
         task = custom_task(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert task.solver is not None
         assert len(task.solver) > 0
 
-    def test_task_has_scorer(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_task_has_scorer(self, tool_calling_file: Path, custom_test_dir: Path) -> None:
         """Test that created task has a scorer configured."""
         task = custom_task(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert task.scorer is not None
 
     def test_auto_detect_scorer_tool_match(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test auto-detection of tool_match scorer type."""
         task = custom_task(
             app="matric-cli",
             test_name="tool_calling",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         # Scorer should be set based on scorer_type in metadata
         assert task.scorer is not None
 
     def test_auto_detect_scorer_semantic_similarity(
-        self,
-        title_generation_file: Path,
-        custom_test_dir: Path
+        self, title_generation_file: Path, custom_test_dir: Path
     ) -> None:
         """Test auto-detection of semantic_similarity scorer type."""
         task = custom_task(
             app="matric-memory",
             test_name="title_generation",
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
 
         assert task.scorer is not None
@@ -545,7 +494,7 @@ class TestDiscoverCustomTests:
         agent_scenarios_file: Path,
         title_generation_file: Path,
         semantic_similarity_file: Path,
-        custom_test_dir: Path
+        custom_test_dir: Path,
     ) -> None:
         """Test discovering all custom tests across all apps."""
         tests = discover_custom_tests(datasets_root=str(custom_test_dir))
@@ -562,13 +511,10 @@ class TestDiscoverCustomTests:
         tool_calling_file: Path,
         agent_scenarios_file: Path,
         title_generation_file: Path,
-        custom_test_dir: Path
+        custom_test_dir: Path,
     ) -> None:
         """Test discovering tests for a specific app."""
-        tests = discover_custom_tests(
-            app="matric-cli",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="matric-cli", datasets_root=str(custom_test_dir))
 
         assert len(tests) == 2
         assert all(t.app == "matric-cli" for t in tests)
@@ -581,13 +527,10 @@ class TestDiscoverCustomTests:
         self,
         tool_calling_file: Path,
         custom_test_dir: Path,
-        tool_calling_samples: list[dict[str, Any]]
+        tool_calling_samples: list[dict[str, Any]],
     ) -> None:
         """Test structure of discovered test metadata."""
-        tests = discover_custom_tests(
-            app="matric-cli",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="matric-cli", datasets_root=str(custom_test_dir))
 
         tool_test = next(t for t in tests if t.test_name == "tool_calling")
         assert isinstance(tool_test, CustomTestMetadata)
@@ -597,62 +540,41 @@ class TestDiscoverCustomTests:
         assert tool_test.sample_count == len(tool_calling_samples)
         assert "scorer_type" in tool_test.metadata_sample
 
-    def test_discover_empty_directory(
-        self,
-        custom_test_dir: Path
-    ) -> None:
+    def test_discover_empty_directory(self, custom_test_dir: Path) -> None:
         """Test discovering tests in empty directory returns empty list."""
         tests = discover_custom_tests(datasets_root=str(custom_test_dir))
 
         assert len(tests) == 0
 
-    def test_discover_app_not_found(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_discover_app_not_found(self, tool_calling_file: Path, custom_test_dir: Path) -> None:
         """Test discovering tests for non-existent app returns empty list."""
-        tests = discover_custom_tests(
-            app="nonexistent-app",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="nonexistent-app", datasets_root=str(custom_test_dir))
 
         assert len(tests) == 0
 
     def test_discover_ignores_non_jsonl_files(
-        self,
-        matric_cli_dir: Path,
-        tool_calling_file: Path,
-        custom_test_dir: Path
+        self, matric_cli_dir: Path, tool_calling_file: Path, custom_test_dir: Path
     ) -> None:
         """Test that discovery ignores non-JSONL files."""
         # Create non-JSONL files
         (matric_cli_dir / "README.md").write_text("# Tests")
         (matric_cli_dir / "config.json").write_text("{}")
 
-        tests = discover_custom_tests(
-            app="matric-cli",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="matric-cli", datasets_root=str(custom_test_dir))
 
         # Should only find the .jsonl file
         assert len(tests) == 1
         assert tests[0].test_name == "tool_calling"
 
     def test_discover_handles_corrupted_file_gracefully(
-        self,
-        matric_cli_dir: Path,
-        custom_test_dir: Path
+        self, matric_cli_dir: Path, custom_test_dir: Path
     ) -> None:
         """Test that discovery handles corrupted files gracefully."""
         corrupted_file = matric_cli_dir / "corrupted.jsonl"
         corrupted_file.write_text("invalid json\n")
 
         # Should not raise, but may skip the corrupted file
-        tests = discover_custom_tests(
-            app="matric-cli",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="matric-cli", datasets_root=str(custom_test_dir))
 
         # Either no tests or metadata indicates error
         assert isinstance(tests, list)
@@ -662,7 +584,7 @@ class TestDiscoverCustomTests:
         tool_calling_file: Path,
         agent_scenarios_file: Path,
         title_generation_file: Path,
-        custom_test_dir: Path
+        custom_test_dir: Path,
     ) -> None:
         """Test that discovered tests are sorted by app and test name."""
         tests = discover_custom_tests(datasets_root=str(custom_test_dir))
@@ -690,7 +612,7 @@ class TestCustomTestMetadata:
             test_name="test_name",
             path="/path/to/test.jsonl",
             sample_count=10,
-            metadata_sample={"scorer_type": "match"}
+            metadata_sample={"scorer_type": "match"},
         )
 
         assert metadata.app == "test-app"
@@ -706,7 +628,7 @@ class TestCustomTestMetadata:
             test_name="test_name",
             path="/path/to/test.jsonl",
             sample_count=10,
-            metadata_sample={}
+            metadata_sample={},
         )
 
         repr_str = repr(metadata)
@@ -750,17 +672,10 @@ class TestExceptionClasses:
 class TestCustomTestWorkflow:
     """Integration tests for complete custom test workflow."""
 
-    def test_complete_workflow(
-        self,
-        tool_calling_file: Path,
-        custom_test_dir: Path
-    ) -> None:
+    def test_complete_workflow(self, tool_calling_file: Path, custom_test_dir: Path) -> None:
         """Test complete workflow from discovery to task creation."""
         # 1. Discover tests
-        tests = discover_custom_tests(
-            app="matric-cli",
-            datasets_root=str(custom_test_dir)
-        )
+        tests = discover_custom_tests(app="matric-cli", datasets_root=str(custom_test_dir))
         assert len(tests) > 0
 
         # 2. Get test metadata
@@ -772,7 +687,7 @@ class TestCustomTestWorkflow:
             app=test_meta.app,
             test_name=test_meta.test_name,
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
         assert len(samples) > 0
 
@@ -781,16 +696,13 @@ class TestCustomTestWorkflow:
             app=test_meta.app,
             test_name=test_meta.test_name,
             tier="smoke",
-            datasets_root=str(custom_test_dir)
+            datasets_root=str(custom_test_dir),
         )
         assert isinstance(task, Task)
         assert task.name == f"custom_{test_meta.app}_{test_meta.test_name}"
 
     def test_multiple_apps_workflow(
-        self,
-        tool_calling_file: Path,
-        title_generation_file: Path,
-        custom_test_dir: Path
+        self, tool_calling_file: Path, title_generation_file: Path, custom_test_dir: Path
     ) -> None:
         """Test workflow with multiple apps."""
         # Discover all tests
@@ -816,7 +728,7 @@ class TestCustomTestWorkflow:
                     app=test_meta.app,
                     test_name=test_meta.test_name,
                     tier="smoke",
-                    datasets_root=str(custom_test_dir)
+                    datasets_root=str(custom_test_dir),
                 )
                 tasks.append(task)
 

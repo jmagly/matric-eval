@@ -184,9 +184,7 @@ class SandboxClient:
         """
         try:
             # Use a longer timeout for log streaming
-            with self._client.stream(
-                "GET", f"/api/v1/tasks/{task_id}/logs"
-            ) as resp:
+            with self._client.stream("GET", f"/api/v1/tasks/{task_id}/logs") as resp:
                 if resp.status_code != 200:
                     return ""
                 lines = []
@@ -223,17 +221,13 @@ class SandboxClient:
             Raw artifact bytes
         """
         try:
-            resp = self._client.get(
-                f"/api/v1/tasks/{task_id}/artifacts/{artifact_name}"
-            )
+            resp = self._client.get(f"/api/v1/tasks/{task_id}/artifacts/{artifact_name}")
         except httpx.ConnectError as e:
             raise SandboxUnavailableError(str(e)) from e
 
         if resp.status_code == 200:
             return resp.content
-        raise SandboxTaskError(
-            f"Artifact '{artifact_name}' not found for task {task_id}"
-        )
+        raise SandboxTaskError(f"Artifact '{artifact_name}' not found for task {task_id}")
 
     def cancel_task(self, task_id: str, reason: str = "") -> bool:
         """Cancel a running task.

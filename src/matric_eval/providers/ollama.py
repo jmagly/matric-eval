@@ -13,7 +13,6 @@ from typing import Any
 
 from matric_eval.providers.base import (
     ModelInfo,
-    Provider,
     ProviderConfig,
     ProviderConnectionError,
     ProviderModelNotFoundError,
@@ -103,11 +102,13 @@ class OllamaProvider:
                 if max_size_gb > 0 and size_gb > max_size_gb:
                     continue
 
-                models.append(ModelInfo(
-                    name=name,
-                    size_gb=round(size_gb, 2),
-                    metadata={"size_str": f"{size_val} {size_unit}"},
-                ))
+                models.append(
+                    ModelInfo(
+                        name=name,
+                        size_gb=round(size_gb, 2),
+                        metadata={"size_str": f"{size_val} {size_unit}"},
+                    )
+                )
             except (ValueError, IndexError):
                 continue
 
@@ -133,9 +134,7 @@ class OllamaProvider:
         try:
             info = json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            raise ProviderModelNotFoundError(
-                f"Invalid JSON from Ollama for model '{model}': {e}"
-            )
+            raise ProviderModelNotFoundError(f"Invalid JSON from Ollama for model '{model}': {e}")
 
         capabilities = info.get("capabilities", [])
         return ModelInfo(

@@ -327,8 +327,7 @@ def injecagent_scorer() -> Scorer:
             value=value,
             answer=state.output.completion,
             explanation=(
-                f"InjecAgent classification: step1={first['status']}, "
-                f"step2={second['status']}"
+                f"InjecAgent classification: step1={first['status']}, step2={second['status']}"
             ),
             metadata={"step1": first, "step2": second, "side_effects": "none"},
         )

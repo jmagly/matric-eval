@@ -190,18 +190,21 @@ def create_tiered_dataset(
 def humaneval_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load HumanEval with tiered sampling."""
     from .tasks.builtin import HUMANEVAL_SAMPLES
+
     return create_tiered_dataset(HUMANEVAL_SAMPLES, "humaneval", tier, seed)
 
 
 def mbpp_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load MBPP with tiered sampling."""
     from .tasks.builtin import MBPP_SAMPLES
+
     return create_tiered_dataset(MBPP_SAMPLES, "mbpp", tier, seed)
 
 
 def gsm8k_dataset(tier: str = "smoke", seed: int | None = None) -> MemoryDataset:
     """Load GSM8K with tiered sampling."""
     from .tasks.builtin import GSM8K_SAMPLES
+
     return create_tiered_dataset(GSM8K_SAMPLES, "gsm8k", tier, seed)
 
 
@@ -318,8 +321,7 @@ def _read_parquet_table(path: str | Path) -> Any:
         import pyarrow.parquet as pq
     except ImportError:
         raise ImportError(
-            "PyArrow is required for Parquet loading. "
-            "Install it with: pip install pyarrow"
+            "PyArrow is required for Parquet loading. Install it with: pip install pyarrow"
         )
     return pq.read_table(str(path))
 

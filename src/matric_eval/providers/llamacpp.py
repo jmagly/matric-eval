@@ -8,9 +8,9 @@ exposes OpenAI-compatible endpoints at /v1/chat/completions and
 
 from __future__ import annotations
 
+import json
 import urllib.error
 import urllib.request
-import json
 from typing import Any
 
 from matric_eval.providers.base import (
@@ -68,10 +68,12 @@ class LlamaCppProvider:
         models = []
         for model_data in data.get("data", []):
             model_id = model_data.get("id", "unknown")
-            models.append(ModelInfo(
-                name=model_id,
-                metadata=model_data,
-            ))
+            models.append(
+                ModelInfo(
+                    name=model_id,
+                    metadata=model_data,
+                )
+            )
 
         return models
 
@@ -81,8 +83,7 @@ class LlamaCppProvider:
             if m.name == model:
                 return m
         raise ProviderModelNotFoundError(
-            f"Model '{model}' not loaded on llama.cpp server. "
-            f"Available: {[m.name for m in models]}"
+            f"Model '{model}' not loaded on llama.cpp server. Available: {[m.name for m in models]}"
         )
 
     def format_model_id(self, model: str) -> str:
@@ -104,8 +105,7 @@ class LlamaCppProvider:
         extra = self._config.extra
         if extra:
             generate_params = {}
-            for key in ("temperature", "top_k", "top_p", "repeat_penalty",
-                        "n_predict", "seed"):
+            for key in ("temperature", "top_k", "top_p", "repeat_penalty", "n_predict", "seed"):
                 if key in extra:
                     generate_params[key] = extra[key]
             if generate_params:

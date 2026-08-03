@@ -18,6 +18,27 @@ make test-coverage
 make test-unit
 ```
 
+## Authoritative Quality Gates
+
+Run the same blocking gates used by both hosted CI providers:
+
+```bash
+make lint                # ruff check src/ tests/ scripts/
+make format-check        # ruff format --check src/ tests/ scripts/
+make type-check          # strict mypy baseline ratchet
+make test-coverage-fail  # full pytest suite and 80% coverage floor
+make ci                  # all four gates above
+```
+
+The committed `mypy-baseline.json` records existing strict findings by file,
+error code, message, and count. `make type-check` permits reductions but fails
+on a new finding or an increased count. Use `make type-check-strict` to view all
+findings and `make type-check-update` only after reviewed debt reduction.
+
+Protected mainline changes require these job contexts on both CI providers:
+`Quality Gates`, `Test and Coverage`, and `Build Package`. A missing, skipped,
+pending, or failed required context is not approval to merge.
+
 ## Test Infrastructure Summary
 
 ### Statistics

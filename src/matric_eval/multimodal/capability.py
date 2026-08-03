@@ -17,20 +17,20 @@ import re
 # Patterns that indicate a model has vision/multimodal capability.
 _VISION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bvision\b", re.IGNORECASE),
-    re.compile(r"\bvl\b", re.IGNORECASE),          # e.g. qwen2-vl, internvl
-    re.compile(r"[-_]vl[-_]?", re.IGNORECASE),     # qwen2-vl-7b
-    re.compile(r"\bllava\b", re.IGNORECASE),        # LLaVA models
-    re.compile(r"\b4o\b", re.IGNORECASE),           # gpt-4o, gpt-4o-mini
-    re.compile(r"\bpixtral\b", re.IGNORECASE),      # Pixtral
-    re.compile(r"\bgemini\b", re.IGNORECASE),       # All Gemini models are multimodal
-    re.compile(r"\bclaude-3\b", re.IGNORECASE),     # Claude 3 series supports vision
+    re.compile(r"\bvl\b", re.IGNORECASE),  # e.g. qwen2-vl, internvl
+    re.compile(r"[-_]vl[-_]?", re.IGNORECASE),  # qwen2-vl-7b
+    re.compile(r"\bllava\b", re.IGNORECASE),  # LLaVA models
+    re.compile(r"\b4o\b", re.IGNORECASE),  # gpt-4o, gpt-4o-mini
+    re.compile(r"\bpixtral\b", re.IGNORECASE),  # Pixtral
+    re.compile(r"\bgemini\b", re.IGNORECASE),  # All Gemini models are multimodal
+    re.compile(r"\bclaude-3\b", re.IGNORECASE),  # Claude 3 series supports vision
     re.compile(r"\bclaude-opus\b", re.IGNORECASE),
     re.compile(r"\bclaude-sonnet\b", re.IGNORECASE),
     re.compile(r"\bclaude-haiku\b", re.IGNORECASE),
-    re.compile(r"\binternvl\b", re.IGNORECASE),     # InternVL
-    re.compile(r"\bmoondream\b", re.IGNORECASE),    # Moondream
-    re.compile(r"\bminicpm[-_]v\b", re.IGNORECASE),# MiniCPM-V
-    re.compile(r"\bqwen.*vl\b", re.IGNORECASE),     # Qwen VL family
+    re.compile(r"\binternvl\b", re.IGNORECASE),  # InternVL
+    re.compile(r"\bmoondream\b", re.IGNORECASE),  # Moondream
+    re.compile(r"\bminicpm[-_]v\b", re.IGNORECASE),  # MiniCPM-V
+    re.compile(r"\bqwen.*vl\b", re.IGNORECASE),  # Qwen VL family
     re.compile(r"\bphi-?3.*vision\b", re.IGNORECASE),  # Phi-3-Vision
 ]
 

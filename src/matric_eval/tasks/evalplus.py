@@ -34,7 +34,7 @@ MBPP_PLUS_HASH = "ee43ecabebf20deef4bb776a405ac5b1"
 HUMANEVAL_PLUS_TOTAL = 164
 MBPP_PLUS_TOTAL = 378
 
-_RUNNER = r'''import json
+_RUNNER = r"""import json
 import pickle
 
 from evalplus.evaluate import untrusted_check
@@ -57,7 +57,7 @@ for suite in ("base", "plus"):
     results[f"{suite}_status"] = status
     results[f"{suite}_details"] = list(details)
 print("MATRIC_EVALPLUS_RESULT=" + json.dumps(results))
-'''
+"""
 
 
 def _require_evalplus() -> None:
@@ -96,9 +96,7 @@ def _suite(dataset: Literal["humaneval", "mbpp"]) -> tuple[dict[str, Any], dict[
     return problems, expected
 
 
-def record_to_sample(
-    record: dict[str, Any], *, dataset: Literal["humaneval", "mbpp"]
-) -> Sample:
+def record_to_sample(record: dict[str, Any], *, dataset: Literal["humaneval", "mbpp"]) -> Sample:
     required = {
         "task_id",
         "prompt",
@@ -133,9 +131,7 @@ def record_to_sample(
     )
 
 
-def load_evalplus(
-    dataset: Literal["humaneval", "mbpp"], tier: str = "smoke"
-) -> list[Sample]:
+def load_evalplus(dataset: Literal["humaneval", "mbpp"], tier: str = "smoke") -> list[Sample]:
     problems, _ = _suite(dataset)
     benchmark = f"{dataset}_plus"
     samples = [record_to_sample(problem, dataset=dataset) for problem in problems.values()]

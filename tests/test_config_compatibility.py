@@ -4,8 +4,6 @@ Tests for configuration legacy compatibility functions.
 Verifies backward compatibility with old config.py API.
 """
 
-import pytest
-
 from matric_eval.config import (
     DEFAULT_SEED,
     MAX_MODEL_SIZE_GB,

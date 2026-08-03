@@ -10,6 +10,7 @@ Covers:
 """
 
 import math
+
 import pytest
 
 from matric_eval.scorers.pass_k import (
@@ -17,7 +18,6 @@ from matric_eval.scorers.pass_k import (
     pass_at_k,
     pass_power_k,
 )
-
 
 # =============================================================================
 # pass_at_k Tests
@@ -196,9 +196,9 @@ class TestAggregatePassKResults:
     def test_returns_total_correct(self) -> None:
         """total_correct should count samples with at least one correct."""
         all_results = [
-            [True, False],   # at least one correct
+            [True, False],  # at least one correct
             [False, False],  # no correct
-            [True, True],    # all correct
+            [True, True],  # all correct
         ]
         agg = aggregate_pass_k_results(all_results, k=2)
         # total_correct = count of samples that have ≥1 correct

@@ -19,7 +19,9 @@ from matric_eval.config import get_sample_count
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to test data
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_memory" / "data"
+DATA_DIR = (
+    Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_memory" / "data"
+)
 
 
 def load_title_cases() -> list[dict[str, Any]]:
@@ -47,7 +49,7 @@ The title should capture the main topic or purpose of the note.
 Return only the title, nothing else.
 
 Note content:
-{case['content']}
+{case["content"]}
 
 Title:"""
 
@@ -69,9 +71,9 @@ def similarity_to_sample(pair: dict[str, Any], pair_type: str) -> Sample:
 0 means completely unrelated, 10 means identical meaning.
 Return only the number.
 
-Text A: {pair['text1']}
+Text A: {pair["text1"]}
 
-Text B: {pair['text2']}
+Text B: {pair["text2"]}
 
 Similarity score:"""
 
@@ -120,6 +122,7 @@ def load_matric_memory(tier: str = "smoke") -> list[Sample]:
     sample_count = get_sample_count("matric_memory", tier)
     if sample_count and len(samples) > sample_count:
         import random
+
         rng = random.Random(42)
         samples = rng.sample(samples, sample_count)
 
@@ -134,6 +137,7 @@ def title_quality_scorer():
     Checks if generated title is similar to ideal titles and
     dissimilar from bad titles.
     """
+
     async def score(state, target: Target) -> Score:
         response = state.output.completion.strip() if state.output else ""
         metadata = state.metadata or {}
@@ -179,7 +183,7 @@ def title_quality_scorer():
         elif category == "embedding_similarity":
             # For similarity scoring, check if model gave appropriate rating
             try:
-                rating = float(re.search(r'\d+(?:\.\d+)?', response).group())
+                rating = float(re.search(r"\d+(?:\.\d+)?", response).group())
                 expected_high = metadata.get("pair_type") == "similar"
 
                 if expected_high:

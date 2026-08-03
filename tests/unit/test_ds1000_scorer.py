@@ -18,7 +18,7 @@ class TestExecuteDs1000Test:
     def test_execute_passing_test(self) -> None:
         """Code that passes the test returns passed=True."""
         # Simple test harness that checks if result == expected
-        code_context = '''
+        code_context = """
 def generate_test_case(test_case_id):
     return 10, 100  # input, expected
 
@@ -30,7 +30,7 @@ def test_execution(solution: str):
     test_env = {"test_input": test_input}
     exec(f"x = test_input; result = x * 10", test_env)
     assert exec_test(test_env["result"], expected_result)
-'''
+"""
 
         # Solution that computes x * 10
         code = "result = x * 10"
@@ -40,10 +40,10 @@ def test_execution(solution: str):
 
     def test_execute_failing_test(self) -> None:
         """Code that fails the test returns passed=False."""
-        code_context = '''
+        code_context = """
 def test_execution(solution: str):
     assert False, "Test always fails"
-'''
+"""
 
         code = "pass"
 
@@ -53,10 +53,10 @@ def test_execution(solution: str):
 
     def test_execute_syntax_error_in_solution(self) -> None:
         """Syntax error in solution code returns passed=False."""
-        code_context = '''
+        code_context = """
 def test_execution(solution: str):
     exec(solution)
-'''
+"""
 
         code = "def broken("  # Syntax error
 
@@ -65,10 +65,10 @@ def test_execution(solution: str):
 
     def test_execute_timeout(self) -> None:
         """Infinite loop in solution times out."""
-        code_context = '''
+        code_context = """
 def test_execution(solution: str):
     exec(solution)
-'''
+"""
 
         code = "while True: pass"
 
@@ -96,7 +96,7 @@ class TestDs1000Scorer:
         state = MagicMock()
         state.output.completion = "result = x * 2"  # Correct solution
         state.metadata = {
-            "code_context": '''
+            "code_context": """
 def generate_test_case(test_case_id):
     return 5, 10  # input, expected
 
@@ -109,7 +109,7 @@ def test_execution(solution: str):
     test_env = {}
     exec(exec_context, test_env)
     assert exec_test(test_env["result"], expected_result)
-'''
+"""
         }
 
         target = MagicMock()
@@ -125,7 +125,7 @@ def test_execution(solution: str):
         state = MagicMock()
         state.output.completion = "result = x * 3"  # Wrong: should be *2
         state.metadata = {
-            "code_context": '''
+            "code_context": """
 def generate_test_case(test_case_id):
     return 5, 10  # input, expected (correct answer is x * 2)
 
@@ -138,7 +138,7 @@ def test_execution(solution: str):
     test_env = {}
     exec(exec_context, test_env)
     assert exec_test(test_env["result"], expected_result)
-'''
+"""
         }
 
         target = MagicMock()
@@ -183,9 +183,7 @@ def test_execution(solution: str):
 
         state = MagicMock()
         state.output.completion = "result = 42"
-        state.metadata = {
-            "code_context": "# No test_execution function here"
-        }
+        state.metadata = {"code_context": "# No test_execution function here"}
 
         target = MagicMock()
 
@@ -199,14 +197,14 @@ def test_execution(solution: str):
         scorer = ds1000_scorer()
 
         state = MagicMock()
-        state.output.completion = '```python\nresult = x * 2\n```'
+        state.output.completion = "```python\nresult = x * 2\n```"
         state.metadata = {
-            "code_context": '''
+            "code_context": """
 def test_execution(solution: str):
     test_env = {"x": 5}
     exec(solution, test_env)
     assert test_env["result"] == 10
-'''
+"""
         }
 
         target = MagicMock()
@@ -232,7 +230,7 @@ class TestDs1000ScorerRegressions:
         scorer = ds1000_scorer()
 
         # Realistic DS-1000 style code_context
-        code_context = '''
+        code_context = """
 import pandas as pd
 
 def generate_test_case(test_case_id):
@@ -252,7 +250,7 @@ def test_execution(solution: str):
     test_env = {"df": test_input, "pd": pd}
     exec(solution, test_env)
     assert exec_test(test_env["result"], expected_result)
-'''
+"""
 
         state = MagicMock()
         state.output.completion = 'result = df[df["A"] > 1]'
@@ -272,12 +270,12 @@ def test_execution(solution: str):
         """
         scorer = ds1000_scorer()
 
-        code_context = '''
+        code_context = """
 def test_execution(solution: str):
     test_env = {}
     exec(solution, test_env)
     assert test_env["result"] == "hello"
-'''
+"""
 
         state = MagicMock()
         # Solution with triple quotes
@@ -323,14 +321,14 @@ def test_execution(solution: str):
 
         state = MagicMock()
         # Model outputs full function definition (common pattern)
-        state.output.completion = '''```python
+        state.output.completion = """```python
 import pandas as pd
 
 def f(df):
     return sum(df)
 
 result = f([1,2,3])
-```'''
+```"""
         state.metadata = {"code_context": code_context}
 
         target = MagicMock()
@@ -345,11 +343,11 @@ class TestExtractSolutionForContext:
 
     def test_top_level_insert_uses_full_code(self) -> None:
         """When [insert] is at top level, use full code."""
-        exec_context = '''
+        exec_context = """
 import pandas as pd
 df = test_input
 [insert]
-'''
+"""
         code = "result = df.sum()"
 
         result = extract_solution_for_context(code, exec_context)
@@ -357,20 +355,20 @@ df = test_input
 
     def test_insert_inside_function_extracts_body(self) -> None:
         """When [insert] is inside function, extract function body."""
-        exec_context = '''
+        exec_context = """
 import pandas as pd
 def f(df):
 [insert]
 result = f(df)
-'''
+"""
         # Model outputs full function
-        code = '''import pandas as pd
+        code = """import pandas as pd
 
 def f(df):
     total = sum(df)
     return total
 
-result = f([1,2,3])'''
+result = f([1,2,3])"""
 
         result = extract_solution_for_context(code, exec_context)
         # Should extract just the function body with indentation
@@ -381,33 +379,33 @@ result = f([1,2,3])'''
 
     def test_insert_inside_function_preserves_indentation(self) -> None:
         """Extracted function body should preserve indentation."""
-        exec_context = '''
+        exec_context = """
 def f(x):
 [insert]
-'''
-        code = '''def f(x):
+"""
+        code = """def f(x):
     if x > 0:
         return x * 2
     else:
-        return x'''
+        return x"""
 
         result = extract_solution_for_context(code, exec_context)
         # Body lines should be indented - check raw result without strip
-        lines = result.split('\n')
+        lines = result.split("\n")
         # Filter out empty lines and check non-empty lines are indented
         non_empty_lines = [line for line in lines if line.strip()]
         assert len(non_empty_lines) > 0
-        assert all(line.startswith('    ') for line in non_empty_lines)
+        assert all(line.startswith("    ") for line in non_empty_lines)
 
     def test_already_indented_code_preserved(self) -> None:
         """If code is already indented (looks like body), preserve it."""
-        exec_context = '''
+        exec_context = """
 def f(x):
 [insert]
-'''
+"""
         # Already just the function body with proper indentation
-        code = '''    result = x * 2
-    return result'''
+        code = """    result = x * 2
+    return result"""
 
         result = extract_solution_for_context(code, exec_context)
         assert result == code

@@ -143,6 +143,5 @@ class EloAggregator:
             return {model: 0.5 for model in self._ratings}
 
         return {
-            model: (rating - min_rating) / rating_range
-            for model, rating in self._ratings.items()
+            model: (rating - min_rating) / rating_range for model, rating in self._ratings.items()
         }
