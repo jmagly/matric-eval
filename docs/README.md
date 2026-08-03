@@ -5,8 +5,10 @@ Comprehensive documentation for the matric-eval model evaluation framework.
 ## Quick Links
 
 - [Architecture Overview](architecture/overview.md) - System design and component structure
-- [Vision](requirements/vision.md) - Project goals and scope
-- [Roadmap](development/roadmap.md) - Implementation timeline and milestones
+- [Roadmap](development/roadmap.md) - Current support, release gates, and live milestones
+- [Delivery Plan](development/planning.md) - Ordered 0.2.0 work and acceptance gates
+- [Traceability Matrix](requirements/traceability-matrix.md) - Living requirement-to-evidence mapping
+- [Operational Validation](validation/operational-validation-v1.md) - Pinned scorer and reliability evidence
 - [Testing Guide](testing/contributing.md) - How to run and write tests
 
 ## Documentation Structure
@@ -25,10 +27,10 @@ Technical design documentation and architectural decisions.
 
 ### Requirements
 
-Product requirements and use case specifications.
+Current traceability plus the archived v0.1 requirements baseline.
 
-- [**Vision**](requirements/vision.md) - Project vision and business case
-- [**Supplementary Requirements**](requirements/supplementary-requirements.md) - Non-functional requirements
+- [**Vision**](requirements/vision.md) - Archived v0.1 project vision and business case
+- [**Supplementary Requirements**](requirements/supplementary-requirements.md) - Archived v0.1 non-functional requirements baseline
 - [**Traceability Matrix**](requirements/traceability-matrix.md) - Requirements to implementation mapping
 - **Use Cases**
   - [UC001: Run Benchmark](requirements/use-cases/use-case-UC001-run-benchmark.md)
@@ -58,8 +60,8 @@ CI/CD and release documentation.
 
 Planning and implementation guides.
 
-- [**Planning**](development/planning.md) - Architecture decisions and implementation plan
-- [**Roadmap**](development/roadmap.md) - Project timeline and milestones
+- [**Planning**](development/planning.md) - Current 0.2.0 delivery sequence and gates
+- [**Roadmap**](development/roadmap.md) - Supported capabilities and live milestones
 - [**Checkpoint/Resume**](development/checkpoint-resume.md) - Implementation details for fault tolerance
 - [**Session Init**](development/session-init.md) - Development session initialization
 
@@ -80,7 +82,7 @@ Background research and academic references.
 
 ## Getting Started
 
-1. Read the [Vision](requirements/vision.md) to understand project goals
+1. Check the [Roadmap](development/roadmap.md) for current support and release status
 2. Review the [Architecture Overview](architecture/overview.md) for system design
-3. Check the [Roadmap](development/roadmap.md) for current status
+3. Use the [Traceability Matrix](requirements/traceability-matrix.md) for current evidence
 4. See [Testing Guide](testing/contributing.md) for development workflow

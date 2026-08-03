@@ -1,5 +1,10 @@
 # Vision and Business Requirements
 
+> **Archived v0.1 vision baseline.** Scope, schedules, and completion claims
+> below preserve release history. Use the
+> [supported-capability roadmap](../development/roadmap.md) and
+> [living traceability matrix](traceability-matrix.md) for current status.
+
 **Document ID**: REQ-VIS-001
 **Version**: 1.0
 **Date**: 2026-01-24

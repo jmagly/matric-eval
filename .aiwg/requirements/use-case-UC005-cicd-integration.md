@@ -1,5 +1,10 @@
 # Use Case UC005: CI/CD Integration
 
+> **Archived v0.1 requirements baseline.** Examples and planning status below
+> preserve design history and may not match current paths or behavior. Use the
+> [living traceability matrix](../../docs/requirements/traceability-matrix.md)
+> for current support.
+
 **Document ID**: REQ-UC-005
 **Version**: 1.0
 **Date**: 2026-01-24

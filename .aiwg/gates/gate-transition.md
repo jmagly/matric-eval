@@ -1,5 +1,10 @@
 # Transition Phase Gate Review
 
+> **Archived transition template (2026-01).** This uncompleted gate template is
+> retained for process history and is not current release status. Use the
+> [supported-capability roadmap](../../docs/development/roadmap.md) and live
+> Gitea milestones.
+
 **Project**: matric-eval - Consolidated Model Evaluation Framework
 **Phase**: Transition
 **Gate ID**: GATE-TRANSITION-001

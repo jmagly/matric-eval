@@ -1,5 +1,13 @@
 # Construction Phase - Detailed Iteration Plans
 
+
+> **Archived planning baseline (2026-01).** This file is retained for decision
+> history. Its dates, estimates, issue numbers, and completion states are not
+> current. Use [the supported-capability roadmap](../../docs/development/roadmap.md),
+> [the current delivery plan](../../docs/development/planning.md), and Gitea
+> tracker state.
+
+
 **Document Type**: Detailed Iteration Plans
 **Project**: matric-eval
 **Phase**: Construction (Weeks 4-7)

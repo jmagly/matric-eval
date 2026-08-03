@@ -1,5 +1,10 @@
 # Supplementary Requirements (Non-Functional Requirements)
 
+> **Archived v0.1 requirements baseline.** Targets below preserve original
+> design intent and are not blanket claims about current behavior. Use the
+> [living traceability matrix](traceability-matrix.md) and retained validation
+> evidence for current acceptance.
+
 **Document ID**: REQ-SUP-001
 **Version**: 1.0
 **Date**: 2026-01-24

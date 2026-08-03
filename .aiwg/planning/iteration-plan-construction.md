@@ -1,5 +1,13 @@
 # Construction Phase Plan - matric-eval
 
+
+> **Archived planning baseline (2026-01).** This file is retained for decision
+> history. Its dates, estimates, issue numbers, and completion states are not
+> current. Use [the supported-capability roadmap](../../docs/development/roadmap.md),
+> [the current delivery plan](../../docs/development/planning.md), and Gitea
+> tracker state.
+
+
 **Document Type**: Phase Plan - Construction
 **Project**: matric-eval - Consolidated Model Evaluation Framework
 **Profile**: Production (80%+ test coverage required)

@@ -1,5 +1,9 @@
 # Handoff Checklist: Construction → Transition
 
+> **Archived construction handoff (2026-01).** Checklist state and counts are
+> historical. Use the [current delivery plan](../../docs/development/planning.md)
+> and live tracker for 0.2.0 work.
+
 **Project**: matric-eval
 **Phase Transition**: Construction → Transition
 **Date**: _____________

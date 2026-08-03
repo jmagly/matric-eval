@@ -1,5 +1,10 @@
 # Handoff Checklist: Transition → Production
 
+> **Archived transition handoff (2026-01).** This record does not establish
+> current production support or 0.2.0 release readiness. Use the
+> [supported-capability roadmap](../../docs/development/roadmap.md) and live
+> release evidence.
+
 **Project**: matric-eval
 **Phase Transition**: Transition → Production (Support Teams)
 **Date**: _____________

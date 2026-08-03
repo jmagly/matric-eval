@@ -1,5 +1,9 @@
 # Use Case UC002: Checkpoint and Resume Evaluation
 
+> **Archived v0.1 requirements baseline.** Examples and planning status below
+> preserve design history and may not match current paths or behavior. Use the
+> [living traceability matrix](../traceability-matrix.md) for current support.
+
 **Document ID**: REQ-UC-002
 **Version**: 1.0
 **Date**: 2026-01-24

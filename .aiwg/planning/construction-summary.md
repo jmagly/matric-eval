@@ -1,5 +1,13 @@
 # Construction Phase - Executive Summary
 
+
+> **Archived planning baseline (2026-01).** This file is retained for decision
+> history. Its dates, estimates, issue numbers, and completion states are not
+> current. Use [the supported-capability roadmap](../../docs/development/roadmap.md),
+> [the current delivery plan](../../docs/development/planning.md), and Gitea
+> tracker state.
+
+
 **Project**: matric-eval
 **Phase**: Construction (Weeks 4-7)
 **Duration**: 4 weeks (160 hours)

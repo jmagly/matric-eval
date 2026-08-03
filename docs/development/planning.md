@@ -1,342 +1,94 @@
-# matric-eval Planning Document
+# matric-eval Delivery Plan
 
-## Executive Summary
+**Status**: Active 0.2.0 release planning
 
-This document outlines the architectural decisions and implementation plan for `matric-eval`, a consolidated model evaluation framework for the matric ecosystem.
+**Last reconciled**: 2026-08-03
 
-**Key Recommendation**: Adopt Python as the core language, leveraging existing evaluation frameworks (Inspect AI or lm-eval-harness) rather than building from scratch in TypeScript.
+This is the current delivery plan. The original week-based construction plans
+under `.aiwg/planning/` are archived project history; their issue numbers,
+estimates, and completion states must not be used for current scheduling.
 
-## Research Findings
+## Delivery Sources Of Truth
 
-### Industry-Standard Evaluation Frameworks
+1. [Gitea issues](https://git.integrolabs.net/roctinam/matric-eval/issues) own scope, dependencies, and acceptance criteria.
+2. [Gitea milestones](https://git.integrolabs.net/roctinam/matric-eval/milestones) own release grouping and open/closed state.
+3. The [supported-capability roadmap](roadmap.md) summarizes current product status.
+4. `matric-eval list-benchmarks` and `matric-eval audit-benchmarks` generate the benchmark inventory and protocol health.
+5. Gitea Actions is authoritative for integration and release evidence.
 
-| Framework | Language | Maintainer | Ollama Support | Strengths |
-|-----------|----------|------------|----------------|-----------|
-| **[Inspect AI](https://inspect.aisi.org.uk/)** | Python | UK AI Safety Institute | Native | Agent evals, 100+ pre-built tasks, MCP tools |
-| **[lm-eval-harness](https://github.com/EleutherAI/lm-evaluation-harness)** | Python | EleutherAI | Via local-completions | Industry standard, HF Leaderboard backend |
-| **[HELM](https://crfm.stanford.edu/helm/)** | Python | Stanford CRFM | Limited | Holistic metrics, research-grade |
+## Current Position
 
-### Why Python Over TypeScript?
+The Reliability & CI Hardening milestone closed on 2026-08-03 with issues #87
+through #90 complete. The repository is now in the Release 0.2 & Ecosystem
+Adoption milestone. Version 0.1.0 remains the latest released package until #92
+completes all release gates.
 
-1. **Ecosystem**: All major eval frameworks are Python-based
-2. **Pre-built benchmarks**: 60+ tasks in lm-eval-harness, 100+ in Inspect AI
-3. **Standardization**: Avoid reinventing prompt formats, validation logic, metrics
-4. **Community**: Bug fixes and improvements from the broader ML community
-5. **Ollama integration**: Native support in Inspect AI, tested patterns in lm-eval
+## Ordered Work
 
-### Current TypeScript Pain Points (from matric-cli)
+| Stage | Tracker item | State | Required outcome |
+|---|---|---|---|
+| Documentation baseline | [#91](https://git.integrolabs.net/roctinam/matric-eval/issues/91) | In progress | Public docs, planning, traceability, protocols, and historical records agree with current evidence |
+| Release candidate | [#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) | Blocked until #91 | Consistent 0.2.0 versions, changelog/release notes, wheel, sdist, TypeScript package, SBOM, license report, and vulnerability audit |
+| Clean validation | [#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) | Coordinates with #92 | Install and exercise candidate artifacts in every supported clean environment; attach hashes and results before final publication |
+| Ecosystem adoption | [#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94) | Blocked by package candidate | Validate the TypeScript client in matric-cli, including streaming, cancellation, errors, migration, and rollback |
 
-Issues we've had to solve manually that frameworks handle:
-- MBPP function name extraction (`51382e2`)
-- Code extraction from markdown fences
-- Safe process execution sandbox
-- Validation artifact preservation
-- Reproducible sampling
+Release preparation and clean validation are iterative: #92 produces immutable
+candidate artifacts, #93 validates those exact hashes, and #92 publishes the tag
+and final release only after that evidence passes. #94 validates the supported
+consumer path and must not assume that a source-tree build proves registry
+installation or consumer compatibility.
 
-### Critical Requirement: Resilience & Recovery
+## Release Gates
 
-**Problem**: Our current matric-cli eval crashed at model 13/31 with EPIPE error. Lost progress, manual restart required, no easy way to resume or re-run specific failures.
+### Documentation Gate
 
-**Required Capabilities**:
+- Living documents use current capability status rather than historical phase checklists.
+- Stable, gated, experimental, unavailable, production-validated, and deferred claims are distinct.
+- Counts are generated or dated with a reproducible command.
 
-| Capability | Description | Priority |
-|------------|-------------|----------|
-| **Checkpoint/Resume** | Save state after each model/benchmark, resume from last checkpoint | P0 |
-| **Selective Re-run** | Re-run specific model + benchmark combo without full restart | P0 |
-| **Gap Detection** | Scan output directory, identify missing/incomplete results | P0 |
-| **Auto-Recovery** | Retry on transient errors (timeout, connection reset, EPIPE) | P1 |
-| **Graceful Degradation** | Skip failed model, continue with next, report at end | P1 |
-| **Idempotent Runs** | Re-running same eval produces same results, skips completed | P1 |
+### Quality Gate
 
-**State Management Design**:
+- Gitea PR and `main` workflows pass lint, format, type-check ratchet, full test/coverage, smoke, and package-build jobs.
+- The deterministic benchmark audit completes with no errors.
+- The retained operational validation report remains reproducible.
 
-```
-results/run-{timestamp}/
-├── meta.json                    # Run metadata, seed, config
-├── state.json                   # Current progress, next model/benchmark
-├── {model}/
-│   ├── meta.json               # Model-level metadata
-│   ├── state.json              # Which benchmarks complete
-│   ├── {benchmark}/
-│   │   ├── meta.json           # Benchmark metadata
-│   │   ├── state.json          # Which problems complete
-│   │   └── {problem_id}/       # Individual results
-│   │       ├── prompt.txt
-│   │       ├── response.txt
-│   │       └── validation.json
-│   └── summary.json            # Aggregated results (generated)
-└── summary.json                # Run-level summary (generated)
-```
+### Supply-Chain Gate
 
-**CLI Commands**:
+- Python and TypeScript versions, source commit, tag, and release notes agree.
+- Wheel, sdist, npm package, SBOM, license report, and vulnerability report are retained.
+- Critical findings require remediation or an explicit, reviewed acceptance record.
 
-```bash
-# Start fresh run
-matric-eval --tier quick
+### Installation Gate
 
-# Resume interrupted run
-matric-eval --resume run-2026-01-24T01-15-51
+- Supported Python versions install wheel and sdist without source-tree leakage.
+- Gitea PyPI and npm installation paths use the candidate artifact hashes.
+- CLI help, benchmark listing, deterministic audit, TypeScript invocation, and a minimal provider smoke pass from clean environments.
 
-# Re-run specific model
-matric-eval --resume run-2026-01-24T01-15-51 --model codestral:latest
+### Adoption Gate
 
-# Re-run specific benchmark for model
-matric-eval --resume run-2026-01-24T01-15-51 --model codestral:latest --benchmark mbpp
+- matric-cli CI passes against the released client contract.
+- A representative consumer evaluation completes through the client.
+- Migration and rollback work from a clean checkout.
+- Ownership, support boundaries, and deliberate compatibility changes are documented.
 
-# Detect and fill gaps
-matric-eval --resume run-2026-01-24T01-15-51 --fill-gaps
+## Deferred Work
 
-# Validate completeness, report missing
-matric-eval --validate run-2026-01-24T01-15-51
-```
+Issues #95 through #97 are excluded from the 0.2.0 sequence. Their issue bodies
+contain explicit promotion triggers. Do not bundle leaderboard/reporting, Rust
+bindings, or normalized token/cost accounting into release work without changing
+tracker state and reviewing the resulting scope.
 
-**Implementation Notes**:
-
-1. **Atomic writes**: Write to temp file, rename on success (prevents partial state)
-2. **Lock files**: Prevent concurrent runs on same results directory
-3. **Heartbeat**: Update timestamp periodically to detect zombie runs
-4. **Error classification**: Distinguish retryable (network, timeout) from fatal (bad model)
-5. **Progress streaming**: Real-time status to stdout/file for monitoring
-
-**Framework Evaluation Criteria**:
-
-When evaluating Inspect AI vs lm-eval-harness, check:
-- [ ] Does it support checkpointing natively?
-- [ ] Can you resume from a specific point?
-- [ ] How does it handle model crashes?
-- [ ] Can you re-run individual samples?
-
-## Recommended Architecture
-
-### Option A: Inspect AI Foundation (Recommended)
-
-```
-matric-eval/
-├── pyproject.toml              # Python project (uv/pip)
-├── src/
-│   └── matric_eval/
-│       ├── __init__.py
-│       ├── cli.py              # CLI entry point
-│       ├── tasks/              # Custom task definitions
-│       │   ├── matric_cli/     # CLI-specific tests
-│       │   └── matric_memory/  # Memory-specific tests
-│       ├── solvers/            # Custom solving strategies
-│       ├── scorers/            # Custom scoring logic
-│       └── config/             # Model configs, thresholds
-│
-├── datasets/                   # JSONL test data
-│   ├── public/                 # Public benchmarks (symlinks or downloads)
-│   └── custom/                 # App-specific tests
-│       ├── cli/
-│       │   ├── tool_calling.jsonl
-│       │   └── agent_scenarios.jsonl
-│       └── memory/
-│           ├── title_generation.jsonl
-│           └── semantic_similarity.jsonl
-│
-├── bindings/                   # Language integrations
-│   ├── typescript/             # npm package for matric-cli
-│   │   ├── package.json
-│   │   └── src/
-│   │       └── index.ts        # Subprocess wrapper
-│   └── rust/                   # Crate for matric-memory
-│       ├── Cargo.toml
-│       └── src/
-│           └── lib.rs          # FFI or subprocess wrapper
-│
-└── docs/
-    ├── adding-custom-tests.md
-    ├── running-evaluations.md
-    └── interpreting-results.md
-```
-
-### Why Inspect AI?
-
-1. **Native Ollama support**: `ollama/llama3.2` model syntax works out of box
-2. **Agent evaluations**: Multi-step tool use scenarios (needed for CLI)
-3. **MCP tool support**: Can test tool calling directly
-4. **Modern Python**: Uses `uv`, type hints, clean API
-5. **UK government backing**: Active maintenance, safety-focused
-6. **100+ pre-built evals**: HumanEval, MBPP, GSM8K, etc. already available
-
-### Option B: lm-eval-harness Foundation (Alternative)
-
-Better if:
-- Need maximum benchmark coverage
-- Want exact parity with HuggingFace leaderboard
-- Less focus on agent/tool evaluation
+## Verification Commands
 
 ```bash
-# Example usage with Ollama
-lm_eval --model local-completions \
-    --tasks humaneval,mbpp,gsm8k \
-    --model_args model=llama3.2,base_url=http://localhost:11434/v1/completions
+uv run matric-eval list-benchmarks
+uv run matric-eval audit-benchmarks --fail-on-error
+make operational-validation
+make lint
+make format-check
+make type-check
+make test-coverage-fail
 ```
 
-## Implementation Plan
-
-### Phase 1: Foundation (Week 1-2)
-
-1. **Setup Python project**
-   - Use `uv` for dependency management
-   - Configure Inspect AI as core framework
-   - Verify Ollama integration works
-
-2. **Migrate public benchmarks**
-   - Configure existing Inspect AI tasks: HumanEval, MBPP, GSM8K, ARC
-   - Add missing: IFEval, LiveCodeBench, DS-1000
-   - Test with sample Ollama models
-
-3. **Dataset management**
-   - Create download script for public datasets
-   - Local caching strategy
-   - Reproducible sampling with seeds
-
-### Phase 2: Custom Tests (Week 2-3)
-
-4. **matric-cli custom tests**
-   - Tool calling validation
-   - Agent scenario evaluation
-   - Code analysis tests
-
-5. **matric-memory custom tests**
-   - Title generation
-   - Semantic similarity
-   - Content revision
-   - Tag generation
-
-6. **Scoring and reporting**
-   - Custom scorers for app-specific metrics
-   - JSON/Markdown report generation
-   - Config recommendation engine
-
-### Phase 3: Integration (Week 3-4)
-
-7. **TypeScript bindings**
-   - npm package wrapping Python subprocess
-   - Stream results back to caller
-   - Type definitions for results
-
-8. **Rust bindings**
-   - Crate wrapping Python subprocess
-   - Async result streaming
-   - Serde types for results
-
-9. **CI/CD**
-   - Smoke test on PR
-   - Nightly full evaluation
-   - Leaderboard generation
-
-## Evaluation Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        matric-eval                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. DISCOVER MODELS                                              │
-│     └── Query Ollama for available models                       │
-│     └── Filter by size (MAX_MODEL_SIZE_GB)                      │
-│                                                                  │
-│  2. PUBLIC BENCHMARKS (Tier-based)                              │
-│     ├── smoke:  5 per benchmark  (~2 min)                       │
-│     ├── quick: 75 per benchmark  (~20 min)                      │
-│     └── full:  all problems      (~2+ hours)                    │
-│                                                                  │
-│  3. RANK & FILTER                                                │
-│     └── Top N models per capability                             │
-│                                                                  │
-│  4. CUSTOM TESTS (app-specific)                                  │
-│     ├── matric-cli: tool_calling, agent_scenarios               │
-│     └── matric-memory: title, semantic, revision, tags          │
-│                                                                  │
-│  5. CONFIG RECOMMENDATION                                        │
-│     └── Generate model-categories.json                          │
-│     └── Map: capability → recommended model                     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Key Design Decisions
-
-### D1: Python Core, Language Bindings for Integration
-
-**Decision**: Core evaluation in Python, thin wrappers for TypeScript/Rust
-
-**Rationale**:
-- Leverages mature ecosystem
-- Avoids duplicating complex evaluation logic
-- Bindings are simple subprocess wrappers
-
-### D2: JSONL as Universal Test Format
-
-**Decision**: All custom tests in JSONL format
-
-**Rationale**:
-- Compatible with Inspect AI, lm-eval-harness, HELM
-- Human-readable and editable
-- Easy to version control
-- Streaming-friendly
-
-**Example format**:
-```json
-{"id": "tool-001", "prompt": "...", "expected_tools": ["read_file"], "capability": "tool-calling"}
-{"id": "tool-002", "prompt": "...", "expected_tools": ["write_file", "bash"], "capability": "tool-calling"}
-```
-
-### D3: Tiered Evaluation with Early Exit
-
-**Decision**: smoke → quick → full, with capability-based filtering
-
-**Rationale**:
-- Fast feedback for development
-- Full evaluation only when needed
-- Top performers get custom tests
-
-### D4: Config Recommendation as First-Class Output
-
-**Decision**: Evaluations produce actionable config files
-
-**Rationale**:
-- Close the loop: eval → config → better app behavior
-- Reduces manual model selection
-- Standardizes across apps
-
-## Migration Path
-
-### From matric-cli
-
-1. Extract `source/eval/` logic into matric-eval Python tasks
-2. Convert `scripts/comprehensive-model-eval.ts` to Python CLI
-3. Keep `evals/` directory in matric-cli for custom test data
-4. Replace eval imports with matric-eval bindings
-
-### From matric-memory
-
-1. Extract `crates/matric-inference/src/eval/` test definitions to JSONL
-2. Replace Rust eval runner with matric-eval bindings
-3. Keep test data in `evals/datasets/`
-
-## Open Questions
-
-1. **Inspect AI vs lm-eval-harness**: Final decision after prototyping both
-2. **Dataset hosting**: Git LFS, CDN, or external mirrors?
-3. **Versioning**: How to version test suites for reproducibility?
-4. **Multi-GPU**: Support for distributed evaluation?
-
-## Success Criteria
-
-- [ ] Run HumanEval, MBPP, GSM8K against Ollama models
-- [ ] Custom matric-cli tool calling tests passing
-- [ ] Custom matric-memory title generation tests passing
-- [ ] TypeScript bindings work from matric-cli
-- [ ] Rust bindings work from matric-memory
-- [ ] Config recommendation generates valid model-categories.json
-- [ ] CI runs smoke tests on every PR
-
-## References
-
-- [Inspect AI Documentation](https://inspect.aisi.org.uk/)
-- [lm-eval-harness GitHub](https://github.com/EleutherAI/lm-evaluation-harness)
-- [HELM Stanford](https://crfm.stanford.edu/helm/)
-- [Gitea Issue #5](https://git.integrolabs.net/roctinam/devops/issues/5) - Original project proposal
+Hosted workflow results, package hashes, and consumer evidence remain required;
+local command success alone is not release approval.

@@ -1,5 +1,12 @@
 # Transition Gate Validation Report
 
+> **Archived v0.1.0 release snapshot (2026-01-24).** The counts and readiness
+> claims below apply only to that historical release decision. They do not prove
+> current `main`, 0.2.0 readiness, real-provider coverage, or consumer adoption.
+> Use the [supported-capability roadmap](../../docs/development/roadmap.md),
+> [living traceability matrix](../../docs/requirements/traceability-matrix.md),
+> and current Gitea Actions evidence.
+
 **Gate**: Product Release (PR) - Transition Phase
 **Date**: 2026-01-24
 **Overall Status**: ✅ FULL PASS
