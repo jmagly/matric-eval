@@ -27,8 +27,8 @@ completes all release gates.
 
 | Stage | Tracker item | State | Required outcome |
 |---|---|---|---|
-| Documentation baseline | [#91](https://git.integrolabs.net/roctinam/matric-eval/issues/91) | In progress | Public docs, planning, traceability, protocols, and historical records agree with current evidence |
-| Release candidate | [#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) | Blocked until #91 | Consistent 0.2.0 versions, changelog/release notes, wheel, sdist, TypeScript package, SBOM, license report, and vulnerability audit |
+| Documentation baseline | [#91](https://git.integrolabs.net/roctinam/matric-eval/issues/91) | Complete in this revision | Public docs, planning, traceability, protocols, and historical records agree with current evidence |
+| Release candidate | [#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) | Next | Consistent 0.2.0 versions, changelog/release notes, wheel, sdist, TypeScript package, SBOM, license report, and vulnerability audit |
 | Clean validation | [#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) | Coordinates with #92 | Install and exercise candidate artifacts in every supported clean environment; attach hashes and results before final publication |
 | Ecosystem adoption | [#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94) | Blocked by package candidate | Validate the TypeScript client in matric-cli, including streaming, cancellation, errors, migration, and rollback |
 

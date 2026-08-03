@@ -67,8 +67,8 @@ unavailable.
 | #88 | CI-001 | Authoritative Gitea CI | Closed |
 | #89 | CI-002 | Retained real-provider smoke | Closed |
 | #90 | SCORE-001, SCORE-002, REL-002 | Scorer and operational evidence | Closed |
-| #91 | DOC-001 | Reconcile current and historical documentation | In progress |
-| #92 | PKG-001, SUPPLY-001 | Depends on #87-#91; final publication waits for clean validation | Open |
+| #91 | DOC-001 | Reconcile current and historical documentation | Closed by this revision |
+| #92 | PKG-001, SUPPLY-001 | Depends on #87-#91; final publication waits for clean validation | Open; next |
 | #93 | INSTALL-001 | Exact #92 candidate artifacts | Open |
 | #94 | ADOPT-001 | Validated 0.2.0 TypeScript package | Open |
 | #95 | REPORT-001 | Promote after #91/#92 and comparable production runs | Deferred |
