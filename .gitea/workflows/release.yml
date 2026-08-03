@@ -61,6 +61,7 @@ jobs:
         run: |
           npm run build
           npm test
+          mkdir -p ../../release-artifacts/packages/typescript
           npm pack --pack-destination ../../release-artifacts/packages/typescript
 
       - name: Verify package contents
