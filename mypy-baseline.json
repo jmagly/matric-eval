@@ -77,18 +77,6 @@
     },
     {
       "file": "src/matric_eval/datasets.py",
-      "code": "import-untyped",
-      "message": "Skipping analyzing \"pyarrow\": module is installed, but missing library stubs or py.typed marker",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/datasets.py",
-      "code": "import-untyped",
-      "message": "Skipping analyzing \"pyarrow.parquet\": module is installed, but missing library stubs or py.typed marker",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/datasets.py",
       "code": "return-value",
       "message": "Incompatible return value type (got \"Dataset\", expected \"MemoryDataset\")",
       "count": 1
@@ -109,12 +97,6 @@
       "file": "src/matric_eval/discovery.py",
       "code": "arg-type",
       "message": "Argument \"key\" to \"sort\" of \"list\" has incompatible type \"Callable[[Sample], int | str | None]\"; expected \"Callable[[Sample], SupportsDunderLT[Any] | SupportsDunderGT[Any]]\"",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/discovery.py",
-      "code": "import-untyped",
-      "message": "Library stubs not installed for \"yaml\"",
       "count": 1
     },
     {
@@ -259,12 +241,6 @@
       "file": "src/matric_eval/providers/llamacpp.py",
       "code": "no-any-return",
       "message": "Returning Any from function declared to return \"bool\"",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/providers/matrix.py",
-      "code": "import-untyped",
-      "message": "Library stubs not installed for \"yaml\"",
       "count": 1
     },
     {
@@ -671,12 +647,6 @@
     },
     {
       "file": "src/matric_eval/tasks/qwenclawbench.py",
-      "code": "import-untyped",
-      "message": "Library stubs not installed for \"yaml\"",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/tasks/qwenclawbench.py",
       "code": "no-untyped-def",
       "message": "Function is missing a return type annotation",
       "count": 1
@@ -703,18 +673,6 @@
       "file": "src/matric_eval/tasks/swebench/factory.py",
       "code": "attr-defined",
       "message": "Module \"datasets\" has no attribute \"load_dataset\"",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/tasks/swebench/factory.py",
-      "code": "import-untyped",
-      "message": "Skipping analyzing \"swebench.harness.test_spec.test_spec\": module is installed, but missing library stubs or py.typed marker",
-      "count": 1
-    },
-    {
-      "file": "src/matric_eval/tasks/swebench/multilingual.py",
-      "code": "import-untyped",
-      "message": "Skipping analyzing \"swebench.harness.constants\": module is installed, but missing library stubs or py.typed marker",
       "count": 1
     },
     {
