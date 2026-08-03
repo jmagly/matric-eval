@@ -11,6 +11,7 @@ import * as path from 'node:path';
 
 import type {
   BenchmarkId,
+  ExecutionOptions,
   EvalOptions,
   EvalSummary,
   EvalTier,
@@ -28,6 +29,7 @@ export class MatricEvalError extends Error {
     message: string,
     public readonly exitCode: number | null,
     public readonly stderr: string,
+    public readonly cancelled = false,
   ) {
     super(message);
     this.name = 'MatricEvalError';
@@ -55,7 +57,7 @@ interface CommandResult {
  * // Run evaluation
  * const summary = await client.run({
  *   tier: 'quick',
- *   models: ['llama3.2:3b', 'qwen2.5:7b'],
+ *   models: ['llama3.2:3b'],
  * });
  *
  * // Generate recommendations
@@ -82,28 +84,59 @@ export class MatricEvalClient {
   /**
    * Execute a command and return the result.
    */
-  private async execute(args: string[]): Promise<CommandResult> {
+  private async execute(
+    args: string[],
+    execution: ExecutionOptions = {},
+    executablePath = this.executablePath,
+  ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const proc: ChildProcess = spawn(this.executablePath, args, {
+      if (execution.signal?.aborted) {
+        reject(new MatricEvalError('matric-eval execution cancelled', null, '', true));
+        return;
+      }
+      const proc: ChildProcess = spawn(executablePath, args, {
         stdio: ['inherit', 'pipe', 'pipe'],
       });
 
       let stdout = '';
       let stderr = '';
+      let settled = false;
+      let cancelled = false;
+
+      const abort = () => {
+        cancelled = true;
+        proc.kill('SIGTERM');
+      };
+      const cleanup = () => execution.signal?.removeEventListener('abort', abort);
+      execution.signal?.addEventListener('abort', abort, { once: true });
 
       proc.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString();
+        const chunk = data.toString();
+        stdout += chunk;
+        execution.onStdout?.(chunk);
       });
 
       proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString();
+        const chunk = data.toString();
+        stderr += chunk;
+        execution.onStderr?.(chunk);
       });
 
       proc.on('error', (error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
         reject(new MatricEvalError(`Failed to execute matric-eval: ${error.message}`, null, ''));
       });
 
       proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (cancelled) {
+          reject(new MatricEvalError('matric-eval execution cancelled', code, stderr, true));
+          return;
+        }
         resolve({
           stdout,
           stderr,
@@ -118,9 +151,9 @@ export class MatricEvalClient {
    *
    * @returns true if matric-eval is installed and accessible
    */
-  async isAvailable(): Promise<boolean> {
+  async isAvailable(execution: ExecutionOptions = {}): Promise<boolean> {
     try {
-      const result = await this.execute(['--version']);
+      const result = await this.execute(['--version'], execution);
       return result.exitCode === 0;
     } catch {
       return false;
@@ -132,8 +165,8 @@ export class MatricEvalClient {
    *
    * @returns Version string
    */
-  async getVersion(): Promise<string> {
-    const result = await this.execute(['--version']);
+  async getVersion(execution: ExecutionOptions = {}): Promise<string> {
+    const result = await this.execute(['--version'], execution);
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Failed to get version', result.exitCode, result.stderr);
     }
@@ -145,8 +178,11 @@ export class MatricEvalClient {
    *
    * @returns Array of model names
    */
-  async listModels(): Promise<string[]> {
-    const result = await this.execute(['list-models', '--output-format', 'json']);
+  async listModels(execution: ExecutionOptions = {}): Promise<string[]> {
+    const result = await this.execute(
+      ['list-models', '--output-format', 'json'],
+      execution,
+    );
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Failed to list models', result.exitCode, result.stderr);
     }
@@ -164,13 +200,16 @@ export class MatricEvalClient {
    * @param tier - Optional tier to filter benchmarks
    * @returns Array of benchmark identifiers
    */
-  async listBenchmarks(tier?: EvalTier): Promise<BenchmarkId[]> {
+  async listBenchmarks(
+    tier?: EvalTier,
+    execution: ExecutionOptions = {},
+  ): Promise<BenchmarkId[]> {
     const args = ['list-benchmarks', '--output-format', 'json'];
     if (tier) {
       args.push('--tier', tier);
     }
 
-    const result = await this.execute(args);
+    const result = await this.execute(args, execution);
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Failed to list benchmarks', result.exitCode, result.stderr);
     }
@@ -190,17 +229,36 @@ export class MatricEvalClient {
    * @param options - Evaluation options
    * @returns Evaluation summary
    */
-  async run(options: EvalOptions = {}): Promise<EvalSummary> {
-    const args = ['run', '--format', 'json'];
+  async run(
+    options: EvalOptions = {},
+    execution: ExecutionOptions = {},
+  ): Promise<EvalSummary> {
+    if ((options.models?.length ?? 0) > 1) {
+      throw new MatricEvalError('The matric-eval 0.2 CLI accepts one explicit model', null, '');
+    }
+    if (options.timeout !== undefined || options.parallelism !== undefined) {
+      throw new MatricEvalError(
+        'timeout and parallelism are not supported by the matric-eval 0.2 CLI',
+        null,
+        '',
+      );
+    }
+    if (options.resume === true) {
+      throw new MatricEvalError('resume requires a checkpoint run ID or path', null, '');
+    }
+
+    const args: string[] = [];
+    if (options.logLevel) {
+      args.push('--log-level', options.logLevel.toLowerCase());
+    }
+    args.push('run', '--output-format', 'json');
 
     if (options.tier) {
       args.push('--tier', options.tier);
     }
 
-    if (options.models && options.models.length > 0) {
-      for (const model of options.models) {
-        args.push('--model', model);
-      }
+    if (options.models?.[0]) {
+      args.push('--model', options.models[0]);
     }
 
     if (options.benchmarks && options.benchmarks.length > 0) {
@@ -217,23 +275,31 @@ export class MatricEvalClient {
       args.push('--max-size', options.maxModelSizeGb.toString());
     }
 
-    if (options.timeout !== undefined) {
-      args.push('--timeout', options.timeout.toString());
+    if (typeof options.resume === 'string') {
+      args.push('--resume', options.resume);
     }
 
-    if (options.parallelism !== undefined) {
-      args.push('--parallel', options.parallelism.toString());
+    if (options.provider) {
+      args.push('--provider', options.provider);
     }
 
-    if (options.resume) {
-      args.push('--resume');
+    if (options.providerUrl) {
+      args.push('--provider-url', options.providerUrl);
     }
 
-    if (options.logLevel) {
-      args.push('--log-level', options.logLevel);
+    if (options.apiKey) {
+      args.push('--api-key', options.apiKey);
     }
 
-    const result = await this.execute(args);
+    if (options.thinking) {
+      args.push('--thinking', options.thinking);
+    }
+
+    if (options.judge) {
+      args.push('--judge', options.judge);
+    }
+
+    const result = await this.execute(args, execution, options.executablePath);
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Evaluation failed', result.exitCode, result.stderr);
     }
@@ -247,23 +313,28 @@ export class MatricEvalClient {
    * @param options - Recommendation options
    * @returns Recommendation report
    */
-  async recommend(options: RecommendOptions): Promise<RecommendationReport> {
-    const args = ['recommend', '--input', options.input, '--format', 'json'];
-
-    if (options.output) {
-      args.push('--output', options.output);
-    }
+  async recommend(
+    options: RecommendOptions,
+    execution: ExecutionOptions = {},
+  ): Promise<RecommendationReport> {
+    const args = ['recommend', '--results-dir', options.input, '--output-format', 'json'];
 
     if (options.minScore !== undefined) {
       args.push('--min-score', options.minScore.toString());
     }
 
-    const result = await this.execute(args);
+    const result = await this.execute(args, execution, options.executablePath);
     if (result.exitCode !== 0) {
       throw new MatricEvalError('Failed to generate recommendations', result.exitCode, result.stderr);
     }
 
-    return JSON.parse(result.stdout) as RecommendationReport;
+    const report = this.parseRecommendationReport(result.stdout);
+    if (options.output) {
+      const outputDir = path.dirname(options.output);
+      await fs.mkdir(outputDir, { recursive: true });
+      await fs.writeFile(options.output, JSON.stringify(report, null, 2));
+    }
+    return report;
   }
 
   /**
@@ -316,12 +387,19 @@ export class MatricEvalClient {
   private parseEvalSummary(json: string): EvalSummary {
     const data = JSON.parse(json) as Record<string, unknown>;
 
-    const results: ModelResult[] = ((data['results'] as unknown[]) ?? []).map((r) => {
+    const rawResults = Array.isArray(data['results'])
+      ? data['results']
+      : 'model' in data
+        ? [data]
+        : [];
+    const results: ModelResult[] = rawResults.map((r) => {
       const result = r as Record<string, unknown>;
+      const rawStatus = String(result['status'] ?? 'failed');
+      const status = rawStatus === 'error' ? 'failed' : rawStatus;
       return {
         model: String(result['model'] ?? '').replace('ollama/', ''),
         tier: (result['tier'] as EvalTier) ?? 'smoke',
-        status: (result['status'] as 'success' | 'failed' | 'skipped') ?? 'failed',
+        status: status as 'success' | 'failed' | 'skipped',
         overallScore: Number(result['overall_score'] ?? 0),
         sizeGb: Number(result['size_gb'] ?? 0),
         benchmarks: (result['benchmarks'] as Record<BenchmarkId, unknown>) ?? {},
@@ -331,13 +409,59 @@ export class MatricEvalClient {
     });
 
     return {
-      totalModels: Number(data['total_models'] ?? results.length),
+      totalModels: Number(data['total_models'] ?? data['models_evaluated'] ?? results.length),
       successful: Number(data['successful'] ?? results.filter((r) => r.status === 'success').length),
       failed: Number(data['failed'] ?? results.filter((r) => r.status === 'failed').length),
       skipped: Number(data['skipped'] ?? results.filter((r) => r.status === 'skipped').length),
       durationSeconds: Number(data['duration_seconds'] ?? 0),
       results,
       outputDir: String(data['output_dir'] ?? ''),
+    };
+  }
+
+  private parseRecommendationReport(json: string): RecommendationReport {
+    const data = JSON.parse(json) as Record<string, unknown>;
+    const rawScores = (data['model_scores'] ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const modelScores = Object.fromEntries(
+      Object.entries(rawScores).map(([name, score]) => [
+        name,
+        {
+          model: String(score['model'] ?? name),
+          benchmarkScores: (score['benchmark_scores'] ?? {}) as Record<string, number>,
+          capabilityScores: (score['capability_scores'] ?? {}) as Record<string, number>,
+          overallScore: Number(score['overall_score'] ?? 0),
+          sizeGb: Number(score['size_gb'] ?? 0),
+        },
+      ]),
+    );
+    const rawRecommendations = (data['recommendations'] ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const recommendations = Object.fromEntries(
+      Object.entries(rawRecommendations).map(([capability, recommendation]) => [
+        capability,
+        {
+          capability,
+          recommended: String(recommendation['recommended'] ?? ''),
+          score: Number(recommendation['score'] ?? 0),
+          alternatives: (recommendation['alternatives'] ?? []) as Array<{
+            model: string;
+            score: number;
+          }>,
+          rationale: String(recommendation['rationale'] ?? ''),
+        },
+      ]),
+    ) as RecommendationReport['recommendations'];
+    return {
+      recommendations,
+      modelScores,
+      bestOverall: String(data['best_overall'] ?? ''),
+      bestBalanced: String(data['best_balanced'] ?? ''),
+      metadata: (data['metadata'] ?? {}) as Record<string, unknown>,
     };
   }
 }

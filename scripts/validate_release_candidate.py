@@ -192,14 +192,80 @@ def _validate_typescript_install(
     )
     validation_script = consumer_root / "validate.mjs"
     validation_script.write_text(
-        """import { createClient } from '@matric/eval-client';
+        """import { chmod, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createClient, MatricEvalError } from '@matric/eval-client';
 const client = createClient(process.env.MATRIC_EVAL_BIN);
-const version = await client.getVersion();
+const streamed = [];
+const version = await client.getVersion({ onStdout: chunk => streamed.push(chunk) });
 const benchmarks = await client.listBenchmarks();
 if (!benchmarks.includes('injecagent')) {
   throw new Error('TypeScript client benchmark inventory omitted injecagent');
 }
-console.log(JSON.stringify({ version, benchmarkCount: benchmarks.length }));
+if (streamed.join('').trim() !== version) {
+  throw new Error('TypeScript client did not stream the retained version output');
+}
+
+const fakeExecutable = join(process.cwd(), 'matric-eval-fixture');
+await writeFile(fakeExecutable, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === 'run') {
+  const expected = ['run', '--output-format', 'json', '--model', 'fixture',
+    '--benchmark', 'matric_cli'];
+  if (JSON.stringify(args) !== JSON.stringify(expected)) {
+    process.stderr.write(JSON.stringify(args));
+    process.exit(2);
+  }
+  console.log(JSON.stringify({ model: 'fixture', tier: 'smoke', status: 'success',
+    overall_score: 0.75, benchmarks: {}, output_dir: '/tmp/release-validation' }));
+} else if (args[0] === 'list-benchmarks') {
+  process.stderr.write('fixture failure');
+  process.exit(7);
+} else {
+  setInterval(() => {}, 1000);
+}
+`);
+await chmod(fakeExecutable, 0o755);
+
+const fixtureClient = createClient(fakeExecutable);
+const summary = await fixtureClient.run({ models: ['fixture'], benchmarks: ['matric_cli'] });
+if (summary.successful !== 1 || summary.outputDir !== '/tmp/release-validation') {
+  throw new Error('TypeScript client did not normalize the single-model result');
+}
+
+let errorPreserved = false;
+try {
+  await fixtureClient.listBenchmarks();
+} catch (error) {
+  errorPreserved = error instanceof MatricEvalError
+    && error.exitCode === 7
+    && error.stderr === 'fixture failure';
+}
+if (!errorPreserved) {
+  throw new Error('TypeScript client did not retain subprocess diagnostics');
+}
+
+const controller = new AbortController();
+const cancellation = fixtureClient.getVersion({ signal: controller.signal });
+setTimeout(() => controller.abort(), 20);
+let cancelled = false;
+try {
+  await cancellation;
+} catch (error) {
+  cancelled = error instanceof MatricEvalError && error.cancelled;
+}
+if (!cancelled) {
+  throw new Error('TypeScript client did not report subprocess cancellation');
+}
+
+console.log(JSON.stringify({
+  version,
+  benchmarkCount: benchmarks.length,
+  streamed: true,
+  runParsed: true,
+  errorPreserved,
+  cancelled,
+}));
 """,
         encoding="utf-8",
     )

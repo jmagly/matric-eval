@@ -19,6 +19,16 @@ export type OutputFormat = 'json' | 'table' | 'summary';
  */
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
 
+/** Controls subprocess output and cancellation for client commands. */
+export interface ExecutionOptions {
+  /** Cancel the matric-eval subprocess. */
+  signal?: AbortSignal;
+  /** Receive stdout chunks while retaining the complete result for parsing. */
+  onStdout?: (chunk: string) => void;
+  /** Receive stderr chunks while retaining diagnostics for errors. */
+  onStderr?: (chunk: string) => void;
+}
+
 /**
  * Capability category for model recommendations.
  */
@@ -27,6 +37,7 @@ export type CapabilityCategory =
   | 'math_reasoning'
   | 'instruction_following'
   | 'reasoning'
+  | 'knowledge'
   | 'conversation'
   | 'tool_use';
 
@@ -120,7 +131,7 @@ export interface ModelRecommendation {
  */
 export interface RecommendationReport {
   /** Recommendations by capability */
-  recommendations: Record<CapabilityCategory, ModelRecommendation>;
+  recommendations: Partial<Record<CapabilityCategory, ModelRecommendation>>;
   /** Scores for all evaluated models */
   modelScores: Record<string, {
     model: string;
@@ -173,15 +184,25 @@ export interface EvalOptions {
   outputDir?: string;
   /** Maximum model size in GB to evaluate */
   maxModelSizeGb?: number;
-  /** Timeout per sample in seconds */
+  /** Timeout per sample in seconds (reserved; not supported by the 0.2 CLI) */
   timeout?: number;
-  /** Number of parallel evaluations */
+  /** Parallel evaluations (reserved; not supported by the 0.2 CLI) */
   parallelism?: number;
-  /** Resume from checkpoint */
-  resume?: boolean;
+  /** Resume from a checkpoint run ID or path. Boolean true is rejected. */
+  resume?: string | boolean;
   /** Log level */
   logLevel?: LogLevel;
-  /** Path to matric-eval executable (default: 'matric-eval') */
+  /** Inference provider name */
+  provider?: string;
+  /** Override the inference provider URL */
+  providerUrl?: string;
+  /** Provider API key */
+  apiKey?: string;
+  /** Thinking mode for capable models */
+  thinking?: 'auto' | 'on' | 'off' | 'both';
+  /** Optional LLM judge specification */
+  judge?: string;
+  /** Override the client's matric-eval executable for this run */
   executablePath?: string;
 }
 
@@ -189,13 +210,13 @@ export interface EvalOptions {
  * Options for generating recommendations.
  */
 export interface RecommendOptions {
-  /** Path to results directory or summary.json */
+  /** Path to a results directory containing summary.json or result files */
   input: string;
   /** Output path for recommendations */
   output?: string;
   /** Minimum score threshold (default: 0.3) */
   minScore?: number;
-  /** Path to matric-eval executable */
+  /** Override the client's matric-eval executable for this command */
   executablePath?: string;
 }
 

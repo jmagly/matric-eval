@@ -12,7 +12,7 @@
  * // Run a quick evaluation
  * const summary = await client.run({
  *   tier: 'quick',
- *   models: ['llama3.2:3b', 'qwen2.5:7b'],
+ *   models: ['llama3.2:3b'],
  * });
  *
  * console.log(`Evaluated ${summary.successful} models`);
@@ -40,6 +40,7 @@ export type {
   BenchmarkResult,
   CapabilityCategory,
   CapabilityScore,
+  ExecutionOptions,
   EvalOptions,
   EvalSummary,
   EvalTier,

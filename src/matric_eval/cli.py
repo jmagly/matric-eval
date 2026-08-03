@@ -843,6 +843,7 @@ def run(
         "models_evaluated": len(all_results),
         "successful": successful,
         "failed": failed,
+        "output_dir": str(output_dir),
         "results": all_results,
     }
 
@@ -863,7 +864,7 @@ def run(
     if output_format == "json":
         # For single model, output just the result; for multiple, output summary
         if len(all_results) == 1:
-            console.print(json.dumps(all_results[0], indent=2))
+            console.print(json.dumps({**all_results[0], "output_dir": str(output_dir)}, indent=2))
         else:
             console.print(json.dumps(summary, indent=2))
     else:

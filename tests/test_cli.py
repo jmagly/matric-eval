@@ -405,6 +405,7 @@ class TestRunCommand:
             # Model name should match (with or without ollama/ prefix)
             assert "llama3.2:3b" in output_json["model"]
             assert output_json["overall_score"] == 0.6
+            assert output_json["output_dir"].startswith(str(tmp_results_dir))
 
     def test_run_no_models_found_error(self) -> None:
         """Should exit with error if no models found."""

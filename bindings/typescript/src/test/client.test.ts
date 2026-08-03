@@ -11,6 +11,13 @@ import * as path from 'node:path';
 import { MatricEvalClient, MatricEvalError, createClient } from '../client.js';
 import type { EvalSummary, RecommendationReport } from '../types.js';
 
+async function createFakeExecutable(source: string): Promise<string> {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'matric-eval-client-'));
+  const executable = path.join(directory, 'matric-eval');
+  await fs.writeFile(executable, `#!/usr/bin/env node\n${source}\n`, { mode: 0o755 });
+  return executable;
+}
+
 describe('MatricEvalClient', () => {
   describe('constructor', () => {
     it('should create client with default executable path', () => {
@@ -38,23 +45,127 @@ describe('MatricEvalClient', () => {
 
   describe('CLI integration', () => {
     it('uses the current JSON option and parses benchmark mappings', async () => {
-      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'matric-eval-client-'));
-      const executable = path.join(directory, 'matric-eval');
-      await fs.writeFile(
-        executable,
-        `#!/bin/sh
-if [ "$1" = "list-benchmarks" ] && [ "$2" = "--output-format" ] && [ "$3" = "json" ]; then
-  printf '{"humaneval":"HumanEval","injecagent":"InjecAgent"}\\n'
-  exit 0
-fi
-printf 'unexpected arguments: %s\\n' "$*" >&2
-exit 2
-`,
-        { mode: 0o755 },
-      );
+      const executable = await createFakeExecutable(`
+if (process.argv.slice(2).join(' ') !== 'list-benchmarks --output-format json') {
+  process.exit(2);
+}
+console.log(JSON.stringify({ humaneval: 'HumanEval', injecagent: 'InjecAgent' }));
+`);
 
       const client = createClient(executable);
       assert.deepStrictEqual(await client.listBenchmarks(), ['humaneval', 'injecagent']);
+    });
+
+    it('streams subprocess output while retaining the parsed result', async () => {
+      const executable = await createFakeExecutable(`
+process.stdout.write('matric-eval, ');
+process.stderr.write('diagnostic');
+setTimeout(() => process.stdout.write('version 0.2.0\\n'), 5);
+`);
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+
+      const version = await createClient(executable).getVersion({
+        onStdout: (chunk) => stdout.push(chunk),
+        onStderr: (chunk) => stderr.push(chunk),
+      });
+
+      assert.strictEqual(version, 'matric-eval, version 0.2.0');
+      assert.strictEqual(stdout.join(''), 'matric-eval, version 0.2.0\n');
+      assert.strictEqual(stderr.join(''), 'diagnostic');
+    });
+
+    it('passes current run arguments and parses a single-model result', async () => {
+      const executable = await createFakeExecutable(`
+const args = process.argv.slice(2);
+const expected = ['run', '--output-format', 'json', '--tier', 'smoke', '--model', 'fixture',
+  '--benchmark', 'matric_cli', '--provider', 'ollama'];
+if (JSON.stringify(args) !== JSON.stringify(expected)) {
+  process.stderr.write(JSON.stringify(args));
+  process.exit(2);
+}
+console.log(JSON.stringify({ model: 'ollama/fixture', tier: 'smoke', status: 'success',
+  overall_score: 0.75, benchmarks: {}, output_dir: '/tmp/run-fixture' }));
+`);
+
+      const summary = await createClient('/unused').run({
+        tier: 'smoke',
+        models: ['fixture'],
+        benchmarks: ['matric_cli'],
+        provider: 'ollama',
+        executablePath: executable,
+      });
+
+      assert.strictEqual(summary.totalModels, 1);
+      assert.strictEqual(summary.successful, 1);
+      assert.strictEqual(summary.outputDir, '/tmp/run-fixture');
+      assert.strictEqual(summary.results[0]?.model, 'fixture');
+    });
+
+    it('retains stderr and exit status for command errors', async () => {
+      const executable = await createFakeExecutable(`
+process.stderr.write('provider unavailable');
+process.exit(7);
+`);
+
+      await assert.rejects(
+        createClient(executable).listBenchmarks(),
+        (error: unknown) =>
+          error instanceof MatricEvalError &&
+          error.exitCode === 7 &&
+          error.stderr === 'provider unavailable',
+      );
+    });
+
+    it('passes current recommendation arguments and normalizes score fields', async () => {
+      const executable = await createFakeExecutable(`
+const args = process.argv.slice(2);
+const expected = ['recommend', '--results-dir', '/tmp/results', '--output-format', 'json',
+  '--min-score', '0.5'];
+if (JSON.stringify(args) !== JSON.stringify(expected)) {
+  process.stderr.write(JSON.stringify(args));
+  process.exit(2);
+}
+console.log(JSON.stringify({
+  recommendations: { reasoning: { capability: 'reasoning', recommended: 'fixture',
+    score: 0.8, alternatives: [], rationale: 'highest score' } },
+  model_scores: { fixture: { model: 'fixture', benchmark_scores: { arc: 0.8 },
+    capability_scores: { reasoning: 0.8 }, overall_score: 0.8, size_gb: 3 } },
+  best_overall: 'fixture', best_balanced: 'fixture', metadata: { model_count: 1 }
+}));
+`);
+
+      const report = await createClient(executable).recommend({
+        input: '/tmp/results',
+        minScore: 0.5,
+      });
+
+      assert.strictEqual(report.bestOverall, 'fixture');
+      assert.strictEqual(report.modelScores['fixture']?.overallScore, 0.8);
+      assert.deepStrictEqual(report.modelScores['fixture']?.benchmarkScores, { arc: 0.8 });
+    });
+
+    it('rejects options that the 0.2 CLI cannot represent', async () => {
+      const client = createClient('/unused');
+
+      await assert.rejects(
+        client.run({ models: ['one', 'two'] }),
+        /accepts one explicit model/,
+      );
+      await assert.rejects(client.run({ timeout: 30 }), /not supported/);
+      await assert.rejects(client.run({ resume: true }), /requires a checkpoint/);
+    });
+
+    it('terminates the subprocess when the abort signal fires', async () => {
+      const executable = await createFakeExecutable(`setInterval(() => {}, 1000);`);
+      const controller = new AbortController();
+      const pending = createClient(executable).getVersion({ signal: controller.signal });
+      setTimeout(() => controller.abort(), 20);
+
+      await assert.rejects(
+        pending,
+        (error: unknown) => error instanceof MatricEvalError && error.cancelled,
+      );
     });
   });
 });
