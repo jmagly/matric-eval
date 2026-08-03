@@ -22,7 +22,7 @@ jobs:
           OLLAMA_KEEP_ALIVE: "0"
     steps:
       - name: Install system dependencies
-        run: apt-get update && apt-get install -y curl git
+        run: apt-get update && apt-get install -y curl git nodejs
 
       - name: Checkout code
         run: |

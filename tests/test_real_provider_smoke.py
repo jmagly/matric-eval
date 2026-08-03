@@ -39,6 +39,12 @@ def test_workflow_has_manual_schedule_service_and_artifact_retention(path: Path)
     assert "smollm2:135m" in serialized
 
 
+def test_gitea_workflow_installs_upload_action_runtime() -> None:
+    serialized = (ROOT / ".gitea/workflows/real-provider-smoke.yml").read_text()
+
+    assert "apt-get install -y curl git nodejs" in serialized
+
+
 def test_public_url_removes_credentials_and_query() -> None:
     assert smoke.public_url("https://user:secret@example.test:8443/api?token=x") == (
         "https://example.test:8443/api"
