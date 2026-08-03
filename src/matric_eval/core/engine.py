@@ -8,7 +8,7 @@ and result aggregation. Supports multiple inference providers.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
@@ -16,6 +16,9 @@ from inspect_ai.model import GenerateConfig
 
 from matric_eval.config import get_tier
 from matric_eval.provenance import benchmark_provenance, framework_provenance
+
+if TYPE_CHECKING:
+    from matric_eval.state import StateManager
 
 
 class EvaluationEngine:
@@ -134,14 +137,10 @@ class EvaluationEngine:
 
         if self.thinking_mode == "off":
             # Disable thinking via generate config
-            kwargs["generate_config"] = GenerateConfig(
-                extra_body={"enable_thinking": False}
-            )
+            kwargs["generate_config"] = GenerateConfig(extra_body={"enable_thinking": False})
         elif self.thinking_mode == "on":
             # Enable thinking (may be default for some models)
-            kwargs["generate_config"] = GenerateConfig(
-                extra_body={"enable_thinking": True}
-            )
+            kwargs["generate_config"] = GenerateConfig(extra_body={"enable_thinking": True})
 
         return kwargs
 
@@ -211,21 +210,25 @@ class EvaluationEngine:
             )
 
             if not logs:
-                result.update({
-                    "status": "error",
-                    "error": "No evaluation logs returned",
-                    "score": 0.0,
-                    "samples": 0,
-                })
+                result.update(
+                    {
+                        "status": "error",
+                        "error": "No evaluation logs returned",
+                        "score": 0.0,
+                        "samples": 0,
+                    }
+                )
                 return result
 
             # Extract results from log
             log = logs[0]
-            result.update({
-                "status": "success",
-                "log_path": str(log.location) if hasattr(log, "location") else None,
-                "samples": len(log.samples) if log.samples else 0,
-            })
+            result.update(
+                {
+                    "status": "success",
+                    "log_path": str(log.location) if hasattr(log, "location") else None,
+                    "samples": len(log.samples) if log.samples else 0,
+                }
+            )
 
             # Extract accuracy score
             if log.results and log.results.scores:
@@ -241,12 +244,14 @@ class EvaluationEngine:
                 result["score"] = 0.0
 
         except Exception as e:
-            result.update({
-                "status": "error",
-                "error": str(e),
-                "score": 0.0,
-                "samples": 0,
-            })
+            result.update(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "score": 0.0,
+                    "samples": 0,
+                }
+            )
 
         return result
 
@@ -254,6 +259,8 @@ class EvaluationEngine:
         self,
         benchmarks: list[str],
         checkpoint: bool = True,
+        state_manager: StateManager | None = None,
+        checkpoint_model: str | None = None,
         **eval_kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -261,7 +268,10 @@ class EvaluationEngine:
 
         Args:
             benchmarks: List of benchmark names to run
-            checkpoint: Whether to enable checkpointing (resume on failure)
+            checkpoint: Whether to use the supplied state manager
+            state_manager: Run state used to persist and reuse benchmark results
+            checkpoint_model: Stable model key in the run state. Defaults to the
+                unformatted model identifier.
             **eval_kwargs: Additional arguments to pass to inspect_ai.eval()
 
         Returns:
@@ -273,7 +283,7 @@ class EvaluationEngine:
             - status: "success" if any benchmark succeeded, "error" otherwise
             - thinking_mode: Thinking mode used (if applicable)
         """
-        results = {
+        results: dict[str, Any] = {
             "model": self.model,
             "tier": self.tier,
             "provider": self._get_provider_name(),
@@ -293,14 +303,50 @@ class EvaluationEngine:
         if self.judge_spec:
             results["judge"] = self.judge_spec
 
-        successful_scores = []
+        successful_scores: list[float] = []
+        checkpoint_key = checkpoint_model or self._raw_model
+        results["checkpoint_model"] = checkpoint_key
 
         for benchmark in benchmarks:
-            result = self.run_benchmark(benchmark, **eval_kwargs)
+            if checkpoint and state_manager is not None:
+                saved_result = state_manager.get_benchmark_result(checkpoint_key, benchmark)
+                if saved_result is not None:
+                    result = {**saved_result, "resumed_from_checkpoint": True}
+                    results["benchmarks"][benchmark] = result
+                    successful_scores.append(float(result.get("score", 0.0) or 0.0))
+                    continue
+                state_manager.mark_running(checkpoint_key, benchmark)
+
+            try:
+                result = self.run_benchmark(benchmark, **eval_kwargs)
+            except Exception as exc:
+                if checkpoint and state_manager is not None:
+                    state_manager.mark_failed(
+                        checkpoint_key,
+                        benchmark,
+                        error=str(exc),
+                    )
+                raise
             results["benchmarks"][benchmark] = result
 
             if result["status"] == "success":
-                successful_scores.append(result["score"])
+                score = float(result.get("score", 0.0) or 0.0)
+                successful_scores.append(score)
+                if checkpoint and state_manager is not None:
+                    state_manager.mark_complete(
+                        checkpoint_key,
+                        benchmark,
+                        score=score,
+                        total_problems=int(result.get("samples", 0) or 0),
+                        result=result,
+                    )
+            elif checkpoint and state_manager is not None:
+                state_manager.mark_failed(
+                    checkpoint_key,
+                    benchmark,
+                    error=str(result.get("error", "Evaluation failed")),
+                    result=result,
+                )
 
         # Calculate overall score
         if successful_scores:
@@ -409,9 +455,9 @@ class EvaluationEngine:
 
         # Fallback: check external dataset registry
         from matric_eval.discovery import (
+            create_external_task,
             get_external_dataset,
             get_external_datasets,
-            create_external_task,
         )
 
         dataset = get_external_dataset(benchmark)
@@ -424,6 +470,5 @@ class EvaluationEngine:
         if external:
             available.extend(external)
         raise ValueError(
-            f"Unknown benchmark: {benchmark}. "
-            f"Available benchmarks: {', '.join(available)}"
+            f"Unknown benchmark: {benchmark}. Available benchmarks: {', '.join(available)}"
         )

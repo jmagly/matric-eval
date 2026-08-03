@@ -44,6 +44,8 @@ class BenchmarkState(BaseModel):
     score: float | None = None
     total_problems: int = 0
     completed_problems: int = 0
+    result: dict[str, Any] | None = None
+    error: str | None = None
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -93,7 +95,13 @@ class StateManager:
         self.lock_file = run_dir / "lock"
 
     def initialize_run(
-        self, run_id: str, tier: str, seed: int, models: list[str], benchmarks: list[str]
+        self,
+        run_id: str,
+        tier: str,
+        seed: int,
+        models: list[str],
+        benchmarks: list[str],
+        metadata: dict[str, Any] | None = None,
     ) -> RunState:
         """
         Initialize a new evaluation run.
@@ -104,6 +112,7 @@ class StateManager:
             seed: Random seed for reproducibility
             models: List of models to evaluate
             benchmarks: List of benchmarks to run
+            metadata: Additional immutable execution configuration
 
         Returns:
             Initialized RunState
@@ -113,25 +122,38 @@ class StateManager:
         run_state = RunState(
             run_id=run_id, tier=tier, seed=seed, models=models, benchmarks=benchmarks
         )
+        self.acquire_lock()
 
-        # Write meta.json (immutable run configuration)
-        meta = {
-            "run_id": run_id,
-            "tier": tier,
-            "seed": seed,
-            "models": models,
-            "benchmarks": benchmarks,
-            "started_at": run_state.started_at,
-        }
-        self._write_atomic(self.meta_file, meta)
+        try:
+            # Write meta.json (immutable run configuration)
+            meta = {
+                "run_id": run_id,
+                "tier": tier,
+                "seed": seed,
+                "models": models,
+                "benchmarks": benchmarks,
+                "started_at": run_state.started_at,
+                "checkpoint_granularity": "benchmark",
+                "configuration": metadata or {},
+            }
+            self._write_atomic(self.meta_file, meta)
 
-        # Write initial state.json
-        self._write_state(run_state)
-
-        # Create lock file
-        self.lock_file.touch()
+            # Write initial state.json
+            self._write_state(run_state)
+        except BaseException:
+            self.release_lock(force=True)
+            raise
 
         return run_state
+
+    def load_metadata(self) -> dict[str, Any]:
+        """Load the immutable run metadata."""
+        if not self.meta_file.exists():
+            raise FileNotFoundError(f"Metadata file not found: {self.meta_file}")
+
+        with open(self.meta_file) as f:
+            data: dict[str, Any] = json.load(f)
+        return data
 
     def load_run_state(self) -> RunState:
         """
@@ -166,8 +188,13 @@ class StateManager:
         return self.lock_file.exists()
 
     def acquire_lock(self) -> None:
-        """Acquire lock file."""
-        self.lock_file.touch()
+        """Atomically acquire the run lock or reject a competing process."""
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            with self.lock_file.open("x") as lock:
+                lock.write(f"acquired_at={datetime.now().isoformat()}\n")
+        except FileExistsError as exc:
+            raise RuntimeError(f"Run is locked: {self.lock_file}") from exc
 
     def release_lock(self, force: bool = False) -> None:
         """
@@ -317,12 +344,35 @@ class StateManager:
 
         return work
 
+    def mark_running(self, model: str, benchmark: str) -> None:
+        """Mark a benchmark as running before invoking the evaluator.
+
+        Checkpoint recovery is benchmark-granular. Restarting an incomplete
+        benchmark therefore clears any legacy sample counters rather than
+        implying that Inspect AI will continue from a sample offset.
+        """
+        model_state = self.load_model_state(model) or ModelState(model=model)
+        model_state.status = Status.RUNNING
+        model_state.benchmarks[benchmark] = BenchmarkState(
+            benchmark=benchmark,
+            status=Status.RUNNING,
+        )
+        self.update_model_state(model, model_state)
+
+        run_state = self.load_run_state()
+        run_state.status = Status.RUNNING
+        run_state.current_model = model
+        run_state.current_benchmark = benchmark
+        run_state.completed_models = [item for item in run_state.completed_models if item != model]
+        self.update_run_state(run_state)
+
     def mark_complete(
         self,
         model: str,
         benchmark: str,
         score: float,
         total_problems: int = 0,
+        result: dict[str, Any] | None = None,
     ) -> None:
         """
         Mark a benchmark as complete for a model.
@@ -332,6 +382,7 @@ class StateManager:
             benchmark: Benchmark name
             score: Final score (0.0-1.0)
             total_problems: Total number of problems evaluated
+            result: Full serializable benchmark result for idempotent resume
         """
         # Load or create model state
         model_state = self.load_model_state(model)
@@ -345,6 +396,7 @@ class StateManager:
             score=score,
             total_problems=total_problems,
             completed_problems=total_problems,
+            result=result,
         )
 
         model_state.benchmarks[benchmark] = benchmark_state
@@ -358,11 +410,11 @@ class StateManager:
                 for bench in run_state.benchmarks
             ):
                 # Calculate overall score
-                scores = [
-                    model_state.benchmarks[bench].score
-                    for bench in run_state.benchmarks
-                    if model_state.benchmarks[bench].score is not None
-                ]
+                scores: list[float] = []
+                for bench in run_state.benchmarks:
+                    benchmark_score = model_state.benchmarks[bench].score
+                    if benchmark_score is not None:
+                        scores.append(benchmark_score)
                 if scores:
                     model_state.overall_score = sum(scores) / len(scores)
                 model_state.status = Status.COMPLETED
@@ -371,6 +423,79 @@ class StateManager:
 
         # Save updated state
         self.update_model_state(model, model_state)
+        self.refresh_run_progress()
+
+    def mark_failed(
+        self,
+        model: str,
+        benchmark: str,
+        error: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist a failed benchmark so a later resume can retry it."""
+        model_state = self.load_model_state(model) or ModelState(model=model)
+        model_state.status = Status.FAILED
+        model_state.benchmarks[benchmark] = BenchmarkState(
+            benchmark=benchmark,
+            status=Status.FAILED,
+            score=None,
+            result=result,
+            error=error,
+        )
+        self.update_model_state(model, model_state)
+
+        run_state = self.load_run_state()
+        run_state.status = Status.RUNNING
+        run_state.current_model = None
+        run_state.current_benchmark = None
+        run_state.completed_models = [item for item in run_state.completed_models if item != model]
+        self.update_run_state(run_state)
+
+    def get_benchmark_result(self, model: str, benchmark: str) -> dict[str, Any] | None:
+        """Return a persisted completed benchmark result, if available."""
+        model_state = self.load_model_state(model)
+        if model_state is None:
+            return None
+
+        benchmark_state = model_state.benchmarks.get(benchmark)
+        if benchmark_state is None or benchmark_state.status != Status.COMPLETED:
+            return None
+        if benchmark_state.result is not None:
+            return benchmark_state.result
+
+        return {
+            "benchmark": benchmark,
+            "model": model,
+            "status": "success",
+            "score": benchmark_state.score or 0.0,
+            "samples": benchmark_state.completed_problems,
+            "resumed_from_checkpoint": True,
+        }
+
+    def build_model_result(self, model: str, display_model: str | None = None) -> dict[str, Any]:
+        """Build a complete model result from persisted benchmark checkpoints."""
+        run_state = self.load_run_state()
+        benchmark_results: dict[str, dict[str, Any]] = {}
+        scores: list[float] = []
+
+        for benchmark in run_state.benchmarks:
+            result = self.get_benchmark_result(model, benchmark)
+            if result is None:
+                continue
+            checkpoint_result = {**result, "resumed_from_checkpoint": True}
+            benchmark_results[benchmark] = checkpoint_result
+            scores.append(float(checkpoint_result.get("score", 0.0) or 0.0))
+
+        complete = len(benchmark_results) == len(run_state.benchmarks)
+        return {
+            "model": display_model or model,
+            "checkpoint_model": model,
+            "tier": run_state.tier,
+            "benchmarks": benchmark_results,
+            "overall_score": sum(scores) / len(scores) if scores else 0.0,
+            "status": "success" if complete else "error",
+            "resumed_from_checkpoint": True,
+        }
 
     def should_skip(self, model: str, benchmark: str) -> bool:
         """
@@ -392,9 +517,7 @@ class StateManager:
 
         return model_state.benchmarks[benchmark].status == Status.COMPLETED
 
-    def get_remaining_problems(
-        self, model: str, benchmark: str
-    ) -> dict[str, int] | None:
+    def get_remaining_problems(self, model: str, benchmark: str) -> dict[str, int] | None:
         """
         Get remaining problems for partially completed benchmark.
 
@@ -422,6 +545,33 @@ class StateManager:
     def _write_state(self, run_state: RunState) -> None:
         """Write run state atomically."""
         self._write_atomic(self.state_file, run_state.model_dump())
+
+    def refresh_run_progress(self) -> None:
+        """Recompute completed models and terminal run status from checkpoints."""
+        try:
+            run_state = self.load_run_state()
+        except FileNotFoundError:
+            return
+
+        completed_models: list[str] = []
+        for model in run_state.models:
+            model_state = self.load_model_state(model)
+            if model_state is None:
+                continue
+            if all(
+                benchmark in model_state.benchmarks
+                and model_state.benchmarks[benchmark].status == Status.COMPLETED
+                for benchmark in run_state.benchmarks
+            ):
+                completed_models.append(model)
+
+        run_state.completed_models = completed_models
+        run_state.current_model = None
+        run_state.current_benchmark = None
+        run_state.status = (
+            Status.COMPLETED if len(completed_models) == len(run_state.models) else Status.RUNNING
+        )
+        self.update_run_state(run_state)
 
     def _write_atomic(self, path: Path, data: dict[str, Any]) -> None:
         """

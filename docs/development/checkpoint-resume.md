@@ -263,40 +263,38 @@ qwen2.5:7b     gsm8k       not_started    0/0
 }
 ```
 
-## Next Steps
+## Execution and Resume Semantics
 
-### EvaluationEngine Integration (Future Work)
+Normal CLI runs initialize `meta.json`, `state.json`, and the run lock before
+evaluation starts. `EvaluationEngine.run_all()` records each benchmark as
+running, then persists its complete result or failure. The lock is released on
+success, failure, or interruption.
 
-The checkpoint/resume infrastructure is now complete. The next phase is integrating it with EvaluationEngine:
+Resume uses the immutable target plan in `meta.json`:
 
-1. **Checkpoint after each benchmark**
-   ```python
-   async def run_benchmark(self, benchmark: str, state_manager: StateManager):
-       result = await eval(task, model=self.model)
-       state_manager.mark_complete(
-           model=self.model,
-           benchmark=benchmark,
-           score=result.score,
-           total_problems=len(result.samples)
-       )
-   ```
+```bash
+matric-eval run --resume results/run-2026-08-03T10-00-00
+matric-eval run --resume results/run-2026-08-03T10-00-00 --fill-gaps
+```
 
-2. **Skip completed work on resume**
-   ```python
-   async def run_all(self, benchmarks: list[str], state_manager: StateManager):
-       for benchmark in benchmarks:
-           if state_manager.should_skip(self.model, benchmark):
-               continue
-           await self.run_benchmark(benchmark, state_manager)
-   ```
+Both commands skip completed benchmarks and execute missing, failed, or
+interrupted benchmarks. `--fill-gaps` additionally prints the exact gap plan.
+Provider, endpoint, judge, thinking mode, tier, seed, and benchmark selection
+come from the checkpoint. Credentials are never written to checkpoint metadata
+and must be supplied again through environment variables or `--api-key`.
 
-3. **Handle partial benchmark resume**
-   ```python
-   remaining = state_manager.get_remaining_problems(model, benchmark)
-   if remaining:
-       # Resume from problem N
-       task = create_task_from_offset(remaining["completed"])
-   ```
+### Recovery granularity
+
+Checkpoint recovery is **benchmark-level**. Completed benchmark results are
+loaded from state without invoking the evaluator again. A benchmark interrupted
+after some samples is rerun from its beginning because Inspect AI owns internal
+sample scheduling and aggregation. `meta.json` records
+`"checkpoint_granularity": "benchmark"` so partial sample counters cannot be
+mistaken for sample-offset resume support.
+
+Complete, malformed, missing, and actively locked checkpoints produce distinct
+CLI diagnostics. Use `matric-eval validate <run> --force-unlock` only after
+confirming that a lock is stale.
 
 ## Files Modified/Created
 

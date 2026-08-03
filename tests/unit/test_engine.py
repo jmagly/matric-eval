@@ -9,11 +9,14 @@ Covers:
 - Checkpoint support
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
 from matric_eval.core import EvaluationEngine
+from matric_eval.state import StateManager
+from matric_eval.state.manager import Status
 
 
 @pytest.mark.unit
@@ -48,7 +51,7 @@ class TestEngineInitialization:
         log_dir = tmp_path / "new_logs"
         assert not log_dir.exists()
 
-        engine = EvaluationEngine(
+        EvaluationEngine(
             model="ollama/test",
             log_dir=log_dir,
         )
@@ -221,6 +224,109 @@ class TestRunAll:
             assert result["status"] == "error"
             assert result["overall_score"] == 0.0
 
+    def test_run_all_persists_and_reuses_completed_benchmarks(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """A resumed run should hydrate completed work without evaluating it again."""
+        manager = StateManager(tmp_path / "run")
+        manager.initialize_run(
+            run_id="run",
+            tier="smoke",
+            seed=42,
+            models=["test"],
+            benchmarks=["humaneval", "mbpp"],
+        )
+        manager.mark_complete(
+            "test",
+            "humaneval",
+            score=0.8,
+            total_problems=5,
+            result={
+                "benchmark": "humaneval",
+                "model": "ollama/test",
+                "status": "success",
+                "score": 0.8,
+                "samples": 5,
+            },
+        )
+
+        engine = EvaluationEngine(model="ollama/test", log_dir=tmp_path / "logs")
+        with patch.object(engine, "run_benchmark") as run_benchmark:
+            run_benchmark.return_value = {
+                "benchmark": "mbpp",
+                "model": "ollama/test",
+                "status": "success",
+                "score": 0.6,
+                "samples": 5,
+            }
+            result = engine.run_all(
+                ["humaneval", "mbpp"],
+                state_manager=manager,
+                checkpoint_model="test",
+            )
+
+        run_benchmark.assert_called_once_with("mbpp")
+        assert result["benchmarks"]["humaneval"]["resumed_from_checkpoint"] is True
+        assert result["overall_score"] == pytest.approx(0.7)
+        assert manager.load_run_state().status == Status.COMPLETED
+
+    def test_interrupted_run_retries_only_interrupted_benchmark(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Restart should preserve completed work and rerun the interrupted benchmark."""
+        manager = StateManager(tmp_path / "run")
+        manager.initialize_run(
+            run_id="run",
+            tier="smoke",
+            seed=42,
+            models=["test"],
+            benchmarks=["humaneval", "mbpp"],
+        )
+        engine = EvaluationEngine(model="ollama/test", log_dir=tmp_path / "logs")
+
+        completed = {
+            "benchmark": "humaneval",
+            "model": "ollama/test",
+            "status": "success",
+            "score": 0.8,
+            "samples": 5,
+        }
+        with patch.object(
+            engine,
+            "run_benchmark",
+            side_effect=[completed, KeyboardInterrupt()],
+        ):
+            with pytest.raises(KeyboardInterrupt):
+                engine.run_all(
+                    ["humaneval", "mbpp"],
+                    state_manager=manager,
+                    checkpoint_model="test",
+                )
+
+        assert manager.should_skip("test", "humaneval") is True
+        assert manager.should_skip("test", "mbpp") is False
+        assert manager.get_resume_work() == {"test": ["mbpp"]}
+
+        resumed = {
+            "benchmark": "mbpp",
+            "model": "ollama/test",
+            "status": "success",
+            "score": 0.6,
+            "samples": 5,
+        }
+        with patch.object(engine, "run_benchmark", return_value=resumed) as run_benchmark:
+            result = engine.run_all(
+                ["humaneval", "mbpp"],
+                state_manager=manager,
+                checkpoint_model="test",
+            )
+
+        run_benchmark.assert_called_once_with("mbpp")
+        assert result["overall_score"] == pytest.approx(0.7)
+        assert manager.load_run_state().status == Status.COMPLETED
+
 
 @pytest.mark.unit
 class TestLoadTask:
@@ -255,8 +361,15 @@ class TestLoadTask:
         )
 
         expected_benchmarks = [
-            "humaneval", "mbpp", "gsm8k", "arc", "ifeval",
-            "ds1000", "livecodebench", "mtbench", "tool_calling",
+            "humaneval",
+            "mbpp",
+            "gsm8k",
+            "arc",
+            "ifeval",
+            "ds1000",
+            "livecodebench",
+            "mtbench",
+            "tool_calling",
         ]
 
         for benchmark in expected_benchmarks:

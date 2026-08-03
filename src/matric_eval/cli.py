@@ -7,6 +7,7 @@ Click-based CLI with rich progress reporting and JSON output support.
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -16,7 +17,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-from matric_eval.config import TIERS, get_tier
+from matric_eval.config import get_seed, get_settings, get_tier
 from matric_eval.core.engine import EvaluationEngine
 from matric_eval.logging import (
     EvalLogger,
@@ -24,10 +25,11 @@ from matric_eval.logging import (
     get_logger,
     set_context,
 )
-from matric_eval.state import StateManager
 from matric_eval.models.detection import has_thinking_capability
 from matric_eval.providers import get_provider, list_providers
 from matric_eval.providers.base import ProviderConfig, ProviderConnectionError
+from matric_eval.state import StateManager
+from matric_eval.state.manager import Status
 
 console = Console()
 error_console = Console(stderr=True)
@@ -96,11 +98,13 @@ def get_ollama_models(max_size_gb: float = 15.0) -> list[dict]:
                     size_gb = size_val
 
                 if size_gb <= max_size_gb:
-                    models.append({
-                        "name": name,
-                        "size_gb": round(size_gb, 2),
-                        "size_str": f"{size_val} {size_unit}",
-                    })
+                    models.append(
+                        {
+                            "name": name,
+                            "size_gb": round(size_gb, 2),
+                            "size_str": f"{size_val} {size_unit}",
+                        }
+                    )
             except (ValueError, IndexError):
                 continue
 
@@ -153,7 +157,6 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
     """
     # Ensure all task modules are imported (triggers @register_benchmark decorators)
     import matric_eval.tasks  # noqa: F401
-
     from matric_eval.tasks.registry import get_registry
 
     registry = get_registry()
@@ -190,6 +193,114 @@ def get_available_benchmarks(with_descriptions: bool = False) -> list[str] | dic
 # =============================================================================
 
 
+@dataclass(frozen=True)
+class EvaluationTarget:
+    """A stable execution target used for checkpoint identity and resume."""
+
+    checkpoint_model: str
+    model: str
+    thinking_mode: str | None = None
+
+    def as_metadata(self) -> dict[str, str | None]:
+        """Serialize the non-secret target configuration."""
+        return {
+            "checkpoint_model": self.checkpoint_model,
+            "model": self.model,
+            "thinking_mode": self.thinking_mode,
+        }
+
+
+def _resolve_benchmarks(tier: str, selected: tuple[str, ...] = ()) -> list[str]:
+    """Resolve a concrete benchmark list for immutable run metadata."""
+    if selected:
+        return list(selected)
+
+    tier_config = get_tier(tier)
+    available = get_available_benchmarks()
+    if not isinstance(available, list):
+        raise TypeError("Benchmark discovery returned descriptions instead of names")
+    return [name for name in available if getattr(tier_config, name, 0) > 0]
+
+
+def _thinking_modes(model: str, thinking: str) -> list[str | None]:
+    """Resolve configured thinking modes for one model."""
+    if thinking == "auto":
+        return ["off"] if has_thinking_capability(model) else [None]
+    if thinking == "both":
+        return ["on", "off"] if has_thinking_capability(model) else [None]
+    if thinking in ("on", "off"):
+        return [thinking]
+    return [None]
+
+
+def _build_targets(models: list[dict[str, Any]], thinking: str) -> list[EvaluationTarget]:
+    """Build checkpoint-safe targets from discovered models."""
+    targets: list[EvaluationTarget] = []
+    for model_info in models:
+        model = str(model_info["name"])
+        for thinking_mode in _thinking_modes(model, thinking):
+            checkpoint_model = model
+            if thinking_mode is not None:
+                checkpoint_model = f"{model}#thinking={thinking_mode}"
+            targets.append(
+                EvaluationTarget(
+                    checkpoint_model=checkpoint_model,
+                    model=model,
+                    thinking_mode=thinking_mode,
+                )
+            )
+    return targets
+
+
+def _load_targets(metadata: dict[str, Any], models: list[str]) -> list[EvaluationTarget]:
+    """Load target configuration, with compatibility for legacy checkpoints."""
+    configuration = metadata.get("configuration", {})
+    records = configuration.get("targets", []) if isinstance(configuration, dict) else []
+    if not records:
+        return [EvaluationTarget(checkpoint_model=model, model=model) for model in models]
+
+    targets = [
+        EvaluationTarget(
+            checkpoint_model=str(record["checkpoint_model"]),
+            model=str(record["model"]),
+            thinking_mode=record.get("thinking_mode"),
+        )
+        for record in records
+    ]
+    if {target.checkpoint_model for target in targets} != set(models):
+        raise ValueError("Checkpoint targets do not match run state models")
+    return targets
+
+
+def _result_path(output_dir: Path, target: EvaluationTarget) -> Path:
+    """Return the stable result path for an execution target."""
+    safe_name = target.checkpoint_model
+    for character in (":", "/", "#", "="):
+        safe_name = safe_name.replace(character, "_")
+    return output_dir / f"{safe_name}.json"
+
+
+def _create_provider(
+    provider_name: str | None,
+    provider_url: str | None,
+    api_key: str | None,
+) -> Any:
+    """Create a provider without persisting credentials in run metadata."""
+    if provider_name is None:
+        return None
+
+    config = ProviderConfig()
+    if provider_url:
+        config.base_url = provider_url
+    if api_key:
+        config.api_key = api_key
+    try:
+        return get_provider(provider_name, config)
+    except ValueError as exc:
+        choices = ", ".join(list_providers())
+        raise click.ClickException(f"{exc}. Available providers: {choices}") from exc
+
+
 def run_evaluation(
     model: str,
     tier: str = "smoke",
@@ -198,6 +309,8 @@ def run_evaluation(
     thinking_mode: Optional[str] = None,
     provider: Any = None,
     judge_spec: Optional[str] = None,
+    state_manager: StateManager | None = None,
+    checkpoint_model: str | None = None,
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
@@ -210,6 +323,8 @@ def run_evaluation(
         thinking_mode: Thinking mode ("on", "off", or None)
         provider: Provider instance. If None, defaults to Ollama behavior.
         judge_spec: Optional judge specification (e.g., "ollama:llama3.1:8b")
+        state_manager: Optional persistent run checkpoint
+        checkpoint_model: Stable target key used by the checkpoint
 
     Returns:
         Results dictionary
@@ -224,8 +339,7 @@ def run_evaluation(
         # Run all benchmarks with samples > 0 in this tier
         tier_config = get_tier(tier)
         benchmarks = [
-            name for name in get_available_benchmarks()
-            if getattr(tier_config, name, 0) > 0
+            name for name in get_available_benchmarks() if getattr(tier_config, name, 0) > 0
         ]
 
     # Create engine and run
@@ -238,7 +352,106 @@ def run_evaluation(
         judge_spec=judge_spec,
     )
 
-    return engine.run_all(benchmarks)
+    return engine.run_all(
+        benchmarks,
+        checkpoint=state_manager is not None,
+        state_manager=state_manager,
+        checkpoint_model=checkpoint_model,
+    )
+
+
+def _execute_targets(
+    targets: list[EvaluationTarget],
+    benchmark_plan: dict[str, list[str]],
+    tier: str,
+    output_dir: Path,
+    output_format: str,
+    provider: Any,
+    judge_spec: str | None,
+    state_manager: StateManager,
+) -> list[dict[str, Any]]:
+    """Execute fresh or resumed targets through the same engine path."""
+    logger = get_cli_logger()
+    all_results: list[dict[str, Any]] = []
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console if output_format != "json" else None,
+        disable=output_format == "json",
+    ) as progress:
+        task = progress.add_task(f"Evaluating {len(targets)} target(s)...", total=len(targets))
+
+        for target in targets:
+            set_context(model=target.model)
+            benchmarks = benchmark_plan[target.checkpoint_model]
+            logger.info(
+                "Starting model evaluation",
+                extra={
+                    "model": target.model,
+                    "checkpoint_model": target.checkpoint_model,
+                    "tier": tier,
+                    "benchmarks": benchmarks,
+                },
+            )
+            if output_format != "json":
+                progress.update(task, description=f"Evaluating {target.checkpoint_model}...")
+
+            try:
+                result = run_evaluation(
+                    model=target.model,
+                    tier=tier,
+                    benchmarks=benchmarks,
+                    output_dir=output_dir,
+                    thinking_mode=target.thinking_mode,
+                    provider=provider,
+                    judge_spec=judge_spec,
+                    state_manager=state_manager,
+                    checkpoint_model=target.checkpoint_model,
+                )
+                result.setdefault("checkpoint_model", target.checkpoint_model)
+                all_results.append(result)
+                _result_path(output_dir, target).write_text(json.dumps(result, indent=2))
+
+                logger.info(
+                    "Model evaluation complete",
+                    extra={
+                        "model": target.model,
+                        "checkpoint_model": target.checkpoint_model,
+                        "overall_score": result.get("overall_score", 0),
+                        "status": result.get("status"),
+                        "thinking_mode": target.thinking_mode,
+                    },
+                )
+            except Exception as exc:
+                logger.error(
+                    "Model evaluation failed",
+                    extra={
+                        "model": target.model,
+                        "checkpoint_model": target.checkpoint_model,
+                        "error": str(exc),
+                    },
+                    exc_info=True,
+                )
+                error_result = {
+                    "model": target.model,
+                    "checkpoint_model": target.checkpoint_model,
+                    "tier": tier,
+                    "status": "error",
+                    "error": str(exc),
+                }
+                all_results.append(error_result)
+                if output_format != "json":
+                    raise click.ClickException(
+                        f"Error evaluating {target.checkpoint_model}: {exc}"
+                    ) from exc
+            finally:
+                progress.advance(task)
+
+    return all_results
 
 
 # =============================================================================
@@ -300,13 +513,19 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
 @click.option(
     "--model",
     type=str,
-    help="Specific model to evaluate (e.g., llama3.2:3b). If not specified, evaluates all models under --max-size.",
+    help=(
+        "Specific model to evaluate (e.g., llama3.2:3b). "
+        "If omitted, evaluates all models under --max-size."
+    ),
 )
 @click.option(
     "--benchmark",
     type=str,
     multiple=True,
-    help="Specific benchmark(s) to run. Can be specified multiple times. If not specified, runs all benchmarks for the tier.",
+    help=(
+        "Specific benchmark(s) to run. May be repeated. "
+        "If omitted, runs all benchmarks for the tier."
+    ),
 )
 @click.option(
     "--max-size",
@@ -330,7 +549,7 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     "--thinking",
     type=click.Choice(["auto", "on", "off", "both"], case_sensitive=False),
     default="auto",
-    help="Thinking mode for thinking-capable models (auto=detect, on=enable, off=disable, both=run twice)",
+    help=("Thinking mode for capable models (auto=detect, on=enable, off=disable, both=run twice)"),
 )
 @click.option(
     "--provider",
@@ -363,7 +582,10 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     "judge_spec",
     type=str,
     default=None,
-    help="LLM judge for subjective evaluation (e.g., ollama:llama3.1:8b, openai:gpt-4o). Adds judge scoring alongside deterministic scorers.",
+    help=(
+        "LLM judge for subjective evaluation (e.g., ollama:llama3.1:8b). "
+        "Adds judge scoring alongside deterministic scorers."
+    ),
 )
 @click.option(
     "--resume",
@@ -420,237 +642,195 @@ def run(
 
     logger = get_cli_logger()
 
-    # Handle resume
-    if resume:
-        logger.info("Attempting to resume run", extra={"resume_path": resume})
-
-        # Determine run directory
-        if Path(resume).is_dir():
-            run_dir = Path(resume)
-        else:
-            run_dir = output / resume
-
-        if not run_dir.exists():
-            logger.error("Run directory not found", extra={"path": str(run_dir)})
-            error_console.print(f"[red]Error:[/red] Run directory not found: {run_dir}")
-            sys.exit(1)
-
-        # Load state manager
-        state_manager = StateManager(run_dir)
-
-        if not state_manager.can_resume():
-            error_console.print(f"[red]Error:[/red] Cannot resume run at {run_dir}")
-            error_console.print("Run may already be complete or state file is corrupted.")
-            sys.exit(1)
-
-        # Check lock
-        if state_manager.is_locked():
-            error_console.print(f"[red]Error:[/red] Run is locked (already running)")
-            error_console.print(f"Lock file: {state_manager.lock_file}")
-            error_console.print("If process has died, use: matric-eval validate --force-unlock")
-            sys.exit(1)
-
-        # Get work to resume
-        if fill_gaps:
-            resume_work = state_manager.get_resume_work()
-            if not resume_work:
-                console.print("[green]No gaps found - run is complete![/green]")
-                return
-
-            console.print(f"\n[bold]RESUMING RUN - FILLING GAPS[/bold]")
-            console.print(f"Run directory: {run_dir}\n")
-
-            for model_name, benchmarks in resume_work.items():
-                console.print(f"  {model_name}: {', '.join(benchmarks)}")
-
-            console.print()
-        else:
-            console.print(f"\n[bold]RESUMING RUN[/bold]")
-            console.print(f"Run directory: {run_dir}\n")
-
-        # TODO: Implement resume execution
-        error_console.print("[yellow]Warning:[/yellow] Resume execution not yet implemented")
-        return
-
     # Handle matrix-based evaluation
     if matrix_file:
+        if resume:
+            raise click.UsageError("--matrix and --resume cannot be used together")
         from matric_eval.providers.matrix import EvaluationMatrix
+
         matrix = EvaluationMatrix.from_yaml(matrix_file)
         _run_matrix_evaluation(matrix, output, output_format, thinking, tier)
         return
 
-    # Resolve provider
-    active_provider = None
-    if provider_name:
-        config = ProviderConfig()
-        if provider_url:
-            config.base_url = provider_url
-        if api_key:
-            config.api_key = api_key
-        try:
-            active_provider = get_provider(provider_name, config)
-        except ValueError as e:
-            error_console.print(f"[red]Error:[/red] {e}")
-            error_console.print(f"Available providers: {', '.join(list_providers())}")
-            sys.exit(1)
-
-    # Get models to evaluate
-    logger.info("Discovering models", extra={"max_size_gb": max_size, "specific_model": model})
-
-    if model:
-        # User specified a model - use it even if not in Ollama list
-        models_to_eval = [{"name": model, "size_gb": 0, "size_str": "unknown"}]
-        logger.debug("Using user-specified model", extra={"model": model})
-    elif active_provider:
-        # Discover models from the active provider
-        try:
-            provider_models = active_provider.list_models(max_size_gb=max_size)
-            models_to_eval = [
-                {"name": m.name, "size_gb": m.size_gb, "size_str": f"{m.size_gb} GB"}
-                for m in provider_models
-            ]
-        except ProviderConnectionError as e:
-            error_console.print(f"[red]Error querying {active_provider.display_name}:[/red] {e}")
-            sys.exit(1)
-        logger.debug(f"Discovered models from {active_provider.display_name}", extra={"count": len(models_to_eval)})
-    else:
-        models_to_eval = get_ollama_models(max_size)
-        logger.debug("Discovered models from Ollama", extra={"count": len(models_to_eval)})
-
-    if not models_to_eval:
-        logger.error("No models found to evaluate")
-        error_console.print("[red]Error:[/red] No models found to evaluate.")
-        error_console.print("Try running: [bold]ollama list[/bold] to see available models")
-        sys.exit(1)
-
-    # Prepare benchmarks list
-    benchmarks_to_run = list(benchmark) if benchmark else None
-
-    # Setup output directory
     timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    output_dir = output / f"run-{timestamp}"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(
-        "Starting evaluation run",
-        extra={
-            "tier": tier,
-            "models": len(models_to_eval),
-            "benchmarks": benchmarks_to_run,
-            "output_dir": str(output_dir),
-        },
-    )
+    if resume:
+        logger.info("Attempting to resume run", extra={"resume_path": resume})
+        output_dir = Path(resume) if Path(resume).is_dir() else output / resume
+        if not output_dir.exists():
+            raise click.ClickException(f"Run directory not found: {output_dir}")
 
-    # Show evaluation info (unless JSON output)
-    if output_format != "json":
-        console.print(f"\n[bold]MATRIC-EVAL - {tier.upper()} tier[/bold]")
-        console.print(f"Models: {len(models_to_eval)}")
-        console.print(f"Max size: {max_size}GB")
-        console.print(f"Output: {output_dir}")
-        if benchmarks_to_run:
-            console.print(f"Benchmarks: {', '.join(benchmarks_to_run)}")
-        if judge_spec:
-            console.print(f"Judge: {judge_spec}")
-        console.print()
+        state_manager = StateManager(output_dir)
+        try:
+            run_state = state_manager.load_run_state()
+            metadata = state_manager.load_metadata()
+        except Exception as exc:
+            raise click.ClickException(f"Invalid checkpoint state at {output_dir}: {exc}") from exc
 
-    all_results = []
+        if run_state.status == Status.COMPLETED:
+            raise click.ClickException(f"Run is already complete: {run_state.run_id}")
+        if state_manager.is_locked():
+            raise click.ClickException(
+                f"Run is locked: {state_manager.lock_file}. "
+                "Use 'matric-eval validate <run> --force-unlock' only for a stale lock."
+            )
 
-    # Progress tracking
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TimeElapsedColumn(),
-        console=console if output_format != "json" else None,
-        disable=output_format == "json",
-    ) as progress:
-        task = progress.add_task(
-            f"Evaluating {len(models_to_eval)} model(s)...",
-            total=len(models_to_eval),
+        configuration = metadata.get("configuration", {})
+        if not isinstance(configuration, dict):
+            raise click.ClickException("Invalid checkpoint configuration")
+
+        stored_provider = configuration.get("provider")
+        if provider_name is not None and "provider" in configuration:
+            if provider_name != stored_provider:
+                raise click.ClickException("--provider does not match the checkpoint")
+        effective_provider_name = provider_name or stored_provider
+
+        stored_provider_url = configuration.get("provider_url")
+        if provider_url is not None and stored_provider_url not in (None, provider_url):
+            raise click.ClickException("--provider-url does not match the checkpoint")
+        effective_provider_url = provider_url or stored_provider_url
+
+        stored_judge = configuration.get("judge_spec")
+        if judge_spec is not None and stored_judge not in (None, judge_spec):
+            raise click.ClickException("--judge does not match the checkpoint")
+        effective_judge = judge_spec or stored_judge
+
+        active_provider = _create_provider(
+            str(effective_provider_name) if effective_provider_name else None,
+            str(effective_provider_url) if effective_provider_url else None,
+            api_key,
+        )
+        try:
+            targets = _load_targets(metadata, run_state.models)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise click.ClickException(f"Invalid checkpoint configuration: {exc}") from exc
+        resume_work = state_manager.get_resume_work()
+        if not resume_work:
+            state_manager.refresh_run_progress()
+            console.print("[green]No gaps found - run is complete.[/green]")
+            return
+
+        heading = "RESUMING RUN - FILLING GAPS" if fill_gaps else "RESUMING RUN"
+        if output_format != "json":
+            console.print(f"\n[bold]{heading}[/bold]")
+            console.print("Checkpoint granularity: benchmark")
+            console.print(f"Run directory: {output_dir}\n")
+            for checkpoint_model, benchmarks in resume_work.items():
+                console.print(f"  {checkpoint_model}: {', '.join(benchmarks)}")
+            console.print()
+
+        targets_to_run = [target for target in targets if target.checkpoint_model in resume_work]
+        benchmark_plan = {
+            target.checkpoint_model: run_state.benchmarks for target in targets_to_run
+        }
+        try:
+            state_manager.acquire_lock()
+        except RuntimeError as exc:
+            raise click.ClickException(str(exc)) from exc
+        settings = get_settings()
+        previous_seed = settings.seed
+        settings.seed = run_state.seed
+        try:
+            _execute_targets(
+                targets_to_run,
+                benchmark_plan,
+                run_state.tier,
+                output_dir,
+                output_format,
+                active_provider,
+                str(effective_judge) if effective_judge else None,
+                state_manager,
+            )
+            state_manager.refresh_run_progress()
+            all_results = [
+                state_manager.build_model_result(target.checkpoint_model, target.model)
+                for target in targets
+            ]
+            for target, result in zip(targets, all_results, strict=True):
+                _result_path(output_dir, target).write_text(json.dumps(result, indent=2))
+        finally:
+            settings.seed = previous_seed
+            state_manager.release_lock()
+        tier = run_state.tier
+    else:
+        active_provider = _create_provider(provider_name, provider_url, api_key)
+        logger.info("Discovering models", extra={"max_size_gb": max_size, "specific_model": model})
+
+        if model:
+            models_to_eval = [{"name": model, "size_gb": 0, "size_str": "unknown"}]
+        elif active_provider:
+            try:
+                provider_models = active_provider.list_models(max_size_gb=max_size)
+            except ProviderConnectionError as exc:
+                raise click.ClickException(
+                    f"Error querying {active_provider.display_name}: {exc}"
+                ) from exc
+            models_to_eval = [
+                {"name": item.name, "size_gb": item.size_gb, "size_str": f"{item.size_gb} GB"}
+                for item in provider_models
+            ]
+        else:
+            models_to_eval = get_ollama_models(max_size)
+
+        if not models_to_eval:
+            raise click.ClickException("No models found to evaluate")
+
+        benchmarks_to_run = _resolve_benchmarks(tier, benchmark)
+        if not benchmarks_to_run:
+            raise click.ClickException(f"No benchmarks are enabled for tier '{tier}'")
+        targets = _build_targets(models_to_eval, thinking)
+        output_dir = output / f"run-{timestamp}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        state_manager = StateManager(output_dir)
+        state_manager.initialize_run(
+            run_id=output_dir.name,
+            tier=tier,
+            seed=get_seed(),
+            models=[target.checkpoint_model for target in targets],
+            benchmarks=benchmarks_to_run,
+            metadata={
+                "targets": [target.as_metadata() for target in targets],
+                "provider": provider_name,
+                "provider_url": provider_url,
+                "judge_spec": judge_spec,
+                "thinking": thinking,
+            },
         )
 
-        for model_info in models_to_eval:
-            model_name = model_info["name"]
+        logger.info(
+            "Starting evaluation run",
+            extra={
+                "tier": tier,
+                "targets": len(targets),
+                "benchmarks": benchmarks_to_run,
+                "output_dir": str(output_dir),
+            },
+        )
+        if output_format != "json":
+            console.print(f"\n[bold]MATRIC-EVAL - {tier.upper()} tier[/bold]")
+            console.print(f"Targets: {len(targets)}")
+            console.print(f"Max size: {max_size}GB")
+            console.print(f"Output: {output_dir}")
+            console.print(f"Benchmarks: {', '.join(benchmarks_to_run)}")
+            if judge_spec:
+                console.print(f"Judge: {judge_spec}")
+            console.print()
 
-            # Set logging context for this model
-            set_context(model=model_name)
-            logger.info("Starting model evaluation", extra={"model": model_name, "tier": tier})
-
-            if output_format != "json":
-                progress.update(task, description=f"Evaluating {model_name}...")
-
-            try:
-                # Handle thinking mode
-                is_thinking_model = False
-                modes_to_run = []
-
-                if thinking == "auto":
-                    # Auto-detect thinking capability
-                    is_thinking_model = has_thinking_capability(model_name)
-                    modes_to_run = ["off"] if is_thinking_model else [None]
-                elif thinking == "both":
-                    # Run both modes (only makes sense for thinking models)
-                    is_thinking_model = has_thinking_capability(model_name)
-                    modes_to_run = ["on", "off"] if is_thinking_model else [None]
-                elif thinking in ("on", "off"):
-                    # Explicit mode
-                    modes_to_run = [thinking]
-                else:
-                    modes_to_run = [None]
-
-                # Run evaluation for each mode
-                for thinking_mode in modes_to_run:
-                    result = run_evaluation(
-                        model=model_name,
-                        tier=tier,
-                        benchmarks=benchmarks_to_run,
-                        output_dir=output_dir,
-                        thinking_mode=thinking_mode,
-                        provider=active_provider,
-                        judge_spec=judge_spec,
-                    )
-                    all_results.append(result)
-
-                    # Log result
-                    overall_score = result.get("overall_score", 0)
-                    thinking_suffix = f" (thinking={thinking_mode})" if thinking_mode else ""
-                    logger.info(
-                        f"Model evaluation complete{thinking_suffix}",
-                        extra={
-                            "model": model_name,
-                            "overall_score": overall_score,
-                            "status": result.get("status"),
-                            "thinking_mode": thinking_mode,
-                        },
-                    )
-
-                    # Save individual result
-                    safe_name = model_name.replace(":", "_").replace("/", "_")
-                    if thinking_mode:
-                        safe_name = f"{safe_name}_thinking_{thinking_mode}"
-                    result_file = output_dir / f"{safe_name}.json"
-                    result_file.write_text(json.dumps(result, indent=2))
-
-            except Exception as e:
-                logger.error(
-                    "Model evaluation failed",
-                    extra={"model": model_name, "error": str(e)},
-                    exc_info=True,
-                )
-                error_console.print(f"\n[red]Error evaluating {model_name}:[/red] {e}")
-                all_results.append({
-                    "model": f"ollama/{model_name}" if not model_name.startswith("ollama/") else model_name,
-                    "tier": tier,
-                    "status": "error",
-                    "error": str(e),
-                })
-                # In table mode, re-raise to stop execution
-                # In JSON mode, continue to collect all errors
-                if output_format != "json":
-                    sys.exit(1)
-
-            progress.advance(task)
+        benchmark_plan = {target.checkpoint_model: benchmarks_to_run for target in targets}
+        try:
+            all_results = _execute_targets(
+                targets,
+                benchmark_plan,
+                tier,
+                output_dir,
+                output_format,
+                active_provider,
+                judge_spec,
+                state_manager,
+            )
+        finally:
+            state_manager.release_lock()
 
     # Save summary
     successful = len([r for r in all_results if r.get("status") == "success"])
@@ -687,7 +867,7 @@ def run(
             console.print(json.dumps(summary, indent=2))
     else:
         # Table output
-        console.print(f"\n[bold]RESULTS SUMMARY[/bold]")
+        console.print("\n[bold]RESULTS SUMMARY[/bold]")
 
         table = Table(show_header=True, header_style="bold cyan")
         table.add_column("Rank", style="dim", width=6)
@@ -845,7 +1025,9 @@ def validate(
                     gaps_table.add_row(model, benchmark, status, progress)
 
             console.print(gaps_table)
-            console.print(f"\n[yellow]Run is incomplete. Use --resume --fill-gaps to complete.[/yellow]")
+            console.print(
+                "\n[yellow]Run is incomplete. Use --resume --fill-gaps to complete.[/yellow]"
+            )
         else:
             console.print("[green]Run is complete - no gaps found![/green]")
 
@@ -1269,13 +1451,15 @@ def _run_matrix_evaluation(
                     "Matrix run failed",
                     extra={"model": model_name, "provider": provider_name, "error": str(e)},
                 )
-                all_results.append({
-                    "model": model_name,
-                    "provider": provider_name,
-                    "tier": tier,
-                    "status": "error",
-                    "error": str(e),
-                })
+                all_results.append(
+                    {
+                        "model": model_name,
+                        "provider": provider_name,
+                        "tier": tier,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
 
             progress.advance(task)
 
@@ -1292,7 +1476,7 @@ def _run_matrix_evaluation(
     if output_format == "json":
         console.print(json.dumps(summary, indent=2))
     else:
-        console.print(f"\n[bold]MATRIX RESULTS[/bold]\n")
+        console.print("\n[bold]MATRIX RESULTS[/bold]\n")
 
         table = Table(show_header=True, header_style="bold cyan")
         table.add_column("Model", style="cyan")

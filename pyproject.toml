@@ -12,7 +12,7 @@ dependencies = [
     "inspect-ai==0.3.251",
     "inspect-evals[cyberseceval_4,gaia,swe_bench]==0.16.0",
     "httpx>=0.28.0",
-    "openai>=2.30.0",
+    "openai>=2.45.0",
     "click>=8.2.0",
     "rich>=14.0.0",
     "pydantic>=2.12.0",
