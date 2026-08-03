@@ -1,6 +1,6 @@
 # Makefile for matric-eval development tasks
 
-.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail ci
+.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail operational-validation ci
 
 help:  ## Show this help message
 	@echo "matric-eval development commands:"
@@ -72,6 +72,9 @@ test-specific:  ## Run specific test (usage: make test-specific TEST=tests/test_
 
 smoke:  ## Run smoke tests
 	uv run pytest -m smoke -v
+
+operational-validation:  ## Generate scorer parity and operational evidence
+	uv run python scripts/run_operational_validation.py
 
 ci: lint format-check type-check test-coverage-fail  ## Run all authoritative CI gates
 

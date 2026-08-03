@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "matrix_id": "operational-parity-v1",
+  "seed": 42,
+  "tolerances": {
+    "public_score_variance_percentage_points": 5.0,
+    "matric_memory_score_delta": 0.000001,
+    "result_set_difference": 0,
+    "resume_duplicate_count": 0
+  },
+  "sources": {
+    "matric_cli": {
+      "revision": "2ddd9d6958309bae3b890130689851ab7f5d4343",
+      "path": "source/eval/benchmarks/validator.ts",
+      "note": "Last validator revision before the TypeScript eval framework was removed"
+    },
+    "matric_memory": {
+      "revision": "d9deacee48101cdfc2b37c30ad5ac8591c06ffff",
+      "path": "crates/matric-inference/src/eval.rs"
+    },
+    "canonical_protocols": {
+      "humaneval": "openai/openai_humaneval@7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544",
+      "mbpp": "google-research-datasets/mbpp@4bb6404fdc6cacfda99d4ac4205087b89d32030c"
+    }
+  },
+  "production_fixture": {
+    "provider": "ollama/ollama:0.32.0",
+    "model": "smollm2:135m",
+    "model_digest": "9077fe9d2ae1a4a41a868836b56b8163731a8fe16621397028c2c76f838c6907",
+    "accelerator": "cpu",
+    "hosted_evidence": "https://git.integrolabs.net/roctinam/matric-eval/actions/runs/51"
+  },
+  "code_cases": [
+    {
+      "id": "humaneval-correct-raw",
+      "benchmark": "humaneval",
+      "entry_point": "add_one",
+      "response": "def add_one(value):\n    return value + 1",
+      "test": "def check(candidate):\n    assert candidate(1) == 2\n    assert candidate(-1) == 0",
+      "expected_pass": true
+    },
+    {
+      "id": "humaneval-correct-fenced",
+      "benchmark": "humaneval",
+      "entry_point": "reverse_text",
+      "response": "Result:\n```python\ndef reverse_text(value):\n    return value[::-1]\n```\n",
+      "test": "def check(candidate):\n    assert candidate('abc') == 'cba'\n    assert candidate('') == ''",
+      "expected_pass": true
+    },
+    {
+      "id": "humaneval-correct-body-only",
+      "benchmark": "humaneval",
+      "entry_point": "double",
+      "prompt": "def double(value):\n    \"\"\"Return value multiplied by two.\"\"\"",
+      "response": "return value * 2",
+      "test": "def check(candidate):\n    assert candidate(3) == 6\n    assert candidate(-2) == -4",
+      "expected_pass": true
+    },
+    {
+      "id": "humaneval-wrong-result",
+      "benchmark": "humaneval",
+      "entry_point": "square",
+      "response": "def square(value):\n    return value + value",
+      "test": "def check(candidate):\n    assert candidate(3) == 9\n    assert candidate(-2) == 4",
+      "expected_pass": false
+    },
+    {
+      "id": "humaneval-syntax-error",
+      "benchmark": "humaneval",
+      "entry_point": "identity",
+      "response": "def identity(value)\n    return value",
+      "test": "def check(candidate):\n    assert candidate(3) == 3",
+      "expected_pass": false
+    },
+    {
+      "id": "mbpp-correct-raw",
+      "benchmark": "mbpp",
+      "entry_point": "is_even",
+      "response": "def is_even(value):\n    return value % 2 == 0",
+      "test": "assert is_even(2) is True\nassert is_even(3) is False",
+      "expected_pass": true
+    },
+    {
+      "id": "mbpp-correct-fenced",
+      "benchmark": "mbpp",
+      "entry_point": "maximum",
+      "response": "```python\ndef maximum(values):\n    return max(values)\n```",
+      "test": "assert maximum([1, 4, 2]) == 4\nassert maximum([-3, -1]) == -1",
+      "expected_pass": true
+    },
+    {
+      "id": "mbpp-wrong-result",
+      "benchmark": "mbpp",
+      "entry_point": "minimum",
+      "response": "def minimum(values):\n    return max(values)",
+      "test": "assert minimum([1, 4, 2]) == 1",
+      "expected_pass": false
+    },
+    {
+      "id": "mbpp-runtime-error",
+      "benchmark": "mbpp",
+      "entry_point": "first",
+      "response": "def first(values):\n    return values[10]",
+      "test": "assert first([7]) == 7",
+      "expected_pass": false
+    }
+  ],
+  "matric_memory_cases": [
+    {
+      "id": "title-good",
+      "output": "Redis Session Caching Improvements",
+      "expected_keywords": ["Redis", "caching", "session"],
+      "max_length": 80
+    },
+    {
+      "id": "title-missing-keywords",
+      "output": "Performance Notes",
+      "expected_keywords": ["Redis", "caching", "session"],
+      "max_length": 80
+    },
+    {
+      "id": "title-markdown-penalty",
+      "output": "# React useCallback Re-render Fix",
+      "expected_keywords": ["React", "useCallback", "re-render"],
+      "max_length": 80
+    },
+    {
+      "id": "title-length-penalty",
+      "output": "Database Migration Foreign Key Constraint Recovery Procedure",
+      "expected_keywords": ["migration", "foreign key", "constraint"],
+      "max_length": 32
+    },
+    {
+      "id": "title-clean-format",
+      "output": "Kubernetes Microservices Scaling",
+      "expected_keywords": ["Kubernetes", "microservices", "scaling"],
+      "max_length": 80
+    }
+  ],
+  "matric_memory_semantic_cases": [
+    {
+      "id": "semantic-separated",
+      "query": [1.0, 0.0],
+      "positive": [[1.0, 0.0], [0.9, 0.1]],
+      "negative": [[0.0, 1.0], [-1.0, 0.0]]
+    },
+    {
+      "id": "semantic-overlap",
+      "query": [1.0, 0.0],
+      "positive": [[0.5, 0.5]],
+      "negative": [[0.9, 0.1]]
+    },
+    {
+      "id": "semantic-zero-vector",
+      "query": [0.0, 0.0],
+      "positive": [[1.0, 0.0]],
+      "negative": [[0.0, 1.0]]
+    }
+  ],
+  "operations": {
+    "models": ["fixture/canonical@v1"],
+    "benchmarks": ["humaneval", "mbpp", "matric_memory"],
+    "parallel_task_count": 12,
+    "smoke_work_units": 5,
+    "quick_work_units": 20
+  }
+}

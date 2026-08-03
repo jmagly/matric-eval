@@ -42,6 +42,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
         id=record["task_id"],
         metadata={
             "entry_point": record["entry_point"],
+            "prompt": record["prompt"],
             "test": record["test"],
         },
     )

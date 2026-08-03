@@ -18,6 +18,8 @@ from inspect_ai.scorer import Score, Target
 from matric_eval.scorers.code_execution import (
     code_execution_scorer,
     extract_code,
+    prepare_code,
+    prepare_test_code,
     safe_execute,
 )
 
@@ -303,6 +305,49 @@ assert add(1, 1) == 2
         result = safe_execute(code, test_code, timeout=5)
         # No assertions = no failures = pass
         assert result["passed"] is True
+
+
+class TestPrepareTestCode:
+    """Tests for benchmark-specific executable harness construction."""
+
+    def test_humaneval_invokes_canonical_check_function(self) -> None:
+        test_code = prepare_test_code(
+            {
+                "entry_point": "add_one",
+                "test": "def check(candidate):\n    assert candidate(1) == 2",
+            }
+        )
+
+        assert test_code.endswith("check(add_one)")
+        assert (
+            safe_execute("def add_one(value):\n    return value - 1", test_code)["passed"] is False
+        )
+
+    def test_mbpp_assertions_are_not_modified(self) -> None:
+        test_code = "assert add(1, 2) == 3"
+
+        assert prepare_test_code({"entry_point": "add", "test": test_code}) == test_code
+
+
+class TestPrepareCode:
+    """Tests for HumanEval body-only compatibility."""
+
+    def test_rebuilds_body_only_completion_from_prompt(self) -> None:
+        code = prepare_code(
+            "return value + 1",
+            {
+                "entry_point": "add_one",
+                "prompt": 'def add_one(value):\n    """Increment value."""',
+            },
+        )
+
+        assert code.endswith("    return value + 1")
+        assert safe_execute(code, "assert add_one(1) == 2")["passed"] is True
+
+    def test_preserves_complete_function(self) -> None:
+        response = "def add_one(value):\n    return value + 1"
+
+        assert prepare_code(response, {"entry_point": "add_one", "prompt": "ignored"}) == response
 
 
 # =============================================================================

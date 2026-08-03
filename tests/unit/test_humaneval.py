@@ -225,6 +225,7 @@ class TestRecordToSample:
         assert sample.metadata is not None
         assert "entry_point" in sample.metadata
         assert sample.metadata["entry_point"] == "has_close_elements"
+        assert sample.metadata["prompt"] == record["prompt"]
         assert "test" in sample.metadata
 
     def test_record_to_sample_preserves_test_code(self) -> None:

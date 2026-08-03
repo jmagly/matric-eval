@@ -132,6 +132,37 @@ def safe_execute(code: str, test_code: str, timeout: int = 30) -> dict[str, Any]
         }
 
 
+def prepare_test_code(metadata: dict[str, Any] | None) -> str:
+    """Build executable tests, including the canonical HumanEval check call."""
+    if not metadata:
+        return ""
+
+    test_code = str(metadata.get("test", ""))
+    entry_point = metadata.get("entry_point")
+    if entry_point and re.search(r"^\s*def\s+check\s*\(", test_code, re.MULTILINE):
+        test_code = f"{test_code.rstrip()}\n\ncheck({entry_point})"
+    return test_code
+
+
+def prepare_code(response: str, metadata: dict[str, Any] | None) -> str:
+    """Extract generated code and rebuild HumanEval body-only completions."""
+    code = extract_code(response)
+    if not metadata:
+        return code
+
+    entry_point = metadata.get("entry_point")
+    prompt = metadata.get("prompt")
+    if (
+        not entry_point
+        or not prompt
+        or re.search(rf"\bdef\s+{re.escape(str(entry_point))}\s*\(", code)
+    ):
+        return code
+
+    indented = "\n".join(f"    {line}" if line.strip() else line for line in code.splitlines())
+    return f"{str(prompt).rstrip()}\n{indented}"
+
+
 @scorer(metrics=[mean()])
 def code_execution_scorer(timeout: int = 30) -> Scorer:
     """
@@ -167,10 +198,10 @@ def code_execution_scorer(timeout: int = 30) -> Scorer:
         """
         # Extract code from model response
         response = state.output.completion
-        code = extract_code(response)
+        code = prepare_code(response, state.metadata)
 
         # Get test code from state metadata (comes from Sample)
-        test_code = state.metadata.get("test", "") if state.metadata else ""
+        test_code = prepare_test_code(state.metadata)
 
         # Execute code with tests
         result = safe_execute(code, test_code, timeout=timeout)

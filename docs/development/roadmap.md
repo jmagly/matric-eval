@@ -173,7 +173,23 @@ def multi_dimensional_scorer():
 3. Identify discrepancies
 4. Tune until <5% variance
 
-### 6.2 Migration Complete Checklist
+Validation record: [Operational Validation v1](../validation/operational-validation-v1.md)
+pins the source revisions, fixture model/datasets, commands, raw evidence, and
+tolerances. The representative matrix records 0.0 percentage-point scorer
+variance for HumanEval and MBPP, 100% agreement with matric-memory title and
+semantic scorers, duplicate-free checkpoint resume, and equivalent sequential
+and parallel result sets. It validates scorer and operational contracts; it is
+not a claim that every model has equal quality scores across every benchmark.
+
+### 6.2 Operational Validation Checklist
+- [x] HumanEval scorer parity within 5 percentage points
+- [x] MBPP scorer parity within 5 percentage points
+- [x] Matric-memory custom scorer agreement target met
+- [x] Checkpoint resume produces no duplicate completed work
+- [x] Sequential and parallel result sets are equivalent
+- [x] Smoke/quick validation durations recorded
+
+### 6.3 Migration Complete Checklist
 - [ ] All 7 public benchmarks working
 - [ ] Code execution with sandboxing
 - [ ] 282 custom matric tests ported

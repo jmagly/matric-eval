@@ -1,0 +1,253 @@
+{
+  "checkpoint_resume": {
+    "completed_before_interrupt": [
+      "humaneval"
+    ],
+    "duplicate_count": 0,
+    "executed_after_resume": [
+      "mbpp"
+    ],
+    "final_result_keys": [
+      "humaneval",
+      "mbpp"
+    ],
+    "passed": true,
+    "preserved_checkpoint_result": true
+  },
+  "commands": [
+    "uv run python scripts/run_operational_validation.py",
+    "uv run pytest tests/test_operational_validation.py tests/unit/test_code_execution.py"
+  ],
+  "matric_memory_parity": {
+    "agreement_rate": 1.0,
+    "agreement_target": 1.0,
+    "cases": [
+      {
+        "agreement": true,
+        "id": "title-good",
+        "matric_eval_pass": true,
+        "matric_eval_score": 1.0,
+        "reference_pass": true,
+        "reference_score": 1.0,
+        "score_delta": 0.0,
+        "scorer": "title"
+      },
+      {
+        "agreement": true,
+        "id": "title-missing-keywords",
+        "matric_eval_pass": false,
+        "matric_eval_score": 0.4,
+        "reference_pass": false,
+        "reference_score": 0.4,
+        "score_delta": 0.0,
+        "scorer": "title"
+      },
+      {
+        "agreement": true,
+        "id": "title-markdown-penalty",
+        "matric_eval_pass": true,
+        "matric_eval_score": 0.8,
+        "reference_pass": true,
+        "reference_score": 0.8,
+        "score_delta": 0.0,
+        "scorer": "title"
+      },
+      {
+        "agreement": true,
+        "id": "title-length-penalty",
+        "matric_eval_pass": true,
+        "matric_eval_score": 0.8,
+        "reference_pass": true,
+        "reference_score": 0.8,
+        "score_delta": 0.0,
+        "scorer": "title"
+      },
+      {
+        "agreement": true,
+        "id": "title-clean-format",
+        "matric_eval_pass": true,
+        "matric_eval_score": 1.0,
+        "reference_pass": true,
+        "reference_score": 1.0,
+        "score_delta": 0.0,
+        "scorer": "title"
+      },
+      {
+        "agreement": true,
+        "id": "semantic-separated",
+        "matric_eval_pass": true,
+        "matric_eval_score": 1.0,
+        "reference_pass": true,
+        "reference_score": 1.0,
+        "score_delta": 0.0,
+        "scorer": "semantic"
+      },
+      {
+        "agreement": true,
+        "id": "semantic-overlap",
+        "matric_eval_pass": false,
+        "matric_eval_score": 0.21322304651292856,
+        "reference_pass": false,
+        "reference_score": 0.21322304651292856,
+        "score_delta": 0.0,
+        "scorer": "semantic"
+      },
+      {
+        "agreement": true,
+        "id": "semantic-zero-vector",
+        "matric_eval_pass": false,
+        "matric_eval_score": 0.5,
+        "reference_pass": false,
+        "reference_score": 0.5,
+        "score_delta": 0.0,
+        "scorer": "semantic"
+      }
+    ],
+    "passed": true,
+    "score_delta_tolerance": 1e-06
+  },
+  "matrix": {
+    "id": "operational-parity-v1",
+    "sha256": "03691f21320cf893a54cd8863f4e2820db534e70d548e086a4a8a1e288a82777"
+  },
+  "parallel_equivalence": {
+    "parallel_duration_seconds": 0.01761174201965332,
+    "passed": true,
+    "result_set_difference": 0,
+    "sequential_duration_seconds": 0.06077909469604492,
+    "speedup": 3.4510552464497963,
+    "task_count": 12
+  },
+  "production_fixture": {
+    "accelerator": "cpu",
+    "hosted_evidence": "https://git.integrolabs.net/roctinam/matric-eval/actions/runs/51",
+    "model": "smollm2:135m",
+    "model_digest": "9077fe9d2ae1a4a41a868836b56b8163731a8fe16621397028c2c76f838c6907",
+    "provider": "ollama/ollama:0.32.0"
+  },
+  "public_scorer_parity": {
+    "benchmarks": {
+      "humaneval": {
+        "cases": 5,
+        "matric_eval_pass_rate": 60.0,
+        "passed": true,
+        "reference_pass_rate": 60.0,
+        "tolerance_percentage_points": 5.0,
+        "variance_percentage_points": 0.0
+      },
+      "mbpp": {
+        "cases": 4,
+        "matric_eval_pass_rate": 50.0,
+        "passed": true,
+        "reference_pass_rate": 50.0,
+        "tolerance_percentage_points": 5.0,
+        "variance_percentage_points": 0.0
+      }
+    },
+    "cases": [
+      {
+        "agreement": true,
+        "benchmark": "humaneval",
+        "expected_pass": true,
+        "id": "humaneval-correct-raw",
+        "matric_eval_pass": true,
+        "reference_pass": true
+      },
+      {
+        "agreement": true,
+        "benchmark": "humaneval",
+        "expected_pass": true,
+        "id": "humaneval-correct-fenced",
+        "matric_eval_pass": true,
+        "reference_pass": true
+      },
+      {
+        "agreement": true,
+        "benchmark": "humaneval",
+        "expected_pass": true,
+        "id": "humaneval-correct-body-only",
+        "matric_eval_pass": true,
+        "reference_pass": true
+      },
+      {
+        "agreement": true,
+        "benchmark": "humaneval",
+        "expected_pass": false,
+        "id": "humaneval-wrong-result",
+        "matric_eval_pass": false,
+        "reference_pass": false
+      },
+      {
+        "agreement": true,
+        "benchmark": "humaneval",
+        "expected_pass": false,
+        "id": "humaneval-syntax-error",
+        "matric_eval_pass": false,
+        "reference_pass": false
+      },
+      {
+        "agreement": true,
+        "benchmark": "mbpp",
+        "expected_pass": true,
+        "id": "mbpp-correct-raw",
+        "matric_eval_pass": true,
+        "reference_pass": true
+      },
+      {
+        "agreement": true,
+        "benchmark": "mbpp",
+        "expected_pass": true,
+        "id": "mbpp-correct-fenced",
+        "matric_eval_pass": true,
+        "reference_pass": true
+      },
+      {
+        "agreement": true,
+        "benchmark": "mbpp",
+        "expected_pass": false,
+        "id": "mbpp-wrong-result",
+        "matric_eval_pass": false,
+        "reference_pass": false
+      },
+      {
+        "agreement": true,
+        "benchmark": "mbpp",
+        "expected_pass": false,
+        "id": "mbpp-runtime-error",
+        "matric_eval_pass": false,
+        "reference_pass": false
+      }
+    ],
+    "passed": true
+  },
+  "report_id": "operational-validation-v1",
+  "schema_version": 1,
+  "seed": 42,
+  "sources": {
+    "canonical_protocols": {
+      "humaneval": "openai/openai_humaneval@7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544",
+      "mbpp": "google-research-datasets/mbpp@4bb6404fdc6cacfda99d4ac4205087b89d32030c"
+    },
+    "matric_cli": {
+      "note": "Last validator revision before the TypeScript eval framework was removed",
+      "path": "source/eval/benchmarks/validator.ts",
+      "revision": "2ddd9d6958309bae3b890130689851ab7f5d4343"
+    },
+    "matric_memory": {
+      "path": "crates/matric-inference/src/eval.rs",
+      "revision": "d9deacee48101cdfc2b37c30ad5ac8591c06ffff"
+    }
+  },
+  "status": "passed",
+  "tier_durations": {
+    "quick": {
+      "duration_seconds": 0.10170388221740723,
+      "work_units": 20
+    },
+    "smoke": {
+      "duration_seconds": 0.025407075881958008,
+      "work_units": 5
+    }
+  },
+  "total_duration_seconds": 0.4849164110055426
+}

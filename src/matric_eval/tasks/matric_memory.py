@@ -6,6 +6,7 @@ Rust inference application.
 """
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,74 @@ from matric_eval.tasks.registry import register_benchmark
 DATA_DIR = (
     Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "matric_memory" / "data"
 )
+
+
+def score_legacy_title(
+    output: str,
+    expected_keywords: list[str],
+    max_length: int,
+) -> tuple[float, bool, dict[str, Any]]:
+    """Apply the matric-memory title scorer from its Rust evaluator."""
+    output_lower = output.lower()
+    keyword_matches = sum(1 for keyword in expected_keywords if keyword.lower() in output_lower)
+    keyword_ratio = keyword_matches / len(expected_keywords) if expected_keywords else 0.0
+    length_ok = len(output) <= max_length
+    clean_format = (
+        "```" not in output
+        and not output.startswith("#")
+        and "**" not in output
+        and "Title:" not in output
+    )
+    value = (keyword_ratio * 0.6) + (0.2 if length_ok else 0.0) + (0.2 if clean_format else 0.0)
+    return (
+        value,
+        value >= 0.7,
+        {
+            "keyword_matches": keyword_matches,
+            "keyword_total": len(expected_keywords),
+            "length_ok": length_ok,
+            "clean_format": clean_format,
+        },
+    )
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    """Calculate cosine similarity using matric-memory's edge-case behavior."""
+    if len(left) != len(right) or not left:
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right))
+    norm_left = math.sqrt(sum(value * value for value in left))
+    norm_right = math.sqrt(sum(value * value for value in right))
+    if norm_left == 0.0 or norm_right == 0.0:
+        return 0.0
+    return dot / (norm_left * norm_right)
+
+
+def score_legacy_semantic(
+    query_embedding: list[float],
+    positive_embeddings: list[list[float]],
+    negative_embeddings: list[list[float]],
+) -> tuple[float, bool, dict[str, Any]]:
+    """Apply matric-memory's positive-versus-negative embedding scorer."""
+    positive_scores = [
+        cosine_similarity(query_embedding, embedding) for embedding in positive_embeddings
+    ]
+    negative_scores = [
+        cosine_similarity(query_embedding, embedding) for embedding in negative_embeddings
+    ]
+    min_positive = min(positive_scores, default=0.0)
+    max_negative = max(negative_scores, default=1.0)
+    value = max(0.0, min(1.0, min_positive - max_negative + 0.5))
+    return (
+        value,
+        min_positive > max_negative,
+        {
+            "positive_scores": positive_scores,
+            "negative_scores": negative_scores,
+            "min_positive": min_positive,
+            "max_negative": max_negative,
+        },
+    )
 
 
 def load_title_cases() -> list[dict[str, Any]]:
@@ -142,6 +211,22 @@ def title_quality_scorer():
         response = state.output.completion.strip() if state.output else ""
         metadata = state.metadata or {}
         category = metadata.get("category", "")
+
+        if category == "legacy_title_generation":
+            score_value, passed, details = score_legacy_title(
+                response,
+                list(metadata.get("expected_keywords", [])),
+                int(metadata.get("max_length", 80)),
+            )
+            return Score(
+                value=score_value,
+                answer=response,
+                explanation=(
+                    f"Keywords: {details['keyword_matches']}/{details['keyword_total']}, "
+                    f"length: {details['length_ok']}, clean: {details['clean_format']}, "
+                    f"passed: {passed}"
+                ),
+            )
 
         if category == "title_generation":
             ideal_titles = metadata.get("ideal_titles", [])
