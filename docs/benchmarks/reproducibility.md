@@ -14,11 +14,17 @@ types, agents, sandbox specifications, scorer decorators, and synchronous
 
 | Integration strategy | Benchmarks |
 | --- | --- |
-| Maintained `inspect-evals` task/protocol | CyberSecEval 4, classic GAIA |
+| Maintained `inspect-evals` task/protocol | CyberSecEval 4, classic GAIA, InfiniteBench 2-A |
 | Maintained `inspect-evals` solver/scorer with pinned local loader | SWE-bench Verified, Multilingual, Pro |
 | Local Inspect task and scorer | ARC, DS-1000, GSM8K, HumanEval, IFEval, LiveCodeBench, MBPP, MMLU, MMMU, MT-Bench, RealWorldQA, tool calling, MATRIC tasks |
-| Pinned external official runner | Claw-Eval, NL2RepoBench, OmniDocBench, QwenClawBench, Terminal-Bench, Video-MME-v2 |
+| Pinned external official runner | Claw-Eval, HELMET, MemoryBench, NL2RepoBench, NoLiMa, OmniDocBench, QwenClawBench, RULER v1, Terminal-Bench, Tulving, Video-MME-v2 |
 | Quarantined pending public protocol | QwenWebBench |
+
+BABILong uses a pinned Hugging Face loader and the official constrained-label scorer.
+The complete Wave 3 protocol and go/no-go record is in
+[`wave3-protocols.md`](wave3-protocols.md). MemBench is intentionally absent from the
+registry because its released data has no verifiable license, immutable source, or
+checksums.
 
 Local implementations remain where the project has compatibility requirements,
 multimodal materialization, local fixtures, or an official external batch runner

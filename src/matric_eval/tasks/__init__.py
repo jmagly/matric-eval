@@ -1,6 +1,7 @@
 """Benchmark task definitions."""
 
 from matric_eval.tasks.arc import arc, format_arc_prompt, load_arc
+from matric_eval.tasks.babilong import babilong, load_babilong
 from matric_eval.tasks.builtin import (
     smoke_gsm8k,
     smoke_humaneval,
@@ -54,6 +55,7 @@ from matric_eval.tasks.gsm8k import (
     load_gsm8k,
 )
 from matric_eval.tasks.gsm8k import record_to_sample as gsm8k_record_to_sample
+from matric_eval.tasks.helmet import build_helmet_command, helmet
 from matric_eval.tasks.humaneval import humaneval, load_humaneval
 from matric_eval.tasks.humaneval import (
     record_to_sample as humaneval_record_to_sample,
@@ -65,6 +67,7 @@ from matric_eval.tasks.ifeval import (
     load_ifeval,
 )
 from matric_eval.tasks.ifeval import record_to_sample as ifeval_record_to_sample
+from matric_eval.tasks.infinite_bench import create_infinite_bench_task, infinite_bench
 from matric_eval.tasks.injecagent import injecagent, load_injecagent
 from matric_eval.tasks.livecodebench import livecodebench, load_livecodebench
 from matric_eval.tasks.livecodebench import (
@@ -93,6 +96,7 @@ from matric_eval.tasks.mbpp import (
 from matric_eval.tasks.mbpp import record_to_sample as mbpp_record_to_sample
 from matric_eval.tasks.memoryagentbench import load_memoryagentbench, memoryagentbench
 from matric_eval.tasks.memoryagentbench import record_to_sample as memoryagentbench_record_to_sample
+from matric_eval.tasks.memorybench import build_memorybench_command, memorybench
 from matric_eval.tasks.mmlu import format_mmlu_prompt, load_mmlu, mmlu
 from matric_eval.tasks.mmlu import record_to_sample as mmlu_record_to_sample
 from matric_eval.tasks.mmlu_pro import load_mmlu_pro, mmlu_pro
@@ -102,6 +106,7 @@ from matric_eval.tasks.mmmu_pro import load_mmmu_pro, mmmu_pro
 from matric_eval.tasks.mtbench import load_mtbench, mtbench
 from matric_eval.tasks.mtbench import record_to_sample as mtbench_record_to_sample
 from matric_eval.tasks.nl2repo import load_nl2repo, nl2repo
+from matric_eval.tasks.nolima import build_nolima_command, nolima
 from matric_eval.tasks.omnidocbench import (
     build_omnidocbench_command,
     load_omnidocbench,
@@ -128,6 +133,7 @@ from matric_eval.tasks.registry import (  # noqa: F401 — registry must be impo
     get_registry,
     register_benchmark,
 )
+from matric_eval.tasks.ruler import build_ruler_prepare_command, ruler
 from matric_eval.tasks.swebench.factory import (
     create_swebench_task,
     swebench_record_to_sample,
@@ -153,6 +159,7 @@ from matric_eval.tasks.tool_calling import (
 from matric_eval.tasks.tool_calling import (
     record_to_sample as tool_calling_record_to_sample,
 )
+from matric_eval.tasks.tulving import build_tulving_command, tulving
 from matric_eval.tasks.videomme import load_videomme, videomme
 
 __all__ = [
@@ -169,6 +176,20 @@ __all__ = [
     "register_benchmark",
     # Benchmarks
     "arc",
+    "babilong",
+    "load_babilong",
+    "build_helmet_command",
+    "helmet",
+    "create_infinite_bench_task",
+    "infinite_bench",
+    "build_memorybench_command",
+    "memorybench",
+    "build_nolima_command",
+    "nolima",
+    "build_ruler_prepare_command",
+    "ruler",
+    "build_tulving_command",
+    "tulving",
     "check_constraint",
     "check_insecure_patterns",
     "cyberseceval",

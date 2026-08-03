@@ -71,6 +71,13 @@ Background research and academic references.
 - [**Research Gap Analysis**](research/research-gap-analysis.md) - Areas for improvement
 - [**Self-Evaluation Research**](research/self-evaluation-research-based.md) - LLM self-evaluation approaches
 
+### Benchmark Protocols
+
+- [**Reproducibility and Freshness**](benchmarks/reproducibility.md) - Version and source policy
+- [**Wave 1 Protocols**](benchmarks/wave1-protocols.md) - Initial expansion decisions
+- [**Wave 2 Protocols**](benchmarks/wave2-protocols.md) - Successor and security benchmarks
+- [**Wave 3 Protocols**](benchmarks/wave3-protocols.md) - Long-context and memory benchmarks
+
 ## Getting Started
 
 1. Read the [Vision](requirements/vision.md) to understand project goals

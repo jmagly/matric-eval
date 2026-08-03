@@ -1,0 +1,162 @@
+# Wave 3 Long-Context and Memory Benchmarks
+
+This note records the protocol, reproducibility, and go/no-go decisions for issues
+#55 through #62. Revisions are immutable snapshots. External adapters are cataloged as
+`gated` and deliberately reject completion-only Inspect execution.
+
+## RULER
+
+- Decision: integrate RULER v1 through the official NeMo Skills generator and scorer.
+- Runtime: `NVIDIA-NeMo/Skills` revision
+  `f4a3fd8e524acd9abd1fea4387e8f179f6d51cf3` (Apache-2.0).
+- Tasks: all 13 official generators: eight NIAH variants, variable tracking, common-word
+  extraction, frequent-word extraction, and two QA tasks.
+- Contexts: 4K, 8K, 16K, 32K, 64K, and 128K. Each full run generates 100 samples per
+  task. Smoke and quick tiers retain 1 and 10 generated samples per task.
+- Metrics: per-task accuracy, mean accuracy, accuracy by context, and effective context
+  as the longest context whose 13-task mean is strictly greater than 80 percent.
+
+RULER v2 was not selected. Its current repository delegates execution to a documented
+`chsieh/ruler2` NeMo Skills branch that is not present in the upstream repository. A
+protocol cannot be pinned to that missing revision. RULER v1's delegated branch is
+available and reproducible.
+
+## BABILong
+
+- Dataset: `RMT-team/babilong-1k-samples` revision
+  `fc4d1a584dfc498c37578753bee4cdd91b987ae2`.
+- Evaluator and prompts: `booydar/babilong` revision
+  `7a6efee29f5cac03c3c410e6799c80fd2ffe3610` (Apache-2.0).
+- Variant: 1,000 samples per selected task and context configuration. The default run
+  uses qa1 through qa5 at 16K; callers can select qa1 through qa20 and released context
+  configurations from 0K through 128K. The 0K config releases all 20 tasks; longer
+  configs release qa1 through qa5, and the loader rejects unavailable combinations.
+- Scoring: the official task-label-constrained matcher, including removal of labels
+  repeated in the question and exact multi-label cardinality for qa8.
+- Reporting: per-task accuracy and aggregation by original bAbI supporting-fact
+  complexity.
+
+The evaluated model tokenizer remains part of the run manifest because nominal dataset
+length does not prove that a model received the same token count.
+
+## MemoryBench
+
+- Decision: integrate as a gated official external adapter.
+- Code/evaluator: `THUIR/MemoryBench` revision
+  `5eafebca4e9ffbb2f0087ade13c498cf95fbc09a` (MIT).
+- Data: `THUIR/MemoryBench` revision
+  `3acd60a4bd35b43b408f0e6db4c5f1e88df5e96d`.
+- Protocol: off-policy, stepwise off-policy, on-policy, and training-performance
+  regimes, separated by Long-Long, Short-Short, Short-Long, Long-Short task types and
+  Academic & Knowledge, Legal, and Open-Domain domains.
+
+The original issue's declarative/procedural wording is not part of the released
+protocol and is intentionally not invented locally. MemoryBench has a material gap
+relative to MemoryAgentBench: it evaluates feedback-driven continual adaptation of a
+stateful memory system, not only retrieval, test-time learning, long-range
+understanding, and conflict resolution over fixed records. Full runs require a memory
+system, simulator model, evaluator model, and repeated generation, so deterministic CI
+uses result-schema fixtures only.
+
+## MemBench
+
+- Decision: no-go; do not add a registry entry.
+- Reviewed code: `import-myself/MemBench` revision
+  `f66d8d1028d3f68627d00f77a967b93fbb8694b6`.
+- Coverage offered: participation versus observation and factual versus reflective
+  memory. Reflective memory would be incremental to the current fixed-record suite.
+- Blockers: the repository contains no license file, despite an MIT badge linking to a
+  generic license page; the canonical data is distributed only through Baidu Pan and
+  Google Drive; no data license, immutable source revision, or checksums are supplied.
+
+This fails the project's public-data and reproducibility prerequisites. Factual memory
+is already covered by LoCoMo, LongMemEval, and MemoryAgentBench. The reflective gap is
+recorded but does not justify ingesting unverifiable data. Reconsider only after the
+authors publish explicit code/data terms, a stable dataset source, and checksums.
+
+## NoLiMa
+
+- Code/evaluator: `adobe-research/NoLiMa` revision
+  `cb14780b249fecf2851127b2101a062c1b2c6430`.
+- Data: `amodaresi/NoLiMa` revision
+  `378115b1f136b6ba78f90f78682bc55f70ec3ddd`.
+- Terms: Adobe Research License, noncommercial.
+- Protocol: official tokenizer-exact context construction, context length, 26 needle
+  depth placements, test identity, lexical-overlap slice, and exact-match score.
+- Effective context: longest length retaining at least 85 percent of the shortest
+  context score, matching NoLiMa rather than RULER's 80 percent definition.
+
+NoLiMa adds latent-association retrieval without lexical overlap. RULER primarily
+measures synthetic retrieval, tracking, extraction, and QA with explicit lexical cues;
+the integrations are complementary.
+
+## Tulving Episodic Memory
+
+- Code, generator, narratives, prompts, and evaluator:
+  `ahstat/episodic-memory-benchmark` revision
+  `892b22af097d4389d4f1b9cd47b5c51fdacd9bef` (MIT).
+- Slices: 20, 200, and 2,000 events; the released default long narrative uses 200
+  chapters, about 100K tokens, and 686 questions.
+- Simple Recall: mean lenient F1 across the 0, 1, 2, 3-5, and 6+ matching-event bins.
+- Chronological Awareness: mean of Latest State and exact-set rate multiplied by
+  `max(0, Kendall tau)`.
+
+Generation, answer production, and semantic grading use external models. CI validates
+the exact aggregation formulas with fixed score fixtures.
+
+## InfiniteBench
+
+- Dataset: `xinrongzhang2022/InfiniteBench` revision
+  `90f0394333616266d9fe85824ceaf505093cbaa5`.
+- Evaluator: Inspect Evals 0.16.0 revision
+  `6a35510e530f236fd1dbcd9df888f01937c8494a`; upstream protocol 2-A at
+  `OpenBMB/InfiniteBench` revision `51d9b37b0f1790ead936df2243abbf7f0420e439`.
+- Tasks: code_debug, code_run, kv_retrieval, longbook_choice_eng,
+  longdialogue_qa_eng, math_calc, math_find, number_string, and passkey.
+- Counts: 394, 400, 500, 229, 200, 50, 350, 590, and 590 respectively, for
+  3,303 maintained task records. The pinned 12-task dataset has 3,946 records; the three
+  ROUGE-scored long-book tasks remain outside Inspect Evals 0.16.0.
+- Scoring: task-specific upstream choice, regex, includes, exact, or Math.Calc prefix
+  accuracy scorers. Tier selection occurs after the upstream task is built and does not
+  merge task identities.
+- Truncation: reserve 500 model tokens, use exact tiktoken counts for GPT models or a
+  3.5 characters-per-token estimate otherwise, and preserve equal prefix/suffix halves.
+  This policy is emitted in task metadata.
+
+## HELMET
+
+- Decision: integrate as a gated external adapter; keep LongProc out of scope.
+- Code/configs/prompts/evaluator: `princeton-nlp/HELMET` revision
+  `af609c4d51b97fc35012099380aa889da961c42d` (MIT).
+- Data: `princeton-nlp/HELMET` revision
+  `dddb209d03e38f1f0faf76d6d05ef4ccf96240ee`, approximately 34 GB.
+- Categories: recall, RAG, passage reranking, citation, long-form QA, summarization,
+  and in-context learning. LongQA and summarization require model-based evaluation.
+- Analysis: deterministic Pearson and Spearman helpers support correlation checks over
+  model score fixtures. The coverage helper reports overlap and incremental dimensions.
+
+HELMET's pinned Hugging Face release is a single `data_v2.tar.gz` archive rather than a
+Dataset Viewer table. Registry tiers therefore count the seven official category runs;
+individual record counts remain owned by each pinned category config and result file.
+
+Measured against the existing long-context suite, recall and RAG overlap materially;
+reranking, citation, long-form QA, summarization, and ICL are incremental. This supports
+a gated integration rather than either a full duplicate or a no-go. LongProc has
+different procedural-generation data and metrics and must be assessed separately.
+
+## Cost and execution policy
+
+| Benchmark | CI scope | Full-run requirements |
+| --- | --- | --- |
+| RULER | 13 generator/result fixtures | NeMo Skills, model tokenizer, 1,300 generations per context |
+| BABILong | loader and scorer fixtures | pinned HF data, long-context generation, up to 5,000 default records |
+| MemoryBench | commands and released result schema | memory system, simulator and judge models |
+| NoLiMa | placement/result fixtures | official runtime, tokenizer, noncommercial data terms |
+| Tulving | score formula fixtures | narrative data plus answer and judge model calls |
+| InfiniteBench | maintained upstream task fixtures | pinned HF data and model context limits |
+| HELMET | command, coverage, correlation fixtures | about 34 GB data, accelerator/API, judges |
+
+Credentialed or accelerator-backed full runs are release evidence, not deterministic
+unit-test prerequisites. Every full-run report must retain model/tokenizer identity,
+context limit, selected task/config, all pinned revisions, tier, seed, and truncation or
+placement policy.
