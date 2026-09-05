@@ -14,6 +14,7 @@ from matric_eval.providers.base import (
 )
 from matric_eval.providers.chutes import ChutesProvider
 from matric_eval.providers.llamacpp import LlamaCppProvider
+from matric_eval.providers.matrix import EvaluationMatrix, MatrixExclusion
 from matric_eval.providers.ollama import OllamaProvider
 from matric_eval.providers.openrouter import OpenRouterProvider
 from matric_eval.providers.registry import (
@@ -32,6 +33,8 @@ __all__ = [
     "ProviderConnectionError",
     "ProviderModelNotFoundError",
     "ModelInfo",
+    "EvaluationMatrix",
+    "MatrixExclusion",
     # Registry
     "ProviderRegistry",
     "get_provider",

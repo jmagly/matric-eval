@@ -44,7 +44,7 @@ def test_scorer_is_runnable() -> None:
 def test_harbor_command_targets_2_1() -> None:
     command = build_harbor_command(agent="codex", model="openai/model", environment="docker")
     assert command[command.index("-d") + 1] == "terminal-bench/terminal-bench-2-1"
-    assert HARBOR_VERSION == "0.20.0"
+    assert HARBOR_VERSION == "0.22.0"
 
 
 def test_missing_snapshot_fails_clearly() -> None:

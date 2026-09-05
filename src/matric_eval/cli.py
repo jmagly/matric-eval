@@ -312,6 +312,7 @@ def run_evaluation(
     judge_spec: Optional[str] = None,
     state_manager: StateManager | None = None,
     checkpoint_model: str | None = None,
+    eval_kwargs: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
@@ -326,6 +327,7 @@ def run_evaluation(
         judge_spec: Optional judge specification (e.g., "ollama:llama3.1:8b")
         state_manager: Optional persistent run checkpoint
         checkpoint_model: Stable target key used by the checkpoint
+        eval_kwargs: Pinned Inspect generation controls from a qualified matrix
 
     Returns:
         Results dictionary
@@ -358,6 +360,7 @@ def run_evaluation(
         checkpoint=state_manager is not None,
         state_manager=state_manager,
         checkpoint_model=checkpoint_model,
+        **(eval_kwargs or {}),
     )
 
 
@@ -1429,6 +1432,18 @@ def _run_matrix_evaluation(
             model_name = run_spec["model"]
             provider_name = run_spec["provider"]
             benchmark_name = run_spec.get("benchmark")
+            model_spec = run_spec.get("model_spec")
+            if model_spec:
+                runtime_spec = model_spec["runtime"]
+                thinking_mode = runtime_spec["reasoning_mode"]
+                eval_kwargs = dict(runtime_spec["sampler"])
+                eval_kwargs["metadata"] = {
+                    "matrix_schema_version": "2",
+                    "model_spec": model_spec,
+                }
+            else:
+                thinking_mode = thinking
+                eval_kwargs = None
 
             set_context(model=model_name)
 
@@ -1444,29 +1459,39 @@ def _run_matrix_evaluation(
                     tier=tier,
                     benchmarks=benchmarks,
                     output_dir=output_dir,
+                    thinking_mode=thinking_mode,
                     provider=provider,
+                    eval_kwargs=eval_kwargs,
                 )
                 result["provider"] = provider_name
+                if "model_id" in run_spec:
+                    result["model_id"] = run_spec["model_id"]
+                if "model_spec" in run_spec:
+                    result["model_spec"] = run_spec["model_spec"]
                 all_results.append(result)
             except Exception as e:
                 logger.error(
                     "Matrix run failed",
                     extra={"model": model_name, "provider": provider_name, "error": str(e)},
                 )
-                all_results.append(
-                    {
-                        "model": model_name,
-                        "provider": provider_name,
-                        "tier": tier,
-                        "status": "error",
-                        "error": str(e),
-                    }
-                )
+                failed_result = {
+                    "model": model_name,
+                    "provider": provider_name,
+                    "tier": tier,
+                    "status": "error",
+                    "error": str(e),
+                }
+                if "model_id" in run_spec:
+                    failed_result["model_id"] = run_spec["model_id"]
+                if "model_spec" in run_spec:
+                    failed_result["model_spec"] = run_spec["model_spec"]
+                all_results.append(failed_result)
 
             progress.advance(task)
 
     # Save summary
     summary = {
+        "schema_version": "2" if matrix.schema_version == "2" else "1",
         "timestamp": timestamp,
         "tier": tier,
         "matrix_runs": len(runs),

@@ -2,7 +2,7 @@
 
 ## Supported framework versions
 
-The project pins `inspect-ai==0.3.251` and `inspect-evals==0.16.0`. The lock file
+The project pins `inspect-ai==0.3.263` and `inspect-evals==0.19.0`. The lock file
 is authoritative for transitive dependencies. Every result emitted by
 `EvaluationEngine` records the installed `matric-eval`, `inspect-ai`,
 `inspect-evals`, and Python versions.
@@ -17,7 +17,7 @@ types, agents, sandbox specifications, scorer decorators, and synchronous
 | Maintained `inspect-evals` task/protocol | CyberSecEval 4, classic GAIA, InfiniteBench 2-A |
 | Maintained `inspect-evals` solver/scorer with pinned local loader | SWE-bench Verified, Multilingual, Pro |
 | Local Inspect task and scorer | ARC, DS-1000, GSM8K, HumanEval, IFEval, LiveCodeBench, MBPP, MMLU, MMMU, MT-Bench, RealWorldQA, tool calling, MATRIC tasks |
-| Pinned external official runner | Claw-Eval, HELMET, MemoryBench, NL2RepoBench, NoLiMa, OmniDocBench, QwenClawBench, RULER v1, Terminal-Bench, Tulving, Video-MME-v2 |
+| Pinned external official runner | BFCL V4 Agentic, Claw-Eval, HELMET, MemoryBench, NL2RepoBench, NoLiMa, OmniDocBench, QwenClawBench, RULER v1, SWE-bench-Live MultiLang, tau3-bench v1.0.1, Terminal-Bench 2.1, Tulving, Video-MME-v2 |
 | Quarantined pending public protocol | QwenWebBench |
 
 BABILong uses a pinned Hugging Face loader and the official constrained-label scorer.
@@ -31,6 +31,12 @@ multimodal materialization, local fixtures, or an official external batch runner
 that cannot be represented as an ordinary Inspect completion task. Upstream
 delegation is preferred when `inspect-evals` exposes the required current
 protocol without changing leaderboard semantics.
+
+External runners use isolated pinned environments rather than the core project
+environment. In particular, `bfcl-eval==2026.3.23` pins NumPy 1.26.4 while the
+DS-1000 extra requires NumPy 2.4 or newer; installing all benchmark stacks into
+one environment is unsupported. The A100 run manifest records each runner's
+independent package inventory and lock or checkout revision.
 
 Provider contract tests cover Ollama, vLLM, llama.cpp, OpenRouter, and Chutes.
 Representative task tests cover text generation, multimodal content, tool use,
@@ -56,6 +62,32 @@ lifecycle status prevents them from being mistaken for stable current results.
 New result keys are additive. Existing result readers can continue consuming the
 original status, score, and sample fields while provenance-aware readers use the
 schema-versioned `provenance` object.
+
+## Qualified model cohorts
+
+Evaluation matrix schema version 2 records a stable variant ID, model family,
+lineage role, source repository, exact checkpoint revision, comparison group,
+provider, and runtime. Intervention identity and deployment quantization are
+separate objects: NF4 or another low-bit representation is never described as
+distillation or as a new behavioral intervention.
+
+Qualified runtime identity includes dtype, chat-template SHA-256, reasoning mode,
+context limit, tool protocol, sampler values, execution mode, and a pinned agent
+harness when applicable. A matrix fails validation when an intervention cohort
+has no untouched control or a quantized artifact has no unquantized source peer.
+Legacy string matrices remain schema version 1 and are intentionally marked as
+less complete provenance.
+
+Historical artifacts may use `provenance_status: reconstructed-with-gaps` only
+when every missing fact is enumerated in `evidence_gaps`. This preserves the
+ability to measure a valuable retained checkpoint without presenting later
+reconstruction as contemporaneous evidence. New runs require complete
+provenance, including intervention/tool commits and agent-harness revisions.
+
+All treatment comparisons use the same benchmark revision, task IDs, seed,
+prompts, scorer, tool environment, user simulator, and budgets. Direct-endpoint
+and agent-harness results are separate lanes. Infrastructure failures are
+reported separately from quality scores and are never counted as model failures.
 
 ## Dataset loading
 

@@ -2,6 +2,8 @@
 
 Comprehensive documentation for the matric-eval model evaluation framework.
 
+Runnable study specifications are under [`../examples`](../examples/README.md).
+
 ## Quick Links
 
 - [Architecture Overview](architecture/overview.md) - System design and component structure
@@ -45,6 +47,7 @@ Test strategy, plans, and contribution guidelines.
 
 - [**Strategy**](testing/strategy.md) - Overall testing approach
 - [**Contributing**](testing/contributing.md) - How to write and run tests
+- [**A100 Execution**](testing/a100-execution.md) - Required host, storage, preflight, and matched-run policy
 - **Test Plans**
   - [Unit Tests](testing/plans/unit.md)
   - [Integration Tests](testing/plans/integration.md)
@@ -80,6 +83,7 @@ Background research and academic references.
 - [**Wave 1 Protocols**](benchmarks/wave1-protocols.md) - Initial expansion decisions
 - [**Wave 2 Protocols**](benchmarks/wave2-protocols.md) - Successor and security benchmarks
 - [**Wave 3 Protocols**](benchmarks/wave3-protocols.md) - Long-context and memory benchmarks
+- [**Agentic Runner Setup**](benchmarks/agentic-runners.md) - Isolated official BFCL, tau3, and SWE-bench-Live environments
 
 ## Getting Started
 
