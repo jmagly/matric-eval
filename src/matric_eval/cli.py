@@ -1475,12 +1475,12 @@ def _run_matrix_evaluation(
                     extra={"model": model_name, "provider": provider_name, "error": str(e)},
                 )
                 failed_result = {
-                        "model": model_name,
-                        "provider": provider_name,
-                        "tier": tier,
-                        "status": "error",
-                        "error": str(e),
-                    }
+                    "model": model_name,
+                    "provider": provider_name,
+                    "tier": tier,
+                    "status": "error",
+                    "error": str(e),
+                }
                 if "model_id" in run_spec:
                     failed_result["model_id"] = run_spec["model_id"]
                 if "model_spec" in run_spec:

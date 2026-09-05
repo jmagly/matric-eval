@@ -64,9 +64,7 @@ class EvaluationMatrix:
             model = model_entry.model if isinstance(model_entry, ModelSpec) else model_entry
             model_key = model_entry.id if isinstance(model_entry, ModelSpec) else model
             model_providers = (
-                [model_entry.provider]
-                if isinstance(model_entry, ModelSpec)
-                else self.providers
+                [model_entry.provider] if isinstance(model_entry, ModelSpec) else self.providers
             )
             for provider in model_providers:
                 for benchmark in self.benchmarks:
@@ -84,9 +82,7 @@ class EvaluationMatrix:
         return runs
 
     def _qualified_explicit_runs(self) -> list[dict[str, Any]]:
-        specs = {
-            model.id: model for model in self.models if isinstance(model, ModelSpec)
-        }
+        specs = {model.id: model for model in self.models if isinstance(model, ModelSpec)}
         runs: list[dict[str, Any]] = []
         for requested in self.explicit_runs:
             model_id = requested.get("model_id", requested.get("model", ""))
@@ -134,12 +130,17 @@ class EvaluationMatrix:
                 identities = {member.checkpoint_identity for member in members}
                 for member in members:
                     for intervention in member.interventions:
-                        if (intervention.parent_source, intervention.parent_revision) not in identities:
+                        if (
+                            intervention.parent_source,
+                            intervention.parent_revision,
+                        ) not in identities:
                             raise ValueError(
                                 f"intervention model '{member.id}' has no parent checkpoint peer "
                                 f"in comparison group '{group}'"
                             )
-            identities = {member.checkpoint_identity for member in members if not member.quantization}
+            identities = {
+                member.checkpoint_identity for member in members if not member.quantization
+            }
             for member in members:
                 if member.quantization is None:
                     continue

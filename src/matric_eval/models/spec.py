@@ -161,8 +161,7 @@ class RuntimeSpec:
         missing_sampler = required_sampler - self.sampler.keys()
         if missing_sampler:
             raise ValueError(
-                "runtime.sampler is missing required values: "
-                + ", ".join(sorted(missing_sampler))
+                "runtime.sampler is missing required values: " + ", ".join(sorted(missing_sampler))
             )
         if self.reasoning_mode not in {"on", "off", "auto"}:
             raise ValueError("runtime.reasoning_mode must be on, off, or auto")
@@ -172,9 +171,7 @@ class RuntimeSpec:
             object.__setattr__(
                 self,
                 "agent_harness_revision",
-                _immutable_revision(
-                    self.agent_harness_revision, "runtime.agent_harness_revision"
-                ),
+                _immutable_revision(self.agent_harness_revision, "runtime.agent_harness_revision"),
             )
 
     @classmethod
@@ -208,7 +205,9 @@ class ModelSpec:
             "checkpoint_revision",
             _immutable_revision(self.checkpoint_revision, "model.checkpoint_revision"),
         )
-        if not all((self.id, self.model, self.family, self.source, self.comparison_group, self.provider)):
+        if not all(
+            (self.id, self.model, self.family, self.source, self.comparison_group, self.provider)
+        ):
             raise ValueError("qualified model identity fields cannot be empty")
         if self.lineage_role is LineageRole.INTERVENTION and not self.interventions:
             raise ValueError("intervention models must declare at least one intervention")

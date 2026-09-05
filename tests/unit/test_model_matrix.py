@@ -219,9 +219,7 @@ def test_qualified_explicit_runs_resolve_model_ids() -> None:
                 "schema_version": 2,
                 "matrix": {"mode": "explicit"},
                 "models": [_control(), _intervention()],
-                "runs": [
-                    {"model_id": "qwen-e03-bf16", "benchmark": "bfcl_v4_agentic"}
-                ],
+                "runs": [{"model_id": "qwen-e03-bf16", "benchmark": "bfcl_v4_agentic"}],
             }
         }
     )
