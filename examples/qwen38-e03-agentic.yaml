@@ -1,0 +1,100 @@
+evaluation:
+  schema_version: "2"
+  tier: smoke
+  matrix:
+    mode: cartesian
+  benchmarks:
+    - tool_calling
+    - bfcl_v4_agentic
+    - tau2
+  models:
+    - id: qwen38-27b-control-bf16
+      model: Qwen/Qwen3.8-27B
+      family: qwen3.8-27b
+      lineage_role: untouched-control
+      source: Qwen/Qwen3.8-27B
+      checkpoint_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+      comparison_group: qwen38-e03-agentic
+      provider: vllm
+      runtime:
+        execution_mode: direct-endpoint
+        dtype: bfloat16
+        chat_template_sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+        reasoning_mode: "on"
+        context_limit: 32768
+        tool_protocol: openai-tools
+        sampler:
+          temperature: 0.0
+          max_tokens: 8192
+          seed: 300
+
+    - id: qwen38-e03-bf16
+      model: manitcor/Qwen3.8-27B-Obliterated-E03
+      family: qwen3.8-27b
+      lineage_role: intervention
+      source: manitcor/Qwen3.8-27B-Obliterated-E03
+      checkpoint_revision: 56bbc4a80c17353254c0ed0f31828e3980970495
+      comparison_group: qwen38-e03-agentic
+      provider: vllm
+      provenance_status: reconstructed-with-gaps
+      evidence_gaps:
+        - original run seed, model revision, and tokenizer revision were null
+        - exact operator UI request and launcher command were not retained
+        - no single OBLITERATUS repository HEAD covered every retained component commit
+      interventions:
+        - method: qwen38_e03-svd-refusal-direction-projection
+          parent_source: Qwen/Qwen3.8-27B
+          parent_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+          implementation_source: bt6/OBLITERATUS
+          implementation_revision: 4b737cba648d53cb7c760a47dfc92b0bf62625cd
+          config_sha256: ba65938b24eeaefd51e9780d2915a82bc5bdfa6ebeee541e9157ccfc3dccf692
+      runtime:
+        execution_mode: direct-endpoint
+        dtype: bfloat16
+        chat_template_sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+        reasoning_mode: "on"
+        context_limit: 32768
+        tool_protocol: openai-tools
+        sampler:
+          temperature: 0.0
+          max_tokens: 8192
+          seed: 300
+
+    - id: qwen38-e03-bnb-nf4
+      model: manitcor/Qwen3.8-27B-Obliterated-E03-bnb-4bit
+      family: qwen3.8-27b
+      lineage_role: intervention
+      source: manitcor/Qwen3.8-27B-Obliterated-E03-bnb-4bit
+      checkpoint_revision: e60950c8fde3a412515648078581ad8b64ca515f
+      comparison_group: qwen38-e03-agentic
+      provider: vllm
+      provenance_status: reconstructed-with-gaps
+      evidence_gaps:
+        - inherited original E03 run seed and launcher gaps
+        - exact BitsAndBytes source commit was not retained; package version was retained
+      interventions:
+        - method: qwen38_e03-svd-refusal-direction-projection
+          parent_source: Qwen/Qwen3.8-27B
+          parent_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+          implementation_source: bt6/OBLITERATUS
+          implementation_revision: 4b737cba648d53cb7c760a47dfc92b0bf62625cd
+          config_sha256: ba65938b24eeaefd51e9780d2915a82bc5bdfa6ebeee541e9157ccfc3dccf692
+      quantization:
+        method: bitsandbytes-nf4-double-quant
+        bits: 4
+        library: bitsandbytes
+        library_version: 0.50.0
+        config_sha256: 7ce50c41ba9e061d73791883875f70ca8b0d9f7ec03ddb85e26ab7524a7d05f3
+        source_checkpoint: manitcor/Qwen3.8-27B-Obliterated-E03
+        source_revision: 56bbc4a80c17353254c0ed0f31828e3980970495
+      runtime:
+        execution_mode: direct-endpoint
+        dtype: bfloat16-compute-nf4-weights
+        chat_template_sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+        reasoning_mode: "on"
+        context_limit: 32768
+        tool_protocol: openai-tools
+        sampler:
+          temperature: 0.0
+          max_tokens: 8192
+          seed: 300

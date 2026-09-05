@@ -2,6 +2,11 @@
 
 from matric_eval.tasks.arc import arc, format_arc_prompt, load_arc
 from matric_eval.tasks.babilong import babilong, load_babilong
+from matric_eval.tasks.bfcl_v4 import (
+    bfcl_v4_agentic,
+    build_bfcl_evaluate_command,
+    build_bfcl_generate_command,
+)
 from matric_eval.tasks.builtin import (
     smoke_gsm8k,
     smoke_humaneval,
@@ -143,6 +148,11 @@ from matric_eval.tasks.swebench.pro import swebench_pro
 
 # Benchmark expansion (issues #38-49)
 from matric_eval.tasks.swebench.verified import swebench_verified
+from matric_eval.tasks.swebench_live import (
+    build_swebench_live_evaluate_command,
+    swebench_live_multilang,
+)
+from matric_eval.tasks.tau2 import build_tau2_command, tau2
 from matric_eval.tasks.terminalbench import build_harbor_command, load_terminalbench, terminalbench
 from matric_eval.tasks.tool_calling import (
     SCENARIOS as TOOL_CALLING_SCENARIOS,
@@ -177,6 +187,11 @@ __all__ = [
     # Benchmarks
     "arc",
     "babilong",
+    "bfcl_v4_agentic",
+    "build_bfcl_evaluate_command",
+    "build_bfcl_generate_command",
+    "build_swebench_live_evaluate_command",
+    "build_tau2_command",
     "load_babilong",
     "build_helmet_command",
     "helmet",
@@ -184,6 +199,8 @@ __all__ = [
     "infinite_bench",
     "build_memorybench_command",
     "memorybench",
+    "swebench_live_multilang",
+    "tau2",
     "build_nolima_command",
     "nolima",
     "build_ruler_prepare_command",

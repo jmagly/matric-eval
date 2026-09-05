@@ -89,7 +89,7 @@ class TestRunBenchmark:
             assert result["score"] == 0.8
             assert result["samples"] == 5
             assert result["provenance"]["schema_version"] == "1"
-            assert result["provenance"]["framework"]["inspect_ai"] == "0.3.251"
+            assert result["provenance"]["framework"]["inspect_ai"] == "0.3.263"
             assert result["provenance"]["benchmark"]["name"] == "humaneval"
             assert "dataset_revision" in result["provenance"]["benchmark"]
 
@@ -182,7 +182,7 @@ class TestRunAll:
             assert result["model"] == "ollama/test"
             assert len(result["benchmarks"]) == 3
             assert result["overall_score"] == pytest.approx(0.7)  # (0.8 + 0.7 + 0.6) / 3
-            assert result["provenance"]["framework"]["inspect_evals"] == "0.16.0"
+            assert result["provenance"]["framework"]["inspect_evals"] == "0.19.0"
 
     def test_run_all_with_failures(
         self,

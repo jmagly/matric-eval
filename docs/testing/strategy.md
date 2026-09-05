@@ -5,6 +5,10 @@
 **Status**: Planning Phase
 **Last Updated**: 2026-01-24
 
+For the current model-comparison program, all executable validation and benchmark
+runs follow the [A100 execution policy](a100-execution.md). Local work is limited
+to source editing and static diff inspection.
+
 ## Document Purpose
 
 This document defines the comprehensive test strategy for matric-eval, establishing mandatory quality gates and coverage thresholds that MUST be met before phase transitions. Testing is a blocking requirement, not optional.

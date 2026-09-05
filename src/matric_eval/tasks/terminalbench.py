@@ -23,7 +23,7 @@ TERMINALBENCH_REPOSITORY = "harbor-framework/terminal-bench-2-1"
 TERMINALBENCH_REVISION = "5c8eadf1f393183288fa08b8f73ca9a469cc5e00"
 TERMINALBENCH_DATASET = "terminal-bench/terminal-bench-2-1"
 TERMINALBENCH_TASKS = 89
-HARBOR_VERSION = "0.20.0"
+HARBOR_VERSION = "0.22.0"
 
 
 def _task_files(directory: Path) -> dict[str, str]:
@@ -113,7 +113,7 @@ def build_harbor_command(
     trials: int = 5,
     concurrency: int = 8,
 ) -> list[str]:
-    """Build the official Harbor 0.20 command for leaderboard-compatible runs."""
+    """Build the official Harbor 0.22 command for leaderboard-compatible runs."""
     return [
         "harbor",
         "run",
