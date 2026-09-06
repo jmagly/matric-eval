@@ -247,6 +247,14 @@ def _file_manifest(root: Path) -> list[JsonObject]:
     ]
 
 
+def _seal_private_tree(root: Path) -> None:
+    """Make runner-created evidence private without following links."""
+    for path in [root, *sorted(root.rglob("*"))]:
+        if path.is_symlink():
+            raise RuntimeError(f"private evidence tree contains a symbolic link: {path}")
+        path.chmod(0o750 if path.is_dir() else 0o600)
+
+
 def _collect_top_level_ids(root: Path) -> set[str]:
     found: set[str] = set()
     for path in sorted(root.rglob("*")):
@@ -367,6 +375,8 @@ def run_bfcl(args: argparse.Namespace) -> JsonObject:
         partial_eval=True,
     )
     evaluation_seconds = time.time() - evaluation_started
+    _seal_private_tree(args.result_dir)
+    _seal_private_tree(args.score_dir)
 
     found_ids = _collect_top_level_ids(args.result_dir)
     missing = sorted(set(scored_ids) - found_ids)

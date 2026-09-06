@@ -165,3 +165,21 @@ def test_isolated_docker_network_contract() -> None:
                 "default-address-pools": [{"base": "10.241.0.0/16", "size": 24}],
             }
         )
+
+
+def test_private_tree_is_sealed_and_rejects_links(tmp_path: Path) -> None:
+    root = tmp_path / "jobs"
+    nested = root / "nested"
+    nested.mkdir(parents=True)
+    artifact = nested / "result.json"
+    artifact.write_text("private", encoding="utf-8")
+
+    terminal_runner._seal_private_tree(root)
+
+    assert root.stat().st_mode & 0o777 == 0o750
+    assert nested.stat().st_mode & 0o777 == 0o750
+    assert artifact.stat().st_mode & 0o777 == 0o600
+
+    (root / "link").symlink_to(artifact)
+    with pytest.raises(RuntimeError, match="symbolic link"):
+        terminal_runner._seal_private_tree(root)

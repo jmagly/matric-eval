@@ -175,3 +175,21 @@ def test_endpoint_and_content_free_file_inventory(
     assert bfcl_runner._collect_top_level_ids(tmp_path / "results") == {"case-1"}
     assert inventory[0]["path"] == "result.json"
     assert "private" not in json.dumps(inventory)
+
+
+def test_private_tree_is_sealed_and_rejects_links(tmp_path: Path) -> None:
+    root = tmp_path / "results"
+    nested = root / "nested"
+    nested.mkdir(parents=True)
+    artifact = nested / "result.json"
+    artifact.write_text("private", encoding="utf-8")
+
+    bfcl_runner._seal_private_tree(root)
+
+    assert root.stat().st_mode & 0o777 == 0o750
+    assert nested.stat().st_mode & 0o777 == 0o750
+    assert artifact.stat().st_mode & 0o777 == 0o600
+
+    (root / "link").symlink_to(artifact)
+    with pytest.raises(RuntimeError, match="symbolic link"):
+        bfcl_runner._seal_private_tree(root)

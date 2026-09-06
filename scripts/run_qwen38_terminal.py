@@ -316,6 +316,14 @@ def _file_manifest(root: Path) -> list[JsonObject]:
     ]
 
 
+def _seal_private_tree(root: Path) -> None:
+    """Make runner-created evidence private without following links."""
+    for path in [root, *sorted(root.rglob("*"))]:
+        if path.is_symlink():
+            raise RuntimeError(f"private evidence tree contains a symbolic link: {path}")
+        path.chmod(0o750 if path.is_dir() else 0o600)
+
+
 def _parse_job_result(path: Path) -> tuple[JsonObject, JsonObject | None, str | None]:
     result = _load_object(path, "Harbor job result")
     trials = result.get("trial_results")
@@ -457,6 +465,7 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             }
         )
 
+    _seal_private_tree(args.result_dir)
     primary_rewards = [
         float(record["rewards"]["reward"])
         for record in records
