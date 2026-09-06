@@ -599,6 +599,7 @@ def run_offline_batch(
         gpu_memory_utilization=server["gpu_memory_utilization"],
         safetensors_load_strategy=server["safetensors_load_strategy"],
         async_scheduling=server["async_scheduling"],
+        language_model_only=server["language_model_only"],
         trust_remote_code=False,
         enable_prefix_caching=False,
     )
@@ -658,6 +659,7 @@ def run_offline_batch(
                     "batch_invariant": server["batch_invariance"],
                     "v1_multiprocessing": False,
                     "async_scheduling": server["async_scheduling"],
+                    "language_model_only": server["language_model_only"],
                     "safetensors_load_strategy": server["safetensors_load_strategy"],
                     "usage_stats": server["usage_stats"],
                     "chat_template_sha256": template_sha256,

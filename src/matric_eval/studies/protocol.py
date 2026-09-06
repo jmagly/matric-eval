@@ -342,6 +342,7 @@ class StudyProtocol:
             "batch_invariance": False,
             "v1_multiprocessing": False,
             "async_scheduling": False,
+            "language_model_only": True,
             "speculative_decoding": False,
             "usage_stats": False,
         }

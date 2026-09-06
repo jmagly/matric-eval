@@ -260,6 +260,14 @@ def test_rejects_unpinned_gpu_memory_utilization(protocol_data: dict) -> None:
         StudyProtocol.from_dict(changed)
 
 
+def test_rejects_multimodal_runtime_for_text_only_comparison(protocol_data: dict) -> None:
+    changed = copy.deepcopy(protocol_data)
+    changed["study"]["execution"]["model_server"]["language_model_only"] = False
+
+    with pytest.raises(ValueError, match="language_model_only"):
+        StudyProtocol.from_dict(changed)
+
+
 def test_rejects_missing_behavior_axis(protocol_data: dict) -> None:
     changed = copy.deepcopy(protocol_data)
     for allocation in changed["study"]["benchmarks"]:
@@ -567,10 +575,12 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["generation_seed"] == study.generation_seed(*expected[0])
     assert rows[0]["runtime"]["batch_invariant"] is False
     assert rows[0]["runtime"]["async_scheduling"] is False
+    assert rows[0]["runtime"]["language_model_only"] is True
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert engine_kwargs["gpu_memory_utilization"] == 0.9
     assert engine_kwargs["safetensors_load_strategy"] == "prefetch"
     assert engine_kwargs["async_scheduling"] is False
+    assert engine_kwargs["language_model_only"] is True
     assert output_path.stat().st_mode & 0o777 == 0o600
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision

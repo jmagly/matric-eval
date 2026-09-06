@@ -256,6 +256,12 @@ allocation/model invocation. The wrapper verifies that the dedicated Docker sock
 contains the exact image digest and resolves to the isolated daemon whose data root is
 on the model filesystem; never pull this image into the nearly full system Docker root.
 
+The primary comparison is text-only. The pinned vLLM engine therefore runs with
+`language_model_only=true`, which disables every multimodal input and skips loading and
+profiling the Qwen vision tower. This keeps source and derivative inference paths
+comparable: E03 does not contain the source model's vision-tower tensors, and none of
+the frozen requests contain image or video input.
+
 Each invocation may contain one allocation or multiple complete allocation blocks in
 protocol order. This supports benchmark-specific scoring and MT-Bench's dependent
 second turn without weakening cohort identity: partial allocation samples are refused.
