@@ -112,6 +112,7 @@ sudo docker gpu run \
   -- \
   /usr/bin/docker --host "$study_docker_host" run --rm \
     --network none \
+    --hostname basilisk \
     --read-only \
     --runtime nvidia \
     --gpus "device=${gpu_uuid}" \
