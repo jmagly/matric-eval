@@ -134,6 +134,17 @@ def test_livecodebench_rejects_infrastructure_failure() -> None:
             "x",
             {"public_test_cases": [{"input": "", "output": "x", "testtype": "stdin"}]},
         )
+    ]
+
+    with pytest.raises(RuntimeError, match="infrastructure failed"):
+        score_offline_outputs(
+            study=study,
+            results=results,
+            scoring_records=scoring,
+            executor=lambda _completion, _metadata, _timeout: {
+                "infrastructure_error": "runner_error"
+            },
+        )
 
 
 def test_official_ifeval_language_detection_is_repeatable() -> None:
@@ -164,17 +175,6 @@ def test_official_ifeval_language_detection_is_repeatable() -> None:
 
     assert first == second
     assert first[0][0]["score"] == 1.0
-    ]
-
-    with pytest.raises(RuntimeError, match="infrastructure failed"):
-        score_offline_outputs(
-            study=study,
-            results=results,
-            scoring_records=scoring,
-            executor=lambda _completion, _metadata, _timeout: {
-                "infrastructure_error": "runner_error"
-            },
-        )
 
 
 def test_rejects_contract_drift_and_overwrite(tmp_path: Path) -> None:
