@@ -208,7 +208,7 @@ def exact_mcnemar_pvalue(pairs: Sequence[tuple[float, float]]) -> float:
         return 1.0
     tail = min(source_only, intervention_only)
     probability = sum(math.comb(discordant, index) for index in range(tail + 1)) / 2**discordant
-    return min(1.0, 2.0 * probability)
+    return float(min(1.0, 2.0 * probability))
 
 
 def holm_adjust(pvalues: dict[str, float]) -> dict[str, float]:
@@ -430,30 +430,30 @@ def analyze_observations(
                 replicates=replicates,
             )
 
-        comparisons: dict[str, JsonObject] = {}
+        allocation_comparisons: dict[str, JsonObject] = {}
         for model in study.models:
             if model.id == source_model.id:
                 continue
-            comparison, pairs = _paired_summary(
+            allocation_comparison, pairs = _paired_summary(
                 ordered_by_model[source_model.id],
                 ordered_by_model[model.id],
                 root_seed=study.seed,
                 label=f"{allocation.id}:{metric_id}:{model.id}:delta",
                 replicates=replicates,
             )
-            comparisons[model.id] = comparison
+            allocation_comparisons[model.id] = allocation_comparison
             paired_by_axis[allocation.axis][model.id].append(pairs)
             if allocation.axis in {"capability", "agentic"}:
                 paired_by_axis["capability_and_agentic"][model.id].append(pairs)
-            if "mcnemar_exact_p" in comparison:
+            if "mcnemar_exact_p" in allocation_comparison:
                 holm_families[allocation.axis][f"{allocation.id}:{model.id}"] = float(
-                    comparison["mcnemar_exact_p"]
+                    allocation_comparison["mcnemar_exact_p"]
                 )
         allocation_results[allocation.id] = {
             "axis": allocation.axis,
             "metric_id": metric_id,
             "models": model_summaries,
-            "comparisons_to_source": comparisons,
+            "comparisons_to_source": allocation_comparisons,
         }
 
     for axis, pvalues in holm_families.items():
@@ -469,7 +469,7 @@ def analyze_observations(
     axis_results: dict[str, JsonObject] = {}
     margin = float(study.raw["study"]["analysis"]["capability_noninferiority_margin_pp"])
     for axis, by_model in paired_by_axis.items():
-        comparisons: dict[str, JsonObject] = {}
+        axis_comparisons: dict[str, JsonObject] = {}
         allocation_ids = [
             allocation.id
             for allocation in study.benchmarks
@@ -494,7 +494,7 @@ def analyze_observations(
                 seed=_seed(study.seed, f"{axis}:{model_id}:stratified-delta"),
                 replicates=replicates,
             )
-            comparison: JsonObject = {
+            axis_comparison: JsonObject = {
                 "allocation_macro_delta": sum(deltas) / len(deltas),
                 "allocation_macro_delta_percentage_points": 100.0 * sum(deltas) / len(deltas),
                 "paired_stratified_bootstrap_interval_95": [low, high],
@@ -509,19 +509,21 @@ def analyze_observations(
                 sum(float(bounds[0]) for bounds in missingness_bounds) / len(missingness_bounds),
                 sum(float(bounds[1]) for bounds in missingness_bounds) / len(missingness_bounds),
             ]
-            comparison["missingness_delta_bounds"] = macro_missingness_bounds
+            axis_comparison["missingness_delta_bounds"] = macro_missingness_bounds
             if axis == "capability":
-                comparison["noninferiority_margin_percentage_points"] = margin
-                comparison["noninferiority_basis"] = (
+                axis_comparison["noninferiority_margin_percentage_points"] = margin
+                axis_comparison["noninferiority_basis"] = (
                     "minimum-of-bootstrap-lower-and-missingness-lower"
                 )
-                comparison["noninferior"] = 100.0 * min(low, macro_missingness_bounds[0]) > margin
-            comparisons[model_id] = comparison
+                axis_comparison["noninferior"] = (
+                    100.0 * min(low, macro_missingness_bounds[0]) > margin
+                )
+            axis_comparisons[model_id] = axis_comparison
         axis_results[axis] = {
             "allocations": allocation_ids,
             "weighting": "equal-allocation-macro-average",
             "model_macro_means": model_macro_means,
-            "comparisons_to_source": comparisons,
+            "comparisons_to_source": axis_comparisons,
         }
 
     return {
