@@ -165,10 +165,40 @@ Each observation has exactly these fields:
 | `status` | `observed`, `model-timeout`, `infrastructure-error`, or `judge-parse-failure` |
 | `value` | Score in `[0, 1]`; exactly `0` for model timeout; `null` for the other two failure states |
 
-Build that normalized file from the sealed deterministic/official scorer artifacts and
-the completed blinded-judge/adjudication records. Keep any source material needed for
-that normalization in the private result store. Then run the preregistered statistics
-from a clean checkout on `a100`:
+The judge outcome bundle is a content-free JSON object tied to the same study, protocol,
+manifest, and cohort. It names immutable primary-judge and distinct adjudicator
+provider/model/snapshot identities, repeats the four preregistered blind/randomization
+controls, and contains one outcome for every model/sample in the five judged
+allocations. Every outcome records `model_id`, `allocation_id`, `sample_id`, `status`,
+normalized `value`, `judges_disagreed`, and `adjudicated`. A full-cohort bundle also
+contains the 100-item human double-label count, Cohen's kappa, and confusion matrix.
+
+Build the normalized file directly from the repeated deterministic score files, sealed
+BFCL score tree and receipt, tau receipt, Terminal-Bench receipt, and completed judge
+bundle. The builder verifies every artifact hash and identity. BFCL's official format
+stores only failures after its count header, so the builder reconstructs binary outcomes
+against the receipt's ordered scored IDs and verifies total case counts before accepting
+them. A tau or Terminal-Bench record without a numeric reward is never guessed: supply a
+separate normalized missingness JSONL row assigning the declared failure state. Keep all
+source material and the resulting matrix private; the separate receipt is content-free.
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/build_qwen38_observations.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/full-manifest.json \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --judge-outcomes /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-judge-outcomes.json \
+  --missingness-outcomes /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-missingness.jsonl \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-observations.jsonl \
+  --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/public/full-observations-receipt.json
+```
+
+Omit `--missingness-outcomes` only when every official runner produced a numeric reward.
+The builder refuses partial matrices, repeated-scorer drift, unadjudicated disagreement,
+target-model self-judging, judge snapshot reuse, a missing full-study calibration, paths
+outside the private study root, and any attempt to overwrite evidence.
+
+Then run the preregistered statistics from a clean checkout on `a100`:
 
 ```bash
 UV_PYTHON=3.11 uv run python -m matric_eval.studies.analysis_cli \
