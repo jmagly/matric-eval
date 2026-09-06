@@ -220,7 +220,9 @@ def test_load_items_verifies_generation_and_request_batch_hashes(tmp_path: Path)
         for allocation in manifest["allocations"]
     }
     offline_allocations = [
-        allocation for allocation in study.benchmarks if allocation.execution_mode == "offline-batch"
+        allocation
+        for allocation in study.benchmarks
+        if allocation.execution_mode == "offline-batch"
     ]
     requests = [
         {
