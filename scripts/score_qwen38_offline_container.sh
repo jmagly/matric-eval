@@ -11,7 +11,8 @@ RESULTS=$1
 SCORING_RECORDS=$2
 OUTPUT=$3
 RECEIPT=$4
-REPO=/srv/matric-eval/workspaces/matric-eval
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 PROTOCOL=$REPO/studies/qwen38-obliteration-2026-09/protocol.yaml
 
 if [[ "$(hostname)" != "basilisk" ]]; then
