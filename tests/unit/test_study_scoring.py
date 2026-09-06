@@ -83,8 +83,13 @@ def test_livecodebench_executor_is_injectable() -> None:
         )
     ]
 
-    def executor(_code: str, value: str, _timeout: int) -> dict:
-        return {"success": True, "stdout": value}
+    def executor(_completion: str, _metadata: dict, _timeout: int) -> dict:
+        return {
+            "passed": True,
+            "tests_executed": 2,
+            "result_codes": {"True": 2},
+            "code_parse_failure": False,
+        }
 
     rows, _ = score_offline_outputs(
         study=study,
@@ -93,12 +98,13 @@ def test_livecodebench_executor_is_injectable() -> None:
         executor=executor,
     )
 
-    assert rows[0]["score"] == 0.5
+    assert rows[0]["score"] == 1.0
     assert rows[0]["detail"] == {
-        "tests_passed": 1,
         "tests_total": 2,
-        "execution_failures": 0,
+        "tests_executed": 2,
         "code_parse_failure": False,
+        "result_codes": {"True": 2},
+        "evaluator_revision": "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24",
     }
 
 

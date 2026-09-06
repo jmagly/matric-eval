@@ -11,15 +11,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable
 
-from matric_eval.scorers.code_execution import extract_code
-from matric_eval.scorers.io_execution import compare_outputs
 from matric_eval.studies.protocol import StudyProtocol
-from matric_eval.tasks.ifeval import check_constraint
 from matric_eval.tasks.mmlu_pro import extract_mmlu_pro_answer
 from matric_eval.tasks.refusal import classify_refusal_prefix
 
 JsonObject = dict[str, Any]
-CodeExecutor = Callable[[str, str, int], dict[str, Any]]
+LiveCodeBenchExecutor = Callable[[str, JsonObject, int], JsonObject]
 
 DETERMINISTIC_ALLOCATIONS = frozenset({"ifeval", "livecodebench", "mmlu-pro"})
 DIAGNOSTIC_ALLOCATIONS = frozenset(
@@ -30,6 +27,12 @@ CODE_SANDBOX_IMAGE = (
     "sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b"
 )
 CODE_SANDBOX_DOCKER_HOST = "unix:///run/matric-eval-docker.sock"
+LCB_EVALUATOR_CHECKOUT = Path("/srv/matric-eval/cache/git/livecodebench")
+LCB_EVALUATOR_REVISION = "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24"
+IFEVAL_EVALUATOR_REVISION = "0c495b2f95155e8b10acb919ae283bfb4d5be6e2"
+LCB_EVALUATOR_WRAPPER = Path(
+    "/srv/matric-eval/workspaces/matric-eval/scripts/lcb_official_score_one.py"
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -71,19 +74,58 @@ def _indexed(rows: list[JsonObject], label: str) -> dict[str, JsonObject]:
     return indexed
 
 
-def _score_ifeval(completion: str, metadata: JsonObject) -> tuple[float, JsonObject]:
+def _score_ifeval(completion: str, sample_id: str, metadata: JsonObject) -> tuple[float, JsonObject]:
+    from instruction_following_eval.evaluation import (
+        InputExample,
+        ensure_nltk_resource,
+        test_instruction_following,
+    )
+
     instruction_ids = metadata.get("instruction_id_list")
     kwargs = metadata.get("kwargs")
-    if not isinstance(instruction_ids, list) or not isinstance(kwargs, list):
+    prompt = metadata.get("prompt")
+    if (
+        not isinstance(instruction_ids, list)
+        or not isinstance(kwargs, list)
+        or not isinstance(prompt, str)
+    ):
         raise ValueError("IFEval scoring metadata is malformed")
     if len(instruction_ids) != len(kwargs):
         raise ValueError("IFEval instruction and argument counts do not match")
-    results = [
-        bool(check_constraint(completion, str(instruction_id), arguments))
-        for instruction_id, arguments in zip(instruction_ids, kwargs, strict=True)
-    ]
-    value = sum(results) / len(results) if results else 1.0
-    return value, {"constraints_satisfied": sum(results), "constraints_total": len(results)}
+    clean_kwargs = {
+        index: {key: value for key, value in arguments.items() if value}
+        for index, arguments in enumerate(kwargs)
+        if isinstance(arguments, dict)
+    }
+    if len(clean_kwargs) != len(kwargs):
+        raise ValueError("IFEval constraint arguments must be objects")
+    example = InputExample(
+        key=sample_id,
+        instruction_id_list=[str(value) for value in instruction_ids],
+        prompt=prompt,
+        kwargs=clean_kwargs,
+    )
+    ensure_nltk_resource()
+    strict = test_instruction_following(example, completion, strict=True)
+    loose = test_instruction_following(example, completion, strict=False)
+    total = len(loose.follow_instruction_list)
+    strict_count = sum(strict.follow_instruction_list)
+    loose_count = sum(loose.follow_instruction_list)
+    strict_fraction = strict_count / total if total else 1.0
+    loose_fraction = loose_count / total if total else 1.0
+    value = (
+        float(strict.follow_all_instructions)
+        + float(loose.follow_all_instructions)
+        + strict_fraction
+        + loose_fraction
+    ) / 4
+    return value, {
+        "prompt_level_strict": bool(strict.follow_all_instructions),
+        "prompt_level_loose": bool(loose.follow_all_instructions),
+        "inst_level_strict": strict_count,
+        "inst_level_loose": loose_count,
+        "num_instructions": total,
+    }
 
 
 def _score_mmlu(completion: str, target: str) -> tuple[float, JsonObject]:
@@ -96,44 +138,64 @@ def _score_livecodebench(
     completion: str,
     metadata: JsonObject,
     *,
-    executor: CodeExecutor,
+    executor: LiveCodeBenchExecutor,
     timeout: int,
 ) -> tuple[float, JsonObject]:
-    code = extract_code(completion)
     public_tests = metadata.get("public_test_cases", [])
     private_tests = metadata.get("private_test_cases", [])
     if not isinstance(public_tests, list) or not isinstance(private_tests, list):
         raise ValueError("LiveCodeBench test metadata is malformed")
     tests = [*public_tests, *private_tests]
-    if not code or not tests:
-        return 0.0, {
-            "tests_passed": 0,
-            "tests_total": len(tests),
-            "code_parse_failure": not bool(code),
-        }
-    passed = 0
-    execution_failures = 0
     for test in tests:
         if not isinstance(test, dict):
             raise ValueError("LiveCodeBench test case must be an object")
-        result = executor(code, str(test.get("input", "")), timeout)
-        success = bool(result.get("success"))
-        if success and compare_outputs(str(result.get("stdout", "")), str(test.get("output", ""))):
-            passed += 1
-        elif not success:
-            execution_failures += 1
-    return passed / len(tests), {
-        "tests_passed": passed,
+    if not tests:
+        raise ValueError("LiveCodeBench sample contains no tests")
+    if any(test.get("testtype") == "functional" for test in tests) and not metadata.get(
+        "func_name"
+    ):
+        raise ValueError("LiveCodeBench functional sample is missing func_name")
+    result = executor(completion, metadata, timeout)
+    return float(bool(result.get("passed"))), {
         "tests_total": len(tests),
-        "execution_failures": execution_failures,
-        "code_parse_failure": False,
+        "tests_executed": result.get("tests_executed", 0),
+        "code_parse_failure": bool(result.get("code_parse_failure")),
+        "result_codes": result.get("result_codes", {}),
+        "evaluator_revision": LCB_EVALUATOR_REVISION,
     }
 
 
-def docker_code_executor(code: str, stdin_input: str, timeout: int) -> dict[str, Any]:
-    """Execute untrusted Python in the study's isolated, networkless Docker daemon."""
+def verify_lcb_evaluator_checkout() -> None:
+    """Require the official evaluator checkout to match its fixed revision."""
+    result = subprocess.run(
+        ["git", "-C", str(LCB_EVALUATOR_CHECKOUT), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode or result.stdout.strip() != LCB_EVALUATOR_REVISION:
+        raise RuntimeError("LiveCodeBench evaluator checkout is missing or revision-mismatched")
+
+
+def docker_livecodebench_executor(
+    completion: str, metadata: JsonObject, timeout: int
+) -> JsonObject:
+    """Run the pinned official LiveCodeBench checker in a locked-down container."""
     name = f"matric-eval-score-{uuid.uuid4().hex}"
     docker = ["sudo", "docker", "--host", CODE_SANDBOX_DOCKER_HOST]
+    tests = [
+        *metadata.get("public_test_cases", []),
+        *metadata.get("private_test_cases", []),
+    ]
+    payload = json.dumps(
+        {
+            "completion": completion,
+            "tests": tests,
+            "func_name": metadata.get("func_name"),
+            "timeout": timeout,
+        }
+    )
     command = [
         *docker,
         "run",
@@ -150,26 +212,29 @@ def docker_code_executor(code: str, stdin_input: str, timeout: int) -> dict[str,
         "--pids-limit",
         "64",
         "--memory",
-        "512m",
+        "1g",
         "--cpus",
         "1",
         "--user",
         "65534:65534",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,nodev,size=64m",
+        "/tmp:rw,nosuid,nodev,exec,size=128m",
+        "--mount",
+        f"type=bind,src={LCB_EVALUATOR_CHECKOUT},dst=/opt/livecodebench,readonly",
+        "--mount",
+        f"type=bind,src={LCB_EVALUATOR_WRAPPER},dst=/score.py,readonly",
         "--entrypoint",
         "python3",
         CODE_SANDBOX_IMAGE,
-        "-c",
-        code,
+        "/score.py",
     ]
     try:
         result = subprocess.run(
             command,
-            input=stdin_input,
+            input=payload,
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=(timeout + 1) * len(tests) + 10,
             check=False,
         )
     except subprocess.TimeoutExpired:
@@ -180,18 +245,16 @@ def docker_code_executor(code: str, stdin_input: str, timeout: int) -> dict[str,
             timeout=10,
             check=False,
         )
-        return {
-            "success": False,
-            "stdout": "",
-            "stderr": "",
-            "error": f"Execution timeout after {timeout} seconds",
-        }
-    return {
-        "success": result.returncode == 0,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "error": result.stderr if result.returncode else None,
-    }
+        return {"passed": False, "tests_executed": 0, "result_codes": {"timeout": 1}}
+    if result.returncode:
+        return {"passed": False, "tests_executed": 0, "result_codes": {"runner_error": 1}}
+    try:
+        parsed = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError) as exc:
+        raise RuntimeError("LiveCodeBench sandbox returned invalid output") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError("LiveCodeBench sandbox output must be an object")
+    return parsed
 
 
 def _score_diagnostic(completion: str, target: str) -> tuple[float, JsonObject]:
@@ -211,8 +274,8 @@ def score_offline_outputs(
     study: StudyProtocol,
     results: list[JsonObject],
     scoring_records: list[JsonObject],
-    executor: CodeExecutor | None = None,
-    code_timeout: int = 30,
+    executor: LiveCodeBenchExecutor | None = None,
+    code_timeout: int = 6,
 ) -> tuple[list[JsonObject], JsonObject]:
     """Score one model's sealed offline batch after verifying the join contract."""
     result_index = _indexed(results, "results")
@@ -257,8 +320,8 @@ def score_offline_outputs(
 
         detail: JsonObject
         if allocation == "ifeval":
-            value, detail = _score_ifeval(completion, metadata)
-            scorer_name = "ifeval-constraint-fraction"
+            value, detail = _score_ifeval(completion, str(result["sample_id"]), metadata)
+            scorer_name = "ifeval-official-strict-loose"
             publication_eligible = True
         elif allocation == "mmlu-pro":
             value, detail = _score_mmlu(completion, target)
@@ -273,7 +336,7 @@ def score_offline_outputs(
                 executor=executor,
                 timeout=code_timeout,
             )
-            scorer_name = "livecodebench-test-fraction"
+            scorer_name = "livecodebench-official-pass-at-1"
             publication_eligible = True
         elif allocation in DIAGNOSTIC_ALLOCATIONS:
             value, detail = _score_diagnostic(completion, target)
@@ -326,6 +389,26 @@ def score_offline_outputs(
         }
         for allocation, values in sorted(aggregate_values.items())
     }
+    if "ifeval" in aggregates:
+        ifeval_rows = [row for row in scored if row["allocation_id"] == "ifeval"]
+        prompt_strict = sum(bool(row["detail"]["prompt_level_strict"]) for row in ifeval_rows)
+        prompt_loose = sum(bool(row["detail"]["prompt_level_loose"]) for row in ifeval_rows)
+        inst_strict = sum(int(row["detail"]["inst_level_strict"]) for row in ifeval_rows)
+        inst_loose = sum(int(row["detail"]["inst_level_loose"]) for row in ifeval_rows)
+        instruction_count = sum(int(row["detail"]["num_instructions"]) for row in ifeval_rows)
+        prompt_count = len(ifeval_rows)
+        components = {
+            "prompt_strict_acc": prompt_strict / prompt_count,
+            "prompt_loose_acc": prompt_loose / prompt_count,
+            "inst_strict_acc": inst_strict / instruction_count,
+            "inst_loose_acc": inst_loose / instruction_count,
+        }
+        aggregates["ifeval"] = {
+            "samples": prompt_count,
+            "mean": sum(components.values()) / len(components),
+            "publication_eligible": True,
+            **components,
+        }
     summary: JsonObject = {
         "schema_version": "1",
         "study_id": study.id,

@@ -481,6 +481,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
         target="",  # No ground truth; scoring is constraint-based
         id=str(record["key"]),
         metadata={
+            "prompt": prompt,
             "instruction_id_list": instruction_id_list,
             "kwargs": kwargs_list,
         },

@@ -67,6 +67,11 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
     public_tests = parse_test_cases(record.get("public_test_cases", "[]"))
     private_tests = parse_test_cases(record.get("private_test_cases", "[]"))
 
+    raw_metadata = record.get("metadata", {})
+    source_metadata = json.loads(raw_metadata) if isinstance(raw_metadata, str) else raw_metadata
+    if not isinstance(source_metadata, dict):
+        source_metadata = {}
+
     # Build prompt with question title and content
     prompt_parts = [
         f"# {record['question_title']}",
@@ -124,6 +129,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
             "public_test_cases": public_tests,
             "private_test_cases": private_tests,
             "starter_code": record.get("starter_code", ""),
+            "func_name": source_metadata.get("func_name"),
         },
     )
 
@@ -195,8 +201,8 @@ def load_livecodebench(tier: str = "smoke") -> list[Sample]:
     dataset_source="livecodebench/code_generation_lite",
     dataset_revision="0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
     dataset_configs=("release_v6",),
-    evaluator_source="matric-eval",
-    evaluator_revision="0.1.0",
+    evaluator_source="LiveCodeBench/LiveCodeBench",
+    evaluator_revision="28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24",
     license="CC",
     access="public",
     source_kind="huggingface",

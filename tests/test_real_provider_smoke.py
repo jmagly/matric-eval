@@ -110,7 +110,9 @@ def test_success_records_revisions_duration_and_summary(tmp_path, monkeypatch) -
     assert report["provider"]["version"] == "1.2.3"
     assert report["model"]["digest"] == "sha256:model"
     assert report["benchmark"]["protocol_version"] == "project-v1"
-    assert report["benchmark"]["evaluator_revision"] == "0.1.0"
+    assert report["benchmark"]["evaluator_revision"] == (
+        "28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24"
+    )
     assert report["duration_seconds"] >= 0
 
 
