@@ -204,7 +204,9 @@ ordered prefix of its full IDs.
 Materialize the manifest's eight offline allocations as ordered request JSONL and
 private scoring JSONL. The builder refuses partial allocation blocks, refuses to
 overwrite an existing artifact, and writes the prompt/target-bearing files with mode
-`0600`:
+`0600`. It also emits `offline-requests.jsonl` and `offline-scoring.jsonl`, the exact
+protocol-ordered union of those eight complete blocks, so a model can run the full
+80-sample direct pilot after only one checkpoint load:
 
 ```bash
 uv run python scripts/build_qwen38_offline_requests.py \

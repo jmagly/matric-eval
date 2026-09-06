@@ -188,6 +188,9 @@ def build_inputs(args: argparse.Namespace) -> dict[str, Any]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir.chmod(0o750)
     artifacts: dict[str, Any] = {}
+    combined_request_rows: list[dict[str, Any]] = []
+    combined_scoring_rows: list[dict[str, Any]] = []
+    combined_parsed_requests: list[StudyBatchRequest] = []
     for allocation in offline_allocations:
         selected = _selected_ids(manifest, allocation.id)
         available = sample_maps[allocation.id]
@@ -217,6 +220,9 @@ def build_inputs(args: argparse.Namespace) -> dict[str, Any]:
                 }
             )
         validate_batch_contract(study, manifest, parsed_requests)
+        combined_request_rows.extend(request_rows)
+        combined_scoring_rows.extend(scoring_rows)
+        combined_parsed_requests.extend(parsed_requests)
         request_path = args.output_dir / f"{allocation.id}-requests.jsonl"
         scoring_path = args.output_dir / f"{allocation.id}-scoring.jsonl"
         artifacts[allocation.id] = {
@@ -226,11 +232,21 @@ def build_inputs(args: argparse.Namespace) -> dict[str, Any]:
             "scoring": str(scoring_path),
             "scoring_sha256": _write_jsonl(scoring_path, scoring_rows),
         }
+    validate_batch_contract(study, manifest, combined_parsed_requests)
+    combined_request_path = args.output_dir / "offline-requests.jsonl"
+    combined_scoring_path = args.output_dir / "offline-scoring.jsonl"
     return {
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "manifest_sha256": manifest.get("manifest_sha256"),
         "cohort": manifest.get("cohort"),
+        "combined": {
+            "samples": len(combined_request_rows),
+            "requests": str(combined_request_path),
+            "requests_sha256": _write_jsonl(combined_request_path, combined_request_rows),
+            "scoring": str(combined_scoring_path),
+            "scoring_sha256": _write_jsonl(combined_scoring_path, combined_scoring_rows),
+        },
         "artifacts": artifacts,
     }
 
