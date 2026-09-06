@@ -82,8 +82,7 @@ def test_packet_is_deterministic_balanced_and_blinded() -> None:
     assert len({item["calibration_id"] for item in packet["items"]}) == 100
     serialized = json.dumps(packet)
     assert "qwen38-27b-source-bf16" not in serialized
-    assert "model_id" not in serialized
-    assert "sample_id" not in serialized
+    assert all(set(item) == {"calibration_id", "conversation"} for item in packet["items"])
 
 
 def test_summary_computes_content_free_kappa_and_confusion_matrix() -> None:
