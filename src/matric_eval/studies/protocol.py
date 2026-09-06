@@ -353,6 +353,20 @@ class StudyProtocol:
             )
         if execution.get("agentic_request_concurrency") != 1:
             raise ValueError("study.execution.agentic_request_concurrency must be 1")
+        version = server.get("version")
+        if not isinstance(version, str) or not version.strip():
+            raise ValueError("study.execution.model_server.version must be pinned")
+        if server.get("tensor_parallel_size") != 1:
+            raise ValueError("study.execution.model_server.tensor_parallel_size must be 1")
+        gpu_memory_utilization = server.get("gpu_memory_utilization")
+        if (
+            isinstance(gpu_memory_utilization, bool)
+            or not isinstance(gpu_memory_utilization, (int, float))
+            or not 0.5 <= gpu_memory_utilization < 1
+        ):
+            raise ValueError(
+                "study.execution.model_server.gpu_memory_utilization must be in [0.5, 1.0)"
+            )
         image = server.get("image")
         if not isinstance(image, str) or not re.search(r"@sha256:[0-9a-f]{64}$", image):
             raise ValueError("study.execution.model_server.image must use an immutable digest")

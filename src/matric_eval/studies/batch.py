@@ -591,6 +591,7 @@ def run_offline_batch(
         dtype=model.runtime.dtype,
         max_model_len=model.runtime.context_limit,
         tensor_parallel_size=server["tensor_parallel_size"],
+        gpu_memory_utilization=server["gpu_memory_utilization"],
         trust_remote_code=False,
         enable_prefix_caching=False,
     )

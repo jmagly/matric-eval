@@ -251,6 +251,14 @@ def test_rejects_primary_runtime_drift(protocol_data: dict) -> None:
         StudyProtocol.from_dict(changed)
 
 
+def test_rejects_unpinned_gpu_memory_utilization(protocol_data: dict) -> None:
+    changed = copy.deepcopy(protocol_data)
+    del changed["study"]["execution"]["model_server"]["gpu_memory_utilization"]
+
+    with pytest.raises(ValueError, match="gpu_memory_utilization"):
+        StudyProtocol.from_dict(changed)
+
+
 def test_rejects_missing_behavior_axis(protocol_data: dict) -> None:
     changed = copy.deepcopy(protocol_data)
     for allocation in changed["study"]["benchmarks"]:
@@ -530,6 +538,12 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
             assert len({item["seed"] for item in params}) == len(expected)
             return [FakeResult() for _ in prompts]
 
+    engine_kwargs: dict[str, object] = {}
+
+    def fake_engine_factory(**kwargs: object) -> FakeEngine:
+        engine_kwargs.update(kwargs)
+        return FakeEngine()
+
     monkeypatch.setattr(batch_module.platform, "node", lambda: "basilisk")
     summary = run_offline_batch(
         protocol_path=protocol_path,
@@ -543,7 +557,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
         output_path=output_path,
         tokenizer_factory=lambda *args, **kwargs: FakeTokenizer(),
         sampling_factory=lambda **kwargs: kwargs,
-        engine_factory=lambda **kwargs: FakeEngine(),
+        engine_factory=fake_engine_factory,
     )
 
     rows = [json.loads(line) for line in output_path.read_text().splitlines()]
@@ -553,4 +567,5 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["batch_invariant"] is True
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
+    assert engine_kwargs["gpu_memory_utilization"] == 0.9
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision

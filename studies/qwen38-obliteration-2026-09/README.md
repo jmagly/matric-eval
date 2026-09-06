@@ -80,7 +80,8 @@ run.
 ## Primary inference contract
 
 - BF16 weights and KV cache; one model per A100; no quantization.
-- vLLM 0.26.0 amd64 container digest pinned in the protocol.
+- vLLM 0.26.0 amd64 container digest, tensor parallelism 1, and GPU-memory
+  utilization 0.90 pinned in the protocol.
 - Offline batch inference with batch invariance enabled and V1 multiprocessing
   disabled. vLLM's online server is not used for the primary lane because request
   scheduling is not reproducible.
@@ -235,7 +236,7 @@ STUDY_GPU_UUID='GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0'
 
 sudo docker gpu run \
   --owner matric-eval-qwen38-source-xstest-safe \
-  --vram-mib 70000 \
+  --vram-mib 75000 \
   --ttl 300 \
   --gpu "$STUDY_GPU_UUID" \
   --ready-timeout 900 \
