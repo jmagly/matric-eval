@@ -17,6 +17,9 @@ changes. All executable verification was performed on the A100 evaluation host.
 - Video-MME-v2 advanced to its August 2026 snapshot. All 3,200 IDs, questions,
   answers, and columns are unchanged; 52 media URLs changed. Protocol identity
   therefore remains v2 while the exact retrieval snapshot changes.
+- GDPval advanced to its February 2026 v2 snapshot, which adds reference
+  deliverables, human-authored rubrics, repaired inputs, and rubric fields for all
+  220 tasks. The older maintained Inspect adapter is not used for this lane.
 - No other existing data-bearing pin required advancement.
 
 The pre-change A100 live audit covered 42 registered benchmarks with zero warnings
@@ -36,6 +39,7 @@ and 1 unavailable. Its retained artifact is
 | SWE-bench Verified | `91aa3ed51b709be6457e12d00300a6a596d4c6a3` | `78f471bf655a3137b2e8a75af1501690ec009ec3` | 500 IDs retained; v5 image/eval metadata added; 2 normalized test lists changed |
 | SWE-bench Multilingual | `e5c585e008e2cb5eecc7c64192d855c53279d788` | `846e647b9f33c0b51b739d005d13d85493c9af09` | 300 IDs retained; v5 image/eval metadata added; 1 normalized test list changed |
 | Video-MME-v2 | `31ca5db7bc5ccfc3033a1075efc7858e783c6203` | `6e4bebb03202e1ddbf3d37703e560e51c5aa2d64` | 3,200 IDs and answers retained; 52 URL-only repairs |
+| GDPval | `a3848a2a812d5d4d0f08003fac3c8eac40805962` | `11e7900cdcac61bc4daf59e65feb238acda98fbf` | 220 IDs retained; v2 deliverables, rubrics, and repaired reference inputs added |
 
 SWE-bench results produced before and after this refresh must not be pooled without
 the exact dataset and evaluator revisions. Video-MME results remain protocol-v2
@@ -72,7 +76,7 @@ controls with their registered Plus/Pro successors evaluated separately.
 | --- | --- | --- | --- |
 | BrowseComp | Inspect Evals `3-B`; dataset SHA-256 `7b24471c…1454abf` | Hard web discovery and synthesis with auditable single answers | Networked browser/search and judge model |
 | Humanity's Last Exam | Inspect Evals `5-C`; `cais/hle@5a81a4c…4c29` | Broad frontier knowledge/reasoning, including multimodal items | Accepted dataset terms, vision, two grader roles |
-| GDPval open set | Inspect Evals `2-A`; `openai/gdpval@a3848a2…05962` | Realistic professional deliverables across 44 occupations | Explicit expert or validated rubric scorer; exact match is rejected |
+| GDPval v2 open set | `openai/gdpval@11e7900…98fbf` | Realistic professional deliverables and human-authored rubrics across 44 occupations | Validated v2 rubric scorer; exact match is rejected |
 | ARC-AGI-3 public | Toolkit `0.9.9` at `f12822c…d2f`; 25-environment API snapshot hash `8b944e67…8b638` | Interactive exploration, planning, memory, and adaptation | Stateful visual-action adapter and official scorecards |
 | OSWorld 2.0 | Release `osworld-v2-2026.08.08` at `d578d2d…154` | Long-horizon computer use in realistic workflows | Matched gated assets, VM image, websites, and agent adapter |
 

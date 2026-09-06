@@ -7,8 +7,6 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from inspect_ai import Task, task
-from inspect_ai.scorer import Scorer
-from inspect_ai.solver import Solver, generate
 
 from matric_eval.tasks.registry import (
     BenchmarkStatus,
@@ -26,7 +24,7 @@ HLE_DATASET = "cais/hle"
 HLE_DATASET_REVISION = "5a81a4c7271a2a2a312b9a690f0c2fde837e4c29"
 
 GDPVAL_DATASET = "openai/gdpval"
-GDPVAL_DATASET_REVISION = "a3848a2a812d5d4d0f08003fac3c8eac40805962"
+GDPVAL_DATASET_REVISION = "11e7900cdcac61bc4daf59e65feb238acda98fbf"
 
 ARC_AGI_3_REPOSITORY = "arcprize/ARC-AGI"
 ARC_AGI_3_REVISION = "f12822c4d550121c35a275008d964afbbed47d2f"
@@ -161,29 +159,9 @@ def hle(tier: str = "smoke") -> Task:
     )
 
 
-def create_gdpval_task(
-    *, scorer: Scorer, tier: str = "smoke", solver: Solver | None = None
-) -> Task:
-    """Create GDPval only when an explicit deliverable scorer has been supplied."""
-    from inspect_evals.gdpval import gdpval as upstream_gdpval
-
-    upstream = upstream_gdpval(scorer=scorer, solver=solver or generate())
-    return adapt_upstream_task(
-        upstream,
-        benchmark="gdpval",
-        tier=tier,
-        task_name="gdpval",
-        protocol_metadata={
-            "protocol_version": "2-A",
-            "dataset_source": GDPVAL_DATASET,
-            "dataset_revision": GDPVAL_DATASET_REVISION,
-        },
-    )
-
-
 @register_benchmark(
     name="gdpval",
-    description="GDPval open set - 220 realistic professional knowledge-work tasks",
+    description="GDPval v2 open set - 220 professional tasks with deliverables and rubrics",
     category="agentic",
     tier_samples={"smoke": 5, "quick": 50, "full": 220},
     total_samples=220,
@@ -192,16 +170,16 @@ def create_gdpval_task(
     scoring_type="expert_or_validated_rubric_judge",
     provider_requirements=("docker", "deliverable-scorer"),
     status=BenchmarkStatus.GATED,
-    status_reason="A validated deliverable scorer must be selected explicitly; exact match is invalid.",
-    protocol_version="2-A",
+    status_reason="Requires a validated GDPval v2 rubric scorer; exact match is invalid.",
+    protocol_version="open-v2-rubrics-2026-02",
     dataset_source=GDPVAL_DATASET,
     dataset_revision=GDPVAL_DATASET_REVISION,
     dataset_configs=("default",),
     dataset_splits=("train",),
-    evaluator_source="UKGovernmentBEIS/inspect_evals",
-    evaluator_revision=INSPECT_EVALS_REVISION,
-    release_date="2025-09-25",
-    license="CC-BY-NC-4.0",
+    evaluator_source="openai/gdpval",
+    evaluator_revision=GDPVAL_DATASET_REVISION,
+    release_date="2026-02-10",
+    license="upstream dataset terms",
     access="public",
     source_kind="huggingface",
     release_policy="immutable",
@@ -210,9 +188,9 @@ def create_gdpval_task(
 def gdpval(tier: str = "smoke") -> Task:
     del tier
     raise BenchmarkUnavailableError(
-        "GDPval deliverables require an explicit expert or validated rubric scorer. "
-        "Use create_gdpval_task(scorer=...) so the upstream exact-match capture scorer "
-        "cannot be mistaken for a quality metric."
+        "GDPval v2 deliverables require a validated rubric scorer. The maintained "
+        "Inspect Evals 0.19.0 adapter still loads the pre-v2 dataset and uses exact match "
+        "only to capture outputs, so it is deliberately not exposed as a quality metric."
     )
 
 

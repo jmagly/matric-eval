@@ -47,7 +47,11 @@ def test_browsecomp_and_hle_metadata_pin_data_and_protocol() -> None:
 
 
 def test_gdpval_rejects_implicit_exact_match_scoring() -> None:
-    with pytest.raises(BenchmarkUnavailableError, match="explicit expert or validated rubric"):
+    assert gdpval._benchmark_metadata.dataset_revision == (
+        "11e7900cdcac61bc4daf59e65feb238acda98fbf"
+    )
+    assert gdpval._benchmark_metadata.protocol_version == "open-v2-rubrics-2026-02"
+    with pytest.raises(BenchmarkUnavailableError, match="validated rubric scorer"):
         gdpval()
 
 
