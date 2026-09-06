@@ -443,6 +443,35 @@ def capture_active_gpu_lease(
         sleep(0.25)
 
 
+def signal_model_resident(model_id: str) -> Path:
+    """Create a token-specific readiness marker for the host GPU lease broker."""
+    token = os.environ.get("OLLAMA_UNIFY_GPU_LEASE", "")
+    if not token or any(not (character.isalnum() or character in "-_") for character in token):
+        raise RuntimeError("OLLAMA_UNIFY_GPU_LEASE is missing or unsafe for a readiness marker")
+    raw_base = os.environ.get("MATRIC_EVAL_MODEL_READY_BASE", "")
+    base = Path(raw_base)
+    if not raw_base or not base.is_absolute():
+        raise RuntimeError("MATRIC_EVAL_MODEL_READY_BASE must be an absolute path")
+    marker = base.with_name(f"{base.name}.{token}.ready")
+    if marker.exists():
+        raise ValueError(f"refusing stale model readiness marker: {marker}")
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1",
+        "model_id": model_id,
+        "lease_token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "created_at_unix": time.time(),
+        "pid": os.getpid(),
+    }
+    with marker.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    marker.chmod(0o600)
+    return marker
+
+
 def run_offline_batch(
     *,
     protocol_path: str | Path,
@@ -552,7 +581,11 @@ def run_offline_batch(
         enable_prefix_caching=False,
     )
     if production_runtime:
-        lease_sha256 = capture_active_gpu_lease(lease_receipt)
+        ready_marker = signal_model_resident(model.id)
+        try:
+            lease_sha256 = capture_active_gpu_lease(lease_receipt)
+        finally:
+            ready_marker.unlink(missing_ok=True)
 
     started = time.time()
     generated = engine.generate(prompts, sampling_params, use_tqdm=True)

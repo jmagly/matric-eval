@@ -175,6 +175,25 @@ def test_active_gpu_lease_rejects_visible_device_mismatch(
         )
 
 
+def test_model_resident_marker_is_token_specific(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "lease-test_123"
+    base = tmp_path / "source-xstest-safe"
+    monkeypatch.setenv("OLLAMA_UNIFY_GPU_LEASE", token)
+    monkeypatch.setenv("MATRIC_EVAL_MODEL_READY_BASE", str(base))
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-test")
+
+    marker = batch_module.signal_model_resident("source")
+
+    assert marker == tmp_path / f"source-xstest-safe.{token}.ready"
+    payload = json.loads(marker.read_text(encoding="utf-8"))
+    assert payload["lease_token_sha256"] == hashlib.sha256(token.encode()).hexdigest()
+    assert payload["cuda_visible_devices"] == "GPU-test"
+    assert marker.stat().st_mode & 0o777 == 0o600
+
+
 def test_lean_runner_cli_forwards_locked_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
