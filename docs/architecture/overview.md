@@ -37,7 +37,7 @@ flowchart TD
 
 The normal `run` path resolves models, thinking modes, and benchmark selection before initializing state. Each evaluation target runs its benchmark tasks through the engine. Task factories choose datasets, solvers, and scorers; registered entries can be unavailable or gated, so registry presence alone does not prove that a benchmark is runnable. `list-benchmarks` and `audit-benchmarks` expose this distinction.
 
-The engine records framework and benchmark provenance. For its scalar benchmark score, it selects the first scorer's `accuracy` metric when available, then falls back to that scorer's first metric. Inspect logs retain the richer evaluation record. Recommendations are a separate `recommend` operation; normal evaluation does not automatically run additional custom tests on winners.
+The engine records framework and benchmark provenance. For its scalar benchmark score, it selects the first scorer's `accuracy` metric when available, then falls back to that scorer's first metric. Inspect logs retain the richer evaluation record. Recommendations are a separate `recommend` operation; normal evaluation does not automatically run additional custom tests on winners. Shared LLM judge scorers preserve failed or malformed grading as unscored observations, and pairwise judging reverses response order by default; see [LLM judge controls](../research/llm-judge-controls.md).
 
 ## Providers and model identity
 
