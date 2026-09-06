@@ -196,10 +196,12 @@ uv run matric-eval run-study-offline-batch \
   --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot.jsonl
 ```
 
-The runner refuses an unqualified artifact, a mismatched template, an out-of-order
-request set, a non-A100 hostname, or an existing output path. It records each derived
-seed and prompt hash next to the completion and hashes the lease and model
-qualification evidence.
+Each invocation may contain one allocation or multiple complete allocation blocks in
+protocol order. This supports benchmark-specific scoring and MT-Bench's dependent
+second turn without weakening cohort identity: partial allocation samples are refused.
+The runner also refuses an unqualified artifact, a mismatched template, a non-A100
+hostname, or an existing output path. It records each derived seed and prompt hash
+next to the completion and hashes the lease and model qualification evidence.
 
 ## Primary sources
 

@@ -120,6 +120,22 @@ def validate_batch_contract(
     if cohort not in {"pilot", "full"}:
         raise ValueError("manifest cohort must be pilot or full")
     allocation_specs = {allocation.id: allocation for allocation in study.benchmarks}
+    requested_allocation_ids = list(
+        dict.fromkeys(request.allocation_id for request in requests)
+    )
+    if any(
+        allocation_id not in modes or modes[allocation_id] != "offline-batch"
+        for allocation_id in requested_allocation_ids
+    ):
+        raise ValueError("requests may contain only protocol-qualified offline-batch allocations")
+    expected_requested_order = [
+        allocation.id
+        for allocation in study.benchmarks
+        if allocation.id in requested_allocation_ids
+    ]
+    if requested_allocation_ids != expected_requested_order:
+        raise ValueError("request allocation blocks must follow protocol order")
+
     expected: list[tuple[str, str]] = []
     for manifest_allocation in allocations:
         if not isinstance(manifest_allocation, dict):
@@ -144,13 +160,13 @@ def validate_batch_contract(
         expected_ids_sha256 = hashlib.sha256("\n".join(selected_ids).encode()).hexdigest()
         if manifest_allocation.get("ordered_ids_sha256") != expected_ids_sha256:
             raise ValueError(f"manifest allocation {allocation_id} ordered ID hash mismatch")
-        if modes[allocation_id] == "offline-batch":
+        if allocation_id in requested_allocation_ids:
             expected.extend((allocation_id, sample_id) for sample_id in selected_ids)
 
     actual = [(request.allocation_id, request.sample_id) for request in requests]
     if actual != expected:
         raise ValueError(
-            "request order/content must exactly match the manifest's offline-batch subset"
+            "request order/content must exactly match each requested manifest allocation"
         )
 
 
@@ -467,6 +483,7 @@ def run_offline_batch(
         "study_id": study.id,
         "model_id": model.id,
         "requests": len(requests),
+        "allocations": list(dict.fromkeys(request.allocation_id for request in requests)),
         "elapsed_seconds": elapsed_seconds,
         "output": str(output),
         "output_sha256": _sha256_file(output),

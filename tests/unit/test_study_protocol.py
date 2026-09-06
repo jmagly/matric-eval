@@ -13,7 +13,7 @@ from click.testing import CliRunner
 
 import matric_eval.studies.batch as batch_module
 from matric_eval.cli import cli
-from matric_eval.studies import StudyProtocol, run_offline_batch
+from matric_eval.studies import StudyBatchRequest, StudyProtocol, run_offline_batch
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -154,6 +154,29 @@ def test_batch_contract_rejects_tampered_manifest() -> None:
 
     with pytest.raises(ValueError, match="manifest_sha256"):
         batch_module.validate_batch_contract(study, manifest, [])
+
+
+def test_batch_contract_accepts_one_complete_allocation() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    catalog = {
+        allocation.id: [
+            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
+        ]
+        for allocation in study.benchmarks
+    }
+    manifest = study.selection_manifest(catalog, "pilot")
+    selected = manifest["allocations"][0]["selected_ids"]
+    requests = [
+        StudyBatchRequest(
+            request_id=f"request-{index}",
+            allocation_id="xstest-safe",
+            sample_id=sample_id,
+            messages=({"role": "user", "content": "prompt"},),
+        )
+        for index, sample_id in enumerate(selected)
+    ]
+
+    batch_module.validate_batch_contract(study, manifest, requests)
 
 
 def test_rejects_duplicate_canonical_ids() -> None:
