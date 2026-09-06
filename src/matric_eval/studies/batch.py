@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
@@ -334,6 +335,28 @@ def _sampling_kwargs(model: ModelSpec, seed: int) -> dict[str, Any]:
     return result
 
 
+def verify_runtime_environment(
+    server: dict[str, Any],
+    *,
+    container_marker: Path = Path("/.dockerenv"),
+) -> dict[str, str]:
+    """Verify that production inference is executing in the protocol-pinned image."""
+    if not container_marker.exists():
+        raise RuntimeError("production offline execution must run inside the pinned container")
+    declared_runtime_image = os.environ.get("MATRIC_EVAL_RUNTIME_IMAGE")
+    if declared_runtime_image != server["image"]:
+        raise RuntimeError("MATRIC_EVAL_RUNTIME_IMAGE must equal the protocol-pinned image digest")
+    versions = {
+        "vllm": importlib.metadata.version("vllm"),
+        "transformers": importlib.metadata.version("transformers"),
+    }
+    if versions["vllm"] != str(server["version"]):
+        raise RuntimeError(
+            f"runtime vLLM {versions['vllm']} does not match protocol {server['version']}"
+        )
+    return versions
+
+
 def run_offline_batch(
     *,
     protocol_path: str | Path,
@@ -350,7 +373,10 @@ def run_offline_batch(
     sampling_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Execute one model's exact ordered offline cohort and retain JSONL evidence."""
-    study = StudyProtocol.from_yaml(protocol_path)
+    # Selection manifests are created only after full registry validation. The lean
+    # runtime image therefore revalidates every protocol invariant and manifest hash
+    # without importing the benchmark execution stack, which is not used here.
+    study = StudyProtocol.from_yaml(protocol_path, validate_registry=False)
     model = _model_for_id(study, model_id)
     manifest = _load_json_object(manifest_path, "study manifest")
     requests = load_batch_requests(requests_path)
@@ -380,6 +406,17 @@ def run_offline_batch(
         raise ValueError(
             f"offline study batches require host {expected_hostname}, found {platform.node()}"
         )
+
+    execution = study.raw["study"]["execution"]
+    server = execution["model_server"]
+    production_runtime = (
+        engine_factory is None or tokenizer_factory is None or sampling_factory is None
+    )
+    runtime_versions: dict[str, str]
+    if production_runtime:
+        runtime_versions = verify_runtime_environment(server)
+    else:
+        runtime_versions = {"vllm": "injected-test-double", "transformers": "injected-test-double"}
 
     os.environ["VLLM_BATCH_INVARIANT"] = "1"
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
@@ -415,8 +452,6 @@ def run_offline_batch(
         )
         for request in requests
     ]
-    execution = study.raw["study"]["execution"]
-    server = execution["model_server"]
     engine = engine_factory(
         model=str(model_directory),
         dtype=model.runtime.dtype,
@@ -465,6 +500,8 @@ def run_offline_batch(
                 "runtime": {
                     "engine": "vllm",
                     "image": server["image"],
+                    "versions": runtime_versions,
+                    "vllm_build_commit": os.environ.get("VLLM_BUILD_COMMIT"),
                     "batch_invariant": True,
                     "v1_multiprocessing": False,
                     "chat_template_sha256": template_sha256,

@@ -129,6 +129,7 @@ class StudyProtocol:
         data: dict[str, Any],
         *,
         source_sha256: str | None = None,
+        validate_registry: bool = True,
     ) -> StudyProtocol:
         root = data.get("study")
         if not isinstance(root, dict):
@@ -204,7 +205,8 @@ class StudyProtocol:
         if axes != _AXES:
             missing = ", ".join(sorted(_AXES - axes))
             raise ValueError(f"study must measure every required axis; missing: {missing}")
-        cls._validate_registry(benchmarks)
+        if validate_registry:
+            cls._validate_registry(benchmarks)
 
         cls._validate_analysis(root)
         cls._validate_reporting(root)
@@ -399,13 +401,22 @@ class StudyProtocol:
         )
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> StudyProtocol:
+    def from_yaml(
+        cls,
+        path: str | Path,
+        *,
+        validate_registry: bool = True,
+    ) -> StudyProtocol:
         protocol_path = Path(path)
         payload = protocol_path.read_bytes()
         data = yaml.safe_load(payload)
         if not isinstance(data, dict):
             raise ValueError("study protocol YAML must contain an object")
-        return cls.from_dict(data, source_sha256=hashlib.sha256(payload).hexdigest())
+        return cls.from_dict(
+            data,
+            source_sha256=hashlib.sha256(payload).hexdigest(),
+            validate_registry=validate_registry,
+        )
 
     @property
     def canonical_sha256(self) -> str:

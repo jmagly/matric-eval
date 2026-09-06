@@ -12,6 +12,7 @@ import yaml
 from click.testing import CliRunner
 
 import matric_eval.studies.batch as batch_module
+import matric_eval.studies.runner_cli as runner_cli
 from matric_eval.cli import cli
 from matric_eval.studies import StudyBatchRequest, StudyProtocol, run_offline_batch
 
@@ -66,6 +67,84 @@ def test_rejects_allocation_total_drift(protocol_data: dict) -> None:
 
     with pytest.raises(ValueError, match="pilot allocations"):
         StudyProtocol.from_dict(changed)
+
+
+def test_runtime_protocol_can_skip_only_registry_import(
+    protocol_data: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_called(benchmarks: object) -> None:
+        raise RuntimeError("registry imported")
+
+    monkeypatch.setattr(StudyProtocol, "_validate_registry", fail_if_called)
+
+    study = StudyProtocol.from_dict(protocol_data, validate_registry=False)
+
+    assert study.id == "qwen38-obliteration-2026-09"
+    with pytest.raises(RuntimeError, match="registry imported"):
+        StudyProtocol.from_dict(protocol_data)
+
+
+def test_runtime_environment_requires_pinned_container_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / ".dockerenv"
+    marker.touch()
+    server = {"image": "example@sha256:" + "a" * 64, "version": "0.26.0"}
+    monkeypatch.setenv("MATRIC_EVAL_RUNTIME_IMAGE", "wrong")
+
+    with pytest.raises(RuntimeError, match="protocol-pinned image"):
+        batch_module.verify_runtime_environment(server, container_marker=marker)
+
+    monkeypatch.setenv("MATRIC_EVAL_RUNTIME_IMAGE", str(server["image"]))
+    monkeypatch.setattr(
+        batch_module.importlib.metadata,
+        "version",
+        lambda package: "0.26.0" if package == "vllm" else "5.14.1",
+    )
+
+    assert batch_module.verify_runtime_environment(server, container_marker=marker) == {
+        "vllm": "0.26.0",
+        "transformers": "5.14.1",
+    }
+
+
+def test_lean_runner_cli_forwards_locked_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"requests": 5, "output_sha256": "a" * 64}
+
+    monkeypatch.setattr(runner_cli, "run_offline_batch", fake_run)
+    paths = [tmp_path / name for name in ("protocol", "manifest", "requests")]
+    result = runner_cli.main(
+        [
+            *(str(path) for path in paths),
+            "--model-id",
+            "model",
+            "--model-path",
+            str(tmp_path / "model"),
+            "--model-qualification",
+            str(tmp_path / "qualification"),
+            "--chat-template",
+            str(tmp_path / "template"),
+            "--gpu-lease-receipt",
+            str(tmp_path / "lease"),
+            "--output",
+            str(tmp_path / "output"),
+        ]
+    )
+
+    assert result == 0
+    assert captured["protocol_path"] == paths[0]
+    assert captured["output_path"] == tmp_path / "output"
+    assert json.loads(capsys.readouterr().out)["requests"] == 5
 
 
 def test_rejects_model_seed_drift(protocol_data: dict) -> None:
@@ -362,4 +441,5 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert len(rows) == 80
     assert rows[0]["generation_seed"] == study.generation_seed(*expected[0])
     assert rows[0]["runtime"]["batch_invariant"] is True
+    assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision
