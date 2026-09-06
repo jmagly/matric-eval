@@ -13,7 +13,7 @@ import hashlib
 import io
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import httpx
 from inspect_ai import Task, task
@@ -160,7 +160,10 @@ def load_xstest(
         if record["label"] == subset
     ]
     benchmark = f"xstest_{subset}"
-    return stratified_sample(samples, get_sample_count(benchmark, tier), get_seed())
+    return cast(
+        list[Sample],
+        stratified_sample(samples, get_sample_count(benchmark, tier), get_seed()),
+    )
 
 
 def load_or_bench_hard(tier: str = "smoke") -> list[Sample]:
@@ -187,10 +190,13 @@ def load_or_bench_hard(tier: str = "smoke") -> list[Sample]:
         )
         for record in records
     ]
-    return stratified_sample(
-        samples,
-        get_sample_count("or_bench_hard", tier),
-        get_seed(),
+    return cast(
+        list[Sample],
+        stratified_sample(
+            samples,
+            get_sample_count("or_bench_hard", tier),
+            get_seed(),
+        ),
     )
 
 
@@ -218,7 +224,10 @@ def load_strongreject(tier: str = "smoke") -> list[Sample]:
         )
         for record in records
     ]
-    return stratified_sample(samples, get_sample_count("strongreject", tier), get_seed())
+    return cast(
+        list[Sample],
+        stratified_sample(samples, get_sample_count("strongreject", tier), get_seed()),
+    )
 
 
 def classify_refusal_prefix(completion: str) -> str:

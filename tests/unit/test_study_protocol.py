@@ -125,3 +125,35 @@ def test_rejects_duplicate_canonical_ids() -> None:
 
     with pytest.raises(ValueError, match="duplicate canonical IDs"):
         study.select_ids("xstest-safe", ["same"] * 100, "pilot")
+
+
+def test_build_study_manifest_cli(tmp_path: Path) -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    catalog = {
+        allocation.id: [
+            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
+        ]
+        for allocation in study.benchmarks
+    }
+    catalog_path = tmp_path / "catalog.json"
+    output_path = tmp_path / "pilot-manifest.json"
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "build-study-manifest",
+            str(PROTOCOL),
+            str(catalog_path),
+            "--cohort",
+            "pilot",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    manifest = json.loads(output_path.read_text(encoding="utf-8"))
+    assert manifest["manifest_sha256"] == result.output.strip()
+    assert sum(len(item["selected_ids"]) for item in manifest["allocations"]) == 100

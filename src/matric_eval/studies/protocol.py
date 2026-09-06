@@ -184,6 +184,8 @@ class StudyProtocol:
         cls._validate_analysis(root)
         cls._validate_reporting(root)
         cls._validate_execution(root)
+        cls._validate_primary_comparison(root, models)
+        cls._validate_judging(root)
 
         return cls(
             id=_required_string(root, "id", "study"),
@@ -276,8 +278,9 @@ class StudyProtocol:
             )
         if analysis.get("multiple_comparison_correction") != "holm":
             raise ValueError("study.analysis.multiple_comparison_correction must be holm")
-        if analysis.get("capability_noninferiority_margin_pp") is None:
-            raise ValueError("study.analysis must declare a capability non-inferiority margin")
+        margin = analysis.get("capability_noninferiority_margin_pp")
+        if isinstance(margin, bool) or not isinstance(margin, (int, float)) or margin >= 0:
+            raise ValueError("capability non-inferiority margin must be a negative number")
 
     @staticmethod
     def _validate_reporting(root: dict[str, Any]) -> None:
@@ -303,6 +306,63 @@ class StudyProtocol:
             raise ValueError("study requires NVIDIA A100 80GB PCIe GPUs")
         if execution.get("exclusive_gpu_lease_required") is not True:
             raise ValueError("study execution requires an exclusive GPU lease")
+        server = execution.get("model_server")
+        if not isinstance(server, dict) or server.get("engine") != "vllm":
+            raise ValueError("study.execution.model_server must pin vllm")
+        required_server_controls = {
+            "online_serving_allowed": False,
+            "offline_batch_inference_required": True,
+            "batch_invariance": True,
+            "v1_multiprocessing": False,
+            "speculative_decoding": False,
+        }
+        for key, expected in required_server_controls.items():
+            if server.get(key) is not expected:
+                raise ValueError(f"study.execution.model_server.{key} must be {expected}")
+        image = server.get("image")
+        if not isinstance(image, str) or not re.search(r"@sha256:[0-9a-f]{64}$", image):
+            raise ValueError("study.execution.model_server.image must use an immutable digest")
+
+    @staticmethod
+    def _validate_primary_comparison(
+        root: dict[str, Any],
+        models: tuple[ModelSpec, ...],
+    ) -> None:
+        comparison = root.get("primary_comparison")
+        if not isinstance(comparison, dict) or comparison.get("modality") != "text-only":
+            raise ValueError("study.primary_comparison.modality must be text-only")
+        template = comparison.get("common_chat_template")
+        if not isinstance(template, dict) or template.get("force_server_override") is not True:
+            raise ValueError("primary comparison must force the common chat template")
+        template_hash = template.get("sha256")
+        if not isinstance(template_hash, str) or not _SHA256_RE.fullmatch(template_hash):
+            raise ValueError("primary common chat template must have a SHA-256 digest")
+        runtime_hashes = {model.runtime.chat_template_sha256 for model in models}
+        if runtime_hashes != {template_hash.removeprefix("sha256:")}:
+            raise ValueError("primary common chat template hash must match every model runtime")
+
+    @staticmethod
+    def _validate_judging(root: dict[str, Any]) -> None:
+        judging = root.get("judging")
+        if not isinstance(judging, dict):
+            raise ValueError("study.judging must be an object")
+        required = {
+            "blinded_model_labels": True,
+            "order_randomized": True,
+            "target_models_may_not_judge": True,
+            "disagreement_policy": "adjudicate-all",
+        }
+        for key, expected in required.items():
+            if judging.get(key) != expected:
+                raise ValueError(f"study.judging.{key} must be {expected!r}")
+        primary = _required_string(judging, "primary_judge", "study.judging")
+        adjudicator = _required_string(judging, "adjudicator", "study.judging")
+        if primary == adjudicator:
+            raise ValueError("primary judge and adjudicator must be distinct")
+        calibration = judging.get("calibration")
+        if not isinstance(calibration, dict):
+            raise ValueError("study.judging.calibration must be an object")
+        _required_positive_int(calibration, "human_double_labeled_items", "study.judging.calibration")
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> StudyProtocol:
