@@ -1,0 +1,21 @@
+{
+  "data-root": "/srv/obliteratus/matric-eval/docker/data",
+  "exec-root": "/run/matric-eval-docker",
+  "bridge": "none",
+  "iptables": true,
+  "ip-forward": true,
+  "ip-masq": true,
+  "default-address-pools": [
+    {
+      "base": "10.241.0.0/16",
+      "size": 24
+    }
+  ],
+  "containerd": "/run/matric-eval-containerd/containerd.sock",
+  "runtimes": {
+    "nvidia": {
+      "args": [],
+      "path": "nvidia-container-runtime"
+    }
+  }
+}

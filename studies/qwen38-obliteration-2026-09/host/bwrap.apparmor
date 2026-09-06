@@ -1,0 +1,11 @@
+# Permit bubblewrap to create the user namespace used by tau2's banking sandbox
+# without disabling Ubuntu's host-wide unprivileged-user-namespace restriction.
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+
+  include if exists <local/bwrap>
+}
