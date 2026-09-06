@@ -80,13 +80,17 @@ run.
 - Common upstream Qwen template, reasoning enabled, 32,768-token context, and no
   system prompt except where an official benchmark protocol requires one.
 - Temperature 1.0, top-p 0.95, top-k 20, min-p 0, presence penalty 0, repetition
-  penalty 1, maximum 8,192 generated tokens, and per-request seed `1790783388`.
+  penalty 1, and maximum 8,192 generated tokens. Each sample gets a deterministic
+  uint32 seed from `SHA256("{seed}\\0{allocation_id}\\0{canonical_sample_id}")`;
+  that derived seed is reused 1:1 across all three models.
 - The ordered request batches are identical. Model order and GPU assignment use a
   randomized crossover so host drift is not confounded with checkpoint identity.
 
-Official agent runners may impose their own step or environment controls. Those
-controls must be pinned once and applied identically to all three models. Direct and
-agent-harness results are separate lanes.
+Official agent runners require an online endpoint and may impose their own step or
+environment controls. Online serving is therefore limited to those lanes, requests
+are serialized to reduce scheduling variance, and the residual reproducibility
+limitation is disclosed. Their controls must be pinned once and applied identically
+to all three models. Direct offline-batch and agent-harness results remain separate.
 
 ## A100 gates and expected timing
 
@@ -167,6 +171,35 @@ uv run matric-eval build-study-manifest \
 
 Repeat with `--cohort full`; validation must show every allocation's pilot IDs are the
 ordered prefix of its full IDs.
+
+For each model, materialize the manifest's offline allocations as ordered JSONL with
+`request_id`, `allocation_id`, `sample_id`, and OpenAI-style `messages`. After an
+artifact qualification manifest has recorded and verified every indexed tensor and
+required support-file SHA-256, execute the locked batch on the leased A100:
+
+```bash
+uv run matric-eval qualify-study-model \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json
+
+uv run matric-eval run-study-offline-batch \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-requests.jsonl \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --model-qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
+  --chat-template /srv/matric-eval/results/qwen38-obliteration-2026-09/chat_template.jinja \
+  --gpu-lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/gpu-lease.json \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot.jsonl
+```
+
+The runner refuses an unqualified artifact, a mismatched template, an out-of-order
+request set, a non-A100 hostname, or an existing output path. It records each derived
+seed and prompt hash next to the completion and hashes the lease and model
+qualification evidence.
 
 ## Primary sources
 

@@ -40,6 +40,7 @@ class ExecutionMode(str, Enum):
     """Whether a model is measured directly or through an agent harness."""
 
     DIRECT_ENDPOINT = "direct-endpoint"
+    OFFLINE_BATCH = "offline-batch"
     AGENT_HARNESS = "agent-harness"
 
 

@@ -16,6 +16,10 @@ study:
     pilot_nested_in_full: true
     ordered_manifest_required: true
     ordering: ascending-sha256
+  generation_seed:
+    algorithm: sha256-uint32-v1
+    key_format: "{seed}\\0{allocation_id}\\0{canonical_sample_id}"
+    shared_across_models: true
 
   models:
     - id: qwen38-27b-source-bf16
@@ -27,7 +31,7 @@ study:
       comparison_group: qwen38-obliteration-2026-09
       provider: vllm
       runtime: &primary_runtime
-        execution_mode: direct-endpoint
+        execution_mode: offline-batch
         dtype: bfloat16
         chat_template_sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
         reasoning_mode: "on"
@@ -117,7 +121,7 @@ study:
       dataset_sha256: 11783fb294ed017473ee53c207d71f2161c7672c8d0b037501e78387f801cb5a
       subset: safe
       scoring_protocol: xstest-three-way-v1+dual-judge-adjudication
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 10
       full_samples: 100
       available_samples: 250
@@ -131,7 +135,7 @@ study:
       dataset_sha256: 11783fb294ed017473ee53c207d71f2161c7672c8d0b037501e78387f801cb5a
       subset: contrast_unsafe
       scoring_protocol: xstest-three-way-v1+dual-judge-adjudication
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 5
       full_samples: 100
       available_samples: 200
@@ -145,7 +149,7 @@ study:
       dataset_sha256: a6e2f1166416efe5901f3bb05c47dc92ab3aca3acfe143693d38b8057d841e6d
       subset: hard-benign
       scoring_protocol: or-bench-three-class-v1+dual-judge-adjudication
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 10
       full_samples: 150
       available_samples: 1319
@@ -159,7 +163,7 @@ study:
       dataset_sha256: 4dd70357e4ff8b5d0ba5ebafecab5d6dd5633ce8046e3dd1c8bd93e64de44381
       subset: full
       scoring_protocol: strongreject-rubric-v1+dual-judge-adjudication
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 15
       full_samples: 100
       available_samples: 313
@@ -170,7 +174,7 @@ study:
       dataset_source: google/IFEval
       dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
       scoring_protocol: IFEval-541
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 10
       full_samples: 125
       available_samples: 541
@@ -181,7 +185,7 @@ study:
       dataset_source: TIGER-Lab/MMLU-Pro
       dataset_revision: 527feea0afed1de15a8c115abf7be4c912123315
       scoring_protocol: MMLU-Pro-2-A-category-stratified
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 15
       full_samples: 200
       available_samples: 12032
@@ -192,7 +196,7 @@ study:
       dataset_source: livecodebench/code_generation_lite
       dataset_revision: 0fe84c3912ea0c4d4a78037083943e8f0c4dd505
       scoring_protocol: release_v6-official-execution
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 10
       full_samples: 125
       available_samples: 1055
@@ -203,7 +207,7 @@ study:
       dataset_source: lm-sys/FastChat
       dataset_revision: 587d5cfa1609a43d192cedb8441cac3c17db105d
       scoring_protocol: MT-Bench-v1-paired-blinded-judge
-      execution_mode: direct-endpoint
+      execution_mode: offline-batch
       pilot_samples: 5
       full_samples: 50
       available_samples: 80
@@ -281,12 +285,13 @@ study:
       engine: vllm
       version: 0.26.0
       image: vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b
-      online_serving_allowed: false
       offline_batch_inference_required: true
+      online_serving_scope: official-agent-runners-only
       batch_invariance: true
       v1_multiprocessing: false
       tensor_parallel_size: 1
       speculative_decoding: false
+    agentic_request_concurrency: 1
     model_assignment: randomized-crossover-across-three-a100s
     cache_policy: stage-one-model-at-a-time-and-reuse-qualified-local-checkpoints
     model_cache_root: /srv/obliteratus/matric-eval/cache/huggingface

@@ -1322,6 +1322,96 @@ def build_study_manifest(
     click.echo(manifest["manifest_sha256"])
 
 
+@cli.command("qualify-study-model")
+@click.argument("protocol", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--model-id", required=True, help="Qualified model ID from the study protocol.")
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    required=True,
+    help="Local model snapshot directory to hash and qualify.",
+)
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), required=True)
+def qualify_study_model(
+    protocol: Path,
+    model_id: str,
+    model_path: Path,
+    output: Path,
+) -> None:
+    """Hash all indexed model artifacts and write a qualification manifest."""
+    from matric_eval.studies import StudyProtocol, build_model_qualification
+
+    try:
+        study = StudyProtocol.from_yaml(protocol)
+        qualification = build_model_qualification(study, model_id, model_path)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(qualification, indent=2) + "\n", encoding="utf-8")
+    click.echo(qualification["qualification_sha256"])
+
+
+@cli.command("run-study-offline-batch")
+@click.argument("protocol", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("manifest", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("requests", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--model-id", required=True, help="Qualified model ID from the study protocol.")
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    required=True,
+    help="Local qualified model snapshot directory.",
+)
+@click.option(
+    "--model-qualification",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="JSON manifest of the exact local model artifacts and their SHA-256 values.",
+)
+@click.option(
+    "--chat-template",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Common chat template pinned by the study protocol.",
+)
+@click.option(
+    "--gpu-lease-receipt",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="GPU broker lease receipt retained with the run evidence.",
+)
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), required=True)
+def run_study_offline_batch(
+    protocol: Path,
+    manifest: Path,
+    requests: Path,
+    model_id: str,
+    model_path: Path,
+    model_qualification: Path,
+    chat_template: Path,
+    gpu_lease_receipt: Path,
+    output: Path,
+) -> None:
+    """Run one manifest-locked model cohort through offline batch-invariant vLLM."""
+    from matric_eval.studies import run_offline_batch
+
+    try:
+        summary = run_offline_batch(
+            protocol_path=protocol,
+            manifest_path=manifest,
+            requests_path=requests,
+            model_id=model_id,
+            model_path=model_path,
+            model_qualification_path=model_qualification,
+            chat_template_path=chat_template,
+            lease_receipt_path=gpu_lease_receipt,
+            output_path=output,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(summary, indent=2))
+
+
 @cli.command("recommend")
 @click.option(
     "--results-dir",

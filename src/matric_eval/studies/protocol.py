@@ -21,7 +21,7 @@ _AXES = {
     "capability",
     "agentic",
 }
-_EXECUTION_MODES = {"direct-endpoint", "official-agent-runner"}
+_EXECUTION_MODES = {"offline-batch", "official-agent-runner"}
 
 
 def _required_string(data: dict[str, Any], key: str, context: str) -> str:
@@ -153,6 +153,18 @@ class StudyProtocol:
         for key, expected in required_selection.items():
             if selection.get(key) != expected:
                 raise ValueError(f"study.sample_selection.{key} must be {expected!r}")
+
+        generation_seed = root.get("generation_seed")
+        if not isinstance(generation_seed, dict):
+            raise ValueError("study.generation_seed must be an object")
+        required_seed_policy = {
+            "algorithm": "sha256-uint32-v1",
+            "key_format": "{seed}\\0{allocation_id}\\0{canonical_sample_id}",
+            "shared_across_models": True,
+        }
+        for key, expected in required_seed_policy.items():
+            if generation_seed.get(key) != expected:
+                raise ValueError(f"study.generation_seed.{key} must be {expected!r}")
 
         raw_models = root.get("models")
         if not isinstance(raw_models, list) or len(raw_models) < 2:
@@ -310,7 +322,6 @@ class StudyProtocol:
         if not isinstance(server, dict) or server.get("engine") != "vllm":
             raise ValueError("study.execution.model_server must pin vllm")
         required_server_controls = {
-            "online_serving_allowed": False,
             "offline_batch_inference_required": True,
             "batch_invariance": True,
             "v1_multiprocessing": False,
@@ -319,6 +330,13 @@ class StudyProtocol:
         for key, expected in required_server_controls.items():
             if server.get(key) is not expected:
                 raise ValueError(f"study.execution.model_server.{key} must be {expected}")
+        if server.get("online_serving_scope") != "official-agent-runners-only":
+            raise ValueError(
+                "study.execution.model_server.online_serving_scope must be "
+                "official-agent-runners-only"
+            )
+        if execution.get("agentic_request_concurrency") != 1:
+            raise ValueError("study.execution.agentic_request_concurrency must be 1")
         image = server.get("image")
         if not isinstance(image, str) or not re.search(r"@sha256:[0-9a-f]{64}$", image):
             raise ValueError("study.execution.model_server.image must use an immutable digest")
@@ -412,6 +430,11 @@ class StudyProtocol:
             ),
         )
         return ranked[:count]
+
+    def generation_seed(self, allocation_id: str, canonical_sample_id: str) -> int:
+        """Derive the stable per-sample uint32 seed shared by every model."""
+        payload = f"{self.seed}\0{allocation_id}\0{canonical_sample_id}".encode()
+        return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big")
 
     def selection_manifest(
         self,
