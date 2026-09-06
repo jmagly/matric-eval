@@ -98,6 +98,9 @@ def test_registered_handler_sends_full_sampler_and_per_case_seed(
         def _format_prompt(self, messages: list[Any], functions: list[Any]) -> str:
             return "one two three"
 
+        def _query_prompting(self, inference_data: dict[str, Any]) -> tuple[Any, float]:
+            raise NotImplementedError
+
     config_module = ModuleType("bfcl_eval.constants.model_config")
     config_module.MODEL_CONFIG_MAPPING = mapping  # type: ignore[attr-defined]
     config_module.ModelConfig = ModelConfig  # type: ignore[attr-defined]
