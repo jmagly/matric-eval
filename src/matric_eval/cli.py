@@ -1309,8 +1309,7 @@ def build_study_manifest(
         study = StudyProtocol.from_yaml(protocol)
         catalog = json.loads(id_catalog.read_text(encoding="utf-8"))
         if not isinstance(catalog, dict) or not all(
-            isinstance(key, str) and isinstance(value, list)
-            for key, value in catalog.items()
+            isinstance(key, str) and isinstance(value, list) for key, value in catalog.items()
         ):
             raise ValueError("ID catalog must map allocation IDs to lists of canonical IDs")
         manifest = study.selection_manifest(catalog, cohort.lower())

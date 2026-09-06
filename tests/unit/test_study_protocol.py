@@ -206,9 +206,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
         runtime = copy.deepcopy(raw_model["runtime"])
         runtime["chat_template_sha256"] = template_sha
         raw_model["runtime"] = runtime
-    protocol_data["study"]["primary_comparison"]["common_chat_template"][
-        "sha256"
-    ] = template_sha
+    protocol_data["study"]["primary_comparison"]["common_chat_template"]["sha256"] = template_sha
     protocol_path = tmp_path / "protocol.yaml"
     protocol_path.write_text(yaml.safe_dump(protocol_data), encoding="utf-8")
     study = StudyProtocol.from_yaml(protocol_path)

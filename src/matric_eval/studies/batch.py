@@ -296,9 +296,7 @@ def build_model_qualification(
         "model_revision": model.checkpoint_revision,
         "model_index": index_name,
         "indexed_tensor_files": len(tensor_paths),
-        "indexed_tensor_bytes": sum(
-            item["size"] for item in files if item["path"] in tensor_paths
-        ),
+        "indexed_tensor_bytes": sum(item["size"] for item in files if item["path"] in tensor_paths),
         "files": files,
     }
     qualification["qualification_sha256"] = hashlib.sha256(
@@ -419,9 +417,7 @@ def run_offline_batch(
     generated = engine.generate(prompts, sampling_params, use_tqdm=True)
     elapsed_seconds = time.time() - started
     if len(generated) != len(requests):
-        raise RuntimeError(
-            f"vLLM returned {len(generated)} results for {len(requests)} requests"
-        )
+        raise RuntimeError(f"vLLM returned {len(generated)} results for {len(requests)} requests")
 
     for request, result in zip(requests, generated, strict=True):
         candidates = getattr(result, "outputs", ())
@@ -447,9 +443,7 @@ def run_offline_batch(
                 "request_id": request.request_id,
                 "allocation_id": request.allocation_id,
                 "sample_id": request.sample_id,
-                "generation_seed": study.generation_seed(
-                    request.allocation_id, request.sample_id
-                ),
+                "generation_seed": study.generation_seed(request.allocation_id, request.sample_id),
                 "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                 "completion": candidate.text,
                 "finish_reason": getattr(candidate, "finish_reason", None),

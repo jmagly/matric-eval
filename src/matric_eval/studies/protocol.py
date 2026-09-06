@@ -63,8 +63,7 @@ class BenchmarkAllocation:
         execution_mode = _required_string(data, "execution_mode", context)
         if execution_mode not in _EXECUTION_MODES:
             raise ValueError(
-                f"{context}.execution_mode must be one of "
-                + ", ".join(sorted(_EXECUTION_MODES))
+                f"{context}.execution_mode must be one of " + ", ".join(sorted(_EXECUTION_MODES))
             )
         revision = _required_string(data, "dataset_revision", context).lower()
         if not _REVISION_RE.fullmatch(revision):
@@ -139,7 +138,9 @@ class StudyProtocol:
         if pilot_samples >= full_samples:
             raise ValueError("pilot sample count must be smaller than full sample count")
         if not 1000 <= full_samples <= 1500:
-            raise ValueError("full sample count must remain within the preregistered 1000-1500 range")
+            raise ValueError(
+                "full sample count must remain within the preregistered 1000-1500 range"
+            )
 
         selection = root.get("sample_selection")
         if not isinstance(selection, dict):
@@ -222,8 +223,7 @@ class StudyProtocol:
         controls = [
             model
             for model in models
-            if model.lineage_role
-            in {LineageRole.OFFICIAL_INSTRUCT, LineageRole.UNTOUCHED_CONTROL}
+            if model.lineage_role in {LineageRole.OFFICIAL_INSTRUCT, LineageRole.UNTOUCHED_CONTROL}
         ]
         if len(controls) != 1:
             raise ValueError("study must contain exactly one untouched control")
@@ -251,7 +251,9 @@ class StudyProtocol:
             for model in models
         }
         if len(runtime_signatures) != 1:
-            raise ValueError("primary model runtimes must be identical except for checkpoint identity")
+            raise ValueError(
+                "primary model runtimes must be identical except for checkpoint identity"
+            )
 
     @staticmethod
     def _validate_registry(benchmarks: tuple[BenchmarkAllocation, ...]) -> None:
@@ -285,9 +287,7 @@ class StudyProtocol:
         if analysis.get("paired_by_sample_id") is not True:
             raise ValueError("study.analysis.paired_by_sample_id must be true")
         if analysis.get("pilot_use") != "timing-and-pipeline-validation-only":
-            raise ValueError(
-                "study.analysis.pilot_use must be timing-and-pipeline-validation-only"
-            )
+            raise ValueError("study.analysis.pilot_use must be timing-and-pipeline-validation-only")
         if analysis.get("multiple_comparison_correction") != "holm":
             raise ValueError("study.analysis.multiple_comparison_correction must be holm")
         margin = analysis.get("capability_noninferiority_margin_pp")
@@ -301,7 +301,9 @@ class StudyProtocol:
             raise ValueError("study.reporting must be an object")
         formats = reporting.get("required_formats")
         if not isinstance(formats, list) or not {"html-site", "pdf", "json"}.issubset(formats):
-            raise ValueError("study.reporting.required_formats must include html-site, pdf, and json")
+            raise ValueError(
+                "study.reporting.required_formats must include html-site, pdf, and json"
+            )
         if reporting.get("publish_raw_sensitive_content") is not False:
             raise ValueError("raw sensitive prompts and completions must not be public")
         if reporting.get("publish_aggregate_metrics") is not True:
@@ -380,7 +382,9 @@ class StudyProtocol:
         calibration = judging.get("calibration")
         if not isinstance(calibration, dict):
             raise ValueError("study.judging.calibration must be an object")
-        _required_positive_int(calibration, "human_double_labeled_items", "study.judging.calibration")
+        _required_positive_int(
+            calibration, "human_double_labeled_items", "study.judging.calibration"
+        )
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> StudyProtocol:
@@ -423,9 +427,7 @@ class StudyProtocol:
         ranked = sorted(
             normalized,
             key=lambda sample_id: (
-                hashlib.sha256(
-                    f"{self.seed}\0{allocation_id}\0{sample_id}".encode()
-                ).hexdigest(),
+                hashlib.sha256(f"{self.seed}\0{allocation_id}\0{sample_id}".encode()).hexdigest(),
                 sample_id,
             ),
         )
