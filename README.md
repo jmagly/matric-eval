@@ -10,7 +10,7 @@ release evidence are recorded in
 the [supported-capability roadmap](./docs/development/roadmap.md) for release
 gates and deliberately deferred work.
 
-Registry snapshot on 2026-08-03: 39 benchmarks (24 stable, 13 gated, one
+Registry snapshot on 2026-09-05: 47 benchmarks (24 stable, 21 gated, one
 experimental, one unavailable). Generate the current inventory with
 `matric-eval list-benchmarks` rather than relying on this dated count.
 

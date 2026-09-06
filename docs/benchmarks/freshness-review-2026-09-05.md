@@ -24,6 +24,11 @@ and zero errors: 7 immutable, 12 current, 16 gated, 3 successor-available, 3 loc
 and 1 unavailable. Its retained machine-readable artifact is
 `/srv/matric-eval/results/freshness-audit-20260905/baseline.json`.
 
+The post-change A100 live audit covers 47 registered benchmarks with zero warnings
+and zero errors: 7 immutable, 12 current, 21 gated, 3 successor-available, 3 local,
+and 1 unavailable. Its retained artifact is
+`/srv/matric-eval/results/freshness-audit-20260905/post-refresh.json`.
+
 ## Changed snapshots
 
 | Benchmark | Previous revision | Reviewed revision | Material difference |
