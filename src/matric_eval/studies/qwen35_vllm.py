@@ -21,9 +21,7 @@ class Qwen3_5TextForCausalLM(Qwen3_5ForCausalLM):
         return Qwen3_5ForConditionalGeneration.get_mamba_state_dtype_from_config(vllm_config)
 
     @classmethod
-    def get_mamba_state_shape_from_config(
-        cls, vllm_config: object
-    ) -> tuple[tuple[int, int], ...]:
+    def get_mamba_state_shape_from_config(cls, vllm_config: object) -> tuple[tuple[int, int], ...]:
         """Delegate the GDN/Mamba cache shapes to vLLM's Qwen3.5 wrapper."""
         return Qwen3_5ForConditionalGeneration.get_mamba_state_shape_from_config(vllm_config)
 
