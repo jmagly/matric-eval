@@ -6,11 +6,11 @@ Thank you for your interest in contributing to matric-eval.
 
 ```bash
 # Clone the repository
-git clone https://github.com/jmagly/matric-eval.git
+git clone https://git.integrolabs.net/roctinam/matric-eval.git
 cd matric-eval
 
 # Install dependencies
-uv sync --extra dev
+uv sync --locked --extra dev --extra study
 
 # Run tests
 uv run pytest tests/ -q
@@ -18,6 +18,9 @@ uv run pytest tests/ -q
 # Run tests with coverage
 uv run pytest tests/ --cov=src/matric_eval --cov-fail-under=80
 ```
+
+The full test suite exercises the official IFEval study scorer, so development
+setup includes both `dev` and `study` extras.
 
 ## Code Style
 
@@ -57,15 +60,15 @@ failed, skipped unexpectedly, or absent.
 
 ## Pull Requests
 
-1. Fork the repository
+1. Use a branch in the canonical Gitea repository, or fork it if you lack write access
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Make your changes with tests
 4. Ensure all tests pass and coverage is maintained
-5. Submit a pull request
+5. Submit a pull request against Gitea `main`; wait for the required CI checks before merging
 
 ## Reporting Issues
 
-- Use GitHub Issues for bug reports and feature requests
+- Use the [canonical Gitea tracker](https://git.integrolabs.net/roctinam/matric-eval/issues) for engineering bug reports and feature requests
 - Include reproduction steps for bugs
 - Check existing issues before creating new ones
 

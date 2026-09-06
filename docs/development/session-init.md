@@ -1,56 +1,41 @@
 # matric-eval Session Initialization
 
-Copy the prompt below to start a new Claude Code session in this directory.
+Use this prompt when starting a coding-agent session in the repository. Replace
+the final task line with the work you want to perform.
 
----
+```text
+I am working on matric-eval, an implemented Python 3.11+ evaluation framework
+built on Inspect AI, with inference providers and TypeScript subprocess bindings.
 
-## Initialization Prompt
+Read WORKSPACE.md first, then AIWG.md, following the repository's AGENTS.md
+bootstrap. Read README.md and CONTRIBUTING.md for project usage and development.
 
-```
-I'm starting work on matric-eval, a consolidated model evaluation framework for the matric ecosystem.
+Inspect git status before making changes. Use current source and tests to verify
+behavior; docs/development/planning.md and roadmap.md include historical plans.
 
-**Context files to read first:**
-- CLAUDE.md - Project context and MCP access
-- PLANNING.md - Architecture decisions and requirements
+Find commands in src/matric_eval/cli.py, active configuration in
+src/matric_eval/config/settings.py, benchmarks in src/matric_eval/tasks/registry.py,
+and runtime/recovery behavior in src/matric_eval/core/ and src/matric_eval/state/.
 
-**Background:**
-We're consolidating evaluation code from matric-cli (TypeScript) and matric-memory (Rust) into a shared Python framework. The goal is to leverage existing eval frameworks (Inspect AI or lm-eval-harness) rather than building from scratch.
+Development setup: uv sync --locked --extra dev --extra study
+CLI discovery: uv run matric-eval --help
+Benchmark discovery: uv run matric-eval list-benchmarks
+Provider discovery: uv run matric-eval list-providers
+Unit checks: make test-unit
+Merge gates: make ci
+Package build: uv build
 
-**Key requirements:**
-1. Evaluate Ollama models against public benchmarks (HumanEval, MBPP, GSM8K, ARC, IFEval, etc.)
-2. Run custom app-specific tests on top performers
-3. Generate config recommendations (model → capability mapping)
-4. **Critical: Robust recovery** - checkpoint/resume, selective re-run, gap detection
+For live evaluations, first read docs/testing/real-provider-smoke.md and the
+relevant benchmark protocol. Confirm service, model, dataset, and optional
+runtime prerequisites before running the selected benchmark.
 
-**Related repos (for reference):**
-- /home/roctinam/dev/matric-cli - TypeScript eval code to migrate from
-- /home/roctinam/dev/matric-memory - Rust eval code to migrate from
-- /home/roctinam/data/evals - Public benchmark datasets
+The canonical repository/tracker is origin on git.integrolabs.net; github is a
+public mirror. Follow .aiwg/aiwg.config for delivery: PR to main, green CI, no
+force pushes.
 
-**First steps:**
-1. Read CLAUDE.md and PLANNING.md
-2. Prototype Inspect AI with Ollama - verify it works
-3. Run one benchmark (HumanEval) against one model (llama3.2:3b)
-4. Evaluate recovery/resume capabilities
-5. If acceptable, scaffold the project structure
-
-**Gitea issue:** roctinam/devops#5 has full project requirements
-
-Start by reading the planning docs, then let's validate the framework choice with a quick prototype.
+Task: [describe the requested change and acceptance criteria]
 ```
 
----
-
-## Alternative: Shorter Version
-
-```
-Starting matric-eval - consolidated model evaluation framework.
-
-Read CLAUDE.md and PLANNING.md first for full context.
-
-Goal: Python framework using Inspect AI (or lm-eval-harness) for evaluating Ollama models. Must support checkpoint/resume and selective re-runs.
-
-First task: Prototype Inspect AI + Ollama integration, run HumanEval against llama3.2:3b to validate the approach.
-
-Related: /home/roctinam/dev/matric-cli/source/eval/ has current TypeScript implementation for reference.
-```
+The [workspace context](../../WORKSPACE.md) provides the maintained code map.
+The [documentation index](../README.md) links benchmark protocols, testing,
+architecture, and release guidance.

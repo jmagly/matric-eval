@@ -1,252 +1,312 @@
+<div align="center">
+
 # matric-eval
 
-Consolidated model evaluation framework for the matric ecosystem.
+**Reproducible model evaluation across local and hosted inference providers**
+
+Compare model capabilities, retain benchmark protocols and run artifacts, and generate recommendations for the matric ecosystem.
+
+[![Python](https://img.shields.io/badge/Python-%3E%3D3.11-3776AB?logo=python&logoColor=white&style=flat-square)](https://github.com/jmagly/matric-eval/blob/main/pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](https://github.com/jmagly/matric-eval/blob/main/LICENSE)
+[![Providers](https://img.shields.io/badge/Providers-5-purple?style=flat-square)](#inference-providers)
+
+[**Quick Start**](#quick-start) · [**Features**](#features) · [**Documentation**](#documentation) · [**Contributing**](#contributing) · [**Support**](#community--support)
+
+</div>
+
+---
+
+## What matric-eval Does
+
+matric-eval is a Python CLI and library built on Inspect AI. It runs public benchmarks and application-specific tasks through a shared provider interface, records results and provenance, and recommends models by capability. The TypeScript client invokes the same Python CLI for application integration.
+
+Use it to compare code generation, math, reasoning, instruction following, knowledge, conversation, tool use, and application behavior. Agentic, multimodal, repository, long-context, and memory adapters have individual data and runtime prerequisites; a registry entry does not mean a benchmark can run without setup.
 
 ## Status
 
-The source package version is 0.2.0. Published package availability and immutable
-release evidence are recorded in
-[Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases); see
-the [supported-capability roadmap](./docs/development/roadmap.md) for release
-gates and deliberately deferred work.
+The Python package and TypeScript client source versions are **0.2.0**. Check [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. A source version alone does not establish registry availability.
 
-Registry snapshot on 2026-09-05: 47 benchmarks (24 stable, 21 gated, one
-experimental, one unavailable). Generate the current inventory with
-`matric-eval list-benchmarks` rather than relying on this dated count.
-
-## Purpose
-
-Standardized benchmarking of LLM models across multiple inference providers:
-- **Public benchmarks**: Core support includes HumanEval, MBPP, GSM8K, ARC,
-  IFEval, LiveCodeBench, DS-1000, MMLU, and MT-Bench; the registry also covers
-  successor, agentic, security, multimodal, repository, and long-context suites
-- **Custom tests**: Application-specific evaluations for matric-cli and matric-memory
-- **Tool calling**: 6-scenario evaluation with correctness scoring
-- **LLM-as-Judge**: Multi-turn conversation and reasoning assessment
-- **Multi-provider**: Evaluate across Ollama, vLLM, llama.cpp, OpenRouter, and Chutes
-- **Thinking models**: Extended reasoning support with thinking-on/off modes
-
-`stable` describes a tested adapter and pinned protocol. It does not claim that
-every benchmark has been production-run against every provider. Retained
-real-provider evidence currently covers the Ollama smoke path.
+The [roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md) records support boundaries and deferred work. Benchmark inventories change independently of release notes; inspect the current checkout with `matric-eval list-benchmarks` and `matric-eval audit-benchmarks`.
 
 ## Installation
 
-```bash
-# From Gitea PyPI registry
-pip install matric-eval --index-url https://git.integrolabs.net/api/packages/roctinam/pypi/simple/
+### From source
 
-# Or install from source
+Install Python 3.11 or newer and `uv`, then:
+
+```bash
 git clone https://git.integrolabs.net/roctinam/matric-eval.git
 cd matric-eval
-uv sync
+uv sync --locked
+uv run matric-eval --version
+uv run matric-eval --help
 ```
+
+The canonical Gitea repository may require access. The [GitHub repository](https://github.com/jmagly/matric-eval) is the secondary source remote.
+
+Use `uv run matric-eval` for commands from a source checkout. Examples below use that form. With an installed package, use `matric-eval` directly.
+
+### From a published package
+
+After confirming the desired release is available, install into a virtual environment:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install matric-eval \
+  --index-url https://git.integrolabs.net/api/packages/roctinam/pypi/simple/
+matric-eval --version
+```
+
+Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/0.2.0.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
 
 ## Quick Start
 
+For a first run, use an existing Ollama server with `llama3.2:3b` installed. Select one benchmark explicitly to keep the run bounded:
+
 ```bash
-# Smoke test on a specific model (defaults to Ollama)
-matric-eval run --tier smoke --model llama3.2:3b
+# Inspect the local model inventory and available benchmarks
+uv run matric-eval list-models
+uv run matric-eval list-benchmarks
 
-# Use a different provider
-matric-eval run --provider vllm --model meta-llama/Llama-3.2-3B --tier smoke
-matric-eval run --provider openrouter --api-key $OPENROUTER_API_KEY --model anthropic/claude-3.5-sonnet
-
-# Multi-provider matrix evaluation
-matric-eval run --matrix eval-matrix.yaml
-
-# List available providers and their status
-matric-eval list-providers --check-availability
-
-# List available benchmarks
-matric-eval list-benchmarks
-
-# Validate registry metadata and pinned protocol health
-matric-eval audit-benchmarks --fail-on-error
-
-# List available Ollama models
-matric-eval list-models
-
-# Get model recommendations from results
-matric-eval recommend --results-dir ./results
-
-# Validate run completeness
-matric-eval validate --results-dir ./results
+# Evaluate five GSM8K samples through the default Ollama path
+uv run matric-eval run --model llama3.2:3b --benchmark gsm8k --tier smoke
 ```
 
-## CLI Commands
+The run prints its result directory, normally `results/run-<timestamp>`. Use the actual directory and run ID from that output:
 
-| Command | Description |
-|---------|-------------|
-| `run` | Run model evaluation with tier and provider selection |
-| `list-benchmarks` | List available benchmarks with descriptions |
-| `list-models` | List available Ollama models |
-| `list-providers` | List available inference providers |
-| `audit-benchmarks` | Audit benchmark revisions, protocols, and lifecycle state |
-| `recommend` | Generate model recommendations from results |
-| `validate` | Check run completeness and identify gaps |
+```bash
+uv run matric-eval recommend --results-dir results/RUN_ID
+uv run matric-eval validate RUN_ID --output results
+
+# Resume an incomplete run at benchmark granularity
+uv run matric-eval run --resume results/RUN_ID --fill-gaps
+```
+
+Without `--model`, the default Ollama path discovers models under `--max-size` (15 GB by default). Without `--benchmark`, the CLI selects the benchmarks enabled by the named tier configuration. This can be much broader than a single smoke check.
+
+## Features
+
+- **Five inference providers:** Ollama, llama.cpp, vLLM, OpenRouter, and Chutes.
+- **Benchmark protocols:** lifecycle state, dataset and evaluator revisions, access requirements, and freshness audits.
+- **Model comparisons:** YAML matrices with Cartesian or explicit runs; schema version 2 adds qualified model identity and lineage checks.
+- **Checkpoint and resume:** persisted run state, locking, completed-result reuse, and continuation of incomplete benchmarks.
+- **Thinking and judges:** reasoning modes for capable models and optional additional LLM judge scoring.
+- **Application integration:** matric-cli and matric-memory tasks, capability recommendations, and a TypeScript subprocess client.
+- **Custom data:** discover JSONL datasets with optional field mapping, prompts, scorers, and tier configuration.
+- **Preregistered studies:** protocol validation, deterministic sample manifests, model artifact qualification, and manifest-locked offline execution.
 
 ## Inference Providers
 
-| Provider | Type | CLI Flag | Description |
-|----------|------|----------|-------------|
-| Ollama | Local | `--provider ollama` | Default. Local Ollama instance |
-| llama.cpp | Local | `--provider llama-cpp` | Direct GGUF model serving |
-| vLLM | Local/Cloud | `--provider vllm` | High-throughput GPU inference |
-| OpenRouter | Cloud | `--provider openrouter` | 100+ models via unified API |
-| Chutes | Cloud | `--provider chutes` | Serverless GPU inference |
+| Provider | CLI name | Default endpoint / setup |
+|---|---|---|
+| Ollama | `ollama` | `http://localhost:11434`; installed model required |
+| llama.cpp | `llama-cpp` | `http://localhost:8080`; running model server required |
+| vLLM | `vllm` | `http://localhost:8000`; served model ID required |
+| OpenRouter | `openrouter` | Hosted API; authenticated account and model access required |
+| Chutes | `chutes` | Hosted API; authenticated account and model access required |
 
-## Evaluation Tiers
-
-| Tier | Default selection | Use Case |
-|------|-------------------|----------|
-| smoke | 5 samples | Fast contract and provider checks |
-| quick | 75 samples | Representative evaluation |
-| full | all samples | Complete protocol execution |
-
-Benchmark registry metadata can override these defaults. Duration depends on the
-selected benchmarks, model, provider, context length, and external runner; use
-retained run evidence for capacity planning.
-
-## Benchmarks
-
-The registry is grouped by lifecycle state:
-
-| State | Count on 2026-08-03 | Meaning |
-|---|---:|---|
-| stable | 24 | Supported adapter with pinned protocol and automated tests |
-| gated | 13 | Requires documented data, runner, hardware, or licensing prerequisites |
-| experimental | 1 | InjecAgent research integration; compatibility may change |
-| unavailable | 1 | QwenWebBench retained as an explicit no-go decision |
-
-Core stable tasks include HumanEval, MBPP, GSM8K, ARC, IFEval,
-LiveCodeBench, DS-1000, MMLU, MT-Bench, Tool Calling, matric-cli, and
-matric-memory. The registry also includes the completed Wave 1-3 successor,
-agentic, security, multimodal, repository, long-context, and memory work.
-
-Run `matric-eval list-benchmarks` for names, current status, descriptions, and
-sample counts. See the [protocol records](./docs/README.md#benchmark-protocols)
-for pinned revisions and gate decisions.
-
-## Architecture
-
+```bash
+uv run matric-eval list-providers --check-availability
+uv run matric-eval run --provider vllm --provider-url http://localhost:8000 \
+  --model YOUR_SERVED_MODEL_ID --benchmark gsm8k --tier smoke
+uv run matric-eval run --provider openrouter --api-key "$OPENROUTER_API_KEY" \
+  --model YOUR_OPENROUTER_MODEL_ID --benchmark gsm8k --tier smoke
 ```
-Application -> matric-eval
 
-1. DISCOVER  -> Query provider for available models
-2. PUBLIC    -> Run standard benchmarks via Inspect AI
-3. RANK      -> Filter top performers
-4. CUSTOM    -> Run app-specific tests
-5. CONFIG    -> Generate recommendations
+Replace the model placeholders with identifiers served by your provider. Set the credential variable locally before the hosted-provider example. Explicit CLI runs accept `--api-key`; provider instances created with their default configuration, including matrix providers, read `OPENROUTER_API_KEY` or `CHUTES_API_KEY` from the environment.
 
-Provider Abstraction:
-  CLI -> EvaluationEngine -> Provider -> Inspect AI -> Backend
-                               |
-                    +----------+----------+
-                    |          |          |
-                  Ollama    vLLM    OpenRouter  ...
+A working provider health check does not prove benchmark data, tools, or scoring prerequisites are satisfied. Retained real-provider validation is documented in the [smoke guide](https://github.com/jmagly/matric-eval/blob/main/docs/testing/real-provider-smoke.md).
+
+## Benchmarks and Tiers
+
+```bash
+uv run matric-eval list-benchmarks --output-format json
+uv run matric-eval audit-benchmarks --fail-on-error
 ```
+
+| Lifecycle | Meaning |
+|---|---|
+| `stable` | Supported adapter with a pinned protocol; still check task prerequisites |
+| `legacy` | Retained compatibility protocol when a successor exists |
+| `gated` | Requires documented data, runner, hardware, credentials, or licensing prerequisites |
+| `experimental` | Research integration whose execution or scoring contract may change |
+| `unavailable` | Explicitly retained no-go entry; not runnable |
+
+Core tasks include HumanEval, MBPP, GSM8K, ARC, IFEval, LiveCodeBench, DS-1000, MMLU, MT-Bench, Tool Calling, matric-cli, and matric-memory. Successor and specialist adapters are described in the [benchmark protocol index](https://github.com/jmagly/matric-eval/blob/main/docs/README.md#benchmark-protocols). Use exact registry names, such as `tool_calling` and `matric_memory`, with `--benchmark`.
+
+| Tier | Selection |
+|---|---|
+| `smoke` | Small per-benchmark sample; GSM8K uses 5 |
+| `quick` | Larger per-benchmark sample; GSM8K uses 75 |
+| `full` | Full configured protocol count or all available samples, depending on the task |
+
+Tier sizes vary by benchmark. External JSONL datasets default to 10 smoke samples, 50 quick samples, and all samples for full. A full tier does not remove access gates or runtime requirements.
 
 ## Evaluation Matrix
 
-For multi-provider comparison, create a YAML matrix config:
+Save this as `eval-matrix.yaml`, substituting the actual model IDs available from each server:
 
 ```yaml
 evaluation:
-  models:
-    - llama3.2:3b
-    - mistral:7b
-  providers:
-    - ollama
-    - vllm
-  benchmarks:
-    - humaneval
-    - gsm8k
   tier: smoke
   matrix:
-    mode: cartesian
-  exclude:
-    - model: mistral:7b
+    mode: explicit
+  runs:
+    - model: llama3.2:3b
+      provider: ollama
+      benchmark: gsm8k
+    - model: YOUR_SERVED_MODEL_ID
       provider: vllm
+      benchmark: gsm8k
 ```
-
-Then run: `matric-eval run --matrix eval-matrix.yaml`
-
-## TypeScript Bindings
-
-The TypeScript client source version matches the Python package. Clean 0.2.0
-package validation and actual matric-cli adoption are tracked by
-[#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) and
-[#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94); source-tree
-tests alone do not establish the consumer migration contract.
 
 ```bash
-npm install @matric/eval-client --registry https://git.integrolabs.net/api/packages/roctinam/npm/
+uv run matric-eval run --matrix eval-matrix.yaml
 ```
 
-```typescript
-import { createClient } from '@matric/eval-client';
+For Cartesian matrices, set `models`, `providers`, and `benchmarks` arrays, with `matrix.mode: cartesian`; optional `exclude` entries remove combinations. Matrix execution uses its own provider setup and cannot be combined with `--resume`. See [qualified model examples](https://github.com/jmagly/matric-eval/blob/main/examples/README.md) for schema version 2 and external-runner boundaries.
 
-const client = createClient();
-const results = await client.run({ tier: 'smoke', models: ['llama3.2:3b'] });
-const recommendations = await client.recommend({ resultsDir: './results' });
+## Custom Datasets
+
+Create a directory such as `datasets/my-eval/` containing `samples.jsonl`:
+
+```jsonl
+{"id":"addition-1","input":"What is 2 + 2? Answer with a number.","target":"4"}
 ```
-
-## External Datasets
-
-Drop any git repo or directory into `datasets/` and it's auto-discovered as a benchmark:
 
 ```bash
-# Clone a dataset repo
-git clone https://example.com/my-eval-data.git datasets/my-eval
-
-# Or add as submodule
-git submodule add https://example.com/my-eval-data.git datasets/my-eval
-
-# It just works
-matric-eval list-benchmarks          # shows "my-eval"
-matric-eval run --benchmark my-eval --tier smoke --model llama3.2:3b
+uv run matric-eval list-benchmarks
+uv run matric-eval run --benchmark my-eval --model llama3.2:3b --tier smoke
 ```
 
-Zero config for JSONL files with `input`/`target` fields. For more control, add a `dataset.yaml`:
+Discovery supports JSONL inputs in dataset directories, including checked-out repositories and submodules. It does not turn arbitrary repository contents into executable benchmarks. To customize the dataset, add `datasets/my-eval/dataset.yaml`:
 
 ```yaml
-name: my-benchmark
+name: my-eval
 description: Domain-specific evaluation
 scorer: match
 tiers: { smoke: 5, quick: 50, full: 0 }
 field_mapping: { input: question, target: answer }
 ```
 
-Configure dataset root: `EVAL_DATASETS_DIR=/path/to/datasets`
+That mapping expects `question` and `answer` fields instead of the example's `input` and `target`. Configure another root with `EVAL_DATASETS_DIR=/path/to/datasets`.
 
-## Features
+## Preregistered Studies
 
-- **Multi-Provider**: Evaluate across Ollama, vLLM, llama.cpp, OpenRouter, Chutes
-- **External Datasets**: Auto-discover datasets from git clones/submodules with zero config
-- **Thinking Models**: Extended reasoning support with auto-detection
-- **Checkpoint/Resume**: Fault-tolerant evaluation with automatic recovery
-- **Evaluation Matrix**: YAML-based multi-provider comparison runs
-- **Parallel Execution**: Concurrent model evaluation
-- **Structured Logging**: JSON logs for observability
-- **Model Recommendations**: Capability-based model selection
-- **Authoritative CI**: Gitea Actions enforces lint, format, type, test/coverage,
-  smoke, and package-build gates
+Study protocols define model cohorts, sampling, execution, and reporting contracts. The CLI provides four study commands:
 
-Test totals are generated evidence, not a permanent feature count. On
-2026-08-03, `pytest --collect-only` collected 2,307 tests; authoritative PR run
-#52 completed 2,296 with 11 skips and 80.95% coverage.
+| Command | Purpose |
+|---|---|
+| `validate-study` | Validate a study protocol and report its identity and allocations |
+| `build-study-manifest` | Select ordered canonical sample IDs for a pilot or full cohort |
+| `qualify-study-model` | Hash local model artifacts and create a qualification manifest |
+| `run-study-offline-batch` | Execute a qualified, manifest-locked cohort with offline vLLM |
+
+Follow the [study index](https://github.com/jmagly/matric-eval/blob/main/studies/README.md) and the chosen protocol's host and artifact policy. Protocol validation is separate from actually running the model or completing a study.
+
+## TypeScript Client
+
+The client requires Node.js 18 or newer and a separately installed Python `matric-eval` executable. Install the package after confirming its release is published:
+
+```bash
+npm install @matric/eval-client \
+  --registry https://git.integrolabs.net/api/packages/roctinam/npm/
+```
+
+```typescript
+import { createClient } from '@matric/eval-client';
+
+const client = createClient(); // matric-eval must be on PATH
+const summary = await client.run({
+  tier: 'smoke',
+  models: ['llama3.2:3b'],
+  benchmarks: ['gsm8k'],
+});
+const recommendations = await client.recommend({ input: summary.outputDir });
+```
+
+Use `createClient('/absolute/path/to/.venv/bin/matric-eval')` for a source installation. The client supports streaming callbacks and cancellation with `AbortSignal`. The current CLI contract rejects multiple explicit models in one client call, `resume: true`, and the reserved `timeout` and `parallelism` options. Use one model per call or the CLI matrix workflow. See the [client source and types](https://github.com/jmagly/matric-eval/tree/main/bindings/typescript/src).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    App[TypeScript client] --> CLI[Python CLI]
+    CLI --> State[Run state and checkpoints]
+    CLI --> Engine[Evaluation engine]
+    Registry[Benchmark registry and custom datasets] --> Engine
+    Engine --> Provider[Provider adapter]
+    Provider --> Inspect[Inspect AI]
+    Inspect --> Backend[Model server or hosted API]
+    Inspect --> Scores[Task solvers and scorers]
+    Scores --> Results[Results and provenance]
+    Results --> Recommend[Capability recommendations]
+```
+
+The normal CLI run retains benchmark-level state and result artifacts. Matrices and specialized study runners have separate execution paths. Some agentic benchmarks delegate to pinned external runtimes rather than the generic Inspect task path. The [architecture guide](https://github.com/jmagly/matric-eval/blob/main/docs/architecture/overview.md) maps those boundaries to source files.
+
+## Execution Safety
+
+Code benchmarks execute model-generated programs. The basic Python scorer uses a subprocess with a timeout; it does **not** enforce network denial, filesystem isolation, or memory limits. Run untrusted workloads inside appropriately configured containers or VMs, and follow each benchmark's runtime requirements. Ollama serves inference; it does not sandbox code executed by the evaluator. See the [security policy](https://github.com/jmagly/matric-eval/blob/main/SECURITY.md).
+
+## Troubleshooting
+
+| Symptom | Next step |
+|---|---|
+| `matric-eval` not found | In a source checkout, run `uv sync --locked` and use `uv run matric-eval` |
+| No Ollama models / connection failure | Check the server, install the chosen model, and run `list-models` |
+| Hosted provider authentication fails | Verify the explicit run's `--api-key` or the matrix provider's environment variable |
+| Benchmark is gated or unavailable | Read its reason in `list-benchmarks` and follow its protocol record |
+| Dataset is not discovered | Check `EVAL_DATASETS_DIR`, JSONL records, and `dataset.yaml` field mapping |
+| Interrupted evaluation | Run `validate RUN_ID --output results`, then `run --resume results/RUN_ID` |
+| Stale run lock | Confirm no evaluator is active before using `validate RUN_ID --force-unlock` |
+| Matrix resume rejected | `--matrix` and `--resume` cannot be used together |
 
 ## Documentation
 
-- [docs/](./docs/README.md) - Full project documentation
-- [Architecture](./docs/architecture/overview.md) - System design
-- [Requirements](./docs/requirements/vision.md) - Vision and use cases
-- [Testing](./docs/testing/contributing.md) - Development workflow
-- [Supported-capability roadmap](./docs/development/roadmap.md) - Current support, gates, and delivery sequence
-- [Operational validation](./docs/validation/operational-validation-v1.md) - Pinned scorer and reliability evidence
-- [CLAUDE.md](./CLAUDE.md) - AI assistant context
+- [Documentation index](https://github.com/jmagly/matric-eval/blob/main/docs/README.md)
+- [CLI reference](https://github.com/jmagly/matric-eval/blob/main/docs/cli.md)
+- [Architecture](https://github.com/jmagly/matric-eval/blob/main/docs/architecture/overview.md)
+- [Checkpoint and resume](https://github.com/jmagly/matric-eval/blob/main/docs/development/checkpoint-resume.md)
+- [Benchmark protocols](https://github.com/jmagly/matric-eval/blob/main/docs/README.md#benchmark-protocols)
+- [Agentic runner setup](https://github.com/jmagly/matric-eval/blob/main/docs/benchmarks/agentic-runners.md)
+- [Roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md)
+- [Testing guide](https://github.com/jmagly/matric-eval/blob/main/docs/testing/contributing.md)
+- [Workspace guidance](https://github.com/jmagly/matric-eval/blob/main/WORKSPACE.md)
+
+## Contributing
+
+Read [CONTRIBUTING.md](https://github.com/jmagly/matric-eval/blob/main/CONTRIBUTING.md). From a source checkout:
+
+```bash
+uv sync --locked --extra dev --extra study
+make ci
+uv build
+```
+
+`make ci` runs lint, format, the mypy baseline ratchet, and tests with an 80% coverage gate. Package build and real-provider smoke evidence have separate workflows. For TypeScript changes, run `npm ci`, `npm run build`, and `npm test` in `bindings/typescript/`.
+
+## Community & Support
+
+- **Engineering issues and pull requests:** [Gitea tracker](https://git.integrolabs.net/roctinam/matric-eval/issues)
+- **Source mirror:** [GitHub](https://github.com/jmagly/matric-eval)
+- **Release artifacts:** [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases)
+- **Vulnerabilities:** Follow [SECURITY.md](https://github.com/jmagly/matric-eval/blob/main/SECURITY.md); avoid public disclosure of sensitive details.
+- **Integro Labs:** [integrolabs.io](https://integrolabs.io)
 
 ## License
 
-MIT
+MIT. See [LICENSE](https://github.com/jmagly/matric-eval/blob/main/LICENSE). Benchmark datasets, model weights, and external runners retain their own terms and access conditions.
+
+## Acknowledgments
+
+Built on Inspect AI and the benchmark authors' datasets and evaluation protocols. The matric-cli and matric-memory projects supply the application-specific evaluation use cases.
+
+---
+
+<div align="center">
+
+[**Back to Top**](#matric-eval) · [**Integro Labs**](https://integrolabs.io)
+
+</div>

@@ -1,0 +1,39 @@
+{
+  "files": [
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "WORKSPACE.md",
+    "docs/README.md",
+    "docs/cli.md",
+    "docs/architecture/overview.md",
+    "docs/development/session-init.md"
+  ],
+  "checked_links": 147,
+  "cli_help_commands": 11,
+  "readme_commands_parsed": 14,
+  "matrix_runs": 2,
+  "readme_sections": [
+    "What matric-eval Does",
+    "Status",
+    "Installation",
+    "Quick Start",
+    "Features",
+    "Inference Providers",
+    "Benchmarks and Tiers",
+    "Evaluation Matrix",
+    "Custom Datasets",
+    "Preregistered Studies",
+    "TypeScript Client",
+    "Architecture",
+    "Execution Safety",
+    "Troubleshooting",
+    "Documentation",
+    "Contributing",
+    "Community & Support",
+    "License",
+    "Acknowledgments"
+  ],
+  "status": "passed",
+  "scope_note": "Local and repository-target links checked; no external URL availability or live inference validation."
+}

@@ -52,3 +52,14 @@ def test_mypy_ratchet_rejects_new_and_increased_findings() -> None:
     assert not find_regressions(Counter({existing: 1}), baseline)
     assert find_regressions(Counter({existing: 3}), baseline) == Counter({existing: 1})
     assert find_regressions(Counter({existing: 2, added: 1}), baseline) == Counter({added: 1})
+
+
+def test_gitea_test_jobs_install_study_scoring_dependencies() -> None:
+    """CI runs the real IFEval regression, which requires the study extra."""
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".gitea/workflows/ci.yml").read_text())
+    for job_name in ("test", "smoke"):
+        steps = workflow["jobs"][job_name]["steps"]
+        installs = [step.get("run", "") for step in steps if "uv sync" in step.get("run", "")]
+        assert any("--extra dev" in cmd and "--extra study" in cmd for cmd in installs), job_name

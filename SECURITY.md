@@ -23,12 +23,13 @@ within 7 days, including next steps for handling the report.
 
 ## Security Considerations
 
-This project executes code as part of evaluation benchmarks. The evaluation
-framework includes sandboxing with:
+This project executes model-generated code as part of evaluation benchmarks.
+The basic Python code scorer uses a local subprocess with a timeout and captured
+output. It does not enforce filesystem isolation, network denial, or memory
+limits. An inference server such as Ollama does not sandbox that subprocess.
 
-- Execution timeouts
-- Memory limits
-- No network access during code execution
-
-When running evaluations, use appropriate isolation (containers, VMs) for
-untrusted model outputs.
+Run untrusted model outputs inside an appropriately configured container or VM.
+Some tasks use separate sandbox services or official external runners; inspect
+the selected task's requirements rather than assuming every scorer uses the same
+isolation. See the [execution boundaries](docs/architecture/overview.md#execution-boundaries)
+and [benchmark protocol index](docs/README.md#benchmark-protocols).

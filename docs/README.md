@@ -8,6 +8,8 @@ Preregistered research studies with frozen sampling and reporting contracts are 
 
 ## Quick Links
 
+- [CLI Reference](cli.md) - Current commands, arguments, and options
+
 - [Architecture Overview](architecture/overview.md) - System design and component structure
 - [Roadmap](development/roadmap.md) - Current support, release gates, and live milestones
 - [Delivery Plan](development/planning.md) - Ordered 0.2.0 work and acceptance gates

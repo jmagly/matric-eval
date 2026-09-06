@@ -92,6 +92,12 @@ strict = true
 module = ["datasets", "pyarrow", "pyarrow.*", "swebench.*", "yaml"]
 ignore_missing_imports = true
 
+# Study scoring dependencies are optional and do not ship type information.
+# Keep the base/dev CI environment and study-enabled environments consistent.
+[[tool.mypy.overrides]]
+module = ["instruction_following_eval.*", "langdetect"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
