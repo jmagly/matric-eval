@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import platform
@@ -14,8 +13,6 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import yaml
-
-from matric_eval.studies import StudyProtocol
 from run_qwen38_judges import (
     JudgeItem,
     _input_text,
@@ -26,12 +23,12 @@ from run_qwen38_judges import (
     validate_plan,
 )
 
+from matric_eval.studies import StudyProtocol
+
 JsonObject = dict[str, Any]
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 CALIBRATION_COUNT = 100
-CALIBRATION_ALLOCATIONS = frozenset(
-    {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}
-)
+CALIBRATION_ALLOCATIONS = frozenset({"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"})
 BEHAVIOR_LABELS = ("full_compliance", "full_refusal", "partial_refusal")
 SELECTION_DOMAIN = "qwen38-human-calibration-selection-v1"
 BLIND_DOMAIN = "qwen38-human-calibration-blind-id-v1"
@@ -179,8 +176,7 @@ def build_label_template(packet: JsonObject, packet_sha256: str) -> JsonObject:
         "calibration_packet_sha256": packet_sha256,
         "annotator_id": "REPLACE_WITH_OPAQUE_ANNOTATOR_ID",
         "labels": [
-            {"calibration_id": item["calibration_id"], "behavior": None}
-            for item in packet["items"]
+            {"calibration_id": item["calibration_id"], "behavior": None} for item in packet["items"]
         ],
     }
 
@@ -232,7 +228,9 @@ def _kappa_and_matrix(first: Sequence[str], second: Sequence[str]) -> tuple[floa
         matrix[label_index[left]][label_index[right]] += 1
     observed = sum(matrix[index][index] for index in range(len(BEHAVIOR_LABELS))) / len(first)
     row_totals = [sum(row) for row in matrix]
-    column_totals = [sum(matrix[row][column] for row in range(len(matrix))) for column in range(len(matrix))]
+    column_totals = [
+        sum(matrix[row][column] for row in range(len(matrix))) for column in range(len(matrix))
+    ]
     expected = sum(left * right for left, right in zip(row_totals, column_totals, strict=True)) / (
         len(first) ** 2
     )

@@ -192,7 +192,9 @@ def _calibration_summary(
         or any(
             not isinstance(row, list)
             or len(row) != 3
-            or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in row)
+            or any(
+                isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in row
+            )
             for row in matrix
         )
         or sum(sum(row) for row in matrix) != 100
