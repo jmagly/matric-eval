@@ -3,9 +3,9 @@
 import pytest
 
 from matric_eval.tasks.frontier_agentic import (
-    ARC_AGI_3_REVISION,
     ARC_AGI_3_PUBLIC_ENVIRONMENTS,
     ARC_AGI_3_PUBLIC_MANIFEST_SHA256,
+    ARC_AGI_3_REVISION,
     BROWSECOMP_DATASET_SHA256,
     HLE_DATASET_REVISION,
     OSWORLD2_RELEASE,
