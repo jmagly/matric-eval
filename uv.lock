@@ -2604,9 +2604,7 @@ dependencies = [
     { name = "click" },
     { name = "httpx" },
     { name = "inspect-ai" },
-    { name = "inspect-evals", extra = ["cyberseceval-4", "gaia", "ifeval", "swe-bench"] },
-    { name = "instruction-following-eval" },
-    { name = "langdetect" },
+    { name = "inspect-evals", extra = ["cyberseceval-4", "gaia", "swe-bench"] },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -2636,6 +2634,11 @@ ds1000 = [
 evalplus = [
     { name = "evalplus" },
 ]
+study = [
+    { name = "inspect-evals", extra = ["ifeval"] },
+    { name = "instruction-following-eval" },
+    { name = "langdetect" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2643,9 +2646,10 @@ requires-dist = [
     { name = "evalplus", marker = "extra == 'evalplus'", specifier = "==0.3.1" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "inspect-ai", specifier = "==0.3.263" },
-    { name = "inspect-evals", extras = ["cyberseceval-4", "gaia", "ifeval", "swe-bench"], specifier = "==0.19.0" },
-    { name = "instruction-following-eval", git = "https://github.com/josejg/instruction_following_eval.git?rev=0c495b2f95155e8b10acb919ae283bfb4d5be6e2" },
-    { name = "langdetect", specifier = ">=1.0.9" },
+    { name = "inspect-evals", extras = ["cyberseceval-4", "gaia", "swe-bench"], specifier = "==0.19.0" },
+    { name = "inspect-evals", extras = ["ifeval"], marker = "extra == 'study'", specifier = "==0.19.0" },
+    { name = "instruction-following-eval", marker = "extra == 'study'", git = "https://github.com/josejg/instruction_following_eval.git?rev=0c495b2f95155e8b10acb919ae283bfb4d5be6e2" },
+    { name = "langdetect", marker = "extra == 'study'", specifier = ">=1.0.9" },
     { name = "matplotlib", marker = "extra == 'ds1000'", specifier = ">=3.10.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.20.0" },
     { name = "numpy", marker = "extra == 'ds1000'", specifier = ">=2.4.0" },
@@ -2664,7 +2668,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'ds1000'", specifier = ">=1.17.0" },
     { name = "seaborn", marker = "extra == 'ds1000'", specifier = ">=0.13.0" },
 ]
-provides-extras = ["dev", "ds1000", "evalplus"]
+provides-extras = ["study", "dev", "ds1000", "evalplus"]
 
 [[package]]
 name = "mdit-py-plugins"

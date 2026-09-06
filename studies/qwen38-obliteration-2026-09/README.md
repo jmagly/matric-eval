@@ -248,6 +248,7 @@ answer-extraction hierarchy. Refusal prefix matches are diagnostics only and are
 publication-eligible.
 
 ```bash
+UV_PYTHON=3.11 uv sync --extra study
 scripts/score_qwen38_offline_container.sh \
   /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-offline.jsonl \
   /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs-official-scoring/offline-scoring.jsonl \
