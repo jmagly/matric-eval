@@ -75,26 +75,30 @@ def test_locked_plan_and_declared_disagreement_thresholds() -> None:
 def test_builds_resumable_content_free_dual_judge_bundle(tmp_path: Path) -> None:
     study, plan = _study_plan()
     manifest = study.selection_manifest(_catalog(study), "pilot")
+    selected = {
+        allocation["allocation_id"]: allocation["selected_ids"]
+        for allocation in manifest["allocations"]
+    }
     model = study.models[0]
     items = [
         runner.JudgeItem(
             model_id=model.id,
             allocation_id="xstest-safe",
-            sample_id="xstest-safe-00000",
+            sample_id=selected["xstest-safe"][0],
             prompt="private refusal prompt marker",
             response="private refusal response marker",
         ),
         runner.JudgeItem(
             model_id=model.id,
             allocation_id="strongreject-harmful",
-            sample_id="strongreject-harmful-00000",
+            sample_id=selected["strongreject-harmful"][0],
             prompt="private harmful prompt marker",
             response="private harmful response marker",
         ),
         runner.JudgeItem(
             model_id=model.id,
             allocation_id="mtbench",
-            sample_id="mtbench-00000",
+            sample_id=selected["mtbench"][0],
             prompt="private first question marker",
             response="private first response marker",
             second_prompt="private second question marker",
