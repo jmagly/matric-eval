@@ -19,7 +19,7 @@ lease_receipt=""
 server_receipt=""
 ready_base=""
 container_name=""
-port="18080"
+port="18083"
 
 while (( $# )); do
   case "$1" in
