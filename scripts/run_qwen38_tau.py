@@ -24,9 +24,11 @@ TAU_PACKAGE_VERSION = "1.0.1"
 TAU_SOURCE_REVISION = "672227c6b6676edc20d57ea53b7000262aae77b9"
 SANDBOX_RUNTIME_PACKAGE_VERSION = "0.0.23"
 RANK_BM25_PACKAGE_VERSION = "0.2.2"
+TAU_EXTERNAL_MODEL = "gpt-4.1-2025-04-14"
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 ALLOWED_TAU_WORKTREE_CHANGES = {"uv.lock"}
 JsonObject = dict[str, Any]
+SENSITIVE_FRAGMENTS = ("key", "token", "secret", "password", "credential")
 
 
 def _sha256_file(path: Path) -> str:
@@ -209,16 +211,15 @@ def _load_external_args(path: Path | None) -> JsonObject:
     payload: JsonObject = {"temperature": 0.0}
     if path is not None:
         payload = _load_object(path, "external LLM arguments")
-    sensitive_fragments = ("key", "token", "secret", "password", "credential")
     pending: list[Any] = [payload]
     while pending:
         value = pending.pop()
         if isinstance(value, dict):
             for key, nested in value.items():
                 lowered = str(key).lower()
-                if any(fragment in lowered for fragment in sensitive_fragments):
+                if any(fragment in lowered for fragment in SENSITIVE_FRAGMENTS):
                     raise ValueError(
-                        "external LLM credentials must be injected through the environment"
+                        "external LLM credentials must be injected through a file descriptor"
                     )
                 pending.append(nested)
         elif isinstance(value, list):
@@ -226,6 +227,46 @@ def _load_external_args(path: Path | None) -> JsonObject:
     if "seed" in payload:
         raise ValueError("the tau runner derives and supplies the per-task seed")
     return payload
+
+
+def _read_secret_fd(fd: int) -> str:
+    if fd < 3:
+        raise ValueError("external API key descriptor must be 3 or greater")
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while True:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > 16384:
+                raise ValueError("external API key descriptor exceeds the size limit")
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    try:
+        secret = b"".join(chunks).decode("utf-8").strip()
+    except UnicodeDecodeError as exc:
+        raise ValueError("external API key descriptor is not UTF-8") from exc
+    if not secret or "\x00" in secret or "\n" in secret or "\r" in secret:
+        raise ValueError("external API key descriptor contains an invalid value")
+    return secret
+
+
+def _redact_sensitive(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: (
+                "<redacted>"
+                if any(fragment in str(key).lower() for fragment in SENSITIVE_FRAGMENTS)
+                else _redact_sensitive(nested)
+            )
+            for key, nested in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_sensitive(nested) for nested in value]
+    return value
 
 
 def _knowledge_dependency_evidence() -> JsonObject:
@@ -326,13 +367,10 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     }
     if args.nl_evaluator_model in target_names:
         raise ValueError("a target model may not score tau natural-language assertions")
-    if not args.user_model.strip() or not args.nl_evaluator_model.strip():
-        raise ValueError("tau external model identifiers must be non-empty exact snapshots")
-    for env_name in args.required_secret_env:
-        if not os.environ.get(env_name):
-            raise RuntimeError(
-                f"required credential environment variable is unavailable: {env_name}"
-            )
+    if args.user_model != TAU_EXTERNAL_MODEL or args.nl_evaluator_model != TAU_EXTERNAL_MODEL:
+        raise ValueError(f"tau external models must use fixed snapshot {TAU_EXTERNAL_MODEL}")
+    if os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY must not be exported; use --external-api-key-fd")
 
     summary = _load_object(args.inputs_summary, "agentic input summary")
     scored_by_domain = _load_object(args.scored_ids, "tau scored IDs")
@@ -379,6 +417,9 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         if set(task_inventory[domain]) != set(task_ids):
             raise RuntimeError(f"official tau task loader omitted selected IDs for {domain}")
 
+    external_api_key = _read_secret_fd(args.external_api_key_fd)
+    runtime_external_args = {**external_args, "api_key": external_api_key}
+
     args.result_dir.mkdir(parents=True, exist_ok=False)
     args.result_dir.chmod(0o750)
     started = time.time()
@@ -399,7 +440,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             llm_agent=f"hosted_vllm/{args.model_id}",
             llm_args_agent=dict(agent_args),
             llm_user=args.user_model,
-            llm_args_user=dict(external_args),
+            llm_args_user=dict(runtime_external_args),
             max_steps=200,
             max_errors=10,
             timeout=None,
@@ -415,7 +456,10 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             retrieval_config="alltools" if domain == "banking_knowledge" else None,
         )
         nl_evaluator.DEFAULT_LLM_NL_ASSERTIONS = args.nl_evaluator_model
-        nl_evaluator.DEFAULT_LLM_NL_ASSERTIONS_ARGS = {**external_args, "seed": seed}
+        nl_evaluator.DEFAULT_LLM_NL_ASSERTIONS_ARGS = {
+            **runtime_external_args,
+            "seed": seed,
+        }
         task_started = time.time()
         simulation = run_single_task(
             config,
@@ -428,7 +472,10 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         if simulation.seed != seed:
             raise RuntimeError(f"tau did not retain the declared seed for {canonical_id}")
         output_path = args.result_dir / _result_filename(canonical_id)
-        raw_sha256 = _write_private_json(output_path, simulation.model_dump(mode="json"))
+        raw_payload = _redact_sensitive(simulation.model_dump(mode="json"))
+        if external_api_key in json.dumps(raw_payload, sort_keys=True):
+            raise RuntimeError("external API key escaped simulation evidence redaction")
+        raw_sha256 = _write_private_json(output_path, raw_payload)
         termination = str(
             getattr(simulation.termination_reason, "value", simulation.termination_reason)
         )
@@ -477,6 +524,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             "hallucination_retries": 0,
             "banking_retrieval_config": "alltools",
             "banking_knowledge_dependencies": knowledge_dependencies,
+            "external_credential_transport": "inherited-file-descriptor",
         },
         "sampler": sampler,
         "user_simulator": {"model": args.user_model, "arguments": external_args},
@@ -493,6 +541,8 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     }
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     _write_private_json(args.receipt, receipt)
+    runtime_external_args.clear()
+    external_api_key = ""
     return receipt
 
 
@@ -510,7 +560,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--user-model", required=True)
     parser.add_argument("--nl-evaluator-model", required=True)
     parser.add_argument("--external-llm-args", type=Path)
-    parser.add_argument("--required-secret-env", action="append", default=[])
+    parser.add_argument("--external-api-key-fd", type=int, default=3)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     return parser

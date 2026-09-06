@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -98,7 +99,7 @@ def test_sampler_and_external_args_are_sealed(tmp_path: Path) -> None:
 
     secret_args = tmp_path / "secret.json"
     secret_args.write_text('{"api_key": "must-not-be-recorded"}', encoding="utf-8")
-    with pytest.raises(ValueError, match="injected through the environment"):
+    with pytest.raises(ValueError, match="file descriptor"):
         tau_runner._load_external_args(secret_args)
 
     nested_secret_args = tmp_path / "nested-secret.json"
@@ -106,13 +107,51 @@ def test_sampler_and_external_args_are_sealed(tmp_path: Path) -> None:
         '{"extra_headers": {"authorization_token": "must-not-be-recorded"}}',
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="injected through the environment"):
+    with pytest.raises(ValueError, match="file descriptor"):
         tau_runner._load_external_args(nested_secret_args)
 
     seeded_args = tmp_path / "seeded.json"
     seeded_args.write_text('{"seed": 7}', encoding="utf-8")
     with pytest.raises(ValueError, match="derives"):
         tau_runner._load_external_args(seeded_args)
+
+
+def test_external_key_uses_one_shot_descriptor_and_is_redacted() -> None:
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, b"test-external-secret\n")
+    os.close(write_fd)
+
+    secret = tau_runner._read_secret_fd(read_fd)
+    assert secret == "test-external-secret"
+    with pytest.raises(OSError):
+        os.read(read_fd, 1)
+    with pytest.raises(ValueError, match="3 or greater"):
+        tau_runner._read_secret_fd(0)
+
+    payload = {
+        "info": {
+            "llm_args": {
+                "api_key": secret,
+                "nested": [{"authorization_token": secret}],
+                "temperature": 0.0,
+            }
+        }
+    }
+    redacted = tau_runner._redact_sensitive(payload)
+    assert secret not in json.dumps(redacted)
+    assert redacted["info"]["llm_args"]["api_key"] == "<redacted>"
+    assert redacted["info"]["llm_args"]["temperature"] == 0.0
+
+
+def test_tau_external_model_is_an_immutable_snapshot() -> None:
+    parser = tau_runner.build_parser()
+    model_actions = {
+        action.dest: action
+        for action in parser._actions
+        if action.dest in {"user_model", "nl_evaluator_model"}
+    }
+    assert set(model_actions) == {"user_model", "nl_evaluator_model"}
+    assert tau_runner.TAU_EXTERNAL_MODEL == "gpt-4.1-2025-04-14"
 
 
 def test_endpoint_and_private_result_helpers(
