@@ -120,8 +120,9 @@ def _server_arguments(
         "qwen3",
         "--disable-uvicorn-access-log",
     ]
-    if server["async_scheduling"]:
-        arguments.append("--async-scheduling")
+    arguments.append(
+        "--async-scheduling" if server["async_scheduling"] else "--no-async-scheduling"
+    )
     if server["v1_multiprocessing"] is False:
         os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
     return arguments

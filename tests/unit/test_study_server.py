@@ -71,8 +71,21 @@ def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path
     ]
     assert arguments[arguments.index("--max-num-seqs") + 1] == "1"
     assert arguments[arguments.index("--tool-call-parser") + 1] == "qwen3_coder"
+    assert "--no-async-scheduling" in arguments
     assert "--enable-log-requests" not in arguments
     assert "--disable-uvicorn-access-log" in arguments
+
+    study.raw["study"]["execution"]["model_server"]["async_scheduling"] = True
+    async_arguments = server_cli._server_arguments(
+        study,
+        model_id,
+        tmp_path / "model",
+        tmp_path / "chat-template.jinja",
+        "127.0.0.1",
+        18080,
+    )
+    assert "--async-scheduling" in async_arguments
+    assert "--no-async-scheduling" not in async_arguments
 
     with pytest.raises(ValueError, match="127.0.0.1"):
         server_cli._server_arguments(
