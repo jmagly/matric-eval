@@ -135,15 +135,39 @@ def test_wait_for_endpoint_handles_readiness_exit_and_timeout() -> None:
         )
 
 
-def test_private_server_receipt_is_non_overwriting(tmp_path: Path) -> None:
+def test_private_server_receipt_is_non_overwriting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = tmp_path / "private" / "receipt.json"
+    ownership: list[tuple[Path, int, int]] = []
+    monkeypatch.setenv("MATRIC_EVAL_EVIDENCE_UID", "1234")
+    monkeypatch.setenv("MATRIC_EVAL_EVIDENCE_GID", "5678")
+    monkeypatch.setattr(
+        server_cli.os,
+        "chown",
+        lambda target, uid, gid: ownership.append((Path(target), uid, gid)),
+    )
     digest = server_cli._write_private_json(path, {"model_id": "source"})
 
     assert len(digest) == 64
     assert json.loads(path.read_text(encoding="utf-8"))["model_id"] == "source"
     assert path.stat().st_mode & 0o777 == 0o600
+    assert ownership[0][1:] == (1234, 5678)
+    assert not list(path.parent.glob(".*.tmp"))
     with pytest.raises(ValueError, match="overwrite"):
         server_cli._write_private_json(path, {})
+
+
+def test_evidence_owner_requires_paired_decimal_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "receipt.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("MATRIC_EVAL_EVIDENCE_UID", "1234")
+    monkeypatch.delenv("MATRIC_EVAL_EVIDENCE_GID", raising=False)
+
+    with pytest.raises(ValueError, match="supplied together"):
+        server_cli._set_evidence_owner(path)
 
 
 def test_serve_child_registers_adapter_and_restores_argv(

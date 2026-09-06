@@ -10,6 +10,7 @@ import platform
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -30,16 +31,49 @@ from matric_eval.studies.protocol import StudyProtocol
 JsonObject = dict[str, Any]
 
 
+def _set_evidence_owner(path: Path) -> None:
+    uid_text = os.environ.get("MATRIC_EVAL_EVIDENCE_UID")
+    gid_text = os.environ.get("MATRIC_EVAL_EVIDENCE_GID")
+    if uid_text is None and gid_text is None:
+        return
+    if not uid_text or not gid_text or not uid_text.isdecimal() or not gid_text.isdecimal():
+        raise ValueError("evidence UID and GID must be supplied together as decimal integers")
+    os.chown(path, int(uid_text), int(gid_text))
+
+
 def _write_private_json(path: Path, payload: JsonObject) -> str:
-    """Create one private, durable JSON receipt without overwriting evidence."""
+    """Atomically create one private, durable JSON receipt without overwriting evidence."""
     if path.exists():
         raise ValueError(f"refusing to overwrite server receipt: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-    path.chmod(0o600)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary_path.chmod(0o600)
+        _set_evidence_owner(temporary_path)
+        try:
+            os.link(temporary_path, path)
+        except FileExistsError as exc:
+            raise ValueError(f"refusing to overwrite server receipt: {path}") from exc
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
     return _sha256_file(path)
 
 
@@ -223,6 +257,8 @@ def run_attested_server(
         ready_marker = signal_model_resident(model.id)
         try:
             lease_sha256 = capture_active_gpu_lease(lease_receipt_path)
+            lease_receipt_path.chmod(0o600)
+            _set_evidence_owner(lease_receipt_path)
         finally:
             ready_marker.unlink(missing_ok=True)
         receipt = {

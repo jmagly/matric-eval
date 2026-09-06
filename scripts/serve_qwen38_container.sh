@@ -104,6 +104,8 @@ fi
 sudo docker gpu discover >/dev/null
 ready_command="test -s \"${ready_base}.\${OLLAMA_UNIFY_GPU_LEASE}.ready\""
 code_revision="$(git -C "$study_repo" rev-parse HEAD)"
+evidence_uid="$(id -u)"
+evidence_gid="$(id -g)"
 
 sudo docker gpu run \
   --owner "$owner" \
@@ -141,6 +143,8 @@ sudo docker gpu run \
     --env CUDA_VISIBLE_DEVICES \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
+    --env MATRIC_EVAL_EVIDENCE_UID="$evidence_uid" \
+    --env MATRIC_EVAL_EVIDENCE_GID="$evidence_gid" \
     --env MATRIC_EVAL_GPU_BROKER_SOCKET="$study_broker_socket" \
     --env MATRIC_EVAL_MODEL_READY_BASE="$ready_base" \
     --entrypoint /usr/bin/python3 \
