@@ -68,7 +68,7 @@ _REFUSAL_PREFIXES = (
 def _tier_count(benchmark: str, tier: str, total: int) -> int:
     configured = get_sample_count(benchmark, tier)
     if configured:
-        return configured
+        return int(configured)
     return {"smoke": min(5, total), "quick": min(50, total), "full": total}.get(tier, 0)
 
 
