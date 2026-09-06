@@ -77,8 +77,7 @@ def load_observations(rows: Iterable[JsonObject]) -> list[StudyObservation]:
     if not observations:
         raise ValueError("observations must contain at least one row")
     keys = [
-        (item.model_id, item.allocation_id, item.sample_id, item.metric_id)
-        for item in observations
+        (item.model_id, item.allocation_id, item.sample_id, item.metric_id) for item in observations
     ]
     if len(keys) != len(set(keys)):
         raise ValueError("observations contain duplicate model/allocation/sample/metric rows")
@@ -129,8 +128,7 @@ def bootstrap_mean_ci(
     rng = random.Random(seed)
     count = len(values)
     draws = [
-        sum(values[rng.randrange(count)] for _ in range(count)) / count
-        for _ in range(replicates)
+        sum(values[rng.randrange(count)] for _ in range(count)) / count for _ in range(replicates)
     ]
     alpha = (1.0 - confidence) / 2.0
     return _quantile(draws, alpha), _quantile(draws, 1.0 - alpha)
@@ -200,8 +198,7 @@ def wilson_interval(
 def exact_mcnemar_pvalue(pairs: Sequence[tuple[float, float]]) -> float:
     """Calculate the two-sided exact McNemar binomial p-value."""
     if any(
-        source not in {0.0, 1.0} or intervention not in {0.0, 1.0}
-        for source, intervention in pairs
+        source not in {0.0, 1.0} or intervention not in {0.0, 1.0} for source, intervention in pairs
     ):
         raise ValueError("exact McNemar requires binary paired outcomes")
     source_only = sum(source == 1.0 and intervention == 0.0 for source, intervention in pairs)
@@ -316,7 +313,9 @@ def _paired_summary(
     denominator = len(source) - infrastructure
     if not pairs or denominator < 1:
         raise ValueError(f"{label} contains no analyzable pairs")
-    delta = sum(intervention_value - source_value for source_value, intervention_value in pairs) / len(pairs)
+    delta = sum(
+        intervention_value - source_value for source_value, intervention_value in pairs
+    ) / len(pairs)
     low, high = paired_bootstrap_delta_ci(
         pairs,
         seed=_seed(root_seed, label),
@@ -348,8 +347,10 @@ def _expected_ids(manifest: JsonObject) -> dict[str, list[str]]:
             raise ValueError("manifest allocation must be an object")
         allocation_id = allocation.get("allocation_id")
         selected_ids = allocation.get("selected_ids")
-        if not isinstance(allocation_id, str) or not isinstance(selected_ids, list) or not all(
-            isinstance(sample_id, str) for sample_id in selected_ids
+        if (
+            not isinstance(allocation_id, str)
+            or not isinstance(selected_ids, list)
+            or not all(isinstance(sample_id, str) for sample_id in selected_ids)
         ):
             raise ValueError("manifest allocation identity is malformed")
         expected[allocation_id] = selected_ids
@@ -382,9 +383,7 @@ def analyze_observations(
         raise ValueError("analysis requires exactly one untouched control")
     source_model = source_models[0]
 
-    grouped: dict[str, dict[str, list[StudyObservation]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
+    grouped: dict[str, dict[str, list[StudyObservation]]] = defaultdict(lambda: defaultdict(list))
     for observation in observations:
         if (
             observation.study_id != study.id
@@ -404,9 +403,7 @@ def analyze_observations(
     holm_families: dict[str, dict[str, float]] = defaultdict(dict)
     for allocation in study.benchmarks:
         model_rows = grouped.get(allocation.id, {})
-        metric_ids = {
-            item.metric_id for rows in model_rows.values() for item in rows
-        }
+        metric_ids = {item.metric_id for rows in model_rows.values() for item in rows}
         if len(metric_ids) != 1:
             raise ValueError(f"allocation {allocation.id} must contain exactly one primary metric")
         metric_id = next(iter(metric_ids))
@@ -422,7 +419,9 @@ def analyze_observations(
                 )
             ordered = [indexed[sample_id] for sample_id in selected_ids]
             if any(item.metric_id != metric_id for item in ordered):
-                raise ValueError(f"allocation {allocation.id} metric identity differs across models")
+                raise ValueError(
+                    f"allocation {allocation.id} metric identity differs across models"
+                )
             ordered_by_model[model.id] = ordered
             model_summaries[model.id] = _model_summary(
                 ordered,
@@ -516,9 +515,7 @@ def analyze_observations(
                 comparison["noninferiority_basis"] = (
                     "minimum-of-bootstrap-lower-and-missingness-lower"
                 )
-                comparison["noninferior"] = (
-                    100.0 * min(low, macro_missingness_bounds[0]) > margin
-                )
+                comparison["noninferior"] = 100.0 * min(low, macro_missingness_bounds[0]) > margin
             comparisons[model_id] = comparison
         axis_results[axis] = {
             "allocations": allocation_ids,

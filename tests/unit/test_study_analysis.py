@@ -112,15 +112,13 @@ def test_statistical_primitives_are_deterministic_and_bounded() -> None:
 
     paired = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0)]
     assert paired_bootstrap_delta_ci(paired, seed=9, replicates=200)[1] >= 0.0
-    assert stratified_paired_bootstrap_ci([paired[:2], paired[2:]], seed=9, replicates=200)[
-        1
-    ] >= 0.0
+    assert (
+        stratified_paired_bootstrap_ci([paired[:2], paired[2:]], seed=9, replicates=200)[1] >= 0.0
+    )
 
     low, high = wilson_interval(5, 10)
     assert 0.0 < low < 0.5 < high < 1.0
-    assert exact_mcnemar_pvalue([(0.0, 1.0)] * 5 + [(1.0, 0.0)]) == pytest.approx(
-        0.21875
-    )
+    assert exact_mcnemar_pvalue([(0.0, 1.0)] * 5 + [(1.0, 0.0)]) == pytest.approx(0.21875)
     assert exact_mcnemar_pvalue([(0.0, 0.0), (1.0, 1.0)]) == 1.0
     assert holm_adjust({"a": 0.01, "b": 0.03, "c": 0.5}) == {
         "a": 0.03,
