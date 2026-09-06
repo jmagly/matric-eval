@@ -255,3 +255,30 @@ def test_terminate_child_escalates_after_timeout(monkeypatch: pytest.MonkeyPatch
     server_cli._terminate_child(process)
     assert process.terminated is True
     assert process.killed is True
+
+
+def test_main_rejects_invalid_child_registration_and_timeout() -> None:
+    with pytest.raises(ValueError, match="registrations must be an object"):
+        server_cli.main(["child", "--registrations-json", "[]", "--"])
+
+    with pytest.raises(ValueError, match="ready timeout"):
+        server_cli.main(
+            [
+                "serve",
+                str(PROTOCOL),
+                "--model-id",
+                "source",
+                "--model-path",
+                "/model",
+                "--qualification",
+                "/qualification.json",
+                "--chat-template",
+                "/chat-template.jinja",
+                "--lease-receipt",
+                "/lease.json",
+                "--server-receipt",
+                "/server.json",
+                "--ready-timeout",
+                "0",
+            ]
+        )
