@@ -174,8 +174,8 @@ def _serve_child(registrations: JsonObject, arguments: list[str]) -> int:
     try:
         try:
             from vllm import ModelRegistry  # type: ignore[import-not-found]
-            from vllm.entrypoints.cli.main import (
-                main as vllm_main,  # type: ignore[import-not-found]
+            from vllm.entrypoints.cli.main import (  # type: ignore[import-not-found]
+                main as vllm_main,
             )
         except ImportError as exc:  # pragma: no cover - pinned A100 image only
             raise RuntimeError("server child requires the protocol-pinned vLLM image") from exc
