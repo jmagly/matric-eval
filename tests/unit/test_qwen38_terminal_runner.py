@@ -142,6 +142,107 @@ def test_endpoint_and_job_result_parsing(tmp_path: Path, monkeypatch: pytest.Mon
     assert exception is None
 
 
+def test_harbor_022_nested_trial_result_parsing(tmp_path: Path) -> None:
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    result_path = job_dir / "result.json"
+    result_path.write_text(json.dumps({"n_total_trials": 1}), encoding="utf-8")
+    trial_dir = job_dir / "task__trial"
+    trial_dir.mkdir()
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "verifier_result": {"rewards": {"reward": 0}},
+                "exception_info": {"exception_type": "AgentTimeoutError"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _, rewards, exception = terminal_runner._parse_job_result(result_path)
+
+    assert rewards == {"reward": 0}
+    assert exception == "AgentTimeoutError"
+
+
+def test_retained_job_duration_uses_harbor_timestamps() -> None:
+    assert (
+        terminal_runner._result_duration_seconds(
+            {
+                "started_at": "2026-09-06T13:57:00+00:00",
+                "finished_at": "2026-09-06T14:13:10+00:00",
+            }
+        )
+        == 970.0
+    )
+    with pytest.raises(RuntimeError, match="negative execution time"):
+        terminal_runner._result_duration_seconds(
+            {
+                "started_at": "2026-09-06T14:13:10Z",
+                "finished_at": "2026-09-06T13:57:00Z",
+            }
+        )
+
+
+def test_retained_job_config_normalizes_only_set_backed_exclusions() -> None:
+    actual = {
+        "retry": {"max_retries": 0, "exclude_exceptions": ["Timeout", "Parse"]},
+        "job_name": "job",
+    }
+    expected = {
+        "retry": {"max_retries": 0, "exclude_exceptions": ["Parse", "Timeout"]},
+        "job_name": "job",
+    }
+
+    assert terminal_runner._job_configs_match(actual, expected)
+    expected["job_name"] = "different"
+    assert not terminal_runner._job_configs_match(actual, expected)
+
+
+def test_harbor_022_nested_trial_result_must_be_unique(tmp_path: Path) -> None:
+    result_path = tmp_path / "result.json"
+    result_path.write_text(json.dumps({"n_total_trials": 1}), encoding="utf-8")
+    for name in ("trial-one", "trial-two"):
+        trial_dir = tmp_path / name
+        trial_dir.mkdir()
+        (trial_dir / "result.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="exactly one nested trial result"):
+        terminal_runner._parse_job_result(result_path)
+
+
+def test_resume_existing_is_explicit() -> None:
+    args = terminal_runner.build_parser().parse_args(
+        [
+            "protocol.yaml",
+            "manifest.json",
+            "--model-id",
+            "model",
+            "--model-path",
+            "/model",
+            "--server-receipt",
+            "/receipt.json",
+            "--terminal-checkout",
+            "/terminal",
+            "--harbor-python",
+            "/venv/python",
+            "--harbor-executable",
+            "/venv/harbor",
+            "--inputs-summary",
+            "/inputs.json",
+            "--scored-ids",
+            "/ids.json",
+            "--result-dir",
+            "/results",
+            "--receipt",
+            "/terminal-receipt.json",
+            "--resume-existing",
+        ]
+    )
+
+    assert args.resume_existing is True
+
+
 def test_result_names_are_content_free_and_stable() -> None:
     one = terminal_runner._result_name("largest-eigenval")
     two = terminal_runner._result_name("extract-elf")
