@@ -94,7 +94,7 @@ def _evidence() -> tuple[
         "status_counts": {"observed": study.full_samples_per_model * len(study.models)},
     }
     pilot = {
-        "schema_version": "2",
+        "schema_version": "1",
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "study_seed": study.seed,
@@ -103,9 +103,21 @@ def _evidence() -> tuple[
             model.id: {
                 "direct_pilot_generation_calls": 85,
                 "total_generation_seconds": 600.0,
+                "total_deterministic_scoring_seconds": 4.0,
                 "estimated_full_direct_seconds_from_scratch": 7200.0,
+                "pilot_gpu_hours": 0.25,
+                "estimated_full_gpu_hours": 4.0,
+                "agentic": {"pilot_seconds": 300.0},
             }
             for model in study.models
+        },
+        "judge": {
+            "primary_seconds": 300.0,
+            "adjudication_seconds": 60.0,
+            "primary_calls": 135,
+            "adjudicator_calls": 12,
+            "retries": 1,
+            "estimated_full_seconds": 4000.0,
         },
     }
     return study, manifest, analysis, receipt, pilot

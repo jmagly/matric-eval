@@ -132,6 +132,7 @@ def main() -> int:
     first_turn_scale = offline_full / offline_pilot
     second_turn_scale = mtbench.full_samples / mtbench.pilot_samples
     models: dict[str, Any] = {}
+    manifest_hashes: set[str] = set()
     for model in study.models:
         prefix = MODEL_FILES[model.id]
         result_path = args.result_root / f"{prefix}-pilot-offline.jsonl"
@@ -148,6 +149,16 @@ def main() -> int:
         turn2_input_receipt = _json(turn2_input_receipt_path)
         receipt = _json(receipt_path)
         repeat_receipt = _json(repeat_receipt_path)
+        manifest_sha256 = results[0].get("manifest_sha256")
+        if (
+            not isinstance(manifest_sha256, str)
+            or len(manifest_sha256) != 64
+            or any(row.get("manifest_sha256") != manifest_sha256 for row in results)
+            or receipt.get("manifest_sha256") != manifest_sha256
+            or repeat_receipt.get("manifest_sha256") != manifest_sha256
+        ):
+            raise ValueError(f"{model.id} manifest identity mismatch")
+        manifest_hashes.add(manifest_sha256)
         if len(results) != offline_pilot:
             raise ValueError(f"{model.id} does not contain {offline_pilot} direct pilot rows")
         if any(row.get("model_id") != model.id for row in results):
@@ -180,6 +191,10 @@ def main() -> int:
             for allocation, values in receipt["aggregates"].items()
             if values.get("publication_eligible") is True
         }
+        scoring_seconds = float(receipt["scoring_seconds"])
+        repeat_scoring_seconds = float(repeat_receipt["scoring_seconds"])
+        if scoring_seconds < 0 or repeat_scoring_seconds < 0:
+            raise ValueError(f"{model.id} scoring durations must be non-negative")
         models[model.id] = {
             "model_source": model.source,
             "model_revision": model.checkpoint_revision,
@@ -200,6 +215,9 @@ def main() -> int:
             "mtbench_turn2_generation_seconds": turn2_generation,
             "total_initialization_seconds": initialization + turn2_initialization,
             "total_generation_seconds": generation + turn2_generation,
+            "scoring_seconds": scoring_seconds,
+            "repeat_scoring_seconds": repeat_scoring_seconds,
+            "total_deterministic_scoring_seconds": scoring_seconds + repeat_scoring_seconds,
             "estimated_full_direct_seconds_from_scratch": (
                 initialization
                 + generation * first_turn_scale
@@ -213,11 +231,15 @@ def main() -> int:
             "scores_sha256": _sha256(score_path),
         }
 
+    if len(manifest_hashes) != 1:
+        raise ValueError("direct pilot models do not share one manifest")
+
     summary = {
-        "schema_version": "1",
+        "schema_version": "2",
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "study_seed": study.seed,
+        "manifest_sha256": next(iter(manifest_hashes)),
         "status": "direct-pilot-pipeline-validated-agentic-and-judged-lanes-pending",
         "interpretation": "Pilot metrics validate the pipeline and estimate runtime only; they are not confirmatory results.",
         "direct_samples_per_model": {"pilot": offline_pilot, "full": offline_full},

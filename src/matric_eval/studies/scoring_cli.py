@@ -6,6 +6,7 @@ import argparse
 import importlib.metadata
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import Sequence
 
@@ -55,6 +56,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     study = StudyProtocol.from_yaml(args.protocol, validate_registry=False)
     if args.docker_code_sandbox:
         verify_lcb_evaluator_checkout()
+    scoring_started = time.monotonic()
     rows, summary = score_offline_outputs(
         study=study,
         results=load_jsonl(args.results),
@@ -62,6 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         executor=docker_livecodebench_executor if args.docker_code_sandbox else None,
         code_timeout=args.code_timeout,
     )
+    scoring_seconds = time.monotonic() - scoring_started
     code_revision = _code_revision()
     for row in rows:
         row["scoring_code_revision"] = code_revision
@@ -87,6 +90,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "results_sha256": sha256_file(args.results),
             "scoring_records_sha256": sha256_file(args.scoring_records),
             "scores_sha256": write_private_jsonl(args.output, rows),
+            "scoring_seconds": scoring_seconds,
         }
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
