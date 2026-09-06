@@ -13,7 +13,7 @@ import hashlib
 import io
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import httpx
 from inspect_ai import Task, task

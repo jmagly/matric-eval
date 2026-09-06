@@ -145,3 +145,36 @@ uv run matric-eval validate-study \
 
 No pilot may start until this command succeeds against the exact commit recorded in
 the run directory.
+
+After each official adapter has exported its complete canonical ID catalog, build the
+nested manifests with the same validator implementation:
+
+```bash
+uv run matric-eval build-study-manifest \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/id-catalog.json \
+  --cohort pilot \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json
+```
+
+Repeat with `--cohort full`; validation must show every allocation's pilot IDs are the
+ordered prefix of its full IDs.
+
+## Primary sources
+
+- Model cards: [Qwen source](https://huggingface.co/Qwen/Qwen3.8-27B),
+  [E03](https://huggingface.co/manitcor/Qwen3.8-27B-Obliterated-E03), and
+  [Pliny V3](https://huggingface.co/OBLITERATUS/Qwen3.8-27B-OBLITERATED).
+- Refusal datasets and protocols: [XSTest](https://github.com/paul-rottger/xstest),
+  [OR-Bench](https://github.com/justincui03/or-bench), and
+  [StrongREJECT](https://github.com/dsbowen/strong_reject).
+- Agentic protocols: [BFCL](https://github.com/ShishirPatil/gorilla),
+  [tau3-bench](https://github.com/sierra-research/tau2-bench), and
+  [Terminal-Bench 2.1](https://github.com/terminal-bench/terminal-bench-2-1).
+- Runtime controls: vLLM's official
+  [reproducibility guidance](https://docs.vllm.ai/en/stable/usage/reproducibility/)
+  and [batch-invariance documentation](https://docs.vllm.ai/en/stable/features/batch_invariance/).
+
+All repository and dataset URLs resolve to the immutable revisions in `protocol.yaml`.
+Model-card scores are treated as self-reported background, never as this study's
+baseline.
