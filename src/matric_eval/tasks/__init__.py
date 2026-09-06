@@ -136,6 +136,17 @@ from matric_eval.tasks.qwenclawbench import (
 )
 from matric_eval.tasks.qwenwebbench import load_qwenwebbench, qwenwebbench
 from matric_eval.tasks.realworldqa import load_realworldqa, realworldqa
+from matric_eval.tasks.refusal import (
+    classify_refusal_prefix,
+    load_or_bench_hard,
+    load_strongreject,
+    load_xstest,
+    or_bench_hard,
+    refusal_prefix_diagnostic_scorer,
+    strongreject,
+    xstest_safe,
+    xstest_unsafe,
+)
 from matric_eval.tasks.registry import (  # noqa: F401 — registry must be importable
     BenchmarkAccess,
     BenchmarkCategory,
@@ -224,6 +235,7 @@ __all__ = [
     "tulving",
     "check_constraint",
     "check_insecure_patterns",
+    "classify_refusal_prefix",
     "cyberseceval",
     "cyberseceval_record_to_sample",
     "cyberseceval_scorer",
@@ -288,9 +300,13 @@ __all__ = [
     "load_mmlu",
     "load_mmlu_pro",
     "load_mtbench",
+    "load_or_bench_hard",
+    "load_strongreject",
+    "load_xstest",
     "mbpp",
     "mbpp_plus",
     "normalize_answer",
+    "or_bench_hard",
     "osworld2",
     "mbpp_record_to_sample",
     "mmlu",
@@ -303,6 +319,7 @@ __all__ = [
     "smoke_humaneval",
     "smoke_mbpp",
     "smoke_suite",
+    "strongreject",
     "calculate_function_call_score",
     "calculate_param_match",
     "extract_function_call",
@@ -312,6 +329,9 @@ __all__ = [
     "tool_calling",
     "tool_calling_record_to_sample",
     "TOOL_CALLING_SCENARIOS",
+    "refusal_prefix_diagnostic_scorer",
+    "xstest_safe",
+    "xstest_unsafe",
     # Application-specific tasks
     "load_matric_cli",
     "matric_cli",

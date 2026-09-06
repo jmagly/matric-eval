@@ -22,14 +22,18 @@ full root filesystem:
 | --- | --- |
 | Source checkout | `/srv/matric-eval/workspaces/matric-eval` |
 | uv cache | `/srv/matric-eval/cache/uv` |
-| Hugging Face cache | `/srv/matric-eval/cache/huggingface` |
+| Small dataset cache | `/srv/matric-eval/cache/huggingface` |
+| Large model/Hugging Face cache | `/srv/obliteratus/matric-eval/cache/huggingface` |
 | External benchmark checkouts | `/srv/matric-eval/benchmarks` |
 | Immutable run output | `/srv/matric-eval/results` |
 
-Before every dependency sync or benchmark run, record `df -h / /srv`. Never
-download a second model copy when a qualified local checkpoint or endpoint is
-already available. Stop before a run if the projected cache and result size does
-not leave a safe operating margin.
+`/srv/obliteratus` is a bind mount on the separate 3.6 TiB model SSD; do not infer
+its capacity from `df -h /srv`. Before every dependency sync or benchmark run,
+record `df -h / /srv` and `findmnt -T /srv/obliteratus -o
+SOURCE,FSTYPE,SIZE,USED,AVAIL,USE%,TARGET`. Never download a second model copy when
+a qualified local checkpoint or endpoint is already available. Stop before a run
+if the projected cache and result size does not leave a safe operating margin on
+the filesystem that will actually hold it.
 
 ## Required preflight
 
@@ -43,6 +47,7 @@ python --version
 nvidia-smi --query-gpu=index,name,uuid,driver_version,memory.total,memory.used \
   --format=csv,noheader
 df -h / /srv
+findmnt -T /srv/obliteratus -o SOURCE,FSTYPE,SIZE,USED,AVAIL,USE%,TARGET
 ```
 
 Also record:

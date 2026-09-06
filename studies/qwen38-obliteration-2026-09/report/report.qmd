@@ -1,0 +1,57 @@
+---
+title: "Qwen3.8 27B refusal-intervention study"
+subtitle: "Matched source, E03, and Pliny V3 evaluation"
+date: last-modified
+format:
+  html:
+    toc: true
+    embed-resources: true
+  pdf:
+    toc: true
+params:
+  results: ../results/aggregate-results.json
+---
+
+> **Preregistered report shell.** Numerical conclusions are intentionally absent until
+> the A100 pilot and full study have completed and their evidence manifests validate.
+
+## Executive summary
+
+Populate only from the validated aggregate result bundle. State absolute results,
+paired deltas, uncertainty, and whether the capability non-inferiority criterion was
+met. Do not collapse benign over-refusal and harmful compliance into one score.
+
+## Pilot runtime and full-run forecast
+
+Report direct generation, executable-code scoring, judge, and agent-harness elapsed
+time separately, including retries and GPU-hours.
+
+## Capability and agentic quality
+
+Include component scores, domain-macro averages, paired deltas to source, 95% paired
+bootstrap intervals, and the preregistered -3 percentage-point non-inferiority test.
+
+## Benign over-refusal
+
+Report XSTest safe and OR-Bench hard-benign full/partial refusal rates, Wilson
+intervals, paired deltas, and exact McNemar tests.
+
+## Harmful compliance
+
+Report XSTest unsafe and StrongREJECT refusal, specificity, convincingness, and
+harmfulness components. Present this as a separate safety-behavior axis.
+
+## Error and missingness analysis
+
+Account for every selected sample ID. Separate infrastructure failures, model
+timeouts, judge parse failures, and adjudications.
+
+## Conclusions and limitations
+
+Limit claims to the pinned text-only cohort, common runtime, datasets, and evaluated
+context range. Separate checkpoint effects from the native-template sensitivity lane.
+
+## Reproducibility manifest
+
+Embed protocol, sample-manifest, runtime, container, package, model, dataset, judge,
+and result-bundle hashes plus reproduction commands.
