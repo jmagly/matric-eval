@@ -156,6 +156,9 @@ def _score_livecodebench(
     ):
         raise ValueError("LiveCodeBench functional sample is missing func_name")
     result = executor(completion, metadata, timeout)
+    infrastructure_error = result.get("infrastructure_error")
+    if infrastructure_error:
+        raise RuntimeError(f"LiveCodeBench scoring infrastructure failed: {infrastructure_error}")
     return float(bool(result.get("passed"))), {
         "tests_total": len(tests),
         "tests_executed": result.get("tests_executed", 0),
@@ -200,6 +203,7 @@ def docker_livecodebench_executor(
         *docker,
         "run",
         "--rm",
+        "--interactive",
         "--name",
         name,
         "--network",
@@ -247,7 +251,12 @@ def docker_livecodebench_executor(
         )
         return {"passed": False, "tests_executed": 0, "result_codes": {"timeout": 1}}
     if result.returncode:
-        return {"passed": False, "tests_executed": 0, "result_codes": {"runner_error": 1}}
+        return {
+            "passed": False,
+            "tests_executed": 0,
+            "result_codes": {},
+            "infrastructure_error": "runner_error",
+        }
     try:
         parsed = json.loads(result.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError) as exc:

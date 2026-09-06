@@ -124,6 +124,29 @@ def test_livecodebench_rejects_implicit_host_execution() -> None:
         score_offline_outputs(study=study, results=results, scoring_records=scoring)
 
 
+def test_livecodebench_rejects_infrastructure_failure() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    results = [_result(study, "livecodebench", "p1", "```python\nprint('x')\n```")]
+    scoring = [
+        _scoring(
+            "livecodebench",
+            "p1",
+            "x",
+            {"public_test_cases": [{"input": "", "output": "x", "testtype": "stdin"}]},
+        )
+    ]
+
+    with pytest.raises(RuntimeError, match="infrastructure failed"):
+        score_offline_outputs(
+            study=study,
+            results=results,
+            scoring_records=scoring,
+            executor=lambda _completion, _metadata, _timeout: {
+                "infrastructure_error": "runner_error"
+            },
+        )
+
+
 def test_rejects_contract_drift_and_overwrite(tmp_path: Path) -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
     result = _result(study, "mmlu-pro", "q1", "A")
