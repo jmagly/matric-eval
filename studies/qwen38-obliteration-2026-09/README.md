@@ -272,6 +272,80 @@ uv run python scripts/build_qwen38_agentic_inputs.py \
   --output-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs
 ```
 
+Official agent runners share one broker-attested, localhost-only vLLM endpoint. Start
+it in a dedicated A100 shell and leave it supervising the lease while the runner is
+active. The server advertises both the immutable study model ID and checkpoint path;
+each bridge refuses any other endpoint identity. This source-model example must be
+repeated with distinct evidence paths for E03 and Pliny:
+
+```bash
+scripts/serve_qwen38_container.sh \
+  --gpu GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0 \
+  --owner matric-eval-qwen38-source-agentic \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
+  --lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-gpu-lease.json \
+  --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
+  --ready-base /srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/source-agentic \
+  --container-name matric-eval-qwen38-source-agentic
+```
+
+Run the pinned BFCL environment from another A100 shell. It executes 30 official
+runner cases to satisfy memory and scenario dependencies, but only the five sealed
+pilot IDs contribute observations. Raw generations and scores remain private:
+
+```bash
+/srv/matric-eval/benchmarks/bfcl-runner-2026.3.23/.venv/bin/python \
+  scripts/run_qwen38_bfcl.py \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
+  --bfcl-checkout /srv/matric-eval/benchmarks/bfcl-v4 \
+  --inputs-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/agentic-inputs-summary.json \
+  --runner-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/bfcl-runner-ids.json \
+  --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/bfcl-scored-ids.json \
+  --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-bfcl-raw \
+  --score-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-bfcl-scores \
+  --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-bfcl-receipt.json
+```
+
+The pinned tau2 `alltools` banking profile additionally requires `rg`, `bwrap`,
+`socat`, `rank-bm25==0.2.2`, and
+`@anthropic-ai/sandbox-runtime==0.0.23`. On Ubuntu 24.04, retain the host-wide
+unprivileged-user-namespace restriction and install a narrowly scoped AppArmor profile
+for `/usr/bin/bwrap` containing `userns,`; verify an actual sandbox command, not only
+binary presence. Install the Python knowledge extra with `uv sync --extra knowledge
+--frozen`. The bridge rechecks package versions, the AppArmor-dependent execution
+canary, the selected tasks, and the recorded tau source worktree before every run.
+
+The pinned tau2 1.0.1 defaults use `gpt-4.1-2025-04-14` for both the user simulator
+and its official NL-assertion evaluator. Supply its credential only through the
+environment; the bridge rejects credential-like keys in argument JSON and never copies
+secret values into evidence. It invokes the official `run_single_task` API once per
+task so the protocol's full 32-bit SHA-256 seed reaches the target and user simulator
+unchanged, instead of being replaced by the batch runner's trial-seed generator:
+
+```bash
+/srv/matric-eval/benchmarks/tau2-v1.0.1/.venv/bin/python \
+  scripts/run_qwen38_tau.py \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
+  --tau-checkout /srv/matric-eval/benchmarks/tau2-v1.0.1 \
+  --inputs-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/agentic-inputs-summary.json \
+  --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/tau3-scored-ids.json \
+  --user-model gpt-4.1-2025-04-14 \
+  --nl-evaluator-model gpt-4.1-2025-04-14 \
+  --required-secret-env OPENAI_API_KEY \
+  --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-raw \
+  --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-receipt.json
+```
+
 After both score passes match, build the content-free public pilot summary. It reports
 only pipeline-validation metrics and a linear direct-run forecast; agentic execution
 and judge time remain explicitly pending until those lanes complete:
