@@ -7,6 +7,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -357,6 +358,91 @@ def verify_runtime_environment(
     return versions
 
 
+def _gpu_broker_status(socket_path: Path) -> dict[str, Any]:
+    request = json.dumps({"action": "status"}, separators=(",", ":")).encode() + b"\n"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(10)
+        client.connect(str(socket_path))
+        client.sendall(request)
+        with client.makefile("rb") as response_file:
+            raw_response = response_file.readline(1024 * 1024)
+    if not raw_response:
+        raise RuntimeError("GPU broker closed the control connection without a response")
+    response = json.loads(raw_response)
+    if not isinstance(response, dict) or response.get("ok") is not True:
+        error = response.get("error") if isinstance(response, dict) else None
+        raise RuntimeError(f"GPU broker status failed: {error or 'invalid response'}")
+    return response
+
+
+def capture_active_gpu_lease(
+    receipt_path: Path,
+    *,
+    status_factory: Callable[[Path], dict[str, Any]] = _gpu_broker_status,
+    sleep: Callable[[float], None] = time.sleep,
+) -> str:
+    """Wait for and record the exact active scoped lease inherited by the container."""
+    token = os.environ.get("OLLAMA_UNIFY_GPU_LEASE")
+    if not token:
+        raise RuntimeError("production offline execution requires OLLAMA_UNIFY_GPU_LEASE")
+    raw_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    visible = [value.strip() for value in raw_visible.split(",") if value.strip()]
+    if not visible or any(not value.startswith("GPU-") for value in visible):
+        raise RuntimeError("CUDA_VISIBLE_DEVICES must contain exact GPU UUIDs from the lease")
+    socket_path = Path(
+        os.environ.get(
+            "MATRIC_EVAL_GPU_BROKER_SOCKET",
+            "/run/ollama-unify/gpu-negotiator.sock",
+        )
+    )
+    timeout_seconds = float(os.environ.get("MATRIC_EVAL_GPU_LEASE_READY_TIMEOUT", "180"))
+    if not 1 <= timeout_seconds <= 900:
+        raise RuntimeError("MATRIC_EVAL_GPU_LEASE_READY_TIMEOUT must be between 1 and 900")
+    if receipt_path.exists():
+        raise ValueError(f"refusing to overwrite existing GPU lease receipt: {receipt_path}")
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        status = status_factory(socket_path)
+        raw_leases = status.get("leases")
+        leases = raw_leases if isinstance(raw_leases, list) else []
+        lease = next(
+            (item for item in leases if isinstance(item, dict) and item.get("token") == token),
+            None,
+        )
+        if lease is None:
+            raise RuntimeError("inherited GPU lease token is absent from broker status")
+        state = lease.get("state")
+        if state == "active":
+            lease_gpus = lease.get("gpu_uuids")
+            if lease_gpus != visible:
+                raise RuntimeError(
+                    "CUDA_VISIBLE_DEVICES does not exactly match the active scoped lease"
+                )
+            receipt = {
+                "schema_version": "1",
+                "captured_at_unix": time.time(),
+                "broker_protocol": "ollama-unify-gpu-lease/v1",
+                "lease": lease,
+                "cuda_visible_devices": visible,
+                "gpus": status.get("gpus"),
+                "backend_available": status.get("backend_available"),
+                "backend_checked_at": status.get("backend_checked_at"),
+            }
+            receipt_path.parent.mkdir(parents=True, exist_ok=True)
+            with receipt_path.open("x", encoding="utf-8") as handle:
+                handle.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            receipt_path.chmod(0o600)
+            return _sha256_file(receipt_path)
+        if state not in {"pending"}:
+            raise RuntimeError(f"GPU lease entered non-runnable state {state!r}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("GPU lease did not become active after the model became resident")
+        sleep(0.25)
+
+
 def run_offline_batch(
     *,
     protocol_path: str | Path,
@@ -378,6 +464,11 @@ def run_offline_batch(
     # without importing the benchmark execution stack, which is not used here.
     study = StudyProtocol.from_yaml(protocol_path, validate_registry=False)
     model = _model_for_id(study, model_id)
+    execution = study.raw["study"]["execution"]
+    server = execution["model_server"]
+    production_runtime = (
+        engine_factory is None or tokenizer_factory is None or sampling_factory is None
+    )
     manifest = _load_json_object(manifest_path, "study manifest")
     requests = load_batch_requests(requests_path)
     validate_batch_contract(study, manifest, requests)
@@ -391,9 +482,14 @@ def run_offline_batch(
     qualification = _load_json_object(model_qualification_path, "model qualification")
     qualification_sha256 = verify_model_artifact(model, model_directory, qualification)
     lease_receipt = Path(lease_receipt_path)
-    if not lease_receipt.is_file():
-        raise ValueError(f"GPU lease receipt does not exist: {lease_receipt}")
-    lease_sha256 = _sha256_file(lease_receipt)
+    if production_runtime:
+        if lease_receipt.exists():
+            raise ValueError(f"refusing to overwrite existing GPU lease receipt: {lease_receipt}")
+        lease_sha256 = ""
+    else:
+        if not lease_receipt.is_file():
+            raise ValueError(f"GPU lease receipt does not exist: {lease_receipt}")
+        lease_sha256 = _sha256_file(lease_receipt)
 
     template_path = Path(chat_template_path)
     template = template_path.read_text(encoding="utf-8")
@@ -407,11 +503,6 @@ def run_offline_batch(
             f"offline study batches require host {expected_hostname}, found {platform.node()}"
         )
 
-    execution = study.raw["study"]["execution"]
-    server = execution["model_server"]
-    production_runtime = (
-        engine_factory is None or tokenizer_factory is None or sampling_factory is None
-    )
     runtime_versions: dict[str, str]
     if production_runtime:
         runtime_versions = verify_runtime_environment(server)
@@ -460,6 +551,8 @@ def run_offline_batch(
         trust_remote_code=False,
         enable_prefix_caching=False,
     )
+    if production_runtime:
+        lease_sha256 = capture_active_gpu_lease(lease_receipt)
 
     started = time.time()
     generated = engine.generate(prompts, sampling_params, use_tqdm=True)

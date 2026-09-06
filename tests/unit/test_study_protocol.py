@@ -110,6 +110,71 @@ def test_runtime_environment_requires_pinned_container_image(
     }
 
 
+def test_active_gpu_lease_receipt_is_scoped_and_private(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "lease-test"
+    gpu_uuid = "GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0"
+    states = iter(("pending", "active"))
+
+    def status(_socket_path: Path) -> dict[str, object]:
+        return {
+            "ok": True,
+            "backend_available": True,
+            "backend_checked_at": 123.0,
+            "gpus": [{"uuid": gpu_uuid, "total_mib": 81920}],
+            "leases": [
+                {
+                    "token": token,
+                    "owner": "matric-eval-qwen38",
+                    "state": next(states),
+                    "requested_mib": 70000,
+                    "gpu_uuids": [gpu_uuid],
+                }
+            ],
+        }
+
+    monkeypatch.setenv("OLLAMA_UNIFY_GPU_LEASE", token)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", gpu_uuid)
+    receipt_path = tmp_path / "lease.json"
+
+    digest = batch_module.capture_active_gpu_lease(
+        receipt_path,
+        status_factory=status,
+        sleep=lambda _seconds: None,
+    )
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert digest == hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+    assert receipt["lease"]["state"] == "active"
+    assert receipt["lease"]["gpu_uuids"] == [gpu_uuid]
+    assert receipt_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_active_gpu_lease_rejects_visible_device_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_UNIFY_GPU_LEASE", "lease-test")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-requested")
+
+    with pytest.raises(RuntimeError, match="does not exactly match"):
+        batch_module.capture_active_gpu_lease(
+            tmp_path / "lease.json",
+            status_factory=lambda _path: {
+                "ok": True,
+                "leases": [
+                    {
+                        "token": "lease-test",
+                        "state": "active",
+                        "gpu_uuids": ["GPU-different"],
+                    }
+                ],
+            },
+        )
+
+
 def test_lean_runner_cli_forwards_locked_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
