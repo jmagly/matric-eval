@@ -1,5 +1,5 @@
 schema_version: "1"
-study_id: qwen38-27b-refusal-intervention-2026-09
+study_id: qwen38-obliteration-2026-09
 protocol_sha256: 01804a01700335f2b14186c3ead87c71590ff8af1707c70b55a85f42cf26c833
 applies_to_cohorts:
   - pilot
