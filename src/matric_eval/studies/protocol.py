@@ -437,6 +437,7 @@ class StudyProtocol:
             raise ValueError(
                 f"allocation {allocation_id} has {len(normalized)} IDs but {count} are required"
             )
+
         def rank(sample_id: str) -> tuple[str, str]:
             digest = hashlib.sha256(
                 f"{self.seed}\0{allocation_id}\0{sample_id}".encode()

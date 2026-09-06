@@ -29,9 +29,7 @@ def protocol_data() -> dict:
 def synthetic_catalog(study: StudyProtocol) -> dict[str, list[object]]:
     catalog: dict[str, list[object]] = {}
     for allocation in study.benchmarks:
-        ids = [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
+        ids = [f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)]
         if allocation.selection_strategy == "sha256-stratified-round-robin-v1":
             catalog[allocation.id] = [
                 {"id": sample_id, "stratum": f"stratum-{index % 5}"}
@@ -151,8 +149,7 @@ def test_bfcl_selection_is_balanced_and_nested() -> None:
         "category-4",
     }
     counts = {
-        stratum: sum(strata[item] == stratum for item in full)
-        for stratum in set(strata.values())
+        stratum: sum(strata[item] == stratum for item in full) for stratum in set(strata.values())
     }
     assert counts == {f"category-{index}": 20 for index in range(5)}
 
