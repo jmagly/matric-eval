@@ -580,29 +580,37 @@ def _write_json(path: Path, payload: JsonObject) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _render_pdf(chromium: Path, html_path: Path, pdf_path: Path, profile: Path) -> None:
+def _render_pdf(chromium: Path, html_path: Path, pdf_path: Path) -> None:
     if not chromium.is_file():
         raise RuntimeError(f"Chromium executable not found: {chromium}")
-    subprocess.run(
-        [
-            str(chromium),
-            "--headless=new",
-            "--disable-gpu",
-            "--no-sandbox",
-            "--no-pdf-header-footer",
-            f"--user-data-dir={profile}",
-            f"--print-to-pdf={pdf_path}",
-            html_path.resolve().as_uri(),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-    if not pdf_path.is_file() or pdf_path.stat().st_size < 1024:
-        raise RuntimeError("Chromium did not produce a valid-sized PDF")
-    if not pdf_path.read_bytes().startswith(b"%PDF-"):
-        raise RuntimeError("Chromium output does not have a PDF header")
+    # Strictly confined snap Chromium reports success for /tmp and /srv output paths,
+    # but writes them inside its private mount namespace. Stage the profile and PDF
+    # below the invoking user's home, which the snap exposes to the host, then copy
+    # the validated PDF into the atomic bundle build directory.
+    with tempfile.TemporaryDirectory(prefix=".matric-report-chromium-", dir=Path.home()) as raw:
+        staging = Path(raw)
+        rendered_pdf = staging / "report.pdf"
+        subprocess.run(
+            [
+                str(chromium),
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                "--no-pdf-header-footer",
+                f"--user-data-dir={staging / 'profile'}",
+                f"--print-to-pdf={rendered_pdf}",
+                html_path.resolve().as_uri(),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if not rendered_pdf.is_file() or rendered_pdf.stat().st_size < 1024:
+            raise RuntimeError("Chromium did not produce a valid-sized PDF")
+        if not rendered_pdf.read_bytes().startswith(b"%PDF-"):
+            raise RuntimeError("Chromium output does not have a PDF header")
+        shutil.copyfile(rendered_pdf, pdf_path)
 
 
 def render_bundle(
@@ -670,9 +678,7 @@ def render_bundle(
                 draft=draft,
             ),
         )
-        profile = temp / ".chromium-profile"
-        _render_pdf(chromium, temp / "index.html", temp / "report.pdf", profile)
-        shutil.rmtree(profile, ignore_errors=True)
+        _render_pdf(chromium, temp / "index.html", temp / "report.pdf")
         files = [path for path in sorted(temp.rglob("*")) if path.is_file()]
         bundle_manifest = {
             "schema_version": "1",

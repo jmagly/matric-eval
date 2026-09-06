@@ -178,8 +178,8 @@ def test_renders_aggregate_only_site_pdf_and_content_manifest(
     ):
         _write(paths[label], payload)
 
-    def fake_pdf(chromium: Path, html_path: Path, pdf_path: Path, profile: Path) -> None:
-        del chromium, html_path, profile
+    def fake_pdf(chromium: Path, html_path: Path, pdf_path: Path) -> None:
+        del chromium, html_path
         pdf_path.write_bytes(b"%PDF-1.7\n" + b"x" * 2048)
 
     monkeypatch.setattr(renderer, "_render_pdf", fake_pdf)
