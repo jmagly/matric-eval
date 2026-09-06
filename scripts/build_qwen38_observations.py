@@ -568,7 +568,10 @@ def _judge_component_aggregates(bundle: JsonObject, study: StudyProtocol) -> Jso
         model_id = outcome["model_id"]
         allocation_id = outcome["allocation_id"]
         components = outcome.get("components")
-        if not isinstance(components, dict) or set(components) != expected_components[allocation_id]:
+        if (
+            not isinstance(components, dict)
+            or set(components) != expected_components[allocation_id]
+        ):
             raise ValueError(f"judge components for {allocation_id} do not match the rubric")
         numeric = {key: value for key, value in components.items() if key != "behavior"}
         if any(

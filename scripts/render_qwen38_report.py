@@ -472,8 +472,12 @@ def _judge_component_table(
         component_names: list[str] = []
         for model in study.models:
             model_values = allocation_values.get(model.id)
-            if not isinstance(model_values, dict) or not isinstance(model_values.get("means"), dict):
-                raise ValueError(f"judge component aggregates are missing {allocation.id}/{model.id}")
+            if not isinstance(model_values, dict) or not isinstance(
+                model_values.get("means"), dict
+            ):
+                raise ValueError(
+                    f"judge component aggregates are missing {allocation.id}/{model.id}"
+                )
             if not component_names:
                 component_names = list(model_values["means"])
             elif list(model_values["means"]) != component_names:
@@ -486,7 +490,9 @@ def _judge_component_table(
                     model_values["means"].get(component),
                     f"{allocation.id}/{model.id}/{component}",
                 )
-                cells.append(f"<td>{value:.3f} <span class=\"muted\">(n={int(model_values['observed'])})</span></td>")
+                cells.append(
+                    f'<td>{value:.3f} <span class="muted">(n={int(model_values["observed"])})</span></td>'
+                )
             rows.append(
                 f"<tr><td>{_e(allocation.id)}</td><td>{_e(component.replace('_', ' '))}</td>"
                 + "".join(cells)

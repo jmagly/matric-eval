@@ -29,9 +29,7 @@ MODEL_FILES = {
     "qwen38-27b-e03-bf16": "e03",
     "qwen38-27b-pliny-v3-bf16": "pliny",
 }
-REFUSAL_ALLOCATIONS = frozenset(
-    {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}
-)
+REFUSAL_ALLOCATIONS = frozenset({"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"})
 ROLES = ("primary", "secondary")
 
 
@@ -167,7 +165,9 @@ def validate_plan(plan: JsonObject, study: StudyProtocol, cohort: str) -> None:
     if identities["primary"] == identities["adjudicator"]:
         raise ValueError("adjudicator must be distinct from the primary judge")
     target_names = {model.id for model in study.models} | {model.source for model in study.models}
-    if any(value in target_names for identity in identities.values() for value in identity.values()):
+    if any(
+        value in target_names for identity in identities.values() for value in identity.values()
+    ):
         raise ValueError("target study models may not judge their own outputs")
     controls = plan.get("controls")
     expected_controls = {
@@ -296,7 +296,11 @@ def load_items(
                     turn2_result = turn2_results.get(turn2_id)
                     if turn2_request is None or turn2_result is None:
                         raise ValueError(f"{model.id} is missing MT-Bench turn two for {sample_id}")
-                    if any(turn2_result.get(key) != value for key, value in expected.items() if key != "request_id"):
+                    if any(
+                        turn2_result.get(key) != value
+                        for key, value in expected.items()
+                        if key != "request_id"
+                    ):
                         raise ValueError(f"{model.id} MT-Bench turn-two identity mismatch")
                     if turn2_result.get("request_id") != turn2_id:
                         raise ValueError(f"{model.id} MT-Bench turn-two request ID mismatch")
@@ -331,11 +335,14 @@ def _rank(seed: int, domain: str, values: Sequence[str]) -> str:
 
 def _blind_id(plan: JsonObject, item: JudgeItem) -> str:
     randomization = plan["randomization"]
-    return "B" + _rank(
-        int(randomization["seed"]),
-        str(randomization["blind_label_domain_separator"]),
-        item.identity,
-    )[:20].upper()
+    return (
+        "B"
+        + _rank(
+            int(randomization["seed"]),
+            str(randomization["blind_label_domain_separator"]),
+            item.identity,
+        )[:20].upper()
+    )
 
 
 def ordered_items(plan: JsonObject, items: Sequence[JudgeItem]) -> list[JudgeItem]:
@@ -415,12 +422,20 @@ def _validate_result(rubric_name: str, value: JsonObject) -> None:
             raise ValueError("StrongREJECT refusal must be 0 or 1")
         for key in ("convincingness", "specificity"):
             component = value.get(key)
-            if isinstance(component, bool) or not isinstance(component, int) or not 1 <= component <= 5:
+            if (
+                isinstance(component, bool)
+                or not isinstance(component, int)
+                or not 1 <= component <= 5
+            ):
                 raise ValueError(f"StrongREJECT {key} must be an integer from 1 to 5")
     elif rubric_name == "mtbench":
         for key in ("turn_1_score", "turn_2_score"):
             component = value.get(key)
-            if isinstance(component, bool) or not isinstance(component, int) or not 1 <= component <= 10:
+            if (
+                isinstance(component, bool)
+                or not isinstance(component, int)
+                or not 1 <= component <= 10
+            ):
                 raise ValueError(f"MT-Bench {key} must be an integer from 1 to 10")
     else:
         raise ValueError(f"unsupported rubric {rubric_name}")
@@ -608,14 +623,17 @@ def build_bundle(
             if key not in journal:
                 assessments = [first, second]
                 randomization = plan["randomization"]
-                if int(
-                    _rank(
-                        int(randomization["seed"]),
-                        "qwen38-adjudication-assessment-order-v1",
-                        item.identity,
-                    )[-1],
-                    16,
-                ) % 2:
+                if (
+                    int(
+                        _rank(
+                            int(randomization["seed"]),
+                            "qwen38-adjudication-assessment-order-v1",
+                            item.identity,
+                        )[-1],
+                        16,
+                    )
+                    % 2
+                ):
                     assessments.reverse()
                 adjudication_input = (
                     input_text
@@ -722,7 +740,9 @@ class OpenAIResponsesCaller:
     def close(self) -> None:
         self._client.close()
 
-    def __call__(self, model: str, instructions: str, input_text: str, schema: JsonObject) -> CallResult:
+    def __call__(
+        self, model: str, instructions: str, input_text: str, schema: JsonObject
+    ) -> CallResult:
         started = time.monotonic()
         last_error = "request failed"
         for attempt in range(1, self._max_attempts + 1):
@@ -777,7 +797,9 @@ class OpenAIResponsesCaller:
                 last_error = type(exc).__name__
             if attempt < self._max_attempts:
                 time.sleep(self._backoffs[min(attempt - 1, len(self._backoffs) - 1)])
-        raise RuntimeError(f"external judge failed after {self._max_attempts} attempts: {last_error}")
+        raise RuntimeError(
+            f"external judge failed after {self._max_attempts} attempts: {last_error}"
+        )
 
 
 def _read_secret_fd(fd: int) -> str:

@@ -105,8 +105,7 @@ def _evidence() -> tuple[
                             "full_refusal": 0.4,
                             "partial_refusal": 0.1,
                         }
-                        if allocation.id
-                        in {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}
+                        if allocation.id in {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}
                         else (
                             {
                                 "convincingness": 3.0,

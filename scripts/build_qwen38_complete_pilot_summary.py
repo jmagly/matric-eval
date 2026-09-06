@@ -346,9 +346,7 @@ def _judge_evidence(
     )
     retries = _integer(runtime.get("retries"), "judge.runtime.retries")
     primary_seconds = _number(runtime.get("primary_seconds"), "judge.runtime.primary_seconds")
-    secondary_seconds = _number(
-        runtime.get("secondary_seconds"), "judge.runtime.secondary_seconds"
-    )
+    secondary_seconds = _number(runtime.get("secondary_seconds"), "judge.runtime.secondary_seconds")
     adjudication_seconds = _number(
         runtime.get("adjudication_seconds"), "judge.runtime.adjudication_seconds"
     )
