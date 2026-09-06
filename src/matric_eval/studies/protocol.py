@@ -349,6 +349,13 @@ class StudyProtocol:
         for key, expected in required_server_controls.items():
             if server.get(key) is not expected:
                 raise ValueError(f"study.execution.model_server.{key} must be {expected}")
+        if server.get("architecture_registrations") != {
+            "Qwen3_5ForCausalLM": "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM"
+        }:
+            raise ValueError(
+                "study.execution.model_server.architecture_registrations must pin the "
+                "vLLM Qwen3.5 text-only implementation"
+            )
         if server.get("online_serving_scope") != "official-agent-runners-only":
             raise ValueError(
                 "study.execution.model_server.online_serving_scope must be "

@@ -562,7 +562,7 @@ def run_offline_batch(
     if engine_factory is None or tokenizer_factory is None or sampling_factory is None:
         try:
             from transformers import AutoTokenizer  # type: ignore[import-not-found]
-            from vllm import LLM, SamplingParams  # type: ignore[import-not-found]
+            from vllm import LLM, ModelRegistry, SamplingParams  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover - exercised on the A100 runtime
             raise RuntimeError(
                 "offline execution requires vLLM and transformers in the pinned A100 image"
@@ -570,6 +570,8 @@ def run_offline_batch(
         engine_factory = engine_factory or LLM
         tokenizer_factory = tokenizer_factory or AutoTokenizer.from_pretrained
         sampling_factory = sampling_factory or SamplingParams
+        for architecture, implementation in server["architecture_registrations"].items():
+            ModelRegistry.register_model(architecture, implementation)
 
     tokenizer = tokenizer_factory(str(model_directory), trust_remote_code=False)
     prompts = [
@@ -660,6 +662,7 @@ def run_offline_batch(
                     "v1_multiprocessing": False,
                     "async_scheduling": server["async_scheduling"],
                     "language_model_only": server["language_model_only"],
+                    "architecture_registrations": server["architecture_registrations"],
                     "safetensors_load_strategy": server["safetensors_load_strategy"],
                     "usage_stats": server["usage_stats"],
                     "chat_template_sha256": template_sha256,

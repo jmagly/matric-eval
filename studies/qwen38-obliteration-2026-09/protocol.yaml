@@ -294,6 +294,8 @@ study:
       v1_multiprocessing: false
       async_scheduling: false
       language_model_only: true
+      architecture_registrations:
+        Qwen3_5ForCausalLM: vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM
       tensor_parallel_size: 1
       gpu_memory_utilization: 0.9
       safetensors_load_strategy: prefetch

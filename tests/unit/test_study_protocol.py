@@ -268,6 +268,14 @@ def test_rejects_multimodal_runtime_for_text_only_comparison(protocol_data: dict
         StudyProtocol.from_dict(changed)
 
 
+def test_rejects_unpinned_qwen_text_architecture(protocol_data: dict) -> None:
+    changed = copy.deepcopy(protocol_data)
+    changed["study"]["execution"]["model_server"]["architecture_registrations"] = {}
+
+    with pytest.raises(ValueError, match="architecture_registrations"):
+        StudyProtocol.from_dict(changed)
+
+
 def test_rejects_missing_behavior_axis(protocol_data: dict) -> None:
     changed = copy.deepcopy(protocol_data)
     for allocation in changed["study"]["benchmarks"]:
@@ -576,6 +584,9 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["batch_invariant"] is False
     assert rows[0]["runtime"]["async_scheduling"] is False
     assert rows[0]["runtime"]["language_model_only"] is True
+    assert rows[0]["runtime"]["architecture_registrations"] == {
+        "Qwen3_5ForCausalLM": "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM"
+    }
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert engine_kwargs["gpu_memory_utilization"] == 0.9

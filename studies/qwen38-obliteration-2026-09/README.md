@@ -264,6 +264,14 @@ profiling the Qwen vision tower. This keeps source and derivative inference path
 comparable: E03 does not contain the source model's vision-tower tensors, and none of
 the frozen requests contain image or video input.
 
+E03 is packaged directly as `Qwen3_5ForCausalLM`, while the source and Pliny artifacts
+wrap the same text implementation in `Qwen3_5ForConditionalGeneration`. vLLM 0.26
+ships the text class but does not list it in its built-in registry, so the runner uses
+vLLM's public `ModelRegistry.register_model` API to bind the declared causal-LM
+architecture to the pinned built-in implementation. The registration target is frozen
+in `protocol.yaml` and copied into every result row; it changes loader routing, not
+model code or checkpoint tensors.
+
 Each invocation may contain one allocation or multiple complete allocation blocks in
 protocol order. This supports benchmark-specific scoring and MT-Bench's dependent
 second turn without weakening cohort identity: partial allocation samples are refused.
