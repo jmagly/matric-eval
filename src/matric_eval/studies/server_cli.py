@@ -118,7 +118,6 @@ def _server_arguments(
         "qwen3_coder",
         "--reasoning-parser",
         "qwen3",
-        "--disable-log-requests",
         "--disable-uvicorn-access-log",
     ]
     if server["async_scheduling"]:
