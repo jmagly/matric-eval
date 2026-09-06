@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import sys
@@ -16,6 +17,7 @@ from matric_eval.studies import StudyObservation, StudyProtocol, analyze_observa
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
+PLAN = ROOT / "studies/qwen38-obliteration-2026-09/judge-plan.yaml"
 SCRIPT = ROOT / "scripts/render_qwen38_report.py"
 SPEC = importlib.util.spec_from_file_location("qwen38_report_renderer", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
@@ -88,10 +90,50 @@ def _evidence() -> tuple[
         "models": [model.id for model in study.models],
         "observations": study.full_samples_per_model * len(study.models),
         "observations_sha256": analysis["observations_sha256"],
+        "judge_plan_sha256": hashlib.sha256(PLAN.read_bytes()).hexdigest(),
         "judge_bundle_sha256": "c" * 64,
         "missingness_outcomes_sha256": None,
         "source_artifacts": {},
         "status_counts": {"observed": study.full_samples_per_model * len(study.models)},
+        "judge_component_aggregates": {
+            allocation.id: {
+                model.id: {
+                    "observed": allocation.full_samples,
+                    "means": (
+                        {
+                            "full_compliance": 0.5,
+                            "full_refusal": 0.4,
+                            "partial_refusal": 0.1,
+                        }
+                        if allocation.id in {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}
+                        else (
+                            {
+                                "convincingness": 3.0,
+                                "harmfulness": 0.5,
+                                "refusal": 0.25,
+                                "specificity": 3.0,
+                            }
+                            if allocation.id == "strongreject-harmful"
+                            else {
+                                "normalized_two_turn_score": 0.7,
+                                "turn_1_score": 7.0,
+                                "turn_2_score": 7.0,
+                            }
+                        )
+                    ),
+                }
+                for model in study.models
+            }
+            for allocation in study.benchmarks
+            if allocation.id
+            in {
+                "xstest-safe",
+                "xstest-unsafe",
+                "or-bench-hard-benign",
+                "strongreject-harmful",
+                "mtbench",
+            }
+        },
     }
     pilot = {
         "schema_version": "1",
@@ -113,8 +155,10 @@ def _evidence() -> tuple[
         },
         "judge": {
             "primary_seconds": 300.0,
+            "secondary_seconds": 280.0,
             "adjudication_seconds": 60.0,
             "primary_calls": 135,
+            "secondary_calls": 135,
             "adjudicator_calls": 12,
             "retries": 1,
             "estimated_full_seconds": 4000.0,
@@ -176,6 +220,7 @@ def test_renders_aggregate_only_site_pdf_and_content_manifest(
     study, manifest, analysis, receipt, pilot = _evidence()
     paths = {
         "protocol": tmp_path / "protocol.yaml",
+        "judge_plan": PLAN,
         "manifest": tmp_path / "manifest.json",
         "analysis": tmp_path / "analysis.json",
         "normalization_receipt": tmp_path / "receipt.json",
@@ -224,6 +269,7 @@ def test_renders_aggregate_only_site_pdf_and_content_manifest(
         "methods.html",
         "report.pdf",
         "aggregate-results.json",
+        "judge-plan.yaml",
         "sample-manifest.json",
         "protocol.yaml",
         "normalization-receipt.json",

@@ -239,7 +239,7 @@ def _judge_evidence(
     bundle: JsonObject,
 ) -> JsonObject:
     expected_identity = {
-        "schema_version": "1",
+        "schema_version": "2",
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "manifest_sha256": manifest_sha256,
@@ -247,12 +247,19 @@ def _judge_evidence(
     }
     if any(bundle.get(key) != value for key, value in expected_identity.items()):
         raise ValueError("judge bundle identity does not match the pilot")
+    judge_plan_sha256 = bundle.get("judge_plan_sha256")
+    if (
+        not isinstance(judge_plan_sha256, str)
+        or len(judge_plan_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in judge_plan_sha256)
+    ):
+        raise ValueError("judge bundle must identify its locked judge plan")
     judges = bundle.get("judges")
     if not isinstance(judges, dict):
-        raise ValueError("judge bundle must declare primary and adjudicator snapshots")
+        raise ValueError("judge bundle must declare primary, secondary, and adjudicator snapshots")
     identities: list[tuple[str, str, str]] = []
     public_judges: JsonObject = {}
-    for role in ("primary", "adjudicator"):
+    for role in ("primary", "secondary", "adjudicator"):
         judge = judges.get(role)
         if not isinstance(judge, dict):
             raise ValueError(f"judge {role} identity must be an object")
@@ -262,6 +269,8 @@ def _judge_evidence(
         identities.append(identity)  # type: ignore[arg-type]
         public_judges[role] = dict(zip(("provider", "model", "snapshot"), identity, strict=True))
     if identities[0] == identities[1]:
+        raise ValueError("primary and secondary judges must be distinct")
+    if identities[0] == identities[2]:
         raise ValueError("primary judge and adjudicator must be distinct")
     target_names = {model.id for model in study.models} | {model.source for model in study.models}
     if any(value in target_names for identity in identities for value in identity):
@@ -270,6 +279,8 @@ def _judge_evidence(
         "blinded_model_labels": True,
         "order_randomized": True,
         "target_models_may_not_judge": True,
+        "first_pass_judges_per_outcome": 2,
+        "first_pass_independent": True,
         "disagreement_policy": "adjudicate-all",
     }
     controls = bundle.get("controls")
@@ -329,17 +340,25 @@ def _judge_evidence(
     if not isinstance(runtime, dict):
         raise ValueError("judge bundle must include content-free runtime accounting")
     primary_calls = _integer(runtime.get("primary_calls"), "judge.runtime.primary_calls")
+    secondary_calls = _integer(runtime.get("secondary_calls"), "judge.runtime.secondary_calls")
     adjudicator_calls = _integer(
         runtime.get("adjudicator_calls"), "judge.runtime.adjudicator_calls"
     )
     retries = _integer(runtime.get("retries"), "judge.runtime.retries")
     primary_seconds = _number(runtime.get("primary_seconds"), "judge.runtime.primary_seconds")
+    secondary_seconds = _number(runtime.get("secondary_seconds"), "judge.runtime.secondary_seconds")
     adjudication_seconds = _number(
         runtime.get("adjudication_seconds"), "judge.runtime.adjudication_seconds"
     )
-    if primary_calls < len(outcomes) or adjudicator_calls < disagreements:
+    if (
+        primary_calls < len(outcomes)
+        or secondary_calls < len(outcomes)
+        or adjudicator_calls < disagreements
+    ):
         raise ValueError("judge call accounting is smaller than the outcome/disagreement matrix")
-    if primary_calls + adjudicator_calls != len(outcomes) + disagreements + retries:
+    if primary_calls + secondary_calls + adjudicator_calls != (
+        2 * len(outcomes) + disagreements + retries
+    ):
         raise ValueError("judge calls do not reconcile with outcomes, adjudications, and retries")
     pilot_judged = sum(
         allocation.pilot_samples
@@ -351,16 +370,19 @@ def _judge_evidence(
         for allocation in study.benchmarks
         if allocation.id in JUDGED_ALLOCATIONS
     )
-    total_seconds = primary_seconds + adjudication_seconds
+    total_seconds = primary_seconds + secondary_seconds + adjudication_seconds
     return {
+        "judge_plan_sha256": judge_plan_sha256,
         "judges": public_judges,
         "outcomes": len(outcomes),
         "disagreements": disagreements,
         "unresolved_parse_failures": unresolved,
         "primary_calls": primary_calls,
+        "secondary_calls": secondary_calls,
         "adjudicator_calls": adjudicator_calls,
         "retries": retries,
         "primary_seconds": primary_seconds,
+        "secondary_seconds": secondary_seconds,
         "adjudication_seconds": adjudication_seconds,
         "pilot_seconds": total_seconds,
         "estimated_full_seconds": total_seconds * full_judged / pilot_judged,

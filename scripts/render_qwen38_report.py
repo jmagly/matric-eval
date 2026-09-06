@@ -244,6 +244,13 @@ def validate_evidence(
     }
     if any(receipt.get(key) != value for key, value in expected_receipt.items()):
         raise ValueError("normalization receipt does not join to the analysis")
+    judge_plan_sha256 = receipt.get("judge_plan_sha256")
+    if (
+        not isinstance(judge_plan_sha256, str)
+        or len(judge_plan_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in judge_plan_sha256)
+    ):
+        raise ValueError("normalization receipt does not identify the locked judge plan")
     if pilot.get("study_seed") != study.seed or not isinstance(pilot.get("models"), dict):
         raise ValueError("pilot summary does not match the study seed or model matrix")
     if list(pilot["models"]) != model_ids:
@@ -437,7 +444,9 @@ def _judge_runtime(pilot: JsonObject) -> str:
     return (
         '<div class="callout"><h3>External judge lane</h3><p>'
         f"Primary {float(judge['primary_seconds']) / 60:.1f} min across "
-        f"{int(judge['primary_calls'])} calls; adjudication "
+        f"{int(judge['primary_calls'])} calls; secondary "
+        f"{float(judge['secondary_seconds']) / 60:.1f} min across "
+        f"{int(judge['secondary_calls'])} calls; adjudication "
         f"{float(judge['adjudication_seconds']) / 60:.1f} min across "
         f"{int(judge['adjudicator_calls'])} calls; {int(judge['retries'])} retries. "
         f"Forecast full lane: {float(judge['estimated_full_seconds']) / 3600:.2f} h."
@@ -445,8 +454,67 @@ def _judge_runtime(pilot: JsonObject) -> str:
     )
 
 
+def _judge_component_table(
+    study: StudyProtocol,
+    receipt: JsonObject,
+    allocation_ids: set[str],
+) -> str:
+    aggregates = receipt.get("judge_component_aggregates")
+    if not isinstance(aggregates, dict):
+        return '<p class="muted">Judge component aggregates are unavailable.</p>'
+    rows = []
+    for allocation in study.benchmarks:
+        if allocation.id not in allocation_ids:
+            continue
+        allocation_values = aggregates.get(allocation.id)
+        if not isinstance(allocation_values, dict):
+            raise ValueError(f"judge component aggregates are missing {allocation.id}")
+        component_names: list[str] = []
+        for model in study.models:
+            model_values = allocation_values.get(model.id)
+            if not isinstance(model_values, dict) or not isinstance(
+                model_values.get("means"), dict
+            ):
+                raise ValueError(
+                    f"judge component aggregates are missing {allocation.id}/{model.id}"
+                )
+            if not component_names:
+                component_names = list(model_values["means"])
+            elif list(model_values["means"]) != component_names:
+                raise ValueError(f"judge component order differs across models for {allocation.id}")
+        for component in component_names:
+            cells = []
+            for model in study.models:
+                model_values = allocation_values[model.id]
+                value = _finite_number(
+                    model_values["means"].get(component),
+                    f"{allocation.id}/{model.id}/{component}",
+                )
+                cells.append(
+                    f'<td>{value:.3f} <span class="muted">(n={int(model_values["observed"])})</span></td>'
+                )
+            rows.append(
+                f"<tr><td>{_e(allocation.id)}</td><td>{_e(component.replace('_', ' '))}</td>"
+                + "".join(cells)
+                + "</tr>"
+            )
+    if not rows:
+        return ""
+    headings = "".join(f"<th>{_e(MODEL_LABELS[model.id])}</th>" for model in study.models)
+    return (
+        '<h3>Judge rubric components</h3><div class="table-wrap"><table><thead><tr>'
+        f"<th>Allocation</th><th>Component mean</th>{headings}</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
 def _results_body(
-    study: StudyProtocol, analysis: JsonObject, pilot: JsonObject, draft: bool
+    study: StudyProtocol,
+    analysis: JsonObject,
+    receipt: JsonObject,
+    pilot: JsonObject,
+    draft: bool,
 ) -> str:
     draft_note = (
         '<div class="callout warning"><strong>Draft evidence.</strong> The pilot summary is not complete; no result in this rendering is publication-final.</div>'
@@ -462,11 +530,11 @@ def _results_body(
 <section id="pilot-runtime-estimate"><p class="eyebrow">Pilot runtime estimate</p><h2>The 100-sample pilot</h2>
 <p>Pilot measurements validate the pipeline and forecast runtime only; they do not contribute a separate confirmatory claim. Status: <code>{_e(pilot["status"])}</code>.</p>{_pilot_table(pilot)}{_judge_runtime(pilot)}</section>
 <section id="capability-and-agentic-results"><p class="eyebrow">Capability and agentic results</p><h2>Quality under the common contract</h2>
-<p>Higher values are better. Macro summaries give every allocation equal weight; component rows retain their original sample counts.</p>{_allocation_table(study, analysis, {"capability", "agentic"})}</section>
+<p>Higher values are better. Macro summaries give every allocation equal weight; component rows retain their original sample counts.</p>{_allocation_table(study, analysis, {"capability", "agentic"})}{_judge_component_table(study, receipt, {"mtbench"})}</section>
 <section id="benign-overrefusal-results"><p class="eyebrow">Benign over-refusal</p><h2>Whether safe requests are refused</h2>
-<p>Lower values are better. These results are reported independently of unsafe-request behavior.</p>{_allocation_table(study, analysis, {"benign_overrefusal"})}</section>
+<p>Lower values are better. These results are reported independently of unsafe-request behavior.</p>{_allocation_table(study, analysis, {"benign_overrefusal"})}{_judge_component_table(study, receipt, {"xstest-safe", "or-bench-hard-benign"})}</section>
 <section id="harmful-compliance-results"><p class="eyebrow">Harmful compliance</p><h2>Unsafe-request behavior</h2>
-<p>Lower values indicate less harmful compliance under the declared primary metrics. This safety-behavior axis is descriptive and is not blended into a quality score.</p>{_allocation_table(study, analysis, {"harmful_compliance"})}</section>
+<p>Lower values indicate less harmful compliance under the declared primary metrics. This safety-behavior axis is descriptive and is not blended into a quality score.</p>{_allocation_table(study, analysis, {"harmful_compliance"})}{_judge_component_table(study, receipt, {"xstest-unsafe", "strongreject-harmful"})}</section>
 <section id="paired-statistical-analysis"><p class="eyebrow">Paired statistical analysis</p><h2>Intervention minus source</h2>
 <p>Every delta uses matched sample IDs. Binary outcomes additionally report exact McNemar tests with Holm correction within the preregistered axis family.</p>{_paired_table(analysis)}</section>
 <section id="error-and-missingness-analysis"><p class="eyebrow">Error and missingness analysis</p><h2>Every selected sample is accounted for</h2>
@@ -511,9 +579,9 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
 <p>Capability non-inferiority uses the more conservative lower bound from the paired bootstrap interval and unresolved-missingness bound. It must exceed the fixed −3 percentage-point margin.</p>
 <h3>Missing-data policy</h3><ul><li>Infrastructure: {_e(missing["infrastructure-error"])}</li><li>Model timeout: {_e(missing["model-timeout"])}</li><li>Judge parse failure: {_e(missing["judge-parse-failure"])}</li></ul></section>
 <section id="judge-controls"><p class="eyebrow">Judge controls</p><h2>Blinding, calibration, adjudication</h2>
-<p>Target models may not judge their own outputs. Model labels are blinded, presentation order is randomized, all primary/adjudicator disagreements are adjudicated, and the full cohort requires 100 human double-labeled calibration items with Cohen’s κ and a confusion matrix. The sealed judge-bundle digest is recorded in the normalization receipt.</p></section>
+<p>Target models may not judge their own outputs. Model labels are blinded, presentation order is randomized, two distinct fixed-snapshot judges independently score every outcome, all declared disagreements are adjudicated, and the full cohort requires 100 human double-labeled calibration items with Cohen’s κ and a confusion matrix. The sealed judge-plan and judge-bundle digests are recorded in the normalization receipt.</p></section>
 <section id="provenance"><p class="eyebrow">Evidence lineage</p><h2>Hash joins</h2>
-<dl class="hashes"><dt>Protocol canonical SHA-256</dt><dd><code>{_e(study.canonical_sha256)}</code></dd><dt>Protocol file SHA-256</dt><dd><code>{_e(study.source_sha256)}</code></dd><dt>Manifest SHA-256</dt><dd><code>{_e(analysis["manifest_sha256"])}</code></dd><dt>Observations SHA-256</dt><dd><code>{_e(analysis["observations_sha256"])}</code></dd><dt>Judge bundle SHA-256</dt><dd><code>{_e(receipt["judge_bundle_sha256"])}</code></dd><dt>Analysis revision</dt><dd><code>{_e(analysis["analysis_code_revision"])}</code></dd></dl></section>
+<dl class="hashes"><dt>Protocol canonical SHA-256</dt><dd><code>{_e(study.canonical_sha256)}</code></dd><dt>Protocol file SHA-256</dt><dd><code>{_e(study.source_sha256)}</code></dd><dt>Manifest SHA-256</dt><dd><code>{_e(analysis["manifest_sha256"])}</code></dd><dt>Observations SHA-256</dt><dd><code>{_e(analysis["observations_sha256"])}</code></dd><dt>Judge plan SHA-256</dt><dd><code>{_e(receipt["judge_plan_sha256"])}</code></dd><dt>Judge bundle SHA-256</dt><dd><code>{_e(receipt["judge_bundle_sha256"])}</code></dd><dt>Analysis revision</dt><dd><code>{_e(analysis["analysis_code_revision"])}</code></dd></dl></section>
 """
 
 
@@ -557,6 +625,7 @@ def _reproducibility(
             "bootstrap_replicates": analysis["bootstrap_replicates"],
         },
         "normalization": {
+            "judge_plan_sha256": receipt["judge_plan_sha256"],
             "judge_bundle_sha256": receipt["judge_bundle_sha256"],
             "missingness_outcomes_sha256": receipt.get("missingness_outcomes_sha256"),
             "source_artifacts": receipt["source_artifacts"],
@@ -594,7 +663,7 @@ def _reproducibility(
         "input_file_sha256": dict(input_hashes),
         "reproduction_commands": [
             "UV_PYTHON=3.11 uv run python -m matric_eval.studies.analysis_cli <protocol> <full-manifest> <full-observations> --output <aggregate-results>",
-            "UV_PYTHON=3.11 uv run python scripts/render_qwen38_report.py --protocol <protocol> --manifest <full-manifest> --analysis <aggregate-results> --normalization-receipt <receipt> --pilot-summary <pilot-summary> --output-dir <public-report-dir>",
+            "UV_PYTHON=3.11 uv run python scripts/render_qwen38_report.py --protocol <protocol> --judge-plan <judge-plan> --manifest <full-manifest> --analysis <aggregate-results> --normalization-receipt <receipt> --pilot-summary <pilot-summary> --output-dir <public-report-dir>",
         ],
         "content_policy": "aggregate statistics, content-free receipts, sample IDs, and hashes only; raw prompts and completions excluded",
     }
@@ -655,6 +724,8 @@ def render_bundle(
     """Render a validated bundle into a new directory."""
     if output_dir.exists():
         raise ValueError(f"refusing to overwrite report bundle: {output_dir}")
+    if _sha256(input_paths["judge_plan"]) != receipt["judge_plan_sha256"]:
+        raise ValueError("judge plan file does not match the normalization receipt")
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         prefix=f".{output_dir.name}-", dir=output_dir.parent
@@ -667,7 +738,7 @@ def render_bundle(
         (temp / "index.html").write_text(
             _page(
                 title=title,
-                body=_results_body(study, analysis, pilot, draft),
+                body=_results_body(study, analysis, receipt, pilot, draft),
                 draft=draft,
                 active="results",
             ),
@@ -684,6 +755,7 @@ def render_bundle(
         )
         copies = {
             "protocol.yaml": input_paths["protocol"],
+            "judge-plan.yaml": input_paths["judge_plan"],
             "aggregate-results.json": input_paths["analysis"],
             "sample-manifest.json": input_paths["manifest"],
             "normalization-receipt.json": input_paths["normalization_receipt"],
@@ -736,6 +808,7 @@ def render_bundle(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", type=Path, required=True)
+    parser.add_argument("--judge-plan", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--analysis", type=Path, required=True)
     parser.add_argument("--normalization-receipt", type=Path, required=True)
@@ -789,7 +862,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         receipt=receipt,
         pilot=pilot,
         revision=revision,
-        input_paths={"protocol": args.protocol, **protected_inputs},
+        input_paths={"protocol": args.protocol, "judge_plan": args.judge_plan, **protected_inputs},
         output_dir=args.output_dir,
         chromium=args.chromium,
         draft=draft,

@@ -87,6 +87,29 @@ def _file_manifest(root: Path) -> list[dict[str, Any]]:
     ]
 
 
+def _judge_components(allocation_id: str, value: float) -> dict[str, Any]:
+    if allocation_id in {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign"}:
+        behavior = "full_refusal" if value else "full_compliance"
+        return {
+            "behavior": behavior,
+            "full_compliance": float(behavior == "full_compliance"),
+            "full_refusal": float(behavior == "full_refusal"),
+            "partial_refusal": 0.0,
+        }
+    if allocation_id == "strongreject-harmful":
+        return {
+            "refusal": 0.0,
+            "convincingness": 3.0,
+            "specificity": 3.0,
+            "harmfulness": 0.5,
+        }
+    return {
+        "turn_1_score": 5.0,
+        "turn_2_score": 5.0,
+        "normalized_two_turn_score": 0.5,
+    }
+
+
 def _fixture(tmp_path: Path) -> tuple[StudyProtocol, dict[str, Any], dict[str, Any]]:
     study = StudyProtocol.from_yaml(PROTOCOL)
     manifest = study.selection_manifest(_catalog(study), "pilot")
@@ -169,39 +192,49 @@ def _fixture(tmp_path: Path) -> tuple[StudyProtocol, dict[str, Any], dict[str, A
     for model in study.models:
         for allocation_id in builder.JUDGED_ALLOCATIONS:
             for index, sample_id in enumerate(selected[allocation_id]):
+                value = float(index % 2)
                 outcomes.append(
                     {
                         "model_id": model.id,
                         "allocation_id": allocation_id,
                         "sample_id": sample_id,
                         "status": "observed",
-                        "value": float(index % 2),
+                        "value": value,
+                        "components": _judge_components(allocation_id, value),
                         "judges_disagreed": index == 0,
                         "adjudicated": index == 0,
                     }
                 )
     judge_bundle = {
-        "schema_version": "1",
+        "schema_version": "2",
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "manifest_sha256": manifest["manifest_sha256"],
         "cohort": "pilot",
+        "judge_plan_sha256": "d" * 64,
         "judges": {
             "primary": {
                 "provider": "provider-a",
                 "model": "judge-a",
                 "snapshot": "judge-a-2026-09-01",
             },
-            "adjudicator": {
+            "secondary": {
                 "provider": "provider-b",
                 "model": "judge-b",
                 "snapshot": "judge-b-2026-09-01",
+            },
+            "adjudicator": {
+                "provider": "provider-c",
+                "model": "judge-c",
+                "snapshot": "judge-c-2026-09-01",
             },
         },
         "controls": {
             "blinded_model_labels": True,
             "order_randomized": True,
             "target_models_may_not_judge": True,
+            "first_pass_judges_per_outcome": 2,
+            "first_pass_independent": True,
             "disagreement_policy": "adjudicate-all",
         },
         "outcomes": outcomes,
