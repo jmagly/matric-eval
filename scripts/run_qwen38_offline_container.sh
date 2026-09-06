@@ -121,6 +121,7 @@ sudo docker gpu run \
     --ulimit stack=67108864 \
     --tmpfs /tmp:rw,nosuid,nodev,exec,size=8g \
     --tmpfs /root/.cache:rw,nosuid,nodev,exec,size=32g \
+    --tmpfs /root/.triton:rw,nosuid,nodev,exec,size=8g \
     --mount type=bind,src="$study_repo",dst=/workspace,readonly \
     --mount type=bind,src=/srv/obliteratus/matric-eval,dst=/srv/obliteratus/matric-eval,readonly \
     --mount type=bind,src=/srv/matric-eval/results,dst=/srv/matric-eval/results \
