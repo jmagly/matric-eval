@@ -93,7 +93,14 @@ def _tau_ids(checkout: Path) -> list[str]:
 
 
 def _lcb_ids(snapshot: Path) -> list[str]:
-    names = ["test.jsonl", "test2.jsonl", "test3.jsonl", "test4.jsonl", "test5.jsonl", "test6.jsonl"]
+    names = [
+        "test.jsonl",
+        "test2.jsonl",
+        "test3.jsonl",
+        "test4.jsonl",
+        "test5.jsonl",
+        "test6.jsonl",
+    ]
     rows = [row for name in names for row in _jsonl(snapshot / name)]
     return [f"{row['platform']}/{row['question_id']}" for row in rows]
 
@@ -123,9 +130,7 @@ def build_catalog(args: argparse.Namespace) -> dict[str, list[Any]]:
         revision=revisions["mmlu-pro"],
         cache_dir=str(args.cache_root / "huggingface/datasets"),
     )
-    mtbench_path = (
-        args.fastchat_checkout / "fastchat/llm_judge/data/mt_bench/question.jsonl"
-    )
+    mtbench_path = args.fastchat_checkout / "fastchat/llm_judge/data/mt_bench/question.jsonl"
     terminal_root = args.terminal_checkout / "tasks"
     terminal_ids = sorted(
         path.name
