@@ -26,6 +26,22 @@ def protocol_data() -> dict:
     return data
 
 
+def synthetic_catalog(study: StudyProtocol) -> dict[str, list[object]]:
+    catalog: dict[str, list[object]] = {}
+    for allocation in study.benchmarks:
+        ids = [
+            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
+        ]
+        if allocation.selection_strategy == "sha256-stratified-round-robin-v1":
+            catalog[allocation.id] = [
+                {"id": sample_id, "stratum": f"stratum-{index % 5}"}
+                for index, sample_id in enumerate(ids)
+            ]
+        else:
+            catalog[allocation.id] = ids
+    return catalog
+
+
 def test_committed_protocol_is_valid_and_balanced() -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
     summary = study.summary()
@@ -117,6 +133,30 @@ def test_generation_seed_is_stable_and_sample_specific() -> None:
     assert 0 <= first < 2**32
 
 
+def test_bfcl_selection_is_balanced_and_nested() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    allocation = next(item for item in study.benchmarks if item.id == "bfcl-v4-agentic")
+    ids = [f"bfcl-{index:04d}" for index in range(allocation.available_samples)]
+    strata = {sample_id: f"category-{index % 5}" for index, sample_id in enumerate(ids)}
+
+    pilot = study.select_ids(allocation.id, ids, "pilot", strata=strata)
+    full = study.select_ids(allocation.id, ids, "full", strata=strata)
+
+    assert pilot == full[: allocation.pilot_samples]
+    assert {strata[sample_id] for sample_id in pilot} == {
+        "category-0",
+        "category-1",
+        "category-2",
+        "category-3",
+        "category-4",
+    }
+    counts = {
+        stratum: sum(strata[item] == stratum for item in full)
+        for stratum in set(strata.values())
+    }
+    assert counts == {f"category-{index}": 20 for index in range(5)}
+
+
 def test_rejects_legacy_direct_endpoint_execution(protocol_data: dict) -> None:
     changed = copy.deepcopy(protocol_data)
     changed["study"]["benchmarks"][0]["execution_mode"] = "direct-endpoint"
@@ -127,12 +167,7 @@ def test_rejects_legacy_direct_endpoint_execution(protocol_data: dict) -> None:
 
 def test_selection_manifest_is_content_addressed() -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
-    catalog = {
-        allocation.id: [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
-        for allocation in study.benchmarks
-    }
+    catalog = synthetic_catalog(study)
 
     manifest = study.selection_manifest(catalog, "pilot")
 
@@ -143,12 +178,7 @@ def test_selection_manifest_is_content_addressed() -> None:
 
 def test_batch_contract_rejects_tampered_manifest() -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
-    catalog = {
-        allocation.id: [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
-        for allocation in study.benchmarks
-    }
+    catalog = synthetic_catalog(study)
     manifest = study.selection_manifest(catalog, "pilot")
     manifest["allocations"][0]["selected_ids"][0] = "tampered"
 
@@ -158,12 +188,7 @@ def test_batch_contract_rejects_tampered_manifest() -> None:
 
 def test_batch_contract_accepts_one_complete_allocation() -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
-    catalog = {
-        allocation.id: [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
-        for allocation in study.benchmarks
-    }
+    catalog = synthetic_catalog(study)
     manifest = study.selection_manifest(catalog, "pilot")
     selected = manifest["allocations"][0]["selected_ids"]
     requests = [
@@ -188,12 +213,7 @@ def test_rejects_duplicate_canonical_ids() -> None:
 
 def test_build_study_manifest_cli(tmp_path: Path) -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
-    catalog = {
-        allocation.id: [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
-        for allocation in study.benchmarks
-    }
+    catalog = synthetic_catalog(study)
     catalog_path = tmp_path / "catalog.json"
     output_path = tmp_path / "pilot-manifest.json"
     catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -234,12 +254,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     protocol_path.write_text(yaml.safe_dump(protocol_data), encoding="utf-8")
     study = StudyProtocol.from_yaml(protocol_path)
 
-    catalog = {
-        allocation.id: [
-            f"{allocation.id}-{index:05d}" for index in range(allocation.available_samples)
-        ]
-        for allocation in study.benchmarks
-    }
+    catalog = synthetic_catalog(study)
     manifest = study.selection_manifest(catalog, "pilot")
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")

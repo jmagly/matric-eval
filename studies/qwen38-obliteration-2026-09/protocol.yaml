@@ -10,7 +10,7 @@ study:
     pilot: 100
     full: 1200
   sample_selection:
-    algorithm: sha256-ranked-v1
+    algorithm: allocation-declared-v1
     key_format: "{seed}\\0{allocation_id}\\0{canonical_sample_id}"
     shared_across_models: true
     pilot_nested_in_full: true
@@ -219,6 +219,9 @@ study:
       dataset_revision: 6ea57973c7a6097fd7c5915698c54c17c5b1b6c8
       scoring_protocol: BFCL-v4-official-agentic
       execution_mode: official-agent-runner
+      selection_strategy: sha256-stratified-round-robin-v1
+      selection_stratum: official-test-category
+      execution_dependencies: official-memory-prerequisites-and-preceding-scenario-turns
       pilot_samples: 5
       full_samples: 100
       available_samples: 665

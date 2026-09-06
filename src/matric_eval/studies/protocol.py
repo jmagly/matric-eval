@@ -22,6 +22,10 @@ _AXES = {
     "agentic",
 }
 _EXECUTION_MODES = {"offline-batch", "official-agent-runner"}
+_SELECTION_STRATEGIES = {
+    "sha256-ranked-v1",
+    "sha256-stratified-round-robin-v1",
+}
 
 
 def _required_string(data: dict[str, Any], key: str, context: str) -> str:
@@ -49,6 +53,7 @@ class BenchmarkAllocation:
     dataset_revision: str
     scoring_protocol: str
     execution_mode: str
+    selection_strategy: str
     pilot_samples: int
     full_samples: int
     available_samples: int
@@ -64,6 +69,12 @@ class BenchmarkAllocation:
         if execution_mode not in _EXECUTION_MODES:
             raise ValueError(
                 f"{context}.execution_mode must be one of " + ", ".join(sorted(_EXECUTION_MODES))
+            )
+        selection_strategy = str(data.get("selection_strategy", "sha256-ranked-v1"))
+        if selection_strategy not in _SELECTION_STRATEGIES:
+            raise ValueError(
+                f"{context}.selection_strategy must be one of "
+                + ", ".join(sorted(_SELECTION_STRATEGIES))
             )
         revision = _required_string(data, "dataset_revision", context).lower()
         if not _REVISION_RE.fullmatch(revision):
@@ -91,6 +102,7 @@ class BenchmarkAllocation:
             dataset_sha256=dataset_sha256,
             scoring_protocol=_required_string(data, "scoring_protocol", context),
             execution_mode=execution_mode,
+            selection_strategy=selection_strategy,
             pilot_samples=pilot_samples,
             full_samples=full_samples,
             available_samples=available_samples,
@@ -146,7 +158,7 @@ class StudyProtocol:
         if not isinstance(selection, dict):
             raise ValueError("study.sample_selection must be an object")
         required_selection = {
-            "algorithm": "sha256-ranked-v1",
+            "algorithm": "allocation-declared-v1",
             "shared_across_models": True,
             "pilot_nested_in_full": True,
             "ordered_manifest_required": True,
@@ -406,6 +418,7 @@ class StudyProtocol:
         allocation_id: str,
         canonical_ids: list[str],
         cohort: str,
+        strata: dict[str, str] | None = None,
     ) -> list[str]:
         """Select stable ordered IDs so pilot is always nested in the full cohort."""
         if cohort not in {"pilot", "full"}:
@@ -424,13 +437,47 @@ class StudyProtocol:
             raise ValueError(
                 f"allocation {allocation_id} has {len(normalized)} IDs but {count} are required"
             )
-        ranked = sorted(
-            normalized,
-            key=lambda sample_id: (
-                hashlib.sha256(f"{self.seed}\0{allocation_id}\0{sample_id}".encode()).hexdigest(),
-                sample_id,
-            ),
-        )
+        def rank(sample_id: str) -> tuple[str, str]:
+            digest = hashlib.sha256(
+                f"{self.seed}\0{allocation_id}\0{sample_id}".encode()
+            ).hexdigest()
+            return digest, sample_id
+
+        if allocation.selection_strategy == "sha256-ranked-v1":
+            ranked = sorted(normalized, key=rank)
+        else:
+            if strata is None or set(strata) != set(normalized):
+                raise ValueError(
+                    f"allocation {allocation_id} requires one stratum for every canonical ID"
+                )
+            groups: dict[str, list[str]] = {}
+            for sample_id in normalized:
+                stratum = strata[sample_id]
+                if not stratum:
+                    raise ValueError(f"allocation {allocation_id} contains an empty stratum")
+                groups.setdefault(stratum, []).append(sample_id)
+            for group in groups.values():
+                group.sort(key=rank)
+            stratum_order = sorted(
+                groups,
+                key=lambda stratum: (
+                    hashlib.sha256(f"{self.seed}\0{allocation_id}\0{stratum}".encode()).hexdigest(),
+                    stratum,
+                ),
+            )
+            ranked = []
+            round_index = 0
+            while len(ranked) < count:
+                advanced = False
+                for stratum in stratum_order:
+                    if round_index < len(groups[stratum]):
+                        ranked.append(groups[stratum][round_index])
+                        advanced = True
+                        if len(ranked) == count:
+                            break
+                if not advanced:
+                    break
+                round_index += 1
         return ranked[:count]
 
     def generation_seed(self, allocation_id: str, canonical_sample_id: str) -> int:
@@ -440,7 +487,7 @@ class StudyProtocol:
 
     def selection_manifest(
         self,
-        id_catalog: dict[str, list[str]],
+        id_catalog: dict[str, list[Any]],
         cohort: str,
     ) -> dict[str, Any]:
         """Build a content-addressed ordered manifest from canonical dataset IDs."""
@@ -448,8 +495,39 @@ class StudyProtocol:
         for allocation in self.benchmarks:
             if allocation.id not in id_catalog:
                 raise ValueError(f"ID catalog is missing allocation {allocation.id}")
-            selected_ids = self.select_ids(allocation.id, id_catalog[allocation.id], cohort)
+            raw_entries = id_catalog[allocation.id]
+            canonical_ids: list[str] = []
+            strata: dict[str, str] | None = None
+            if all(isinstance(entry, str) for entry in raw_entries):
+                canonical_ids = [str(entry) for entry in raw_entries]
+            elif all(isinstance(entry, dict) for entry in raw_entries):
+                strata = {}
+                for entry in raw_entries:
+                    sample_id = entry.get("id")
+                    stratum = entry.get("stratum")
+                    if not isinstance(sample_id, str) or not isinstance(stratum, str):
+                        raise ValueError(
+                            f"ID catalog allocation {allocation.id} entries require string id/stratum"
+                        )
+                    canonical_ids.append(sample_id)
+                    strata[sample_id] = stratum
+            else:
+                raise ValueError(
+                    f"ID catalog allocation {allocation.id} must use all strings or all objects"
+                )
+            selected_ids = self.select_ids(
+                allocation.id,
+                canonical_ids,
+                cohort,
+                strata=strata,
+            )
             ids_payload = "\n".join(selected_ids).encode()
+            selected_strata: dict[str, int] | None = None
+            if strata is not None:
+                selected_strata = {}
+                for sample_id in selected_ids:
+                    stratum = strata[sample_id]
+                    selected_strata[stratum] = selected_strata.get(stratum, 0) + 1
             allocations.append(
                 {
                     "allocation_id": allocation.id,
@@ -457,6 +535,8 @@ class StudyProtocol:
                     "dataset_source": allocation.dataset_source,
                     "dataset_revision": allocation.dataset_revision,
                     "dataset_sha256": allocation.dataset_sha256,
+                    "selection_strategy": allocation.selection_strategy,
+                    "selected_strata": selected_strata,
                     "selected_ids": selected_ids,
                     "ordered_ids_sha256": hashlib.sha256(ids_payload).hexdigest(),
                 }
@@ -467,7 +547,7 @@ class StudyProtocol:
             "protocol_sha256": self.canonical_sha256,
             "cohort": cohort,
             "seed": self.seed,
-            "selection_algorithm": "sha256-ranked-v1",
+            "selection_algorithm": "allocation-declared-v1",
             "allocations": allocations,
         }
         manifest_payload = json.dumps(

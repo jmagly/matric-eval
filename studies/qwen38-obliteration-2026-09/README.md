@@ -55,6 +55,13 @@ by `SHA256("{seed}\\0{allocation_id}\\0{canonical_sample_id}")`. The first `n`
 IDs form the cohort. This makes selection independent of upstream row order and makes
 the 100-example pilot a strict subset of the 1,200-example full cohort.
 
+BFCL is the declared exception to global ranking: IDs are first grouped by its five
+official scored categories, ranked by the same hash within category, then selected by
+deterministic round-robin. The five-case pilot therefore covers every backend once;
+the 100-case full cohort contains 20 scored cases per category. Required memory
+prerequisites and earlier scenario turns are executed in official order as unscored
+support trajectories and reported separately as runtime overhead.
+
 | Axis | Pilot/model | Full/model | Benchmarks |
 | --- | ---: | ---: | --- |
 | Benign over-refusal | 20 | 250 | XSTest safe; OR-Bench hard benign |
