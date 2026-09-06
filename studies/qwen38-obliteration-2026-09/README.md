@@ -174,8 +174,8 @@ count, and canonical-ID uniqueness before writing the catalog:
 uv run python scripts/build_qwen38_study_catalog.py \
   --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
   --output /srv/matric-eval/results/qwen38-obliteration-2026-09/id-catalog.json \
-  --cache-root /srv/obliteratus/matric-eval/cache \
-  --livecodebench-snapshot /srv/obliteratus/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
+  --cache-root /srv/matric-eval/cache \
+  --livecodebench-snapshot /srv/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
   --fastchat-checkout /srv/matric-eval/benchmarks/fastchat-587d5cfa1609a43d192cedb8441cac3c17db105d \
   --bfcl-checkout /srv/matric-eval/benchmarks/bfcl-v4 \
   --bfcl-python /srv/matric-eval/benchmarks/bfcl-runner-2026.3.23/.venv/bin/python \
@@ -210,8 +210,8 @@ uv run python scripts/build_qwen38_offline_requests.py \
   --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
   --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
   --output-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs \
-  --cache-root /srv/obliteratus/matric-eval/cache \
-  --livecodebench-snapshot /srv/obliteratus/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
+  --cache-root /srv/matric-eval/cache \
+  --livecodebench-snapshot /srv/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
   --fastchat-checkout /srv/matric-eval/benchmarks/fastchat-587d5cfa1609a43d192cedb8441cac3c17db105d
 ```
 
