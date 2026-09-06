@@ -131,6 +131,7 @@ sudo docker gpu run \
     --env PYTHONDONTWRITEBYTECODE=1 \
     --env HF_HUB_OFFLINE=1 \
     --env TRANSFORMERS_OFFLINE=1 \
+    --env VLLM_NO_USAGE_STATS=1 \
     --env OLLAMA_UNIFY_GPU_LEASE \
     --env CUDA_VISIBLE_DEVICES \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \

@@ -342,6 +342,7 @@ class StudyProtocol:
             "batch_invariance": True,
             "v1_multiprocessing": False,
             "speculative_decoding": False,
+            "usage_stats": False,
         }
         for key, expected in required_server_controls.items():
             if server.get(key) is not expected:
@@ -358,6 +359,10 @@ class StudyProtocol:
             raise ValueError("study.execution.model_server.version must be pinned")
         if server.get("tensor_parallel_size") != 1:
             raise ValueError("study.execution.model_server.tensor_parallel_size must be 1")
+        if server.get("safetensors_load_strategy") != "prefetch":
+            raise ValueError(
+                "study.execution.model_server.safetensors_load_strategy must be prefetch"
+            )
         gpu_memory_utilization = server.get("gpu_memory_utilization")
         if (
             isinstance(gpu_memory_utilization, bool)

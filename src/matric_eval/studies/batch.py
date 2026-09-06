@@ -597,6 +597,7 @@ def run_offline_batch(
         max_model_len=model.runtime.context_limit,
         tensor_parallel_size=server["tensor_parallel_size"],
         gpu_memory_utilization=server["gpu_memory_utilization"],
+        safetensors_load_strategy=server["safetensors_load_strategy"],
         trust_remote_code=False,
         enable_prefix_caching=False,
     )
@@ -655,6 +656,8 @@ def run_offline_batch(
                     ),
                     "batch_invariant": True,
                     "v1_multiprocessing": False,
+                    "safetensors_load_strategy": server["safetensors_load_strategy"],
+                    "usage_stats": server["usage_stats"],
                     "chat_template_sha256": template_sha256,
                     "lease_receipt_sha256": lease_sha256,
                     "model_qualification_sha256": qualification_sha256,

@@ -80,8 +80,9 @@ run.
 ## Primary inference contract
 
 - BF16 weights and KV cache; one model per A100; no quantization.
-- vLLM 0.26.0 amd64 container digest, tensor parallelism 1, and GPU-memory
-  utilization 0.90 pinned in the protocol.
+- vLLM 0.26.0 amd64 container digest, tensor parallelism 1, GPU-memory
+  utilization 0.90, safetensor prefetch, and disabled usage reporting pinned in
+  the protocol.
 - Offline batch inference with batch invariance enabled and V1 multiprocessing
   disabled. vLLM's online server is not used for the primary lane because request
   scheduling is not reproducible.

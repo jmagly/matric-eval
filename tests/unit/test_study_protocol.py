@@ -569,5 +569,6 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert engine_kwargs["gpu_memory_utilization"] == 0.9
+    assert engine_kwargs["safetensors_load_strategy"] == "prefetch"
     assert output_path.stat().st_mode & 0o777 == 0o600
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision
