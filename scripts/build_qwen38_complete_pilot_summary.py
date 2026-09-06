@@ -164,9 +164,10 @@ def _agentic_evidence(
         if bfcl_ids != selected[AGENTIC_ALLOCATIONS["bfcl"]]:
             raise ValueError(f"{model.id} BFCL receipt does not match selected pilot IDs")
         for lane in ("tau", "terminal"):
-            if _record_ids(receipts[lane], f"{model.id} {lane}") != selected[
-                AGENTIC_ALLOCATIONS[lane]
-            ]:
+            if (
+                _record_ids(receipts[lane], f"{model.id} {lane}")
+                != selected[AGENTIC_ALLOCATIONS[lane]]
+            ):
                 raise ValueError(f"{model.id} {lane} receipt does not match selected pilot IDs")
             if receipts[lane].get("scored_samples") != len(selected[AGENTIC_ALLOCATIONS[lane]]):
                 raise ValueError(f"{model.id} {lane} scored sample count does not match the pilot")
@@ -468,8 +469,7 @@ def build_summary(
             float(model["total_generation_seconds"]) for model in direct_models.values()
         ),
         "deterministic_scoring_seconds_including_repeat": sum(
-            float(model["total_deterministic_scoring_seconds"])
-            for model in direct_models.values()
+            float(model["total_deterministic_scoring_seconds"]) for model in direct_models.values()
         ),
         "agentic_seconds": sum(float(model["pilot_seconds"]) for model in agentic.values()),
         "judge_seconds": float(judge["pilot_seconds"]),

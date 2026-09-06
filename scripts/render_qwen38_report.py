@@ -410,7 +410,9 @@ def _pilot_table(pilot: JsonObject) -> str:
         agentic = result.get("agentic")
         agentic_seconds = agentic.get("pilot_seconds") if isinstance(agentic, dict) else None
         full_gpu_hours = result.get("estimated_full_gpu_hours")
-        agentic_display = "—" if agentic_seconds is None else f"{float(agentic_seconds) / 60:.1f} min"
+        agentic_display = (
+            "—" if agentic_seconds is None else f"{float(agentic_seconds) / 60:.1f} min"
+        )
         pilot_gpu = result.get("pilot_gpu_hours")
         pilot_gpu_display = "—" if pilot_gpu is None else f"{float(pilot_gpu):.2f} h"
         full_gpu_display = "—" if full_gpu_hours is None else f"{float(full_gpu_hours):.2f} h"

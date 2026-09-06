@@ -94,8 +94,7 @@ def _fixture(
             {
                 **identity,
                 "scored_results": [
-                    {"canonical_id": sample_id}
-                    for sample_id in selected["tau3-bench"]
+                    {"canonical_id": sample_id} for sample_id in selected["tau3-bench"]
                 ],
                 "scored_samples": len(selected["tau3-bench"]),
                 "execution_seconds": 70.0,
@@ -108,8 +107,7 @@ def _fixture(
             {
                 **identity,
                 "scored_results": [
-                    {"canonical_id": sample_id}
-                    for sample_id in selected["terminal-bench-2.1"]
+                    {"canonical_id": sample_id} for sample_id in selected["terminal-bench-2.1"]
                 ],
                 "scored_samples": len(selected["terminal-bench-2.1"]),
                 "execution_seconds": 80.0,
