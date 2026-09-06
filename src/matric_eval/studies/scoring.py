@@ -74,13 +74,21 @@ def _indexed(rows: list[JsonObject], label: str) -> dict[str, JsonObject]:
     return indexed
 
 
-def _score_ifeval(completion: str, sample_id: str, metadata: JsonObject) -> tuple[float, JsonObject]:
+def _score_ifeval(
+    completion: str,
+    sample_id: str,
+    metadata: JsonObject,
+    *,
+    detector_seed: int,
+) -> tuple[float, JsonObject]:
+    from langdetect import DetectorFactory
     from instruction_following_eval.evaluation import (
         InputExample,
         ensure_nltk_resource,
         test_instruction_following,
     )
 
+    DetectorFactory.seed = detector_seed
     instruction_ids = metadata.get("instruction_id_list")
     kwargs = metadata.get("kwargs")
     prompt = metadata.get("prompt")
@@ -329,7 +337,12 @@ def score_offline_outputs(
 
         detail: JsonObject
         if allocation == "ifeval":
-            value, detail = _score_ifeval(completion, str(result["sample_id"]), metadata)
+            value, detail = _score_ifeval(
+                completion,
+                str(result["sample_id"]),
+                metadata,
+                detector_seed=study.seed,
+            )
             scorer_name = "ifeval-official-strict-loose"
             publication_eligible = True
         elif allocation == "mmlu-pro":

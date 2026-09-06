@@ -70,6 +70,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "scoring_code_revision": code_revision,
             "evaluators": {
                 "ifeval": {
+                    "language_detector_seed": study.seed,
                     "implementation": "instruction-following-eval",
                     "revision": IFEVAL_EVALUATOR_REVISION,
                     "version": importlib.metadata.version("instruction-following-eval"),

@@ -134,6 +134,36 @@ def test_livecodebench_rejects_infrastructure_failure() -> None:
             "x",
             {"public_test_cases": [{"input": "", "output": "x", "testtype": "stdin"}]},
         )
+
+
+def test_official_ifeval_language_detection_is_repeatable() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    results = [
+        _result(
+            study,
+            "ifeval",
+            "q1",
+            "This response remains entirely in English for deterministic evaluation.",
+        )
+    ]
+    scoring = [
+        _scoring(
+            "ifeval",
+            "q1",
+            "",
+            {
+                "prompt": "Respond in English.",
+                "instruction_id_list": ["language:response_language"],
+                "kwargs": [{"language": "en"}],
+            },
+        )
+    ]
+
+    first = score_offline_outputs(study=study, results=results, scoring_records=scoring)
+    second = score_offline_outputs(study=study, results=results, scoring_records=scoring)
+
+    assert first == second
+    assert first[0][0]["score"] == 1.0
     ]
 
     with pytest.raises(RuntimeError, match="infrastructure failed"):
