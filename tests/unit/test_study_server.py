@@ -64,7 +64,11 @@ def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path
     )
 
     assert arguments[0] == str(tmp_path / "model")
-    assert arguments[arguments.index("--served-model-name") + 1] == model_id
+    served_name_index = arguments.index("--served-model-name")
+    assert arguments[served_name_index + 1 : served_name_index + 3] == [
+        model_id,
+        str(tmp_path / "model"),
+    ]
     assert arguments[arguments.index("--max-num-seqs") + 1] == "1"
     assert arguments[arguments.index("--tool-call-parser") + 1] == "qwen3_coder"
     assert "--disable-log-requests" in arguments
