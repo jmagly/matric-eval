@@ -372,8 +372,8 @@ def run_offline_batch(
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
     if engine_factory is None or tokenizer_factory is None or sampling_factory is None:
         try:
-            from transformers import AutoTokenizer
-            from vllm import LLM, SamplingParams
+            from transformers import AutoTokenizer  # type: ignore[import-not-found]
+            from vllm import LLM, SamplingParams  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover - exercised on the A100 runtime
             raise RuntimeError(
                 "offline execution requires vLLM and transformers in the pinned A100 image"
@@ -420,7 +420,7 @@ def run_offline_batch(
         raise RuntimeError(f"vLLM returned {len(generated)} results for {len(requests)} requests")
 
     for request, result in zip(requests, generated, strict=True):
-        candidates = getattr(result, "outputs", ())
+        candidates = list(getattr(result, "outputs", ()))
         if len(candidates) != 1:
             raise RuntimeError(
                 f"request {request.request_id} returned {len(candidates)} candidates"
@@ -430,7 +430,7 @@ def run_offline_batch(
     temporary = output.with_name(f".{output.name}.tmp")
     with temporary.open("x", encoding="utf-8") as handle:
         for request, prompt, result in zip(requests, prompts, generated, strict=True):
-            candidates = getattr(result, "outputs", ())
+            candidates = list(getattr(result, "outputs", ()))
             candidate = candidates[0]
             record = {
                 "schema_version": "1",
