@@ -12,7 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from matric_eval.studies import StudyObservation, StudyProtocol, load_observations
+from matric_eval.studies import StudyProtocol, load_observations
 
 JsonObject = dict[str, Any]
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
