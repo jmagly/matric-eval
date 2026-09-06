@@ -1,0 +1,21 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Qwen3.8 27B refusal-intervention study"
+  navbar:
+    left:
+      - href: report.qmd
+        text: Results
+      - href: methods.qmd
+        text: Methods and provenance
+
+format:
+  html:
+    toc: true
+    code-fold: true
+    embed-resources: true
+
+execute:
+  freeze: true

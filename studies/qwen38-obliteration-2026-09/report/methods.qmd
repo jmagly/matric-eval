@@ -1,0 +1,35 @@
+---
+title: "Methods and provenance"
+format:
+  html:
+    toc: true
+    embed-resources: true
+---
+
+## Protocol
+
+The canonical protocol is [`../protocol.yaml`](../protocol.yaml). The rendered report
+must display both its byte-level and canonical parsed-object SHA-256 digests.
+
+## Models and interventions
+
+Copy the exact model identities, intervention disclosures, common-template rule, and
+text-only scope from the validated protocol. Self-reported model-card results are
+background hypotheses, not baseline measurements for this study.
+
+## Samples and scoring
+
+Document SHA256-ranked selection, allocation-specific strata, the nested pilot, all
+official evaluator revisions, judge identities, blind/randomization controls, and the
+human calibration sample.
+
+## Execution environment
+
+Summarize the A100 preflight, lease receipts, vLLM container digest, batch-invariance
+settings, exact repository commit, dependency inventory, and model/GPU crossover.
+
+## Statistical methods
+
+Document paired bootstrap, exact McNemar tests, Wilson intervals, Holm correction,
+the capability non-inferiority margin, and all missing-data rules before showing any
+results.

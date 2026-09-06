@@ -3,6 +3,8 @@
 Comprehensive documentation for the matric-eval model evaluation framework.
 
 Runnable study specifications are under [`../examples`](../examples/README.md).
+Preregistered research studies with frozen sampling and reporting contracts are under
+[`../studies`](../studies/README.md).
 
 ## Quick Links
 
@@ -48,6 +50,7 @@ Test strategy, plans, and contribution guidelines.
 - [**Strategy**](testing/strategy.md) - Overall testing approach
 - [**Contributing**](testing/contributing.md) - How to write and run tests
 - [**A100 Execution**](testing/a100-execution.md) - Required host, storage, preflight, and matched-run policy
+- [**Qwen3.8 27B Intervention Study**](../studies/qwen38-obliteration-2026-09/README.md) - Preregistered source/E03/Pliny comparison
 - **Test Plans**
   - [Unit Tests](testing/plans/unit.md)
   - [Integration Tests](testing/plans/integration.md)

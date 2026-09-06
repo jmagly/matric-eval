@@ -1,0 +1,323 @@
+study:
+  schema_version: "1"
+  id: qwen38-obliteration-2026-09
+  title: Qwen3.8 27B refusal-intervention matched comparison
+  status: preregistered
+  tracking_issue: https://git.integrolabs.net/roctinam/matric-eval/issues/114
+  preregistered_at: "2026-09-06T00:59:05Z"
+  seed: 1790783388
+  samples_per_model:
+    pilot: 100
+    full: 1200
+  sample_selection:
+    algorithm: sha256-ranked-v1
+    key_format: "{seed}\\0{allocation_id}\\0{canonical_sample_id}"
+    shared_across_models: true
+    pilot_nested_in_full: true
+    ordered_manifest_required: true
+    ordering: ascending-sha256
+
+  models:
+    - id: qwen38-27b-source-bf16
+      model: Qwen/Qwen3.8-27B
+      family: qwen3.8-27b
+      lineage_role: untouched-control
+      source: Qwen/Qwen3.8-27B
+      checkpoint_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+      comparison_group: qwen38-obliteration-2026-09
+      provider: vllm
+      runtime: &primary_runtime
+        execution_mode: direct-endpoint
+        dtype: bfloat16
+        chat_template_sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+        reasoning_mode: "on"
+        context_limit: 32768
+        tool_protocol: openai-tools
+        sampler:
+          temperature: 1.0
+          top_p: 0.95
+          top_k: 20
+          min_p: 0.0
+          presence_penalty: 0.0
+          repetition_penalty: 1.0
+          max_tokens: 8192
+          seed: 1790783388
+
+    - id: qwen38-27b-e03-bf16
+      model: manitcor/Qwen3.8-27B-Obliterated-E03
+      family: qwen3.8-27b
+      lineage_role: intervention
+      source: manitcor/Qwen3.8-27B-Obliterated-E03
+      checkpoint_revision: 95583d3ee44c40e840cb0ceb7106d12a1087d52f
+      comparison_group: qwen38-obliteration-2026-09
+      provider: vllm
+      provenance_status: reconstructed-with-gaps
+      evidence_gaps:
+        - original intervention run seed and tokenizer revision were not retained
+        - exact original operator request and launcher command were not retained
+      interventions:
+        - method: qwen38-e03-svd-output-projection
+          parent_source: Qwen/Qwen3.8-27B
+          parent_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+          implementation_source: bt6/OBLITERATUS
+          implementation_revision: cd8b0b785c8b32fd059f645b5b8c1d53f67f01f2
+          config_sha256: 267db03b64fe1fbd11171de647cff85065781a207328052d8beddc7ee890fdd2
+      runtime: *primary_runtime
+
+    - id: qwen38-27b-pliny-v3-bf16
+      model: OBLITERATUS/Qwen3.8-27B-OBLITERATED
+      family: qwen3.8-27b
+      lineage_role: intervention
+      source: OBLITERATUS/Qwen3.8-27B-OBLITERATED
+      checkpoint_revision: a58c3b53b3ce71551eafde2ed5ec8df48e0f4ff8
+      comparison_group: qwen38-obliteration-2026-09
+      provider: vllm
+      provenance_status: reconstructed-with-gaps
+      evidence_gaps:
+        - published V3 metadata does not retain an OBLITERATUS implementation revision
+        - published source_model names an intermediate output rather than an immutable parent
+        - V2-to-V3 intermediate checkpoint and blend identities are not immutable in the model card
+      interventions:
+        - method: obliteratus-v3-iterative-targeted-blend
+          parent_source: Qwen/Qwen3.8-27B
+          parent_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+          implementation_source: bt6/OBLITERATUS
+          config_sha256: ea86959804dae895d75239562bc711428b0de8203f6f99c09e9be15b779390f8
+      runtime: *primary_runtime
+
+  primary_comparison:
+    modality: text-only
+    estimand: checkpoint intervention effect under a common inference contract
+    common_chat_template:
+      source: Qwen/Qwen3.8-27B/chat_template.jinja
+      source_revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+      sha256: c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+      force_server_override: true
+    exclusions:
+      - vision is excluded because E03 is a text-only release
+      - MTP speculative decoding is disabled because E03 omits MTP tensors
+      - model-card-specific samplers and system prompts are excluded from the primary lane
+  sensitivity_analyses:
+    - id: artifact-native-template
+      purpose: quantify the deployment effect of each published chat template
+      headline_eligible: false
+      change_from_primary: chat template only
+    - id: reasoning-off
+      purpose: measure non-thinking behavior under the same common template
+      headline_eligible: false
+      change_from_primary: reasoning mode only
+
+  benchmarks:
+    - id: xstest-safe
+      benchmark: xstest_safe
+      axis: benign_overrefusal
+      dataset_source: paul-rottger/xstest
+      dataset_file: xstest_prompts.csv
+      dataset_revision: d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d
+      dataset_sha256: 11783fb294ed017473ee53c207d71f2161c7672c8d0b037501e78387f801cb5a
+      subset: safe
+      scoring_protocol: xstest-three-way-v1+dual-judge-adjudication
+      execution_mode: direct-endpoint
+      pilot_samples: 10
+      full_samples: 100
+      available_samples: 250
+
+    - id: xstest-unsafe
+      benchmark: xstest_unsafe
+      axis: harmful_compliance
+      dataset_source: paul-rottger/xstest
+      dataset_file: xstest_prompts.csv
+      dataset_revision: d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d
+      dataset_sha256: 11783fb294ed017473ee53c207d71f2161c7672c8d0b037501e78387f801cb5a
+      subset: contrast_unsafe
+      scoring_protocol: xstest-three-way-v1+dual-judge-adjudication
+      execution_mode: direct-endpoint
+      pilot_samples: 5
+      full_samples: 100
+      available_samples: 200
+
+    - id: or-bench-hard-benign
+      benchmark: or_bench_hard
+      axis: benign_overrefusal
+      dataset_source: bench-llm/or-bench
+      dataset_file: or-bench-hard-1k.csv
+      dataset_revision: e36d8b80e81837c8a8f264bbb2a49f1b32c7e272
+      dataset_sha256: a6e2f1166416efe5901f3bb05c47dc92ab3aca3acfe143693d38b8057d841e6d
+      subset: hard-benign
+      scoring_protocol: or-bench-three-class-v1+dual-judge-adjudication
+      execution_mode: direct-endpoint
+      pilot_samples: 10
+      full_samples: 150
+      available_samples: 1319
+
+    - id: strongreject-harmful
+      benchmark: strongreject
+      axis: harmful_compliance
+      dataset_source: alexandrasouly/strongreject
+      dataset_file: strongreject_dataset/strongreject_dataset.csv
+      dataset_revision: f7cad6c17e624e21d8df2278e918ae1dddb4cb56
+      dataset_sha256: 4dd70357e4ff8b5d0ba5ebafecab5d6dd5633ce8046e3dd1c8bd93e64de44381
+      subset: full
+      scoring_protocol: strongreject-rubric-v1+dual-judge-adjudication
+      execution_mode: direct-endpoint
+      pilot_samples: 15
+      full_samples: 100
+      available_samples: 313
+
+    - id: ifeval
+      benchmark: ifeval
+      axis: capability
+      dataset_source: google/IFEval
+      dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
+      scoring_protocol: IFEval-541
+      execution_mode: direct-endpoint
+      pilot_samples: 10
+      full_samples: 125
+      available_samples: 541
+
+    - id: mmlu-pro
+      benchmark: mmlu_pro
+      axis: capability
+      dataset_source: TIGER-Lab/MMLU-Pro
+      dataset_revision: 527feea0afed1de15a8c115abf7be4c912123315
+      scoring_protocol: MMLU-Pro-2-A-category-stratified
+      execution_mode: direct-endpoint
+      pilot_samples: 15
+      full_samples: 200
+      available_samples: 12032
+
+    - id: livecodebench
+      benchmark: livecodebench
+      axis: capability
+      dataset_source: livecodebench/code_generation_lite
+      dataset_revision: 0fe84c3912ea0c4d4a78037083943e8f0c4dd505
+      scoring_protocol: release_v6-official-execution
+      execution_mode: direct-endpoint
+      pilot_samples: 10
+      full_samples: 125
+      available_samples: 1055
+
+    - id: mtbench
+      benchmark: mtbench
+      axis: capability
+      dataset_source: lm-sys/FastChat
+      dataset_revision: 587d5cfa1609a43d192cedb8441cac3c17db105d
+      scoring_protocol: MT-Bench-v1-paired-blinded-judge
+      execution_mode: direct-endpoint
+      pilot_samples: 5
+      full_samples: 50
+      available_samples: 80
+
+    - id: bfcl-v4-agentic
+      benchmark: bfcl_v4_agentic
+      axis: agentic
+      dataset_source: ShishirPatil/gorilla
+      dataset_revision: 6ea57973c7a6097fd7c5915698c54c17c5b1b6c8
+      scoring_protocol: BFCL-v4-official-agentic
+      execution_mode: official-agent-runner
+      pilot_samples: 5
+      full_samples: 100
+      available_samples: 665
+
+    - id: tau3-bench
+      benchmark: tau2
+      axis: agentic
+      dataset_source: sierra-research/tau2-bench
+      dataset_revision: 672227c6b6676edc20d57ea53b7000262aae77b9
+      scoring_protocol: tau3-bench-1.0.1-official-reward
+      execution_mode: official-agent-runner
+      pilot_samples: 10
+      full_samples: 100
+      available_samples: 375
+
+    - id: terminal-bench-2.1
+      benchmark: terminalbench
+      axis: agentic
+      dataset_source: terminal-bench/terminal-bench-2-1
+      dataset_revision: 5c8eadf1f393183288fa08b8f73ca9a469cc5e00
+      scoring_protocol: terminal-bench-2.1-official-container-grader
+      execution_mode: official-agent-runner
+      pilot_samples: 5
+      full_samples: 50
+      available_samples: 89
+
+  judging:
+    blinded_model_labels: true
+    order_randomized: true
+    primary_judge: external-fixed-snapshot
+    adjudicator: distinct-external-fixed-snapshot
+    target_models_may_not_judge: true
+    disagreement_policy: adjudicate-all
+    calibration:
+      human_double_labeled_items: 100
+      report_cohens_kappa: true
+      report_confusion_matrix: true
+
+  analysis:
+    paired_by_sample_id: true
+    pilot_use: timing-and-pipeline-validation-only
+    pilot_results_count_in_full_if_protocol_unchanged: true
+    primary_interval: paired-stratified-bootstrap-95
+    bootstrap_replicates: 10000
+    binary_pair_test: exact-mcnemar
+    proportion_interval: wilson-95
+    multiple_comparison_correction: holm
+    capability_noninferiority_margin_pp: -3.0
+    missingness:
+      infrastructure_failures: exclude-and-report
+      model_timeouts: failure-with-separate-timeout-rate
+      judge_parse_failures: report-bounds-and-adjudicate
+    composites:
+      capability_and_agentic: report-domain-macro-average-and-components
+      refusal: never-combine-benign-overrefusal-with-harmful-compliance
+      headline: two-axis-pareto-not-single-rank
+
+  execution:
+    host_alias: a100
+    expected_hostname: basilisk
+    required_gpu_model: NVIDIA A100 80GB PCIe
+    exclusive_gpu_lease_required: true
+    model_server:
+      engine: vllm
+      version: 0.26.0
+      image: vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b
+      online_serving_allowed: false
+      offline_batch_inference_required: true
+      batch_invariance: true
+      v1_multiprocessing: false
+      tensor_parallel_size: 1
+      speculative_decoding: false
+    model_assignment: randomized-crossover-across-three-a100s
+    cache_policy: stage-one-model-at-a-time-and-reuse-qualified-local-checkpoints
+    minimum_free_srv_gib_before_new-download: 96
+    preflight_evidence_required: true
+
+  reporting:
+    required_formats:
+      - html-site
+      - pdf
+      - json
+    publish_aggregate_metrics: true
+    publish_raw_sensitive_content: false
+    publish_prompt_ids_and_content_hashes: true
+    required_sections:
+      - executive-summary
+      - preregistered-methods
+      - provenance-and-limitations
+      - pilot-runtime-estimate
+      - capability-and-agentic-results
+      - benign-overrefusal-results
+      - harmful-compliance-results
+      - paired-statistical-analysis
+      - error-and-missingness-analysis
+      - reproducibility-manifest
+    evidence_bundle:
+      - protocol-and-hashes
+      - ordered-sample-manifests
+      - environment-and-gpu-manifests
+      - model-server-configs
+      - raw-results-access-controlled
+      - aggregate-results-public
+      - judge-calibration-and-disagreements
+      - html-site
+      - pdf

@@ -1228,6 +1228,100 @@ def audit_benchmarks(
         raise click.exceptions.Exit(1)
 
 
+@cli.command("validate-study")
+@click.argument(
+    "protocol",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    help="Output format (default: table).",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Retain the validation summary as JSON.",
+)
+def validate_study(protocol: Path, output_format: str, output: Path | None) -> None:
+    """Validate a preregistered matched-comparison study protocol."""
+    from matric_eval.studies import StudyProtocol
+
+    try:
+        study = StudyProtocol.from_yaml(protocol)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    summary = study.summary()
+    serialized = json.dumps(summary, indent=2)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(serialized + "\n", encoding="utf-8")
+
+    if output_format == "json":
+        click.echo(serialized)
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("Study", study.id)
+    table.add_row("Status", "valid")
+    table.add_row("Seed", str(study.seed))
+    table.add_row("Models", str(len(study.models)))
+    table.add_row("Benchmarks", str(len(study.benchmarks)))
+    table.add_row("Pilot / model", str(study.pilot_samples_per_model))
+    table.add_row("Full / model", str(study.full_samples_per_model))
+    table.add_row("Protocol SHA-256", study.canonical_sha256)
+    console.print(table)
+
+
+@cli.command("build-study-manifest")
+@click.argument(
+    "protocol",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.argument(
+    "id_catalog",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--cohort",
+    type=click.Choice(["pilot", "full"], case_sensitive=False),
+    required=True,
+)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    required=True,
+)
+def build_study_manifest(
+    protocol: Path,
+    id_catalog: Path,
+    cohort: str,
+    output: Path,
+) -> None:
+    """Build a deterministic ordered sample manifest from canonical IDs."""
+    from matric_eval.studies import StudyProtocol
+
+    try:
+        study = StudyProtocol.from_yaml(protocol)
+        catalog = json.loads(id_catalog.read_text(encoding="utf-8"))
+        if not isinstance(catalog, dict) or not all(
+            isinstance(key, str) and isinstance(value, list)
+            for key, value in catalog.items()
+        ):
+            raise ValueError("ID catalog must map allocation IDs to lists of canonical IDs")
+        manifest = study.selection_manifest(catalog, cohort.lower())
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    click.echo(manifest["manifest_sha256"])
+
+
 @cli.command("recommend")
 @click.option(
     "--results-dir",
