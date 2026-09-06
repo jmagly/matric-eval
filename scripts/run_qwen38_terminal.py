@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and officially score the manifest-locked Terminal-Bench 2.1 pilot."""
+"""Run and officially score a manifest-locked Terminal-Bench 2.1 cohort."""
 
 from __future__ import annotations
 
@@ -178,16 +178,21 @@ def _verify_manifest(
     scored_ids: list[str],
     study_id: str,
 ) -> str:
-    manifest = _load_object(manifest_path, "pilot manifest")
+    manifest = _load_object(manifest_path, "study manifest")
     canonical = dict(manifest)
     declared_hash = canonical.pop("manifest_sha256", None)
     actual_hash = hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     if declared_hash != actual_hash or summary.get("manifest_sha256") != actual_hash:
-        raise ValueError("pilot manifest hash does not match the agentic input summary")
-    if manifest.get("study_id") != study_id or manifest.get("cohort") != "pilot":
-        raise ValueError("Terminal-Bench runner requires the declared pilot manifest")
+        raise ValueError("study manifest hash does not match the agentic input summary")
+    cohort = manifest.get("cohort")
+    if (
+        manifest.get("study_id") != study_id
+        or cohort not in {"pilot", "full"}
+        or summary.get("cohort") != cohort
+    ):
+        raise ValueError("Terminal-Bench runner requires the declared pilot or full manifest")
     allocations = manifest.get("allocations")
     selected = (
         next(
@@ -203,7 +208,7 @@ def _verify_manifest(
         else None
     )
     if selected != scored_ids:
-        raise ValueError("Terminal-Bench scored IDs do not exactly match the pilot manifest")
+        raise ValueError("Terminal-Bench scored IDs do not exactly match the study manifest")
     return actual_hash
 
 

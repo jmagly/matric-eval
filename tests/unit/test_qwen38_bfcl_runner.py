@@ -40,10 +40,11 @@ def test_protocol_and_generation_seed_match_study_contract() -> None:
         bfcl_runner._load_protocol(PROTOCOL, "unknown")
 
 
-def test_manifest_verification_requires_exact_scored_ids(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cohort", ["pilot", "full"])
+def test_manifest_verification_requires_exact_scored_ids(tmp_path: Path, cohort: str) -> None:
     manifest = {
         "study_id": "study",
-        "cohort": "pilot",
+        "cohort": cohort,
         "allocations": [{"allocation_id": "bfcl-v4-agentic", "selected_ids": ["one", "two"]}],
     }
     manifest_hash = hashlib.sha256(
@@ -55,13 +56,19 @@ def test_manifest_verification_requires_exact_scored_ids(tmp_path: Path) -> None
 
     assert (
         bfcl_runner._verify_manifest(
-            path, {"manifest_sha256": manifest_hash}, ["one", "two"], "study"
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            ["one", "two"],
+            "study",
         )
         == manifest_hash
     )
     with pytest.raises(ValueError, match="exactly match"):
         bfcl_runner._verify_manifest(
-            path, {"manifest_sha256": manifest_hash}, ["two", "one"], "study"
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            ["two", "one"],
+            "study",
         )
 
 

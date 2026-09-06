@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and officially score the manifest-locked BFCL agentic pilot."""
+"""Run and officially score a manifest-locked BFCL agentic cohort."""
 
 from __future__ import annotations
 
@@ -106,16 +106,21 @@ def _verify_manifest(
     scored_ids: list[str],
     study_id: str,
 ) -> str:
-    manifest = _load_object(manifest_path, "pilot manifest")
+    manifest = _load_object(manifest_path, "study manifest")
     canonical = dict(manifest)
     declared_hash = canonical.pop("manifest_sha256", None)
     actual_hash = hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     if declared_hash != actual_hash or summary.get("manifest_sha256") != actual_hash:
-        raise ValueError("pilot manifest hash does not match the agentic input summary")
-    if manifest.get("study_id") != study_id or manifest.get("cohort") != "pilot":
-        raise ValueError("BFCL runner requires the declared pilot manifest")
+        raise ValueError("study manifest hash does not match the agentic input summary")
+    cohort = manifest.get("cohort")
+    if (
+        manifest.get("study_id") != study_id
+        or cohort not in {"pilot", "full"}
+        or summary.get("cohort") != cohort
+    ):
+        raise ValueError("BFCL runner requires the declared pilot or full manifest")
     allocations = manifest.get("allocations")
     selected = (
         next(
@@ -131,7 +136,7 @@ def _verify_manifest(
         else None
     )
     if selected != scored_ids:
-        raise ValueError("BFCL scored IDs do not exactly match the pilot manifest")
+        raise ValueError("BFCL scored IDs do not exactly match the study manifest")
     return actual_hash
 
 
@@ -381,7 +386,7 @@ def run_bfcl(args: argparse.Namespace) -> JsonObject:
     found_ids = _collect_top_level_ids(args.result_dir)
     missing = sorted(set(scored_ids) - found_ids)
     if missing:
-        raise RuntimeError(f"BFCL result artifacts omit {len(missing)} scored pilot IDs")
+        raise RuntimeError(f"BFCL result artifacts omit {len(missing)} scored IDs")
     receipt: JsonObject = {
         "schema_version": "1",
         "study_id": study["id"],

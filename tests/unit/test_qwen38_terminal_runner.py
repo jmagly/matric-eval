@@ -35,11 +35,12 @@ def test_protocol_and_generation_seed_match_study_contract() -> None:
     ) == protocol.generation_seed("terminal-bench-2.1", "largest-eigenval")
 
 
-def test_manifest_requires_exact_scored_ids(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cohort", ["pilot", "full"])
+def test_manifest_requires_exact_scored_ids(tmp_path: Path, cohort: str) -> None:
     selected = ["largest-eigenval", "extract-elf"]
     manifest = {
         "study_id": "study",
-        "cohort": "pilot",
+        "cohort": cohort,
         "allocations": [{"allocation_id": "terminal-bench-2.1", "selected_ids": selected}],
     }
     manifest_hash = hashlib.sha256(
@@ -51,13 +52,19 @@ def test_manifest_requires_exact_scored_ids(tmp_path: Path) -> None:
 
     assert (
         terminal_runner._verify_manifest(
-            path, {"manifest_sha256": manifest_hash}, selected, "study"
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            selected,
+            "study",
         )
         == manifest_hash
     )
     with pytest.raises(ValueError, match="exactly match"):
         terminal_runner._verify_manifest(
-            path, {"manifest_sha256": manifest_hash}, list(reversed(selected)), "study"
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            list(reversed(selected)),
+            "study",
         )
 
 
