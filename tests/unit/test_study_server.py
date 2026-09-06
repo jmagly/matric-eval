@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -14,7 +14,6 @@ from matric_eval.studies import StudyProtocol, server_cli
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
-CHAT_TEMPLATE = ROOT / "studies/qwen38-obliteration-2026-09/chat_template.jinja"
 
 
 class _Process:
@@ -54,17 +53,18 @@ class _Response:
 
 def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path) -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
+    model_id = study.models[0].id
     arguments = server_cli._server_arguments(
         study,
-        "source",
+        model_id,
         tmp_path / "model",
-        CHAT_TEMPLATE,
+        tmp_path / "chat-template.jinja",
         "127.0.0.1",
         18080,
     )
 
     assert arguments[0] == str(tmp_path / "model")
-    assert arguments[arguments.index("--served-model-name") + 1] == "source"
+    assert arguments[arguments.index("--served-model-name") + 1] == model_id
     assert arguments[arguments.index("--max-num-seqs") + 1] == "1"
     assert arguments[arguments.index("--tool-call-parser") + 1] == "qwen3_coder"
     assert "--disable-log-requests" in arguments
@@ -72,11 +72,21 @@ def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path
 
     with pytest.raises(ValueError, match="127.0.0.1"):
         server_cli._server_arguments(
-            study, "source", tmp_path / "model", CHAT_TEMPLATE, "0.0.0.0", 18080
+            study,
+            model_id,
+            tmp_path / "model",
+            tmp_path / "chat-template.jinja",
+            "0.0.0.0",
+            18080,
         )
     with pytest.raises(ValueError, match="between 1024"):
         server_cli._server_arguments(
-            study, "source", tmp_path / "model", CHAT_TEMPLATE, "127.0.0.1", 80
+            study,
+            model_id,
+            tmp_path / "model",
+            tmp_path / "chat-template.jinja",
+            "127.0.0.1",
+            80,
         )
 
 
@@ -165,6 +175,8 @@ def test_run_attested_server_writes_content_free_receipt(
     marker.write_text("ready", encoding="utf-8")
     lease = tmp_path / "lease.json"
     receipt = tmp_path / "server.json"
+    chat_template = tmp_path / "chat-template.jinja"
+    chat_template.write_text("test template", encoding="utf-8")
     created_commands: list[list[str]] = []
 
     monkeypatch.setattr(
@@ -186,6 +198,12 @@ def test_run_attested_server_writes_content_free_receipt(
         return process
 
     monkeypatch.setattr(server_cli, "capture_active_gpu_lease", capture)
+    expected_template_hash = model.runtime.chat_template_sha256
+    monkeypatch.setattr(
+        server_cli.hashlib,
+        "sha256",
+        lambda content: SimpleNamespace(hexdigest=lambda: expected_template_hash),
+    )
     monkeypatch.setenv("MATRIC_EVAL_CODE_REVISION", "c" * 40)
 
     assert (
@@ -194,7 +212,7 @@ def test_run_attested_server_writes_content_free_receipt(
             model_id=model.id,
             model_path=tmp_path / "model",
             qualification_path=tmp_path / "qualification.json",
-            chat_template_path=CHAT_TEMPLATE,
+            chat_template_path=chat_template,
             lease_receipt_path=lease,
             server_receipt_path=receipt,
             host="127.0.0.1",

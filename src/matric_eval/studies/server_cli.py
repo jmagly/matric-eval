@@ -210,7 +210,7 @@ def run_attested_server(
     initialization_started = time.time()
     process = process_factory(child_command)
 
-    previous_handlers: dict[int, Any] = {}
+    previous_handlers: dict[signal.Signals, Any] = {}
 
     def stop_child(_signum: int, _frame: Any) -> None:
         _terminate_child(process)
@@ -252,8 +252,8 @@ def run_attested_server(
         return 0
     finally:
         _terminate_child(process)
-        for signum, handler in previous_handlers.items():
-            signal.signal(signum, handler)
+        for signum_value, handler in previous_handlers.items():
+            signal.signal(signum_value, handler)
 
 
 def build_parser() -> argparse.ArgumentParser:
