@@ -363,3 +363,85 @@ def test_scoring_cli_rejects_nonpositive_timeout(tmp_path: Path) -> None:
                 "0",
             ]
         )
+
+
+def test_jsonl_loader_and_index_validation(tmp_path: Path) -> None:
+    valid = tmp_path / "valid.jsonl"
+    valid.write_text('\n{"request_id": "one"}\n', encoding="utf-8")
+    assert scoring_module.load_jsonl(valid) == [{"request_id": "one"}]
+
+    invalid = tmp_path / "invalid.jsonl"
+    invalid.write_text("{broken", encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid JSON"):
+        scoring_module.load_jsonl(invalid)
+
+    non_object = tmp_path / "non-object.jsonl"
+    non_object.write_text("[]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="must contain an object"):
+        scoring_module.load_jsonl(non_object)
+
+    empty = tmp_path / "empty.jsonl"
+    empty.write_text("\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="contains no records"):
+        scoring_module.load_jsonl(empty)
+
+    with pytest.raises(ValueError, match="missing or invalid request_id"):
+        scoring_module._indexed([{}], "rows")
+    with pytest.raises(ValueError, match="duplicate request_id"):
+        scoring_module._indexed([{"request_id": "one"}, {"request_id": "one"}], "rows")
+
+
+@pytest.mark.parametrize(
+    ("metadata", "message"),
+    [
+        ({"public_test_cases": {}}, "metadata is malformed"),
+        ({"public_test_cases": [1]}, "test case must be an object"),
+        ({}, "contains no tests"),
+        (
+            {"public_test_cases": [{"testtype": "functional"}]},
+            "functional sample is missing func_name",
+        ),
+    ],
+)
+def test_livecodebench_rejects_malformed_test_metadata(
+    metadata: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        scoring_module._score_livecodebench(
+            "pass",
+            metadata,
+            executor=lambda completion, record, timeout: {"passed": True},
+            timeout=3,
+        )
+
+
+def test_scoring_rejects_join_and_payload_contract_drift() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    result = _result(study, "mmlu-pro", "q1", "A")
+    scoring = _scoring("mmlu-pro", "q1", "A", {})
+
+    mismatched = copy.deepcopy(scoring)
+    mismatched["request_id"] = "mmlu-pro:other:turn-1"
+    with pytest.raises(ValueError, match="identical ordered request IDs"):
+        score_offline_outputs(study=study, results=[result], scoring_records=[mismatched])
+
+    undeclared = copy.deepcopy(result)
+    undeclared["model_id"] = "undeclared"
+    with pytest.raises(ValueError, match="declared study model"):
+        score_offline_outputs(study=study, results=[undeclared], scoring_records=[scoring])
+
+    wrong_sample = copy.deepcopy(result)
+    wrong_sample["sample_id"] = "other"
+    with pytest.raises(ValueError, match="sample_id does not match contract"):
+        score_offline_outputs(study=study, results=[wrong_sample], scoring_records=[scoring])
+
+    wrong_completion = copy.deepcopy(result)
+    wrong_completion["completion"] = None
+    with pytest.raises(ValueError, match="completion and target must be strings"):
+        score_offline_outputs(study=study, results=[wrong_completion], scoring_records=[scoring])
+
+    wrong_metadata = copy.deepcopy(scoring)
+    wrong_metadata["metadata"] = []
+    with pytest.raises(ValueError, match="scoring metadata must be an object"):
+        score_offline_outputs(study=study, results=[result], scoring_records=[wrong_metadata])
