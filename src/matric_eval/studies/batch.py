@@ -120,9 +120,7 @@ def validate_batch_contract(
     if cohort not in {"pilot", "full"}:
         raise ValueError("manifest cohort must be pilot or full")
     allocation_specs = {allocation.id: allocation for allocation in study.benchmarks}
-    requested_allocation_ids = list(
-        dict.fromkeys(request.allocation_id for request in requests)
-    )
+    requested_allocation_ids = list(dict.fromkeys(request.allocation_id for request in requests))
     if any(
         allocation_id not in modes or modes[allocation_id] != "offline-batch"
         for allocation_id in requested_allocation_ids
