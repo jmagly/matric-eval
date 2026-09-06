@@ -132,7 +132,9 @@ def validate_evidence(
     manifest_allocations = manifest.get("allocations")
     if not isinstance(manifest_allocations, list):
         raise ValueError("manifest.allocations must be a list")
-    if [item.get("allocation_id") for item in manifest_allocations if isinstance(item, dict)] != allocation_ids:
+    if [
+        item.get("allocation_id") for item in manifest_allocations if isinstance(item, dict)
+    ] != allocation_ids:
         raise ValueError("manifest allocation order does not match the protocol")
     for declared, allocation in zip(manifest_allocations, study.benchmarks, strict=True):
         selected = declared.get("selected_ids")
@@ -248,7 +250,9 @@ def validate_evidence(
         raise ValueError("pilot summary model order does not match the protocol")
     complete = pilot.get("status") == "complete"
     if not complete and not allow_incomplete_pilot:
-        raise ValueError("final report requires pilot summary status 'complete'; use --draft explicitly")
+        raise ValueError(
+            "final report requires pilot summary status 'complete'; use --draft explicitly"
+        )
     return not complete
 
 
@@ -295,7 +299,7 @@ def _page(*, title: str, body: str, draft: bool, active: str) -> str:
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_e(title)}</title><link rel="stylesheet" href="assets/report.css"></head>
 <body>{watermark}<header class="site-header"><div class="wrap"><p class="eyebrow">Matched preregistered evaluation</p>
-<h1>{_e(title)}</h1><nav aria-label="Report pages"><a class="{'active' if active == 'results' else ''}" href="index.html">Results</a><a class="{'active' if active == 'methods' else ''}" href="methods.html">Methods &amp; provenance</a><a href="aggregate-results.json">Aggregate JSON</a><a href="reproducibility.json">Reproducibility JSON</a></nav></div></header>
+<h1>{_e(title)}</h1><nav aria-label="Report pages"><a class="{"active" if active == "results" else ""}" href="index.html">Results</a><a class="{"active" if active == "methods" else ""}" href="methods.html">Methods &amp; provenance</a><a href="aggregate-results.json">Aggregate JSON</a><a href="reproducibility.json">Reproducibility JSON</a></nav></div></header>
 <main class="wrap">{body}</main><footer><div class="wrap">Aggregate-only publication bundle. Raw prompts and completions are not included.</div></footer></body></html>
 """
 
@@ -316,7 +320,7 @@ def _axis_cards(analysis: JsonObject) -> str:
             rows.append(
                 f'<div class="bar-row"><span>{_e(MODEL_LABELS[model_id])}</span>'
                 f'<div class="track"><i style="width:{width:.3f}%"></i></div>'
-                f'<strong>{_percent(means[model_id])}%</strong></div>'
+                f"<strong>{_percent(means[model_id])}%</strong></div>"
             )
         cards.append(
             f'<article class="axis-card"><h3>{_e(AXIS_LABELS[axis_id])}</h3>'
@@ -334,9 +338,9 @@ def _noninferiority(analysis: JsonObject) -> str:
         missing = _percent_interval(result["missingness_delta_bounds"])
         margin = _finite_number(result["noninferiority_margin_percentage_points"], "margin")
         items.append(
-            f'<li><strong>{_e(MODEL_LABELS[model_id])}: {decision}</strong> — '
-            f'paired macro-delta {_percent(result["allocation_macro_delta"], signed=True)} pp; '
-            f'95% interval {interval} pp; missingness bounds {missing} pp; margin {margin:.2f} pp.</li>'
+            f"<li><strong>{_e(MODEL_LABELS[model_id])}: {decision}</strong> — "
+            f"paired macro-delta {_percent(result['allocation_macro_delta'], signed=True)} pp; "
+            f"95% interval {interval} pp; missingness bounds {missing} pp; margin {margin:.2f} pp.</li>"
         )
     return "<ul>" + "".join(items) + "</ul>"
 
@@ -355,8 +359,8 @@ def _allocation_table(study: StudyProtocol, analysis: JsonObject, axis_ids: set[
             else:
                 comparison = result["comparisons_to_source"][model_id]
                 delta = (
-                    f'{_percent(comparison["delta"], signed=True)} '
-                    f'({_percent_interval(comparison["paired_bootstrap_interval_95"])})'
+                    f"{_percent(comparison['delta'], signed=True)} "
+                    f"({_percent_interval(comparison['paired_bootstrap_interval_95'])})"
                 )
             rows.append(
                 "<tr>"
@@ -369,7 +373,11 @@ def _allocation_table(study: StudyProtocol, analysis: JsonObject, axis_ids: set[
                 f"<td>{summary['model_timeouts']}</td><td>{summary['infrastructure_excluded']}</td>"
                 f"<td>{summary['judge_unresolved']}</td></tr>"
             )
-    return """<div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Metric</th><th>Model</th><th>Estimate</th><th>95% interval</th><th>Δ vs source (95%)</th><th>Analyzed</th><th>Timeout</th><th>Infra</th><th>Judge unresolved</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>"
+    return (
+        """<div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Metric</th><th>Model</th><th>Estimate</th><th>95% interval</th><th>Δ vs source (95%)</th><th>Analyzed</th><th>Timeout</th><th>Infra</th><th>Judge unresolved</th></tr></thead><tbody>"""
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
 
 
 def _paired_table(analysis: JsonObject) -> str:
@@ -387,7 +395,11 @@ def _paired_table(analysis: JsonObject) -> str:
                 f"<td>{'—' if mcnemar is None else f'{float(mcnemar):.4g}'}</td>"
                 f"<td>{'—' if adjusted is None else f'{float(adjusted):.4g}'}</td></tr>"
             )
-    return """<div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Intervention</th><th>Pairs</th><th>Δ pp</th><th>Paired 95% CI pp</th><th>Missingness bounds pp</th><th>McNemar p</th><th>Holm p</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>"
+    return (
+        """<div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Intervention</th><th>Pairs</th><th>Δ pp</th><th>Paired 95% CI pp</th><th>Missingness bounds pp</th><th>McNemar p</th><th>Holm p</th></tr></thead><tbody>"""
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
 
 
 def _pilot_table(pilot: JsonObject) -> str:
@@ -402,10 +414,16 @@ def _pilot_table(pilot: JsonObject) -> str:
             f"<td>{'—' if observed is None else f'{float(observed) / 60:.1f} min'}</td>"
             f"<td>{'—' if estimate is None else f'{float(estimate) / 3600:.2f} h'}</td></tr>"
         )
-    return """<div class="table-wrap compact"><table><thead><tr><th>Model</th><th>Pilot direct calls</th><th>Observed generation</th><th>Forecast full direct lane</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>"
+    return (
+        """<div class="table-wrap compact"><table><thead><tr><th>Model</th><th>Pilot direct calls</th><th>Observed generation</th><th>Forecast full direct lane</th></tr></thead><tbody>"""
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
 
 
-def _results_body(study: StudyProtocol, analysis: JsonObject, pilot: JsonObject, draft: bool) -> str:
+def _results_body(
+    study: StudyProtocol, analysis: JsonObject, pilot: JsonObject, draft: bool
+) -> str:
     draft_note = (
         '<div class="callout warning"><strong>Draft evidence.</strong> The pilot summary is not complete; no result in this rendering is publication-final.</div>'
         if draft
@@ -418,13 +436,13 @@ def _results_body(study: StudyProtocol, analysis: JsonObject, pilot: JsonObject,
 {_axis_cards(analysis)}
 <div class="callout"><h3>Preregistered capability non-inferiority</h3>{_noninferiority(analysis)}</div></section>
 <section id="pilot-runtime-estimate"><p class="eyebrow">Pilot runtime estimate</p><h2>The 100-sample pilot</h2>
-<p>Pilot measurements validate the pipeline and forecast runtime only; they do not contribute a separate confirmatory claim. Status: <code>{_e(pilot['status'])}</code>.</p>{_pilot_table(pilot)}</section>
+<p>Pilot measurements validate the pipeline and forecast runtime only; they do not contribute a separate confirmatory claim. Status: <code>{_e(pilot["status"])}</code>.</p>{_pilot_table(pilot)}</section>
 <section id="capability-and-agentic-results"><p class="eyebrow">Capability and agentic results</p><h2>Quality under the common contract</h2>
-<p>Higher values are better. Macro summaries give every allocation equal weight; component rows retain their original sample counts.</p>{_allocation_table(study, analysis, {'capability', 'agentic'})}</section>
+<p>Higher values are better. Macro summaries give every allocation equal weight; component rows retain their original sample counts.</p>{_allocation_table(study, analysis, {"capability", "agentic"})}</section>
 <section id="benign-overrefusal-results"><p class="eyebrow">Benign over-refusal</p><h2>Whether safe requests are refused</h2>
-<p>Lower values are better. These results are reported independently of unsafe-request behavior.</p>{_allocation_table(study, analysis, {'benign_overrefusal'})}</section>
+<p>Lower values are better. These results are reported independently of unsafe-request behavior.</p>{_allocation_table(study, analysis, {"benign_overrefusal"})}</section>
 <section id="harmful-compliance-results"><p class="eyebrow">Harmful compliance</p><h2>Unsafe-request behavior</h2>
-<p>Lower values indicate less harmful compliance under the declared primary metrics. This safety-behavior axis is descriptive and is not blended into a quality score.</p>{_allocation_table(study, analysis, {'harmful_compliance'})}</section>
+<p>Lower values indicate less harmful compliance under the declared primary metrics. This safety-behavior axis is descriptive and is not blended into a quality score.</p>{_allocation_table(study, analysis, {"harmful_compliance"})}</section>
 <section id="paired-statistical-analysis"><p class="eyebrow">Paired statistical analysis</p><h2>Intervention minus source</h2>
 <p>Every delta uses matched sample IDs. Binary outcomes additionally report exact McNemar tests with Holm correction within the preregistered axis family.</p>{_paired_table(analysis)}</section>
 <section id="error-and-missingness-analysis"><p class="eyebrow">Error and missingness analysis</p><h2>Every selected sample is accounted for</h2>
@@ -458,20 +476,20 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
     return f"""
 <section id="preregistered-methods"><p class="eyebrow">Preregistered methods</p><h2>Design</h2>
 <p>This was a matched, full-cohort comparison with {study.full_samples_per_model:,} samples per model and seed <code>{study.seed}</code>. Sample IDs were SHA-256 ranked within allocation, shared across models, and the 100-sample pilot was nested in the full cohort. Generation used per-sample derived seeds.</p>
-<div class="facts"><div><span>Bootstrap</span><strong>{analysis['bootstrap_replicates']:,} paired draws</strong></div><div><span>Interval</span><strong>{int(100 * analysis['confidence_level'])}%</strong></div><div><span>Weighting</span><strong>Equal allocation macro</strong></div><div><span>Headline</span><strong>Two-axis Pareto</strong></div></div>
-<h3>Models</h3><div class="table-wrap"><table><thead><tr><th>Label</th><th>Artifact</th><th>Revision</th><th>Role</th><th>Known provenance gaps</th></tr></thead><tbody>{''.join(model_rows)}</tbody></table></div>
+<div class="facts"><div><span>Bootstrap</span><strong>{analysis["bootstrap_replicates"]:,} paired draws</strong></div><div><span>Interval</span><strong>{int(100 * analysis["confidence_level"])}%</strong></div><div><span>Weighting</span><strong>Equal allocation macro</strong></div><div><span>Headline</span><strong>Two-axis Pareto</strong></div></div>
+<h3>Models</h3><div class="table-wrap"><table><thead><tr><th>Label</th><th>Artifact</th><th>Revision</th><th>Role</th><th>Known provenance gaps</th></tr></thead><tbody>{"".join(model_rows)}</tbody></table></div>
 <h3>Datasets and scorers</h3><div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Dataset</th><th>Revision</th><th>Scoring protocol</th><th>n/model</th></tr></thead><tbody>{dataset_rows}</tbody></table></div></section>
 <section id="execution-environment"><p class="eyebrow">Execution environment</p><h2>Pinned A100 inference contract</h2>
-<p>Host <code>{_e(execution['expected_hostname'])}</code>; GPU <code>{_e(execution['required_gpu_model'])}</code>; engine <code>{_e(server['engine'])} {_e(server['version'])}</code>; image <code>{_e(server['image'])}</code>. Tensor parallelism was {server['tensor_parallel_size']}, bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
+<p>Host <code>{_e(execution["expected_hostname"])}</code>; GPU <code>{_e(execution["required_gpu_model"])}</code>; engine <code>{_e(server["engine"])} {_e(server["version"])}</code>; image <code>{_e(server["image"])}</code>. Tensor parallelism was {server["tensor_parallel_size"]}, bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
 <p>The primary comparison forces one source chat template, reasoning-on behavior, a 32,768-token context limit, and identical sampler settings. Vision and MTP are excluded to preserve a matched E03 comparison.</p></section>
 <section id="statistical-methods"><p class="eyebrow">Statistical methods</p><h2>Uncertainty and decision rules</h2>
 <p>Continuous component means use percentile bootstrap intervals; binary proportions use Wilson intervals. Intervention deltas use paired bootstrap resampling and domain summaries resample within allocation before equal-weight macro-averaging. Binary paired hypotheses use two-sided exact McNemar tests and Holm correction within axis.</p>
 <p>Capability non-inferiority uses the more conservative lower bound from the paired bootstrap interval and unresolved-missingness bound. It must exceed the fixed −3 percentage-point margin.</p>
-<h3>Missing-data policy</h3><ul><li>Infrastructure: {_e(missing['infrastructure-error'])}</li><li>Model timeout: {_e(missing['model-timeout'])}</li><li>Judge parse failure: {_e(missing['judge-parse-failure'])}</li></ul></section>
+<h3>Missing-data policy</h3><ul><li>Infrastructure: {_e(missing["infrastructure-error"])}</li><li>Model timeout: {_e(missing["model-timeout"])}</li><li>Judge parse failure: {_e(missing["judge-parse-failure"])}</li></ul></section>
 <section id="judge-controls"><p class="eyebrow">Judge controls</p><h2>Blinding, calibration, adjudication</h2>
 <p>Target models may not judge their own outputs. Model labels are blinded, presentation order is randomized, all primary/adjudicator disagreements are adjudicated, and the full cohort requires 100 human double-labeled calibration items with Cohen’s κ and a confusion matrix. The sealed judge-bundle digest is recorded in the normalization receipt.</p></section>
 <section id="provenance"><p class="eyebrow">Evidence lineage</p><h2>Hash joins</h2>
-<dl class="hashes"><dt>Protocol canonical SHA-256</dt><dd><code>{_e(study.canonical_sha256)}</code></dd><dt>Protocol file SHA-256</dt><dd><code>{_e(study.source_sha256)}</code></dd><dt>Manifest SHA-256</dt><dd><code>{_e(analysis['manifest_sha256'])}</code></dd><dt>Observations SHA-256</dt><dd><code>{_e(analysis['observations_sha256'])}</code></dd><dt>Judge bundle SHA-256</dt><dd><code>{_e(receipt['judge_bundle_sha256'])}</code></dd><dt>Analysis revision</dt><dd><code>{_e(analysis['analysis_code_revision'])}</code></dd></dl></section>
+<dl class="hashes"><dt>Protocol canonical SHA-256</dt><dd><code>{_e(study.canonical_sha256)}</code></dd><dt>Protocol file SHA-256</dt><dd><code>{_e(study.source_sha256)}</code></dd><dt>Manifest SHA-256</dt><dd><code>{_e(analysis["manifest_sha256"])}</code></dd><dt>Observations SHA-256</dt><dd><code>{_e(analysis["observations_sha256"])}</code></dd><dt>Judge bundle SHA-256</dt><dd><code>{_e(receipt["judge_bundle_sha256"])}</code></dd><dt>Analysis revision</dt><dd><code>{_e(analysis["analysis_code_revision"])}</code></dd></dl></section>
 """
 
 
@@ -604,7 +622,9 @@ def render_bundle(
     if output_dir.exists():
         raise ValueError(f"refusing to overwrite report bundle: {output_dir}")
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as raw_tmp:
+    with tempfile.TemporaryDirectory(
+        prefix=f".{output_dir.name}-", dir=output_dir.parent
+    ) as raw_tmp:
         temp = Path(raw_tmp)
         assets = temp / "assets"
         assets.mkdir()
