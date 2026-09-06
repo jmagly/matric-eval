@@ -17,8 +17,8 @@ from matric_eval.prompts import get_prompt
 from matric_eval.studies import StudyBatchRequest, StudyProtocol, validate_batch_contract
 from matric_eval.tasks.ifeval import record_to_sample as ifeval_sample
 from matric_eval.tasks.livecodebench import record_to_sample as livecodebench_sample
-from matric_eval.tasks.mtbench import record_to_sample as mtbench_sample
 from matric_eval.tasks.mmlu_pro import record_to_sample as mmlu_sample
+from matric_eval.tasks.mtbench import record_to_sample as mtbench_sample
 from matric_eval.tasks.refusal import load_or_bench_hard, load_strongreject, load_xstest
 
 LCB_FILES = (
