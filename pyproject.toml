@@ -50,6 +50,9 @@ evalplus = [
 [project.scripts]
 matric-eval = "matric_eval.cli:main"
 
+[project.entry-points."vllm.general_plugins"]
+matric_eval_architecture_registry = "matric_eval.studies.vllm_plugin:register_models"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

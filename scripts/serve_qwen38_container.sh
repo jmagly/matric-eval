@@ -134,11 +134,12 @@ sudo docker gpu run \
     --mount type=bind,src=/srv/matric-eval/results,dst=/srv/matric-eval/results \
     --mount type=bind,src="$study_broker_socket",dst="$study_broker_socket" \
     --workdir /workspace \
-    --env PYTHONPATH=/workspace/src \
+    --env PYTHONPATH=/workspace/src:/workspace/runtime/vllm-plugin \
     --env PYTHONDONTWRITEBYTECODE=1 \
     --env HF_HUB_OFFLINE=1 \
     --env TRANSFORMERS_OFFLINE=1 \
     --env VLLM_NO_USAGE_STATS=1 \
+    --env VLLM_PLUGINS=matric_eval_architecture_registry \
     --env VLLM_ENABLE_V1_MULTIPROCESSING=0 \
     --env OLLAMA_UNIFY_GPU_LEASE \
     --env CUDA_VISIBLE_DEVICES \

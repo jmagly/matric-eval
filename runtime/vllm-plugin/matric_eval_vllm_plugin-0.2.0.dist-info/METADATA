@@ -1,0 +1,4 @@
+Metadata-Version: 2.1
+Name: matric-eval-vllm-plugin
+Version: 0.2.0
+Summary: Source-tree entry point for matric-eval vLLM study adapters

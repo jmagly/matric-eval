@@ -674,6 +674,12 @@ wrap the same text implementation in `Qwen3_5ForConditionalGeneration`. vLLM 0.2
 ships the text class but does not list it in its built-in registry, so the runner uses
 vLLM's public `ModelRegistry.register_model` API to bind the declared causal-LM
 architecture to a minimal study adapter around the pinned built-in implementation.
+The localhost server exposes that binding through one allowlisted
+`vllm.general_plugins` entry point. vLLM loads this standard plugin group independently
+in the API server, EngineCore, and worker processes, preventing a spawned process from
+silently falling back to the built-in class. The read-only study container discovers
+the entry point from the pinned source checkout and requires no package download or
+runtime dependency installation.
 The adapter supplies the interfaces omitted by vLLM's unregistered causal-LM class:
 text M-RoPE uses three identical position rows and zero delta, exactly matching vLLM's
 multimodal wrapper for a prompt without media, while hybrid GDN/Mamba cache metadata is

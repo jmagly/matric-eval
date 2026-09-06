@@ -175,6 +175,7 @@ def test_serve_child_registers_adapter_and_restores_argv(
 ) -> None:
     registered: list[tuple[str, str]] = []
     observed_argv: list[str] = []
+    observed_registrations: list[str | None] = []
 
     class Registry:
         @staticmethod
@@ -186,7 +187,14 @@ def test_serve_child_registers_adapter_and_restores_argv(
     entrypoints = ModuleType("vllm.entrypoints")
     cli = ModuleType("vllm.entrypoints.cli")
     main_module = ModuleType("vllm.entrypoints.cli.main")
-    main_module.main = lambda: observed_argv.extend(sys.argv)  # type: ignore[attr-defined]
+
+    def observe_main() -> None:
+        observed_argv.extend(sys.argv)
+        observed_registrations.append(
+            server_cli.os.environ.get("MATRIC_EVAL_VLLM_ARCHITECTURE_REGISTRATIONS")
+        )
+
+    main_module.main = observe_main  # type: ignore[attr-defined]
     for name, module in {
         "vllm": vllm,
         "vllm.entrypoints": entrypoints,
@@ -200,6 +208,8 @@ def test_serve_child_registers_adapter_and_restores_argv(
 
     assert registered == [("Qwen", "adapter:Class")]
     assert observed_argv == ["vllm", "serve", "model", "--port", "1"]
+    assert observed_registrations == ['{"Qwen":"adapter:Class"}']
+    assert "MATRIC_EVAL_VLLM_ARCHITECTURE_REGISTRATIONS" not in server_cli.os.environ
     assert sys.argv is original_argv
     with pytest.raises(ValueError, match="map strings"):
         server_cli._serve_child({"Qwen": 1}, [])
@@ -273,6 +283,13 @@ def test_run_attested_server_writes_content_free_receipt(
     assert payload["model_id"] == model.id
     assert payload["lease_receipt_sha256"] == "b" * 64
     assert payload["runtime"]["endpoint_scope"] == "localhost-only"
+    assert payload["runtime"]["language_model_only"] is True
+    assert payload["runtime"]["architecture_registrations"] == {
+        "Qwen3_5ForCausalLM": "matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM"
+    }
+    assert payload["runtime"]["architecture_registration_plugin"] == (
+        "matric_eval_architecture_registry"
+    )
     assert "completion" not in json.dumps(payload)
     assert created_commands[0][0] == sys.executable
     assert not marker.exists()

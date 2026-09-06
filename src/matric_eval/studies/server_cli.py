@@ -27,6 +27,7 @@ from matric_eval.studies.batch import (
     verify_runtime_environment,
 )
 from matric_eval.studies.protocol import StudyProtocol
+from matric_eval.studies.vllm_plugin import PLUGIN_NAME, REGISTRATIONS_ENV
 
 JsonObject = dict[str, Any]
 
@@ -163,22 +164,34 @@ def _server_arguments(
 
 
 def _serve_child(registrations: JsonObject, arguments: list[str]) -> int:
-    """Register runtime-only architectures before entering the pinned vLLM CLI."""
-    try:
-        from vllm import ModelRegistry  # type: ignore[import-not-found]
-        from vllm.entrypoints.cli.main import main as vllm_main  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover - pinned A100 image only
-        raise RuntimeError("server child requires the protocol-pinned vLLM image") from exc
+    """Register runtime-only architectures and expose them to every vLLM process."""
     for architecture, implementation in registrations.items():
         if not isinstance(architecture, str) or not isinstance(implementation, str):
             raise ValueError("architecture registrations must map strings to strings")
-        ModelRegistry.register_model(architecture, implementation)
-    previous_argv = sys.argv
-    sys.argv = ["vllm", "serve", *arguments]
+    serialized_registrations = json.dumps(registrations, sort_keys=True, separators=(",", ":"))
+    previous_registrations = os.environ.get(REGISTRATIONS_ENV)
+    os.environ[REGISTRATIONS_ENV] = serialized_registrations
     try:
-        vllm_main()
+        try:
+            from vllm import ModelRegistry  # type: ignore[import-not-found]
+            from vllm.entrypoints.cli.main import (
+                main as vllm_main,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:  # pragma: no cover - pinned A100 image only
+            raise RuntimeError("server child requires the protocol-pinned vLLM image") from exc
+        for architecture, implementation in registrations.items():
+            ModelRegistry.register_model(architecture, implementation)
+        previous_argv = sys.argv
+        sys.argv = ["vllm", "serve", *arguments]
+        try:
+            vllm_main()
+        finally:
+            sys.argv = previous_argv
     finally:
-        sys.argv = previous_argv
+        if previous_registrations is None:
+            os.environ.pop(REGISTRATIONS_ENV, None)
+        else:
+            os.environ[REGISTRATIONS_ENV] = previous_registrations
     return 0
 
 
@@ -277,6 +290,9 @@ def run_attested_server(
                 "versions": runtime_versions,
                 "matric_eval_revision": os.environ.get("MATRIC_EVAL_CODE_REVISION"),
                 "endpoint_scope": "localhost-only",
+                "language_model_only": server["language_model_only"],
+                "architecture_registrations": registrations,
+                "architecture_registration_plugin": PLUGIN_NAME,
                 "served_model_names": [model.id, str(model_path)],
                 "initialization_seconds": time.time() - initialization_started,
                 "arguments": arguments,
