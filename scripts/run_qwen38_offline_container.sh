@@ -107,7 +107,7 @@ sudo docker gpu run \
   --vram-mib 75000 \
   --ttl 300 \
   --gpu "$gpu_uuid" \
-  --ready-timeout 290 \
+  --ready-timeout 900 \
   --ready-command "$ready_command" \
   -- \
   /usr/bin/docker --host "$study_docker_host" run --rm \

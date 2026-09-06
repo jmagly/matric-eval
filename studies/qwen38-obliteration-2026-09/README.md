@@ -253,7 +253,9 @@ The wrapper's outer broker command maintains the heartbeat and releases only aft
 container has exited and freed CUDA memory. The runner writes a token-specific readiness marker
 only after vLLM has made the model resident, waits for the broker to report that exact
 scoped lease as active, captures the private mode-`0600` lease receipt, and only then
-starts generation. Use a unique owner, readiness base, receipt, and output for every
+starts generation. The broker allows 900 seconds for a cold checkpoint prefetch and
+engine warmup while its five-minute lease TTL continues to be heartbeated. Use a
+unique owner, readiness base, receipt, and output for every
 allocation/model invocation. The wrapper verifies that the dedicated Docker socket
 contains the exact image digest and resolves to the isolated daemon whose data root is
 on the model filesystem; never pull this image into the nearly full system Docker root.
