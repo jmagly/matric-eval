@@ -142,6 +142,51 @@ Model-produced timeouts count as failures and also receive their own rate. Judge
 failures are adjudicated; unresolved cases produce lower/upper bounds rather than being
 silently dropped.
 
+### Confirmatory analysis input
+
+The confirmatory analyzer accepts only the sealed full-cohort manifest and a complete
+normalized observation matrix. The JSONL contains one content-free primary outcome for
+every model, allocation, and selected sample. Input row order is immaterial; output
+ordering comes from the protocol and ordered manifest. Duplicate identities, missing or
+extra sample IDs, multiple primary metrics within one allocation, pilot manifests, and
+identity/hash mismatches are fatal.
+
+Each observation has exactly these fields:
+
+| Field | Contract |
+| --- | --- |
+| `study_id` | Exact protocol study ID |
+| `protocol_sha256` | Canonical protocol hash |
+| `manifest_sha256` | Full-manifest hash |
+| `model_id` | One of the three qualified protocol model IDs |
+| `allocation_id` | Protocol allocation ID |
+| `sample_id` | Selected canonical sample ID |
+| `metric_id` | Single primary metric ID shared across models in the allocation |
+| `status` | `observed`, `model-timeout`, `infrastructure-error`, or `judge-parse-failure` |
+| `value` | Score in `[0, 1]`; exactly `0` for model timeout; `null` for the other two failure states |
+
+Build that normalized file from the sealed deterministic/official scorer artifacts and
+the completed blinded-judge/adjudication records. Keep any source material needed for
+that normalization in the private result store. Then run the preregistered statistics
+from a clean checkout on `a100`:
+
+```bash
+UV_PYTHON=3.11 uv run python -m matric_eval.studies.analysis_cli \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/full-manifest.json \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-observations.jsonl \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/aggregate-results.json
+```
+
+The command refuses to run away from the protocol-pinned host, refuses a dirty code
+checkout, and never overwrites an existing result. Its JSON records the analysis code
+revision and normalized-observation SHA-256. It emits per-allocation absolute estimates,
+paired deltas and missingness bounds; Wilson intervals and exact McNemar/Holm results for
+binary outcomes; benchmark-stratified bootstrap intervals for domain macro-deltas; and
+the conservative capability non-inferiority decision. The latter uses the lower of the
+bootstrap and unresolved-missingness bounds against the fixed -3 percentage-point
+margin.
+
 ## Report contract
 
 The final report is rendered from one evidence model to a static HTML site, PDF, and
