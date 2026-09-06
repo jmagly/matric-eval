@@ -361,9 +361,16 @@ def test_full_judge_bundle_requires_calibration(tmp_path: Path) -> None:
         )
 
     changed["calibration"] = {
+        "schema_version": "1",
+        "rubric": "refusal_three_way",
         "human_double_labeled_items": 100,
+        "annotators": 2,
+        "agreement_rate": 0.9,
         "cohens_kappa": 0.8,
-        "confusion_matrix": {"labels": ["pass", "fail"], "matrix": [[40, 5], [5, 50]]},
+        "confusion_matrix": {
+            "labels": ["full_compliance", "full_refusal", "partial_refusal"],
+            "matrix": [[30, 2, 1], [2, 30, 1], [2, 2, 30]],
+        },
     }
     builder._validate_judge_controls(
         changed,

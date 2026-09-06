@@ -148,6 +148,80 @@ def _judge_identity(raw: Any, role: str) -> JsonObject:
     return identity
 
 
+def _calibration_summary(
+    raw: Any,
+    *,
+    study: StudyProtocol,
+    manifest: JsonObject,
+    plan_sha256: str,
+) -> JsonObject:
+    if not isinstance(raw, dict):
+        raise ValueError("full-cohort judge run requires a human calibration summary")
+    expected = {
+        "schema_version": "1",
+        "study_id": study.id,
+        "protocol_sha256": study.canonical_sha256,
+        "manifest_sha256": manifest["manifest_sha256"],
+        "judge_plan_sha256": plan_sha256,
+        "cohort": "full",
+        "rubric": "refusal_three_way",
+        "human_double_labeled_items": 100,
+        "annotators": 2,
+    }
+    if any(raw.get(key) != value for key, value in expected.items()):
+        raise ValueError("human calibration identity or required controls do not match")
+    kappa = raw.get("cohens_kappa")
+    agreement = raw.get("agreement_rate")
+    if (
+        isinstance(kappa, bool)
+        or not isinstance(kappa, (int, float))
+        or not -1.0 <= float(kappa) <= 1.0
+        or isinstance(agreement, bool)
+        or not isinstance(agreement, (int, float))
+        or not 0.0 <= float(agreement) <= 1.0
+    ):
+        raise ValueError("human calibration agreement statistics are invalid")
+    confusion = raw.get("confusion_matrix")
+    labels = ["full_compliance", "full_refusal", "partial_refusal"]
+    if not isinstance(confusion, dict) or confusion.get("labels") != labels:
+        raise ValueError("human calibration confusion-matrix labels are invalid")
+    matrix = confusion.get("matrix")
+    if (
+        not isinstance(matrix, list)
+        or len(matrix) != 3
+        or any(
+            not isinstance(row, list)
+            or len(row) != 3
+            or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in row)
+            for row in matrix
+        )
+        or sum(sum(row) for row in matrix) != 100
+    ):
+        raise ValueError("human calibration confusion matrix must contain 100 paired labels")
+    source_artifacts = raw.get("source_artifacts")
+    if not isinstance(source_artifacts, dict) or any(
+        not isinstance(source_artifacts.get(key), str)
+        or len(source_artifacts[key]) != 64
+        or any(character not in "0123456789abcdef" for character in source_artifacts[key])
+        for key in (
+            "calibration_packet_sha256",
+            "first_labels_sha256",
+            "second_labels_sha256",
+        )
+    ):
+        raise ValueError("human calibration source-artifact hashes are invalid")
+    return {
+        "schema_version": "1",
+        "rubric": "refusal_three_way",
+        "human_double_labeled_items": 100,
+        "annotators": 2,
+        "agreement_rate": float(agreement),
+        "cohens_kappa": float(kappa),
+        "confusion_matrix": confusion,
+        "source_artifacts": source_artifacts,
+    }
+
+
 def validate_plan(plan: JsonObject, study: StudyProtocol, cohort: str) -> None:
     if plan.get("schema_version") != "1":
         raise ValueError("judge plan schema_version must be '1'")
@@ -625,6 +699,8 @@ def build_bundle(
     journal_path: Path,
     call: JudgeCall,
     code_revision: str,
+    calibration: JsonObject | None = None,
+    calibration_sha256: str | None = None,
 ) -> JsonObject:
     validate_plan(plan, study, cohort)
     identity = {
@@ -763,7 +839,7 @@ def build_bundle(
     )
     sealed_artifacts = dict(artifacts)
     sealed_artifacts["judge_journal_sha256"] = _sha256(journal_path)
-    return {
+    bundle = {
         "schema_version": "2",
         **identity,
         "judging_code_revision": code_revision,
@@ -780,6 +856,24 @@ def build_bundle(
         "source_artifacts": sealed_artifacts,
         "outcomes": ordered_outcomes,
     }
+    if cohort == "full":
+        summary = _calibration_summary(
+            calibration,
+            study=study,
+            manifest=manifest,
+            plan_sha256=plan_sha256,
+        )
+        if (
+            not isinstance(calibration_sha256, str)
+            or len(calibration_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in calibration_sha256)
+        ):
+            raise ValueError("full-cohort judge run requires the calibration artifact hash")
+        sealed_artifacts["human_calibration_summary_sha256"] = calibration_sha256
+        bundle["calibration"] = summary
+    elif calibration is not None or calibration_sha256 is not None:
+        raise ValueError("pilot judge run must not attach full-cohort human calibration")
+    return bundle
 
 
 class OpenAIResponsesCaller:
@@ -933,6 +1027,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--result-root", type=Path, default=PRIVATE_ROOT)
     parser.add_argument("--journal", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--calibration", type=Path)
     parser.add_argument("--api-key-fd", type=int, default=3)
     args = parser.parse_args(argv)
 
@@ -942,6 +1037,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError(f"result root must be exactly {PRIVATE_ROOT}")
     for path, label in ((args.journal, "journal"), (args.output, "output")):
         _private_path(path, args.result_root, label)
+    if args.cohort == "full" and args.calibration is None:
+        raise ValueError("full-cohort judge run requires --calibration")
+    if args.cohort == "pilot" and args.calibration is not None:
+        raise ValueError("pilot judge run must not attach full-cohort human calibration")
+    if args.calibration is not None:
+        _private_path(args.calibration, args.result_root, "calibration")
     if args.output.exists():
         raise ValueError(f"refusing to overwrite judge outcome bundle: {args.output}")
 
@@ -952,6 +1053,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not isinstance(plan_raw, dict):
         raise ValueError("judge plan must contain an object")
     manifest = _load_object(args.manifest, "study manifest")
+    calibration = (
+        _load_object(args.calibration, "human calibration summary")
+        if args.calibration is not None
+        else None
+    )
     if args.manifest != args.result_root / f"{args.cohort}-manifest.json":
         raise ValueError("manifest must use the canonical cohort path inside the study root")
     items, artifacts = load_items(
@@ -974,6 +1080,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             journal_path=args.journal,
             call=caller,
             code_revision=revision,
+            calibration=calibration,
+            calibration_sha256=_sha256(args.calibration) if args.calibration is not None else None,
         )
     finally:
         caller.close()

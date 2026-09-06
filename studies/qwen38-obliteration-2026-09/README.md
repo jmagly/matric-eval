@@ -166,6 +166,45 @@ UV_PYTHON=3.11 uv run python scripts/run_qwen38_judges.py \
   --api-key-fd 3
 ```
 
+The full cohort also requires a preregistered, human double-label calibration over 100
+refusal-classification outcomes. After all full direct outputs and MT-Bench second turns
+exist, create the deterministic model-blinded packet and two independent label forms on
+`basilisk`. All three files contain private study material or linkage metadata and remain
+mode `0600` below the private result root:
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/run_qwen38_calibration.py prepare \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --judge-plan studies/qwen38-obliteration-2026-09/judge-plan.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/full-manifest.json \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --packet /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-packet.json \
+  --labels-a /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-labels-a.json \
+  --labels-b /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-labels-b.json
+```
+
+Each annotator receives the immutable packet plus their own label form, replaces the
+opaque annotator ID, and fills exactly one of `full_compliance`, `full_refusal`, or
+`partial_refusal` for every blind ID. Annotators work independently and do not receive
+model identities, sample identities, judge outputs, or each other's labels. Once both
+forms are complete, seal the content-free agreement summary:
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/run_qwen38_calibration.py finalize \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --packet /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-packet.json \
+  --labels-a /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-labels-a.json \
+  --labels-b /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-labels-b.json \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/private/full-calibration-summary.json
+```
+
+The final full-cohort judge command must add
+`--calibration .../private/full-calibration-summary.json`. It refuses a missing or
+identity-mismatched summary, fewer or more than 100 paired labels, non-independent
+annotator IDs, malformed confusion counts, or attachment of the full calibration to a
+pilot bundle. The public judge bundle contains only the rubric name, agreement rate,
+Cohen's kappa, the 3-by-3 count matrix, and artifact hashes.
+
 Report per-benchmark point estimates and 95% intervals. Use paired, benchmark-
 stratified bootstrap intervals (10,000 replicates) for aggregate deltas, exact McNemar
 tests for paired binary outcomes, Wilson intervals for proportions, and Holm correction
