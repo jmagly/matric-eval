@@ -249,6 +249,8 @@ def validate_evidence(
     if list(pilot["models"]) != model_ids:
         raise ValueError("pilot summary model order does not match the protocol")
     complete = pilot.get("status") == "complete"
+    if complete and pilot.get("schema_version") != "1":
+        raise ValueError("unsupported complete pilot summary schema")
     if not complete and not allow_incomplete_pilot:
         raise ValueError(
             "final report requires pilot summary status 'complete'; use --draft explicitly"
@@ -405,19 +407,39 @@ def _paired_table(analysis: JsonObject) -> str:
 def _pilot_table(pilot: JsonObject) -> str:
     rows = []
     for model_id, result in pilot["models"].items():
-        estimate = result.get("estimated_full_direct_seconds_from_scratch")
-        observed = result.get("total_generation_seconds")
-        calls = result.get("direct_pilot_generation_calls")
+        agentic = result.get("agentic")
+        agentic_seconds = agentic.get("pilot_seconds") if isinstance(agentic, dict) else None
+        full_gpu_hours = result.get("estimated_full_gpu_hours")
+        agentic_display = "—" if agentic_seconds is None else f"{float(agentic_seconds) / 60:.1f} min"
+        pilot_gpu = result.get("pilot_gpu_hours")
+        pilot_gpu_display = "—" if pilot_gpu is None else f"{float(pilot_gpu):.2f} h"
+        full_gpu_display = "—" if full_gpu_hours is None else f"{float(full_gpu_hours):.2f} h"
         rows.append(
             f"<tr><td>{_e(MODEL_LABELS[model_id])}</td>"
-            f"<td>{_e(calls if calls is not None else '—')}</td>"
-            f"<td>{'—' if observed is None else f'{float(observed) / 60:.1f} min'}</td>"
-            f"<td>{'—' if estimate is None else f'{float(estimate) / 3600:.2f} h'}</td></tr>"
+            f"<td>{float(result['total_generation_seconds']) / 60:.1f} min</td>"
+            f"<td>{float(result['total_deterministic_scoring_seconds']):.1f} s</td>"
+            f"<td>{agentic_display}</td><td>{pilot_gpu_display}</td>"
+            f"<td>{full_gpu_display}</td></tr>"
         )
     return (
-        """<div class="table-wrap compact"><table><thead><tr><th>Model</th><th>Pilot direct calls</th><th>Observed generation</th><th>Forecast full direct lane</th></tr></thead><tbody>"""
+        """<div class="table-wrap"><table><thead><tr><th>Model</th><th>Direct generation</th><th>Executable scoring ×2</th><th>Agent harnesses</th><th>Pilot GPU</th><th>Forecast full GPU</th></tr></thead><tbody>"""
         + "".join(rows)
         + "</tbody></table></div>"
+    )
+
+
+def _judge_runtime(pilot: JsonObject) -> str:
+    judge = pilot.get("judge")
+    if not isinstance(judge, dict):
+        return '<p class="muted">External judge runtime is pending.</p>'
+    return (
+        '<div class="callout"><h3>External judge lane</h3><p>'
+        f"Primary {float(judge['primary_seconds']) / 60:.1f} min across "
+        f"{int(judge['primary_calls'])} calls; adjudication "
+        f"{float(judge['adjudication_seconds']) / 60:.1f} min across "
+        f"{int(judge['adjudicator_calls'])} calls; {int(judge['retries'])} retries. "
+        f"Forecast full lane: {float(judge['estimated_full_seconds']) / 3600:.2f} h."
+        "</p></div>"
     )
 
 
@@ -436,7 +458,7 @@ def _results_body(
 {_axis_cards(analysis)}
 <div class="callout"><h3>Preregistered capability non-inferiority</h3>{_noninferiority(analysis)}</div></section>
 <section id="pilot-runtime-estimate"><p class="eyebrow">Pilot runtime estimate</p><h2>The 100-sample pilot</h2>
-<p>Pilot measurements validate the pipeline and forecast runtime only; they do not contribute a separate confirmatory claim. Status: <code>{_e(pilot["status"])}</code>.</p>{_pilot_table(pilot)}</section>
+<p>Pilot measurements validate the pipeline and forecast runtime only; they do not contribute a separate confirmatory claim. Status: <code>{_e(pilot["status"])}</code>.</p>{_pilot_table(pilot)}{_judge_runtime(pilot)}</section>
 <section id="capability-and-agentic-results"><p class="eyebrow">Capability and agentic results</p><h2>Quality under the common contract</h2>
 <p>Higher values are better. Macro summaries give every allocation equal weight; component rows retain their original sample counts.</p>{_allocation_table(study, analysis, {"capability", "agentic"})}</section>
 <section id="benign-overrefusal-results"><p class="eyebrow">Benign over-refusal</p><h2>Whether safe requests are refused</h2>

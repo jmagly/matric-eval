@@ -515,18 +515,35 @@ daemon configuration, socket access, and data root before creating any study out
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-receipt.json
 ```
 
-After both score passes match and all three MT-Bench second-turn batches finish, build
-the content-free public pilot summary. It reports only pipeline-validation metrics and
-scales the first-turn and MT-Bench second-turn timings separately, including both cold
-model initializations. Agentic execution and judge time remain explicitly pending
-until those lanes complete. Because the earlier first-turn-only summary is immutable,
-write the complete direct-pilot summary to a distinct path:
+After both timed score passes match and all three MT-Bench second-turn batches finish,
+build the content-free direct pilot summary. It reports only pipeline-validation
+metrics and scales the first-turn and MT-Bench second-turn timings separately,
+including both cold model initializations. Agentic execution and judge time remain
+explicitly pending until those lanes complete. Because earlier summaries are
+immutable, write this schema-v2 direct summary to a distinct path:
 
 ```bash
 uv run python scripts/build_qwen38_pilot_summary.py \
   --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
   --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
   --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete-direct.json
+```
+
+Once the BFCL, tau, Terminal-Bench, and blinded judge receipts are all sealed, join
+their identities and timings into the final content-free pilot receipt. The builder
+requires exact selected-ID coverage, model/checkpoint/protocol/manifest identity,
+distinct fixed judge snapshots, complete adjudication, explicit retry accounting, and
+a clean A100 checkout. Its `status: complete` is the report renderer's finalization
+gate:
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/build_qwen38_complete_pilot_summary.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --direct-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete-direct.json \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --judge-outcomes /srv/matric-eval/results/qwen38-obliteration-2026-09/private/pilot-judge-outcomes.json \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete.json
 ```
 
 After an artifact qualification manifest has recorded and verified every indexed

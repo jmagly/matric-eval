@@ -348,6 +348,7 @@ def test_scoring_cli_wires_attested_inputs(
     assert rows[0]["scoring_code_revision"] == "b" * 40
     assert summary["scores_sha256"] == "c" * 64
     assert summary["evaluators"]["ifeval"]["language_detector_seed"] == 1790783388
+    assert summary["scoring_seconds"] >= 0
 
 
 def test_scoring_cli_rejects_nonpositive_timeout(tmp_path: Path) -> None:
