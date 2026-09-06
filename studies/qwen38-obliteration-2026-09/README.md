@@ -497,13 +497,16 @@ The exact profile is retained at `host/bwrap.apparmor` and can be installed with
 `sudo install -o root -g root -m 0644` followed by `sudo apparmor_parser -r`.
 
 The pinned tau2 1.0.1 defaults use `gpt-4.1-2025-04-14` for both the user simulator
-and its official NL-assertion evaluator. Supply its credential only through the
-environment; the bridge rejects credential-like keys in argument JSON and never copies
-secret values into evidence. It invokes the official `run_single_task` API once per
-task so the protocol's full 32-bit SHA-256 seed reaches the target and user simulator
-unchanged, instead of being replaced by the batch runner's trial-seed generator:
+and its official NL-assertion evaluator, and the bridge rejects any other identifier.
+Supply its credential only on an inherited descriptor; the bridge refuses an exported
+`OPENAI_API_KEY`, rejects credential-like keys in argument JSON, passes the key directly
+to LiteLLM in memory, and recursively redacts credential fields before sealing raw
+simulation evidence. It invokes the official `run_single_task` API once per task so the
+protocol's full 32-bit SHA-256 seed reaches the target and user simulator unchanged,
+instead of being replaced by the batch runner's trial-seed generator:
 
 ```bash
+# The approved credential broker opens descriptor 3 before this command starts.
 /srv/matric-eval/benchmarks/tau2-v1.0.1/.venv/bin/python \
   scripts/run_qwen38_tau.py \
   studies/qwen38-obliteration-2026-09/protocol.yaml \
@@ -516,7 +519,7 @@ unchanged, instead of being replaced by the batch runner's trial-seed generator:
   --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/tau3-scored-ids.json \
   --user-model gpt-4.1-2025-04-14 \
   --nl-evaluator-model gpt-4.1-2025-04-14 \
-  --required-secret-env OPENAI_API_KEY \
+  --external-api-key-fd 3 \
   --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-raw \
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-receipt.json
 ```
