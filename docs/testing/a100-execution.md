@@ -27,6 +27,13 @@ full root filesystem:
 | External benchmark checkouts | `/srv/matric-eval/benchmarks` |
 | Immutable run output | `/srv/matric-eval/results` |
 
+The source-checkout path above is canonical, not hardcoded into the study wrappers.
+Each wrapper resolves, mounts, and records the clean checkout containing that invoked
+script. This permits a second detached worktree for a concurrent model lane without
+mutating the checkout used by an active run. Never share one mutable checkout between
+two code revisions, and never update a worktree until every process attesting its
+current revision has exited.
+
 `/srv/obliteratus` is a bind mount on the separate 3.6 TiB model SSD; do not infer
 its capacity from `df -h /srv`. Before every dependency sync or benchmark run,
 record `df -h / /srv` and `findmnt -T /srv/obliteratus -o

@@ -4,7 +4,8 @@
 set -euo pipefail
 
 study_image="vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b"
-study_repo="/srv/matric-eval/workspaces/matric-eval"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+study_repo="$(cd -- "${script_dir}/.." && pwd -P)"
 study_root="/srv/matric-eval/results/qwen38-obliteration-2026-09"
 study_protocol="studies/qwen38-obliteration-2026-09/protocol.yaml"
 study_docker_host="unix:///run/matric-eval-docker.sock"
