@@ -157,8 +157,7 @@ def main() -> int:
         "terminal-bench-scored-ids.json": terminal_scored,
     }
     hashes = {
-        name: _write_json(args.output_dir / name, payload)
-        for name, payload in artifacts.items()
+        name: _write_json(args.output_dir / name, payload) for name, payload in artifacts.items()
     }
     summary = {
         "schema_version": "1",

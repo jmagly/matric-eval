@@ -94,7 +94,9 @@ def main() -> int:
             "direct_pilot_samples": len(results),
             "prompt_tokens": sum(int(row["prompt_tokens"]) for row in results),
             "completion_tokens": sum(int(row["completion_tokens"]) for row in results),
-            "finish_reasons": dict(sorted(Counter(row["finish_reason"] for row in results).items())),
+            "finish_reasons": dict(
+                sorted(Counter(row["finish_reason"] for row in results).items())
+            ),
             "initialization_seconds": initialization,
             "generation_seconds": generation,
             "estimated_full_direct_seconds_from_scratch": initialization + generation * scale,

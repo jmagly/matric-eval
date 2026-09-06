@@ -23,8 +23,7 @@ DIAGNOSTIC_ALLOCATIONS = frozenset(
     {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign", "strongreject-harmful"}
 )
 CODE_SANDBOX_IMAGE = (
-    "vllm/vllm-openai@"
-    "sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b"
+    "vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b"
 )
 CODE_SANDBOX_DOCKER_HOST = "unix:///run/matric-eval-docker.sock"
 LCB_EVALUATOR_CHECKOUT = Path("/srv/matric-eval/cache/git/livecodebench")
@@ -439,9 +438,7 @@ def score_offline_outputs(
         "model_id": model_id,
         "samples": len(scored),
         "scored_samples": sum(row["status"] == "scored" for row in scored),
-        "pending_external_judge": sum(
-            row["status"] == "pending-external-judge" for row in scored
-        ),
+        "pending_external_judge": sum(row["status"] == "pending-external-judge" for row in scored),
         "aggregates": aggregates,
     }
     return scored, summary

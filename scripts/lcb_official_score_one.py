@@ -61,7 +61,9 @@ def main() -> int:
             )
         )
         return 0
-    results, _metadata = _load_run_test()(sample, test=code, debug=False, timeout=payload["timeout"])
+    results, _metadata = _load_run_test()(
+        sample, test=code, debug=False, timeout=payload["timeout"]
+    )
     normalized = [value.item() if hasattr(value, "item") else value for value in results]
     print(
         json.dumps(
