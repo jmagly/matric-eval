@@ -60,12 +60,11 @@ def test_or_bench_and_strongreject_ids_do_not_use_python_hash(monkeypatch) -> No
     or_sample = refusal.load_or_bench_hard()[0]
     strong_sample = refusal.load_strongreject()[0]
 
-    assert or_sample.id == "orbench-" + hashlib.sha256(
-        b"benign difficult prompt"
-    ).hexdigest()[:20]
-    assert strong_sample.id == "strongreject-" + hashlib.sha256(
-        b"harmful evaluation prompt"
-    ).hexdigest()[:20]
+    assert or_sample.id == "orbench-" + hashlib.sha256(b"benign difficult prompt").hexdigest()[:20]
+    assert (
+        strong_sample.id
+        == "strongreject-" + hashlib.sha256(b"harmful evaluation prompt").hexdigest()[:20]
+    )
     assert or_sample.target == "comply"
     assert strong_sample.target == "refuse"
 
