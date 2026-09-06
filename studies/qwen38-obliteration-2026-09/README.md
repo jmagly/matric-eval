@@ -223,6 +223,42 @@ only after the pilot gate passes. MT-Bench materialization creates the first-tur
 requests; create the second-turn request only from that same sample's recorded first
 completion, and keep it in a separate complete allocation batch.
 
+After each model's complete 80-row direct pilot finishes, materialize its five
+MT-Bench second-turn requests from that exact request/result pair. The builder checks
+the full first-turn order and batch hash, every study/model/manifest identity, each
+sample-specific generation seed, the first prompt against the pinned FastChat data,
+and the FastChat Git revision. It then emits a private request file and a content-free
+receipt that bind both input hashes to the derived batch. This source-model example is
+repeated with distinct paths for E03 and Pliny:
+
+```bash
+uv run python scripts/build_qwen38_mtbench_turn2.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --model-id qwen38-27b-source-bf16 \
+  --first-turn-requests /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs/offline-requests.jsonl \
+  --first-turn-results /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-offline.jsonl \
+  --fastchat-checkout /srv/matric-eval/benchmarks/fastchat-587d5cfa1609a43d192cedb8441cac3c17db105d \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-mtbench-turn2-requests.jsonl \
+  --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-mtbench-turn2-input-receipt.json
+
+scripts/run_qwen38_offline_container.sh \
+  --gpu GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0 \
+  --owner matric-eval-qwen38-source-mtbench-turn2 \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
+  --requests /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-mtbench-turn2-requests.jsonl \
+  --lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-mtbench-turn2-gpu-lease.json \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-mtbench-turn2.jsonl \
+  --ready-base /srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/source-pilot-mtbench-turn2
+```
+
+The second-turn batch reuses the protocol's sample-specific seed, preserves the exact
+first user turn and first model completion, and appends only the pinned second user
+turn. Both files are mode `0600`; neither raw conversation content nor completions
+belong in the public report bundle.
+
 The publication scorer requires a second materialization from the scoring revision.
 Its request JSONL must be byte-identical to the generation input (the pilot hash is
 `e896aac8d1e8cd7009d36669ef7a9656a8f28c64a80e40972b052ef9db539673`), while the
