@@ -339,8 +339,9 @@ class StudyProtocol:
             raise ValueError("study.execution.model_server must pin vllm")
         required_server_controls = {
             "offline_batch_inference_required": True,
-            "batch_invariance": True,
+            "batch_invariance": False,
             "v1_multiprocessing": False,
+            "async_scheduling": False,
             "speculative_decoding": False,
             "usage_stats": False,
         }

@@ -25,8 +25,9 @@ human calibration sample.
 
 ## Execution environment
 
-Summarize the A100 preflight, lease receipts, vLLM container digest, batch-invariance
-settings, exact repository commit, dependency inventory, and model/GPU crossover.
+Summarize the A100 preflight, lease receipts, vLLM container digest, deterministic
+in-process scheduling settings, the GDN batch-invariance compatibility constraint,
+exact repository commit, dependency inventory, and model/GPU crossover.
 
 ## Statistical methods
 

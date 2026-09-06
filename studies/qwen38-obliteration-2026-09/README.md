@@ -83,9 +83,9 @@ run.
 - vLLM 0.26.0 amd64 container digest, tensor parallelism 1, GPU-memory
   utilization 0.90, safetensor prefetch, and disabled usage reporting pinned in
   the protocol.
-- Offline batch inference with batch invariance enabled and V1 multiprocessing
-  disabled. vLLM's online server is not used for the primary lane because request
-  scheduling is not reproducible.
+- Offline batch inference with V1 multiprocessing and asynchronous scheduling
+  disabled. vLLM batch invariance cannot be used because vLLM 0.26 rejects it for
+  Qwen3.8's GDN attention backend. The online server is not used for the primary lane.
 - Common upstream Qwen template, reasoning enabled, 32,768-token context, and no
   system prompt except where an official benchmark protocol requires one.
 - Temperature 1.0, top-p 0.95, top-k 20, min-p 0, presence penalty 0, repetition

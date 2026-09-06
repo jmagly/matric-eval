@@ -557,7 +557,7 @@ def run_offline_batch(
     else:
         runtime_versions = {"vllm": "injected-test-double", "transformers": "injected-test-double"}
 
-    os.environ["VLLM_BATCH_INVARIANT"] = "1"
+    os.environ.pop("VLLM_BATCH_INVARIANT", None)
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
     if engine_factory is None or tokenizer_factory is None or sampling_factory is None:
         try:
@@ -598,6 +598,7 @@ def run_offline_batch(
         tensor_parallel_size=server["tensor_parallel_size"],
         gpu_memory_utilization=server["gpu_memory_utilization"],
         safetensors_load_strategy=server["safetensors_load_strategy"],
+        async_scheduling=server["async_scheduling"],
         trust_remote_code=False,
         enable_prefix_caching=False,
     )
@@ -654,8 +655,9 @@ def run_offline_batch(
                         if production_runtime
                         else "injected-test-double"
                     ),
-                    "batch_invariant": True,
+                    "batch_invariant": server["batch_invariance"],
                     "v1_multiprocessing": False,
+                    "async_scheduling": server["async_scheduling"],
                     "safetensors_load_strategy": server["safetensors_load_strategy"],
                     "usage_stats": server["usage_stats"],
                     "chat_template_sha256": template_sha256,

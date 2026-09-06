@@ -290,8 +290,9 @@ study:
       image: vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b
       offline_batch_inference_required: true
       online_serving_scope: official-agent-runners-only
-      batch_invariance: true
+      batch_invariance: false
       v1_multiprocessing: false
+      async_scheduling: false
       tensor_parallel_size: 1
       gpu_memory_utilization: 0.9
       safetensors_load_strategy: prefetch
