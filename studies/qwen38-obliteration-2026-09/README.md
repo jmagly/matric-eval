@@ -165,8 +165,28 @@ uv run matric-eval validate-study \
 No pilot may start until this command succeeds against the exact commit recorded in
 the run directory.
 
-After each official adapter has exported its complete canonical ID catalog, build the
-nested manifests with the same validator implementation:
+Build the canonical ID catalog from the protocol-pinned dataset snapshots and
+benchmark checkouts. The command verifies every checkout revision, expected source
+count, and canonical-ID uniqueness before writing the catalog:
+
+```bash
+uv run python scripts/build_qwen38_study_catalog.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/id-catalog.json \
+  --cache-root /srv/obliteratus/matric-eval/cache \
+  --livecodebench-snapshot /srv/obliteratus/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
+  --fastchat-checkout /srv/matric-eval/benchmarks/fastchat-587d5cfa1609a43d192cedb8441cac3c17db105d \
+  --bfcl-checkout /srv/matric-eval/benchmarks/bfcl-v4 \
+  --bfcl-python /srv/matric-eval/benchmarks/bfcl-runner-2026.3.23/.venv/bin/python \
+  --tau-checkout /srv/matric-eval/benchmarks/tau2-v1.0.1 \
+  --terminal-checkout /srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1
+```
+
+The BFCL catalog contains scored IDs only. Memory prerequisites and preceding
+scenario turns are runtime dependencies, not additional scored samples. Retain the
+builder's printed SHA-256 and allocation counts in the run record.
+
+Build the nested manifests with the same validator implementation:
 
 ```bash
 uv run matric-eval build-study-manifest \
@@ -179,10 +199,30 @@ uv run matric-eval build-study-manifest \
 Repeat with `--cohort full`; validation must show every allocation's pilot IDs are the
 ordered prefix of its full IDs.
 
-For each model, materialize the manifest's offline allocations as ordered JSONL with
-`request_id`, `allocation_id`, `sample_id`, and OpenAI-style `messages`. After an
-artifact qualification manifest has recorded and verified every indexed tensor and
-required support-file SHA-256, execute the locked batch on the leased A100:
+Materialize the manifest's eight offline allocations as ordered request JSONL and
+private scoring JSONL. The builder refuses partial allocation blocks, refuses to
+overwrite an existing artifact, and writes the prompt/target-bearing files with mode
+`0600`:
+
+```bash
+uv run python scripts/build_qwen38_offline_requests.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --output-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs \
+  --cache-root /srv/obliteratus/matric-eval/cache \
+  --livecodebench-snapshot /srv/obliteratus/matric-eval/cache/huggingface/hub/datasets--livecodebench--code_generation_lite/snapshots/0fe84c3912ea0c4d4a78037083943e8f0c4dd505 \
+  --fastchat-checkout /srv/matric-eval/benchmarks/fastchat-587d5cfa1609a43d192cedb8441cac3c17db105d
+```
+
+Run the same command with the full manifest and a distinct `full-inputs` directory
+only after the pilot gate passes. MT-Bench materialization creates the first-turn
+requests; create the second-turn request only from that same sample's recorded first
+completion, and keep it in a separate complete allocation batch.
+
+After an artifact qualification manifest has recorded and verified every indexed
+tensor and required support-file SHA-256, execute each locked allocation batch on the
+leased A100. The request path below is illustrative; use one of the immutable files
+from `pilot-inputs/` and a distinct output path for each allocation and model:
 
 ```bash
 uv run matric-eval qualify-study-model \
@@ -194,13 +234,13 @@ uv run matric-eval qualify-study-model \
 uv run matric-eval run-study-offline-batch \
   studies/qwen38-obliteration-2026-09/protocol.yaml \
   /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
-  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-requests.jsonl \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs/xstest-safe-requests.jsonl \
   --model-id qwen38-27b-source-bf16 \
   --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --model-qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
   --chat-template /srv/matric-eval/results/qwen38-obliteration-2026-09/chat_template.jinja \
   --gpu-lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/gpu-lease.json \
-  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot.jsonl
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-xstest-safe.jsonl
 ```
 
 Each invocation may contain one allocation or multiple complete allocation blocks in
