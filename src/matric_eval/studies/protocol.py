@@ -350,9 +350,7 @@ class StudyProtocol:
             if server.get(key) is not expected:
                 raise ValueError(f"study.execution.model_server.{key} must be {expected}")
         if server.get("architecture_registrations") != {
-            "Qwen3_5ForCausalLM": (
-                "matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM"
-            )
+            "Qwen3_5ForCausalLM": ("matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM")
         }:
             raise ValueError(
                 "study.execution.model_server.architecture_registrations must pin the "
