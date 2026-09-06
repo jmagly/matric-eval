@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import torch
-
 from vllm.model_executor.models.qwen3_5 import Qwen3_5ForCausalLM
 
 
