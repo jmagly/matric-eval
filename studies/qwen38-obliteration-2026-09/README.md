@@ -223,6 +223,65 @@ only after the pilot gate passes. MT-Bench materialization creates the first-tur
 requests; create the second-turn request only from that same sample's recorded first
 completion, and keep it in a separate complete allocation batch.
 
+The publication scorer requires a second materialization from the scoring revision.
+Its request JSONL must be byte-identical to the generation input (the pilot hash is
+`e896aac8d1e8cd7009d36669ef7a9656a8f28c64a80e40972b052ef9db539673`), while the
+private scoring JSONL additionally retains IFEval's source prompt and
+LiveCodeBench's functional-test entry point. Never regenerate model outputs merely
+because private scorer metadata was enriched.
+
+Pin the official LiveCodeBench evaluator separately from the dataset snapshot:
+
+```bash
+git clone https://github.com/LiveCodeBench/LiveCodeBench.git \
+  /srv/matric-eval/cache/git/livecodebench
+git -C /srv/matric-eval/cache/git/livecodebench checkout --detach \
+  28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24
+```
+
+Score each completed direct batch only on `a100`. IFEval uses the official
+`instruction-following-eval` implementation pinned in `uv.lock`; its probabilistic
+language detector is fixed to the study seed. LiveCodeBench uses the pinned official
+checker in the isolated Docker daemon with no network, a read-only root, dropped
+capabilities, and explicit CPU, memory, and PID limits. MMLU-Pro uses the declared
+answer-extraction hierarchy. Refusal prefix matches are diagnostics only and are not
+publication-eligible.
+
+```bash
+scripts/score_qwen38_offline_container.sh \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-offline.jsonl \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs-official-scoring/offline-scoring.jsonl \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-scores.jsonl \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-scores-receipt.json
+```
+
+Run the scorer twice into distinct paths. Score JSONL must be byte-identical across
+passes before it is admitted to the evidence bundle. A scorer container/runtime
+failure aborts the batch rather than being converted into a model failure.
+
+Materialize the three official-agent-runner allocations separately. The BFCL runner
+file includes unscored memory prerequisites and preceding scenario dependencies;
+the scored-ID file remains the authority for the five pilot observations:
+
+```bash
+uv run python scripts/build_qwen38_agentic_inputs.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --bfcl-python /srv/matric-eval/benchmarks/bfcl-runner-2026.3.23/.venv/bin/python \
+  --output-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs
+```
+
+After both score passes match, build the content-free public pilot summary. It reports
+only pipeline-validation metrics and a linear direct-run forecast; agentic execution
+and judge time remain explicitly pending until those lanes complete:
+
+```bash
+uv run python scripts/build_qwen38_pilot_summary.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary.json
+```
+
 After an artifact qualification manifest has recorded and verified every indexed
 tensor and required support-file SHA-256, execute each locked allocation batch on the
 leased A100. The request path below is illustrative; use one of the immutable files
