@@ -356,6 +356,11 @@ def verify_runtime_environment(
     declared_runtime_image = os.environ.get("MATRIC_EVAL_RUNTIME_IMAGE")
     if declared_runtime_image != server["image"]:
         raise RuntimeError("MATRIC_EVAL_RUNTIME_IMAGE must equal the protocol-pinned image digest")
+    code_revision = os.environ.get("MATRIC_EVAL_CODE_REVISION", "")
+    if len(code_revision) != 40 or any(
+        character not in "0123456789abcdef" for character in code_revision
+    ):
+        raise RuntimeError("MATRIC_EVAL_CODE_REVISION must be a full lowercase Git commit")
     versions = {
         "vllm": importlib.metadata.version("vllm"),
         "transformers": importlib.metadata.version("transformers"),
@@ -643,6 +648,11 @@ def run_offline_batch(
                     "image": server["image"],
                     "versions": runtime_versions,
                     "vllm_build_commit": os.environ.get("VLLM_BUILD_COMMIT"),
+                    "matric_eval_revision": (
+                        os.environ.get("MATRIC_EVAL_CODE_REVISION")
+                        if production_runtime
+                        else "injected-test-double"
+                    ),
                     "batch_invariant": True,
                     "v1_multiprocessing": False,
                     "chat_template_sha256": template_sha256,
@@ -658,6 +668,7 @@ def run_offline_batch(
             handle.write(json.dumps(record, sort_keys=True) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+    temporary.chmod(0o600)
     temporary.replace(output)
     return {
         "study_id": study.id,

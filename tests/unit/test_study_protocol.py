@@ -98,6 +98,7 @@ def test_runtime_environment_requires_pinned_container_image(
         batch_module.verify_runtime_environment(server, container_marker=marker)
 
     monkeypatch.setenv("MATRIC_EVAL_RUNTIME_IMAGE", str(server["image"]))
+    monkeypatch.setenv("MATRIC_EVAL_CODE_REVISION", "a" * 40)
     monkeypatch.setattr(
         batch_module.importlib.metadata,
         "version",
@@ -568,4 +569,5 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert engine_kwargs["gpu_memory_utilization"] == 0.9
+    assert output_path.stat().st_mode & 0o777 == 0o600
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision

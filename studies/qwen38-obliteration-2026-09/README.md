@@ -232,64 +232,28 @@ uv run matric-eval qualify-study-model \
   --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json
 
-STUDY_GPU_UUID='GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0'
-
-sudo docker gpu run \
+scripts/run_qwen38_offline_container.sh \
+  --gpu GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0 \
   --owner matric-eval-qwen38-source-xstest-safe \
-  --vram-mib 75000 \
-  --ttl 300 \
-  --gpu "$STUDY_GPU_UUID" \
-  --ready-timeout 900 \
-  --ready-command 'test -s "/srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/source-pilot-xstest-safe.${OLLAMA_UNIFY_GPU_LEASE}.ready"' \
-  -- \
-  bash -lc 'exec docker --host unix:///run/matric-eval-docker.sock run --rm \
-    --network none \
-    --read-only \
-    --runtime nvidia \
-    --gpus "device=${CUDA_VISIBLE_DEVICES}" \
-    --ipc host \
-    --ulimit memlock=-1 \
-    --ulimit stack=67108864 \
-    --tmpfs /tmp:rw,nosuid,nodev,exec,size=8g \
-    --tmpfs /root/.cache:rw,nosuid,nodev,exec,size=32g \
-    --mount type=bind,src=/srv/matric-eval/workspaces/matric-eval,dst=/workspace,readonly \
-    --mount type=bind,src=/srv/obliteratus/matric-eval,dst=/srv/obliteratus/matric-eval,readonly \
-    --mount type=bind,src=/srv/matric-eval/results,dst=/srv/matric-eval/results \
-    --mount type=bind,src=/run/ollama-unify/gpu-negotiator.sock,dst=/run/ollama-unify/gpu-negotiator.sock \
-    --workdir /workspace \
-    --env PYTHONPATH=/workspace/src \
-    --env PYTHONDONTWRITEBYTECODE=1 \
-    --env HF_HUB_OFFLINE=1 \
-    --env TRANSFORMERS_OFFLINE=1 \
-    --env OLLAMA_UNIFY_GPU_LEASE \
-    --env CUDA_VISIBLE_DEVICES \
-    --env MATRIC_EVAL_RUNTIME_IMAGE=vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b \
-    --env MATRIC_EVAL_GPU_BROKER_SOCKET=/run/ollama-unify/gpu-negotiator.sock \
-    --env MATRIC_EVAL_MODEL_READY_BASE=/srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/source-pilot-xstest-safe \
-    --entrypoint /usr/bin/python3 \
-    vllm/vllm-openai@sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b \
-    -m matric_eval.studies.runner_cli \
-    studies/qwen38-obliteration-2026-09/protocol.yaml \
-    /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
-    /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs/xstest-safe-requests.jsonl \
-    --model-id qwen38-27b-source-bf16 \
-    --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
-    --model-qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
-    --chat-template /srv/matric-eval/results/qwen38-obliteration-2026-09/chat_template.jinja \
-    --gpu-lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-xstest-safe-gpu-lease.json \
-    --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-xstest-safe.jsonl'
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --qualification /srv/matric-eval/results/qwen38-obliteration-2026-09/source-model-qualification.json \
+  --requests /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-inputs/xstest-safe-requests.jsonl \
+  --lease-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-xstest-safe-gpu-lease.json \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-xstest-safe.jsonl \
+  --ready-base /srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/source-pilot-xstest-safe
 ```
 
 Choose the GPU UUID from the preregistered crossover schedule after `docker gpu
 discover`; the UUID above is an example assignment, not a claim of availability.
-The outer broker command maintains the heartbeat and releases only after the container
-has exited and freed CUDA memory. The runner writes a token-specific readiness marker
+The wrapper's outer broker command maintains the heartbeat and releases only after the
+container has exited and freed CUDA memory. The runner writes a token-specific readiness marker
 only after vLLM has made the model resident, waits for the broker to report that exact
 scoped lease as active, captures the private mode-`0600` lease receipt, and only then
 starts generation. Use a unique owner, readiness base, receipt, and output for every
-allocation/model invocation. The dedicated Docker socket must resolve to a daemon
-whose data root is on the model filesystem; never pull this image into the nearly full
-system Docker root.
+allocation/model invocation. The wrapper verifies that the dedicated Docker socket
+contains the exact image digest and resolves to the isolated daemon whose data root is
+on the model filesystem; never pull this image into the nearly full system Docker root.
 
 Each invocation may contain one allocation or multiple complete allocation blocks in
 protocol order. This supports benchmark-specific scoring and MT-Bench's dependent
