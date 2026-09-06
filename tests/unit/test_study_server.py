@@ -199,10 +199,15 @@ def test_run_attested_server_writes_content_free_receipt(
 
     monkeypatch.setattr(server_cli, "capture_active_gpu_lease", capture)
     expected_template_hash = model.runtime.chat_template_sha256
+    real_sha256 = server_cli.hashlib.sha256
     monkeypatch.setattr(
         server_cli.hashlib,
         "sha256",
-        lambda content: SimpleNamespace(hexdigest=lambda: expected_template_hash),
+        lambda content=b"": (
+            SimpleNamespace(hexdigest=lambda: expected_template_hash)
+            if content == b"test template"
+            else real_sha256(content)
+        ),
     )
     monkeypatch.setenv("MATRIC_EVAL_CODE_REVISION", "c" * 40)
 
