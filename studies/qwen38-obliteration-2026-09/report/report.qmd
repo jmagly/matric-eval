@@ -14,6 +14,8 @@ params:
 
 > **Preregistered report shell.** Numerical conclusions are intentionally absent until
 > the A100 pilot and full study have completed and their evidence manifests validate.
+> The executable publication path is `scripts/render_qwen38_report.py`; this shell
+> remains the preregistered narrative outline and required-section record.
 
 ## Executive summary
 

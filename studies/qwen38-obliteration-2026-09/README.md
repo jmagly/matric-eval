@@ -224,6 +224,29 @@ machine-readable JSON. It includes the protocol hash, ordered sample-manifest ha
 checkpoint/runtime/dataset identities, pilot forecast, component results, paired
 analysis, missingness, judge calibration, limitations, and exact reproduction commands.
 
+Render the sealed bundle only on the A100 host and from a clean checkout. The command
+refuses a non-full analysis, any broken protocol/manifest/observation hash join, an
+incomplete pilot summary, an existing output directory, or a path outside the private
+study root. Chromium is pinned to the host installation for print-to-PDF:
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/render_qwen38_report.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/full-manifest.json \
+  --analysis /srv/matric-eval/results/qwen38-obliteration-2026-09/public/aggregate-results.json \
+  --normalization-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/public/full-observations-receipt.json \
+  --pilot-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete.json \
+  --output-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/public/report-v1 \
+  --chromium /snap/bin/chromium
+```
+
+The output directory contains `index.html`, `methods.html`, print CSS, `report.pdf`,
+the byte-identical aggregate results, protocol, ordered sample manifest, content-free
+normalization receipt and pilot summary, a reproduction manifest, and SHA-256/size
+inventory. A report from an incomplete pilot is available only with `--draft`; it is
+visibly watermarked and its JSON status is `draft`, so it cannot be mistaken for the
+final publication.
+
 Raw harmful prompts and model completions remain in the access-controlled A100 result
 store. The public bundle contains IDs, hashes, aggregate statistics, redacted examples
 that pass review, and enough provenance to reproduce the run with separately obtained
