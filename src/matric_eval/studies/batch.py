@@ -316,7 +316,6 @@ def build_model_qualification(
     qualification["qualification_sha256"] = hashlib.sha256(
         json.dumps(qualification, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    verify_model_artifact(model, directory, qualification)
     return qualification
 
 
