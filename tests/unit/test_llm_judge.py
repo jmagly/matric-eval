@@ -12,6 +12,7 @@ Covers:
 - MT-Bench format parsing
 """
 
+import math
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -37,6 +38,7 @@ from matric_eval.scorers.llm_judge import (
     register_judge_template,
     revision_quality_scorer,
     tag_quality_scorer,
+    try_parse_judge_score,
 )
 
 # =============================================================================
@@ -141,6 +143,12 @@ class TestParseJudgeScore:
         """Should return default score for empty response."""
         score = parse_judge_score("")
         assert score == 5
+
+    def test_strict_parse_does_not_impute_invalid_verdict(self) -> None:
+        """Strict parsing should expose malformed grader output."""
+        assert try_parse_judge_score("No numeric verdict is available.") is None
+        assert try_parse_judge_score("") is None
+        assert try_parse_judge_score("Score: 100/10") is None
 
     def test_parse_judge_score_consistent_extraction(self) -> None:
         """Should consistently extract scores from standard format."""
@@ -261,7 +269,7 @@ class TestLLMJudgeScorer:
 
     @pytest.mark.asyncio
     async def test_scorer_handles_judge_model_error(self) -> None:
-        """Should handle gracefully when judge model fails."""
+        """Should retain judge failures without treating them as quality."""
         scorer = llm_judge_scorer(judge_model="llama3.2:3b")
 
         state = Mock()
@@ -276,10 +284,32 @@ class TestLLMJudgeScorer:
 
             score = await scorer(state, target)
 
-            # Should return middle score on error
             assert isinstance(score, Score)
-            assert score.value == 0.5
-            assert "error" in score.explanation.lower()
+            assert math.isnan(score.value)
+            assert score.reason == "grader_failed"
+            assert score.metadata["judge_status"] == "call-failed"
+
+    @pytest.mark.asyncio
+    async def test_scorer_marks_unparseable_verdict_unscored(self) -> None:
+        """Malformed judge output must not become an imputed midpoint."""
+        scorer = llm_judge_scorer(judge_model="llama3.2:3b")
+        state = Mock()
+        state.output.completion = "Answer"
+        state.input_text = "Question"
+        state.metadata = {}
+
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
+            mock_model = AsyncMock()
+            mock_result = Mock()
+            mock_result.completion = "I decline to provide a numeric verdict."
+            mock_model.generate.return_value = mock_result
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, Target(target=""))
+
+        assert math.isnan(score.value)
+        assert score.reason == "grader_failed"
+        assert score.metadata["judge_status"] == "invalid-verdict"
 
     @pytest.mark.asyncio
     async def test_scorer_handles_missing_input_text(self) -> None:
@@ -425,6 +455,10 @@ class TestParsePairwiseWinner:
         """Should return None for empty response."""
         winner = parse_pairwise_winner("")
         assert winner is None
+
+    def test_parse_pairwise_winner_rejects_conflicting_verdicts(self) -> None:
+        """Multiple structured labels are an invalid verdict."""
+        assert parse_pairwise_winner("Either [[A]] or [[B]]") is None
 
     def test_parse_pairwise_winner_handles_none(self) -> None:
         """Should return None for None response."""
@@ -658,7 +692,9 @@ class TestPairwiseJudgeScorer:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[A]] is better"
-            mock_model.generate.return_value = mock_result
+            swapped_result = Mock()
+            swapped_result.completion = "[[B]] is better"
+            mock_model.generate.side_effect = [mock_result, swapped_result]
             mock_get_model.return_value = mock_model
 
             score = await scorer(state, target)
@@ -682,7 +718,9 @@ class TestPairwiseJudgeScorer:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[B]] is better"
-            mock_model.generate.return_value = mock_result
+            swapped_result = Mock()
+            swapped_result.completion = "[[A]] is better"
+            mock_model.generate.side_effect = [mock_result, swapped_result]
             mock_get_model.return_value = mock_model
 
             score = await scorer(state, target)
@@ -706,13 +744,38 @@ class TestPairwiseJudgeScorer:
             mock_model = AsyncMock()
             mock_result = Mock()
             mock_result.completion = "[[C]] - tie"
-            mock_model.generate.return_value = mock_result
+            swapped_result = Mock()
+            swapped_result.completion = "[[C]] - tie"
+            mock_model.generate.side_effect = [mock_result, swapped_result]
             mock_get_model.return_value = mock_model
 
             score = await scorer(state, target)
 
             assert score.value == 0.5
             assert score.metadata["winner"] == "C"
+
+    @pytest.mark.asyncio
+    async def test_pairwise_scorer_abstains_on_position_inconsistency(self) -> None:
+        """A verdict that follows slot A after reversal is not a real preference."""
+        scorer = pairwise_judge_scorer(judge_model="llama3.2:3b")
+        state = Mock()
+        state.output.completion = "Model response"
+        state.input_text = "Question"
+        state.metadata = {"reference_response": "Reference response"}
+
+        with patch("matric_eval.scorers.llm_judge.get_model") as mock_get_model:
+            mock_model = AsyncMock()
+            first = Mock(completion="[[A]]")
+            second = Mock(completion="[[A]]")
+            mock_model.generate.side_effect = [first, second]
+            mock_get_model.return_value = mock_model
+
+            score = await scorer(state, Target(target=""))
+
+        assert math.isnan(score.value)
+        assert score.reason == "grader_failed"
+        assert score.metadata["judge_status"] == "position-inconsistent"
+        assert score.metadata["position_outcomes"] == ["candidate", "reference"]
 
 
 # =============================================================================

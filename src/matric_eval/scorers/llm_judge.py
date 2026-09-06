@@ -550,8 +550,24 @@ def parse_judge_score(
     Returns:
         Integer score between min and max (default 1-10)
     """
+    parsed = try_parse_judge_score(judge_response, config=config, clamp=True)
+    return default if parsed is None else parsed
+
+
+def try_parse_judge_score(
+    judge_response: str,
+    config: Optional[ScoringConfig] = None,
+    *,
+    clamp: bool = False,
+) -> Optional[int]:
+    """Extract a score, returning ``None`` when the judge verdict is invalid.
+
+    Scorers use this strict form so a grader failure is not silently converted
+    into a plausible midpoint. ``parse_judge_score`` retains its historical
+    default-returning behavior for callers that explicitly want imputation.
+    """
     if not judge_response:
-        return default
+        return None
 
     if config is None:
         config = ScoringConfig()
@@ -573,14 +589,40 @@ def parse_judge_score(
         if match:
             try:
                 score = float(match.group(1))
-                # Round and clamp to range
                 score_int = int(round(score))
+                if not clamp and not config.min_score <= score_int <= config.max_score:
+                    return None
                 return max(config.min_score, min(config.max_score, score_int))
             except (ValueError, IndexError):
                 continue
 
-    # If no pattern matched, return default
-    return default
+    return None
+
+
+def _unscored_judgment(
+    *,
+    judge_model: str,
+    status: str,
+    explanation: str,
+    metadata: Optional[dict[str, object]] = None,
+) -> Score:
+    """Return an observable grader failure that aggregate metrics exclude."""
+    return Score.unscored(
+        reason="grader_failed",
+        explanation=explanation,
+        metadata={
+            "judge_model": judge_model,
+            "judge_status": status,
+            **(metadata or {}),
+        },
+    )
+
+
+def _judge_generate_config(system_prompt: str, max_retries: int) -> GenerateConfig:
+    """Build a bounded, explicit judge generation policy."""
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative")
+    return GenerateConfig(system_message=system_prompt, max_retries=max_retries)
 
 
 def parse_pairwise_winner(judge_response: str) -> Optional[str]:
@@ -598,28 +640,23 @@ def parse_pairwise_winner(judge_response: str) -> Optional[str]:
     if not judge_response:
         return None
 
-    # Look for [[X]] pattern
-    if "[[A]]" in judge_response:
-        return "A"
-    elif "[[B]]" in judge_response:
-        return "B"
-    elif "[[C]]" in judge_response:
-        return "C"
+    # Reject conflicting structured verdicts instead of selecting whichever
+    # label happens to be checked first.
+    bracketed = {value.upper() for value in re.findall(r"\[\[([ABC])\]\]", judge_response)}
+    if len(bracketed) == 1:
+        return bracketed.pop()
+    if len(bracketed) > 1:
+        return None
 
-    # Alternative patterns
-    patterns = [
-        (r"(?:winner|better)[\s:]+(?:assistant\s+)?([ABC])\b", lambda m: m.group(1).upper()),
-        (r"(?:assistant\s+)?([AB])\s+(?:is|wins|better)", lambda m: m.group(1).upper()),
-        (r"\btie\b|\bdraw\b|\bequal\b", lambda m: "C"),
-    ]
-
-    for pattern, extractor in patterns:
+    for pattern in (
+        r"(?:winner|better)[\s:]+(?:assistant\s+)?([ABC])\b",
+        r"(?:assistant\s+)?([AB])\s+(?:is|wins|better)",
+    ):
         match = re.search(pattern, judge_response, re.IGNORECASE)
         if match:
-            try:
-                return extractor(match)
-            except (ValueError, IndexError):
-                continue
+            return match.group(1).upper()
+    if re.search(r"\btie\b|\bdraw\b|\bequal\b", judge_response, re.IGNORECASE):
+        return "C"
 
     return None
 
@@ -646,6 +683,7 @@ def llm_judge_scorer(
     judge_model: str = "llama3.2:3b",
     template: str = "default",
     system_prompt: Optional[str] = None,
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create Inspect AI scorer that uses an LLM to judge responses.
@@ -657,6 +695,7 @@ def llm_judge_scorer(
         judge_model: Model to use as judge (default: "llama3.2:3b")
         template: Name of judge template to use (default: "default")
         system_prompt: Optional system prompt override
+        max_retries: Bounded model-call retries delegated to Inspect
 
     Returns:
         Scorer function compatible with Inspect AI
@@ -697,11 +736,19 @@ def llm_judge_scorer(
             # Call judge model with optional system prompt
             full_system = system_prompt or judge_template.system_prompt
             judge_result = await model.generate(
-                judge_prompt, config=GenerateConfig(system_message=full_system)
+                judge_prompt,
+                config=_judge_generate_config(full_system, max_retries),
             )
 
             # Extract score from judge response
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Judge returned no parseable score.",
+                    metadata={"template": template},
+                )
 
             # Normalize to 0-1 range
             normalized_score = normalize_score(raw_score, scoring_config)
@@ -717,10 +764,11 @@ def llm_judge_scorer(
             )
 
         except Exception as e:
-            # If judge fails, return middle score with error explanation
-            return Score(
-                value=0.5,
-                explanation=f"Judge scoring error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Judge scoring failed: {type(e).__name__}: {e}",
+                metadata={"template": template},
             )
 
     return score
@@ -730,16 +778,22 @@ def llm_judge_scorer(
 def pairwise_judge_scorer(
     judge_model: str = "llama3.2:3b",
     reference_key: str = "reference_response",
+    verify_position: bool = True,
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer that compares model response against a reference using pairwise comparison.
 
-    The judge determines which response is better: the model's (A) or reference (B).
-    Returns 1.0 if model wins, 0.5 for tie, 0.0 if reference wins.
+    By default the judge sees both A/B and B/A orders. A score is emitted only
+    when the two verdicts agree after mapping positions back to candidate and
+    reference identities. Position-inconsistent or malformed verdicts are
+    retained as unscored grader failures.
 
     Args:
         judge_model: Model to use as judge
         reference_key: Metadata key containing reference response
+        verify_position: Require consistent verdicts in both response orders
+        max_retries: Bounded model-call retries delegated to Inspect
 
     Returns:
         Scorer function for pairwise comparison
@@ -750,51 +804,80 @@ def pairwise_judge_scorer(
         """Compare model response against reference."""
         try:
             question = state.input_text or ""
-            response_a = state.output.completion
-            response_b = state.metadata.get(reference_key, target.text or "")
-
-            # Format pairwise prompt
-            judge_prompt = judge_template.format(
-                question=question,
-                response_a=response_a,
-                response_b=response_b,
-            )
+            candidate = state.output.completion
+            reference = state.metadata.get(reference_key, target.text or "")
 
             model = get_model(judge_model)
-            judge_result = await model.generate(
-                judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
-            )
+            orders = [(candidate, reference)]
+            if verify_position:
+                orders.append((reference, candidate))
+            verdicts: list[Optional[str]] = []
+            raw_outputs: list[str] = []
+            for response_a, response_b in orders:
+                judge_prompt = judge_template.format(
+                    question=question,
+                    response_a=response_a,
+                    response_b=response_b,
+                )
+                judge_result = await model.generate(
+                    judge_prompt,
+                    config=_judge_generate_config(judge_template.system_prompt, max_retries),
+                )
+                raw_outputs.append(judge_result.completion)
+                verdicts.append(parse_pairwise_winner(judge_result.completion))
 
-            winner = parse_pairwise_winner(judge_result.completion)
+            if any(verdict is None for verdict in verdicts):
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Pairwise judge returned an unparseable verdict.",
+                    metadata={"position_winners": verdicts},
+                )
+
+            canonical = {"A": "candidate", "B": "reference", "C": "tie"}
+            outcomes = [canonical[str(verdicts[0])]]
+            if verify_position:
+                swapped = {"A": "reference", "B": "candidate", "C": "tie"}
+                outcomes.append(swapped[str(verdicts[1])])
+            if len(set(outcomes)) != 1:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="position-inconsistent",
+                    explanation="Pairwise judge changed its verdict after response-order reversal.",
+                    metadata={"position_winners": verdicts, "position_outcomes": outcomes},
+                )
+
+            winner = str(verdicts[0])
+            candidate_outcome = outcomes[0]
 
             # Map winner to score
-            if winner == "A":
+            if candidate_outcome == "candidate":
                 score_value = 1.0
                 explanation = "Model response preferred"
-            elif winner == "B":
+            elif candidate_outcome == "reference":
                 score_value = 0.0
                 explanation = "Reference response preferred"
-            elif winner == "C":
-                score_value = 0.5
-                explanation = "Tie - responses equally good"
             else:
                 score_value = 0.5
-                explanation = "Could not determine winner"
+                explanation = "Tie - responses equally good"
 
             return Score(
                 value=score_value,
-                explanation=f"{explanation}. {judge_result.completion[:150]}",
+                explanation=f"{explanation}. {raw_outputs[0][:150]}",
                 metadata={
                     "winner": winner,
+                    "candidate_outcome": candidate_outcome,
                     "judge_model": judge_model,
+                    "position_verified": verify_position,
+                    "position_winners": verdicts,
                 },
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Pairwise judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Pairwise judge failed: {type(e).__name__}: {e}",
             )
 
     return score
@@ -805,6 +888,7 @@ def agentic_judge_scorer(
     judge_model: str = "llama3.2:3b",
     tools_key: str = "available_tools",
     expected_key: str = "expected_outcome",
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer for evaluating agentic/tool-using responses.
@@ -841,10 +925,16 @@ def agentic_judge_scorer(
             model = get_model(judge_model)
             judge_result = await model.generate(
                 judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
+                config=_judge_generate_config(judge_template.system_prompt, max_retries),
             )
 
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Agentic judge returned no parseable score.",
+                )
             normalized_score = normalize_score(raw_score, scoring_config)
 
             return Score(
@@ -857,9 +947,10 @@ def agentic_judge_scorer(
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Agentic judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Agentic judge failed: {type(e).__name__}: {e}",
             )
 
     return score
@@ -868,6 +959,7 @@ def agentic_judge_scorer(
 @scorer(metrics=[mean()])
 def reference_judge_scorer(
     judge_model: str = "llama3.2:3b",
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer that evaluates response against a reference answer.
@@ -899,10 +991,16 @@ def reference_judge_scorer(
             model = get_model(judge_model)
             judge_result = await model.generate(
                 judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
+                config=_judge_generate_config(judge_template.system_prompt, max_retries),
             )
 
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Reference judge returned no parseable score.",
+                )
             normalized_score = normalize_score(raw_score, scoring_config)
 
             return Score(
@@ -915,9 +1013,10 @@ def reference_judge_scorer(
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Reference judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Reference judge failed: {type(e).__name__}: {e}",
             )
 
     return score
@@ -966,6 +1065,7 @@ def parse_hallucination_flag(judge_response: str) -> tuple[bool, list[str]]:
 @scorer(metrics=[mean()])
 def hallucination_judge_scorer(
     judge_model: str = "llama3.2:3b",
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer that detects hallucinations in AI-generated content.
@@ -993,10 +1093,16 @@ def hallucination_judge_scorer(
             model = get_model(judge_model)
             judge_result = await model.generate(
                 judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
+                config=_judge_generate_config(judge_template.system_prompt, max_retries),
             )
 
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Hallucination judge returned no parseable score.",
+                )
             normalized = normalize_score(raw_score, scoring_config)
             hallucinated, claims = parse_hallucination_flag(judge_result.completion)
 
@@ -1012,9 +1118,10 @@ def hallucination_judge_scorer(
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Hallucination judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Hallucination judge failed: {type(e).__name__}: {e}",
             )
 
     return score
@@ -1023,6 +1130,7 @@ def hallucination_judge_scorer(
 @scorer(metrics=[mean()])
 def revision_quality_scorer(
     judge_model: str = "llama3.2:3b",
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer for evaluating content revision quality.
@@ -1052,10 +1160,16 @@ def revision_quality_scorer(
             model = get_model(judge_model)
             judge_result = await model.generate(
                 judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
+                config=_judge_generate_config(judge_template.system_prompt, max_retries),
             )
 
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Revision judge returned no parseable score.",
+                )
             normalized = normalize_score(raw_score, scoring_config)
             hallucinated, claims = parse_hallucination_flag(judge_result.completion)
 
@@ -1071,9 +1185,10 @@ def revision_quality_scorer(
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Revision quality judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Revision judge failed: {type(e).__name__}: {e}",
             )
 
     return score
@@ -1082,6 +1197,7 @@ def revision_quality_scorer(
 @scorer(metrics=[mean()])
 def tag_quality_scorer(
     judge_model: str = "llama3.2:3b",
+    max_retries: int = 2,
 ) -> Scorer:
     """
     Create scorer for evaluating auto-generated tag quality.
@@ -1108,10 +1224,16 @@ def tag_quality_scorer(
             model = get_model(judge_model)
             judge_result = await model.generate(
                 judge_prompt,
-                config=GenerateConfig(system_message=judge_template.system_prompt),
+                config=_judge_generate_config(judge_template.system_prompt, max_retries),
             )
 
-            raw_score = parse_judge_score(judge_result.completion, config=scoring_config)
+            raw_score = try_parse_judge_score(judge_result.completion, config=scoring_config)
+            if raw_score is None:
+                return _unscored_judgment(
+                    judge_model=judge_model,
+                    status="invalid-verdict",
+                    explanation="Tag-quality judge returned no parseable score.",
+                )
             normalized = normalize_score(raw_score, scoring_config)
 
             # Extract suggested additions
@@ -1135,9 +1257,10 @@ def tag_quality_scorer(
             )
 
         except Exception as e:
-            return Score(
-                value=0.5,
-                explanation=f"Tag quality judge error: {str(e)}",
+            return _unscored_judgment(
+                judge_model=judge_model,
+                status="call-failed",
+                explanation=f"Tag-quality judge failed: {type(e).__name__}: {e}",
             )
 
     return score
