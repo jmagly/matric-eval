@@ -587,7 +587,9 @@ def _render_pdf(chromium: Path, html_path: Path, pdf_path: Path) -> None:
     # but writes them inside its private mount namespace. Stage the profile and PDF
     # below the invoking user's home, which the snap exposes to the host, then copy
     # the validated PDF into the atomic bundle build directory.
-    with tempfile.TemporaryDirectory(prefix=".matric-report-chromium-", dir=Path.home()) as raw:
+    # Snap's home interface also rejects hidden top-level directories, so keep
+    # this transient directory non-hidden.
+    with tempfile.TemporaryDirectory(prefix="matric-report-chromium-", dir=Path.home()) as raw:
         staging = Path(raw)
         rendered_pdf = staging / "report.pdf"
         subprocess.run(
