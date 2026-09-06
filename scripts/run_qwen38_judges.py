@@ -257,9 +257,14 @@ def load_items(
         )
         if list(rows) != list(requests):
             raise ValueError(f"{model.id} result order does not match the locked request batch")
+        expected_turn2_ids = [f"mtbench:{sample_id}:turn-2" for sample_id in selected["mtbench"]]
+        if list(turn2_requests) != expected_turn2_ids or list(turn2_results) != expected_turn2_ids:
+            raise ValueError(f"{model.id} MT-Bench turn-two order does not match the manifest")
+        request_sha256 = artifacts["offline_requests_sha256"]
+        turn2_request_sha256 = _sha256(turn2_request_path)
         model_artifacts: JsonObject = {
             "offline_results_sha256": _sha256(result_path),
-            "mtbench_turn2_requests_sha256": _sha256(turn2_request_path),
+            "mtbench_turn2_requests_sha256": turn2_request_sha256,
             "mtbench_turn2_results_sha256": _sha256(turn2_result_path),
         }
         artifacts["models"][model.id] = model_artifacts
@@ -271,6 +276,12 @@ def load_items(
                 result = rows.get(request_id)
                 if request is None or score is None or result is None:
                     raise ValueError(f"{model.id} is missing judged request {request_id}")
+                for label, row in (("request", request), ("scoring record", score)):
+                    if (
+                        row.get("allocation_id") != allocation_id
+                        or row.get("sample_id") != sample_id
+                    ):
+                        raise ValueError(f"{label} identity mismatch for {request_id}")
                 expected = {
                     "study_id": study.id,
                     "protocol_sha256": study.canonical_sha256,
@@ -281,9 +292,16 @@ def load_items(
                     "allocation_id": allocation_id,
                     "sample_id": sample_id,
                     "request_id": request_id,
+                    "generation_seed": study.generation_seed(allocation_id, sample_id),
                 }
                 if any(result.get(key) != value for key, value in expected.items()):
                     raise ValueError(f"{model.id} judged result identity mismatch for {request_id}")
+                runtime = result.get("runtime")
+                if (
+                    not isinstance(runtime, dict)
+                    or runtime.get("request_batch_sha256") != request_sha256
+                ):
+                    raise ValueError(f"{model.id} result does not attest the locked request batch")
                 response = result.get("completion")
                 if not isinstance(response, str):
                     raise ValueError(f"{model.id} result {request_id} has no completion")
@@ -304,12 +322,36 @@ def load_items(
                         raise ValueError(f"{model.id} MT-Bench turn-two identity mismatch")
                     if turn2_result.get("request_id") != turn2_id:
                         raise ValueError(f"{model.id} MT-Bench turn-two request ID mismatch")
+                    if turn2_result.get("generation_seed") != study.generation_seed(
+                        allocation_id, sample_id
+                    ):
+                        raise ValueError(f"{model.id} MT-Bench turn-two generation seed mismatch")
+                    turn2_runtime = turn2_result.get("runtime")
+                    if (
+                        not isinstance(turn2_runtime, dict)
+                        or turn2_runtime.get("request_batch_sha256") != turn2_request_sha256
+                    ):
+                        raise ValueError(
+                            f"{model.id} MT-Bench turn-two result does not attest its request batch"
+                        )
                     second_response = turn2_result.get("completion")
                     if not isinstance(second_response, str):
                         raise ValueError(f"{model.id} MT-Bench turn-two completion is missing")
                     messages = turn2_request.get("messages")
                     if not isinstance(messages, list) or not messages:
                         raise ValueError("MT-Bench turn-two request messages are malformed")
+                    expected_prefix = [
+                        *request["messages"],
+                        {"role": "assistant", "content": response},
+                    ]
+                    if (
+                        messages[:-1] != expected_prefix
+                        or not isinstance(messages[-1], dict)
+                        or messages[-1].get("role") != "user"
+                    ):
+                        raise ValueError(
+                            f"{model.id} MT-Bench turn-two conversation does not join turn one"
+                        )
                     second_prompt = _messages_prompt([messages[-1]], turn2_id)
                 items.append(
                     JudgeItem(
@@ -595,7 +637,8 @@ def build_bundle(
     journal = _load_journal(journal_path, identity)
     outcomes: list[JsonObject] = []
     judges = plan["judges"]
-    for item in ordered_items(plan, items):
+    evaluation_order = ordered_items(plan, items)
+    for item_number, item in enumerate(evaluation_order, 1):
         blind_id = _blind_id(plan, item)
         rubric_name, rubric = _rubric(plan, item.allocation_id)
         schema = _schema(rubric_name)
@@ -676,6 +719,19 @@ def build_bundle(
                 "judges_disagreed": disagreement,
                 "adjudicated": adjudicated,
             }
+        )
+        print(
+            json.dumps(
+                {
+                    "blind_id": blind_id,
+                    "completed": item_number,
+                    "total": len(evaluation_order),
+                    "disagreement": disagreement,
+                    "adjudicated": adjudicated,
+                },
+                sort_keys=True,
+            ),
+            flush=True,
         )
     role_records = {
         role: [record for record in journal.values() if record["role"] == role]

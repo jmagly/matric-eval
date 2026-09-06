@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -44,6 +45,14 @@ def _study_plan() -> tuple[StudyProtocol, dict[str, Any]]:
     plan = yaml.safe_load(PLAN.read_text(encoding="utf-8"))
     assert isinstance(plan, dict)
     return study, plan
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
 
 
 def test_locked_plan_and_declared_disagreement_thresholds() -> None:
@@ -200,3 +209,119 @@ def test_api_key_is_read_once_from_inherited_descriptor() -> None:
         os.read(read_fd, 1)
     with pytest.raises(ValueError, match="3 or greater"):
         runner._read_secret_fd(0)
+
+
+def test_load_items_verifies_generation_and_request_batch_hashes(tmp_path: Path) -> None:
+    study, _plan = _study_plan()
+    manifest = study.selection_manifest(_catalog(study), "pilot")
+    (tmp_path / "pilot-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    selected = {
+        allocation["allocation_id"]: allocation["selected_ids"]
+        for allocation in manifest["allocations"]
+    }
+    offline_allocations = [
+        allocation for allocation in study.benchmarks if allocation.execution_mode == "offline-batch"
+    ]
+    requests = [
+        {
+            "request_id": f"{allocation.id}:{sample_id}:turn-1",
+            "allocation_id": allocation.id,
+            "sample_id": sample_id,
+            "messages": [{"role": "user", "content": f"question {sample_id}"}],
+        }
+        for allocation in offline_allocations
+        for sample_id in selected[allocation.id]
+    ]
+    scoring = [
+        {
+            "request_id": request["request_id"],
+            "allocation_id": request["allocation_id"],
+            "sample_id": request["sample_id"],
+        }
+        for request in requests
+    ]
+    request_path = tmp_path / "pilot-inputs/offline-requests.jsonl"
+    _write_jsonl(request_path, requests)
+    _write_jsonl(tmp_path / "pilot-inputs/offline-scoring.jsonl", scoring)
+    request_sha256 = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    request_index = {request["request_id"]: request for request in requests}
+    for model in study.models:
+        prefix = runner.MODEL_FILES[model.id]
+        results = [
+            {
+                "study_id": study.id,
+                "protocol_sha256": study.canonical_sha256,
+                "manifest_sha256": manifest["manifest_sha256"],
+                "model_id": model.id,
+                "model_source": model.source,
+                "model_revision": model.checkpoint_revision,
+                "request_id": request["request_id"],
+                "allocation_id": request["allocation_id"],
+                "sample_id": request["sample_id"],
+                "generation_seed": study.generation_seed(
+                    request["allocation_id"], request["sample_id"]
+                ),
+                "completion": f"answer {request['sample_id']}",
+                "runtime": {"request_batch_sha256": request_sha256},
+            }
+            for request in requests
+        ]
+        _write_jsonl(tmp_path / f"{prefix}-pilot-offline.jsonl", results)
+        result_index = {result["request_id"]: result for result in results}
+        turn2_requests = []
+        for sample_id in selected["mtbench"]:
+            first_id = f"mtbench:{sample_id}:turn-1"
+            turn2_requests.append(
+                {
+                    "request_id": f"mtbench:{sample_id}:turn-2",
+                    "allocation_id": "mtbench",
+                    "sample_id": sample_id,
+                    "messages": [
+                        *request_index[first_id]["messages"],
+                        {"role": "assistant", "content": result_index[first_id]["completion"]},
+                        {"role": "user", "content": f"follow-up {sample_id}"},
+                    ],
+                }
+            )
+        turn2_request_path = tmp_path / f"{prefix}-pilot-mtbench-turn2-requests.jsonl"
+        _write_jsonl(turn2_request_path, turn2_requests)
+        turn2_sha256 = hashlib.sha256(turn2_request_path.read_bytes()).hexdigest()
+        turn2_results = [
+            {
+                "study_id": study.id,
+                "protocol_sha256": study.canonical_sha256,
+                "manifest_sha256": manifest["manifest_sha256"],
+                "model_id": model.id,
+                "model_source": model.source,
+                "model_revision": model.checkpoint_revision,
+                "request_id": request["request_id"],
+                "allocation_id": "mtbench",
+                "sample_id": request["sample_id"],
+                "generation_seed": study.generation_seed("mtbench", request["sample_id"]),
+                "completion": f"follow-up answer {request['sample_id']}",
+                "runtime": {"request_batch_sha256": turn2_sha256},
+            }
+            for request in turn2_requests
+        ]
+        _write_jsonl(tmp_path / f"{prefix}-pilot-mtbench-turn2.jsonl", turn2_results)
+
+    items, artifacts = runner.load_items(
+        study=study,
+        manifest=manifest,
+        cohort="pilot",
+        result_root=tmp_path,
+    )
+    assert len(items) == 135
+    assert set(artifacts["models"]) == {model.id for model in study.models}
+
+    source_path = tmp_path / "source-pilot-offline.jsonl"
+    changed = [json.loads(line) for line in source_path.read_text(encoding="utf-8").splitlines()]
+    changed[0]["runtime"]["request_batch_sha256"] = "0" * 64
+    _write_jsonl(source_path, changed)
+    with pytest.raises(ValueError, match="does not attest"):
+        runner.load_items(
+            study=study,
+            manifest=manifest,
+            cohort="pilot",
+            result_root=tmp_path,
+        )
