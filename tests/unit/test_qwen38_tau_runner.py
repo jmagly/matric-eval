@@ -39,14 +39,15 @@ def test_protocol_and_generation_seed_match_study_contract() -> None:
         tau_runner._load_protocol(PROTOCOL, "unknown")
 
 
-def test_manifest_and_scored_ids_require_exact_order(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cohort", ["pilot", "full"])
+def test_manifest_and_scored_ids_require_exact_order(tmp_path: Path, cohort: str) -> None:
     scored = {"airline": ["3"], "retail": ["43", "47"]}
     flattened = tau_runner._flatten_scored_ids(scored)
     assert flattened == ["airline:3", "retail:43", "retail:47"]
 
     manifest = {
         "study_id": "study",
-        "cohort": "pilot",
+        "cohort": cohort,
         "allocations": [{"allocation_id": "tau3-bench", "selected_ids": flattened}],
     }
     manifest_hash = hashlib.sha256(
@@ -57,12 +58,20 @@ def test_manifest_and_scored_ids_require_exact_order(tmp_path: Path) -> None:
     path.write_text(json.dumps(manifest), encoding="utf-8")
 
     assert (
-        tau_runner._verify_manifest(path, {"manifest_sha256": manifest_hash}, flattened, "study")
+        tau_runner._verify_manifest(
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            flattened,
+            "study",
+        )
         == manifest_hash
     )
     with pytest.raises(ValueError, match="exactly match"):
         tau_runner._verify_manifest(
-            path, {"manifest_sha256": manifest_hash}, list(reversed(flattened)), "study"
+            path,
+            {"manifest_sha256": manifest_hash, "cohort": cohort},
+            list(reversed(flattened)),
+            "study",
         )
 
 
