@@ -146,7 +146,9 @@ def test_external_key_uses_one_shot_descriptor_and_is_redacted() -> None:
 def test_tau_external_model_is_an_immutable_snapshot() -> None:
     parser = tau_runner.build_parser()
     model_actions = {
-        action.dest: action for action in parser._actions if action.dest in {"user_model", "nl_evaluator_model"}
+        action.dest: action
+        for action in parser._actions
+        if action.dest in {"user_model", "nl_evaluator_model"}
     }
     assert set(model_actions) == {"user_model", "nl_evaluator_model"}
     assert tau_runner.TAU_EXTERNAL_MODEL == "gpt-4.1-2025-04-14"
