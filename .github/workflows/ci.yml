@@ -8,6 +8,7 @@ on:
 
 env:
   UV_CACHE_DIR: /tmp/.uv-cache
+  UV_PYTHON: "3.11"
 
 jobs:
   quality:

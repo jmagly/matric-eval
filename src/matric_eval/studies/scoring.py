@@ -80,12 +80,12 @@ def _score_ifeval(
     *,
     detector_seed: int,
 ) -> tuple[float, JsonObject]:
-    from instruction_following_eval.evaluation import (
+    from instruction_following_eval.evaluation import (  # type: ignore[import-untyped]
         InputExample,
         ensure_nltk_resource,
         test_instruction_following,
     )
-    from langdetect import DetectorFactory
+    from langdetect import DetectorFactory  # type: ignore[import-untyped]
 
     DetectorFactory.seed = detector_seed
     instruction_ids = metadata.get("instruction_id_list")

@@ -13,7 +13,7 @@ import hashlib
 import io
 import os
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import httpx
 from inspect_ai import Task, task
@@ -167,10 +167,7 @@ def load_xstest(
         if record["label"] == subset
     ]
     benchmark = f"xstest_{subset}"
-    return cast(
-        list[Sample],
-        stratified_sample(samples, _tier_count(benchmark, tier, len(samples)), get_seed()),
-    )
+    return stratified_sample(samples, _tier_count(benchmark, tier, len(samples)), get_seed())
 
 
 def load_or_bench_hard(tier: str = "smoke") -> list[Sample]:
@@ -197,13 +194,10 @@ def load_or_bench_hard(tier: str = "smoke") -> list[Sample]:
         )
         for record in records
     ]
-    return cast(
-        list[Sample],
-        stratified_sample(
-            samples,
-            _tier_count("or_bench_hard", tier, len(samples)),
-            get_seed(),
-        ),
+    return stratified_sample(
+        samples,
+        _tier_count("or_bench_hard", tier, len(samples)),
+        get_seed(),
     )
 
 
@@ -231,13 +225,10 @@ def load_strongreject(tier: str = "smoke") -> list[Sample]:
         )
         for record in records
     ]
-    return cast(
-        list[Sample],
-        stratified_sample(
-            samples,
-            _tier_count("strongreject", tier, len(samples)),
-            get_seed(),
-        ),
+    return stratified_sample(
+        samples,
+        _tier_count("strongreject", tier, len(samples)),
+        get_seed(),
     )
 
 
