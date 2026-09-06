@@ -11,7 +11,7 @@ keywords = ["llm", "evaluation", "ollama", "benchmark"]
 dependencies = [
     "inspect-ai==0.3.263",
     "inspect-evals[cyberseceval_4,gaia,ifeval,swe_bench]==0.19.0",
-    "instruction-following-eval @ git+https://github.com/josejg/instruction_following_eval.git@0c495b2f95155e8b10acb919ae283bfb4d5be6e2",
+    "instruction-following-eval",
     "langdetect>=1.0.9",
     "httpx>=0.28.0",
     "openai>=2.45.0",
@@ -21,6 +21,9 @@ dependencies = [
     "pydantic-settings>=2.13.0",
     "pyyaml>=6.0.0",
 ]
+
+[tool.uv.sources]
+instruction-following-eval = { git = "https://github.com/josejg/instruction_following_eval.git", rev = "0c495b2f95155e8b10acb919ae283bfb4d5be6e2" }
 
 [project.optional-dependencies]
 dev = [
