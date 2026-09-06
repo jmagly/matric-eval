@@ -8,9 +8,8 @@ Usage:
     uv run python run_smoke.py --max-size 10
 """
 
-import subprocess
-import sys
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -43,7 +42,8 @@ def get_models(max_size_gb: float = 15.0) -> list[tuple[str, float]]:
 def run_smoke_eval(model: str) -> dict:
     """Run smoke evaluation on a model using Python API."""
     from inspect_ai import eval as inspect_eval
-    from matric_eval.tasks.builtin import smoke_humaneval, smoke_mbpp, smoke_gsm8k
+
+    from matric_eval.tasks.builtin import smoke_gsm8k, smoke_humaneval, smoke_mbpp
 
     ollama_model = f"ollama/{model}"
     results = {
@@ -71,7 +71,9 @@ def run_smoke_eval(model: str) -> dict:
                 scores = logs[0].results.scores
                 if scores:
                     accuracy = scores[0].metrics.get("accuracy", {})
-                    score = accuracy.value if hasattr(accuracy, 'value') else accuracy.get("value", 0)
+                    score = (
+                        accuracy.value if hasattr(accuracy, "value") else accuracy.get("value", 0)
+                    )
                     results["benchmarks"][name] = {
                         "score": score,
                         "samples": len(logs[0].samples) if logs[0].samples else 0,
@@ -89,7 +91,11 @@ def run_smoke_eval(model: str) -> dict:
             print(f"error: {e}")
 
     # Calculate average
-    scores = [b["score"] for b in results["benchmarks"].values() if isinstance(b.get("score"), (int, float))]
+    scores = [
+        b["score"]
+        for b in results["benchmarks"].values()
+        if isinstance(b.get("score"), (int, float))
+    ]
     results["average"] = sum(scores) / len(scores) if scores else 0
 
     return results
@@ -117,14 +123,14 @@ def main():
     if args.model:
         models = [(args.model, 0)]
     elif args.top > 0:
-        models = models[:args.top]
+        models = models[: args.top]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("MATRIC-EVAL SMOKE TEST")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Models to test: {len(models)}")
-    print(f"Benchmarks: HumanEval (5), MBPP (5), GSM8K (5)")
-    print(f"{'='*60}\n")
+    print("Benchmarks: HumanEval (5), MBPP (5), GSM8K (5)")
+    print(f"{'=' * 60}\n")
 
     all_results = []
     for i, (model, size) in enumerate(models, 1):
@@ -138,9 +144,9 @@ def main():
         print(f"  Average: {avg:.0%}")
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Rank by average score
     ranked = sorted(all_results, key=lambda x: x.get("average", 0), reverse=True)
@@ -162,14 +168,19 @@ def main():
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     results_file = results_dir / f"smoke-{timestamp}.json"
-    results_file.write_text(json.dumps({
-        "timestamp": timestamp,
-        "models_tested": len(all_results),
-        "results": all_results,
-    }, indent=2))
+    results_file.write_text(
+        json.dumps(
+            {
+                "timestamp": timestamp,
+                "models_tested": len(all_results),
+                "results": all_results,
+            },
+            indent=2,
+        )
+    )
 
     print(f"\nResults saved to: {results_file}")
-    print(f"Logs in: logs/")
+    print("Logs in: logs/")
 
 
 if __name__ == "__main__":
