@@ -83,7 +83,10 @@ def _manifest_identity(study: StudyProtocol, manifest: JsonObject) -> tuple[str,
     ).hexdigest()
     if declared != actual:
         raise ValueError("manifest_sha256 does not match canonical manifest content")
-    if manifest.get("study_id") != study.id or manifest.get("protocol_sha256") != study.canonical_sha256:
+    if (
+        manifest.get("study_id") != study.id
+        or manifest.get("protocol_sha256") != study.canonical_sha256
+    ):
         raise ValueError("manifest identity does not match the study protocol")
     cohort = manifest.get("cohort")
     if cohort not in {"pilot", "full"}:
@@ -343,9 +346,7 @@ def _normalize_tau(
     records = receipt.get("scored_results")
     if not isinstance(records, list):
         raise ValueError("tau receipt scored_results must be a list")
-    indexed = {
-        record.get("canonical_id"): record for record in records if isinstance(record, dict)
-    }
+    indexed = {record.get("canonical_id"): record for record in records if isinstance(record, dict)}
     expected_ids = selected["tau3-bench"]
     if list(indexed) != expected_ids or len(indexed) != len(records):
         raise ValueError("tau receipt does not exactly cover the ordered selected IDs")
@@ -388,9 +389,7 @@ def _normalize_terminal(
     records = receipt.get("scored_results")
     if not isinstance(records, list):
         raise ValueError("Terminal-Bench receipt scored_results must be a list")
-    indexed = {
-        record.get("canonical_id"): record for record in records if isinstance(record, dict)
-    }
+    indexed = {record.get("canonical_id"): record for record in records if isinstance(record, dict)}
     expected_ids = selected["terminal-bench-2.1"]
     if list(indexed) != expected_ids or len(indexed) != len(records):
         raise ValueError("Terminal-Bench receipt does not exactly cover ordered selected IDs")
@@ -637,9 +636,7 @@ def build_observations(
             )
         )
     parsed = load_observations(candidates)
-    indexed = {
-        (row.model_id, row.allocation_id, row.sample_id): row for row in parsed
-    }
+    indexed = {(row.model_id, row.allocation_id, row.sample_id): row for row in parsed}
     expected = [
         (model.id, allocation.id, sample_id)
         for allocation in study.benchmarks
