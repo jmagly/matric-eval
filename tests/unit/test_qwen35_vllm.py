@@ -9,6 +9,10 @@ model_class = adapter_module.Qwen3_5TextForCausalLM
 
 
 def test_text_mrope_matches_qwen_multimodal_text_positions() -> None:
+    assert model_class.is_hybrid is True
+    assert callable(model_class.get_mamba_state_shape_from_config)
+    assert callable(model_class.get_mamba_state_dtype_from_config)
+    assert callable(model_class.get_mamba_state_copy_func)
     model = model_class.__new__(model_class)
 
     positions, delta = model.get_mrope_input_positions([4, 8, 15, 16], [])

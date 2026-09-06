@@ -269,11 +269,13 @@ wrap the same text implementation in `Qwen3_5ForConditionalGeneration`. vLLM 0.2
 ships the text class but does not list it in its built-in registry, so the runner uses
 vLLM's public `ModelRegistry.register_model` API to bind the declared causal-LM
 architecture to a minimal study adapter around the pinned built-in implementation.
-The adapter supplies only the missing text M-RoPE interface: three identical position
-rows and zero delta, exactly matching vLLM's multimodal wrapper for a prompt without
-media. It rejects any multimodal features. The registration target is frozen in
-`protocol.yaml` and copied into every result row; it changes loader routing and fills
-that interface gap, not the language-model implementation or checkpoint tensors.
+The adapter supplies the interfaces omitted by vLLM's unregistered causal-LM class:
+text M-RoPE uses three identical position rows and zero delta, exactly matching vLLM's
+multimodal wrapper for a prompt without media, while hybrid GDN/Mamba cache metadata is
+delegated to that same pinned wrapper. It rejects any multimodal features. The
+registration target is frozen in `protocol.yaml` and copied into every result row; it
+changes loader routing and fills those interface gaps, not the language-model
+implementation or checkpoint tensors.
 
 Each invocation may contain one allocation or multiple complete allocation blocks in
 protocol order. This supports benchmark-specific scoring and MT-Bench's dependent
