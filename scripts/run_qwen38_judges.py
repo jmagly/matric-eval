@@ -104,7 +104,7 @@ def _indexed(rows: Sequence[JsonObject], label: str) -> dict[str, JsonObject]:
 
 def _manifest(study: StudyProtocol, payload: JsonObject, cohort: str) -> dict[str, list[str]]:
     canonical = dict(payload)
-    declared = canonical.pop("manifest_sha256", None)
+    canonical.pop("manifest_sha256", None)
     actual = hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
