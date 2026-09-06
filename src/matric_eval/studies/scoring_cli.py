@@ -9,6 +9,7 @@ from typing import Sequence
 
 from matric_eval.studies.protocol import StudyProtocol
 from matric_eval.studies.scoring import (
+    docker_code_executor,
     load_jsonl,
     score_offline_outputs,
     sha256_file,
@@ -23,6 +24,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("scoring_records", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--code-timeout", type=int, default=30)
+    parser.add_argument(
+        "--docker-code-sandbox",
+        action="store_true",
+        help="run generated Python in the isolated networkless A100 Docker daemon",
+    )
     args = parser.parse_args(argv)
     if args.code_timeout < 1:
         parser.error("--code-timeout must be positive")
@@ -32,6 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         study=study,
         results=load_jsonl(args.results),
         scoring_records=load_jsonl(args.scoring_records),
+        executor=docker_code_executor if args.docker_code_sandbox else None,
         code_timeout=args.code_timeout,
     )
     summary.update(

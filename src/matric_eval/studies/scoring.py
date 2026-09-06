@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
+import uuid
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable
 
 from matric_eval.scorers.code_execution import extract_code
-from matric_eval.scorers.io_execution import compare_outputs, io_execute
+from matric_eval.scorers.io_execution import compare_outputs
 from matric_eval.studies.protocol import StudyProtocol
 from matric_eval.tasks.ifeval import check_constraint
 from matric_eval.tasks.mmlu_pro import extract_mmlu_pro_answer
@@ -23,6 +25,11 @@ DETERMINISTIC_ALLOCATIONS = frozenset({"ifeval", "livecodebench", "mmlu-pro"})
 DIAGNOSTIC_ALLOCATIONS = frozenset(
     {"xstest-safe", "xstest-unsafe", "or-bench-hard-benign", "strongreject-harmful"}
 )
+CODE_SANDBOX_IMAGE = (
+    "vllm/vllm-openai@"
+    "sha256:770fe65b2c73ee74a5c42165cf3433de4048cc2cd9c57a937ca4e35aba5aa87b"
+)
+CODE_SANDBOX_DOCKER_HOST = "unix:///run/matric-eval-docker.sock"
 
 
 def sha256_file(path: Path) -> str:
@@ -123,6 +130,70 @@ def _score_livecodebench(
     }
 
 
+def docker_code_executor(code: str, stdin_input: str, timeout: int) -> dict[str, Any]:
+    """Execute untrusted Python in the study's isolated, networkless Docker daemon."""
+    name = f"matric-eval-score-{uuid.uuid4().hex}"
+    docker = ["sudo", "docker", "--host", CODE_SANDBOX_DOCKER_HOST]
+    command = [
+        *docker,
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "64",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--user",
+        "65534:65534",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,nodev,size=64m",
+        "--entrypoint",
+        "python3",
+        CODE_SANDBOX_IMAGE,
+        "-c",
+        code,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            input=stdin_input,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        subprocess.run(
+            [*docker, "rm", "--force", name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "error": f"Execution timeout after {timeout} seconds",
+        }
+    return {
+        "success": result.returncode == 0,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "error": result.stderr if result.returncode else None,
+    }
+
+
 def _score_diagnostic(completion: str, target: str) -> tuple[float, JsonObject]:
     observed = classify_refusal_prefix(completion)
     expected = target.strip()
@@ -140,7 +211,7 @@ def score_offline_outputs(
     study: StudyProtocol,
     results: list[JsonObject],
     scoring_records: list[JsonObject],
-    executor: CodeExecutor = io_execute,
+    executor: CodeExecutor | None = None,
     code_timeout: int = 30,
 ) -> tuple[list[JsonObject], JsonObject]:
     """Score one model's sealed offline batch after verifying the join contract."""
@@ -194,6 +265,8 @@ def score_offline_outputs(
             scorer_name = "mmlu-pro-answer-extraction"
             publication_eligible = True
         elif allocation == "livecodebench":
+            if executor is None:
+                raise ValueError("LiveCodeBench requires an explicit isolated code executor")
             value, detail = _score_livecodebench(
                 completion,
                 metadata,

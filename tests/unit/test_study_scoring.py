@@ -102,6 +102,22 @@ def test_livecodebench_executor_is_injectable() -> None:
     }
 
 
+def test_livecodebench_rejects_implicit_host_execution() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    results = [_result(study, "livecodebench", "p1", "print('unsafe')")]
+    scoring = [
+        _scoring(
+            "livecodebench",
+            "p1",
+            "unsafe",
+            {"public_test_cases": [{"input": "", "output": "unsafe"}]},
+        )
+    ]
+
+    with pytest.raises(ValueError, match="explicit isolated code executor"):
+        score_offline_outputs(study=study, results=results, scoring_records=scoring)
+
+
 def test_rejects_contract_drift_and_overwrite(tmp_path: Path) -> None:
     study = StudyProtocol.from_yaml(PROTOCOL)
     result = _result(study, "mmlu-pro", "q1", "A")
