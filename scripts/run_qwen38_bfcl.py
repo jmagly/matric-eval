@@ -163,12 +163,16 @@ def _register_study_model(
 ) -> None:
     from bfcl_eval.constants.model_config import MODEL_CONFIG_MAPPING, ModelConfig
     from bfcl_eval.model_handler.local_inference.qwen_fc import QwenFCHandler
-    from overrides import override
+
+    def nested_override(method: Any) -> Any:
+        """Mark nested overrides for BFCL's metaclass without frame introspection."""
+        method.__override__ = True
+        return method
 
     class StudyQwenFCHandler(QwenFCHandler):
         """Qwen handler that supplies every preregistered sampling control."""
 
-        @override
+        @nested_override
         def inference(
             self,
             test_entry: dict[str, Any],
@@ -181,7 +185,7 @@ def _register_study_model(
             self._study_sample_id = sample_id
             return super().inference(test_entry, include_input_log, exclude_state_log)
 
-        @override
+        @nested_override
         def _query_prompting(self, inference_data: dict[str, Any]) -> tuple[Any, float]:
             sample_id = getattr(self, "_study_sample_id", None)
             if not isinstance(sample_id, str):
