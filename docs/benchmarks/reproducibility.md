@@ -14,10 +14,10 @@ types, agents, sandbox specifications, scorer decorators, and synchronous
 
 | Integration strategy | Benchmarks |
 | --- | --- |
-| Maintained `inspect-evals` task/protocol | CyberSecEval 4, classic GAIA, InfiniteBench 2-A |
+| Maintained `inspect-evals` task/protocol | BrowseComp 3-B, CyberSecEval 4, classic GAIA, HLE 5-C, InfiniteBench 2-A |
 | Maintained `inspect-evals` solver/scorer with pinned local loader | SWE-bench Verified, Multilingual, Pro |
 | Local Inspect task and scorer | ARC, DS-1000, GSM8K, HumanEval, IFEval, LiveCodeBench, MBPP, MMLU, MMMU, MT-Bench, RealWorldQA, tool calling, MATRIC tasks |
-| Pinned external official runner | BFCL V4 Agentic, Claw-Eval, HELMET, MemoryBench, NL2RepoBench, NoLiMa, OmniDocBench, QwenClawBench, RULER v1, SWE-bench-Live MultiLang, tau3-bench v1.0.1, Terminal-Bench 2.1, Tulving, Video-MME-v2 |
+| Pinned external official runner | ARC-AGI-3, BFCL V4 Agentic, Claw-Eval, GDPval, HELMET, MemoryBench, NL2RepoBench, NoLiMa, OmniDocBench, OSWorld 2.0, QwenClawBench, RULER v1, SWE-bench-Live MultiLang, tau3-bench v1.0.1, Terminal-Bench 2.1, Tulving, Video-MME-v2 |
 | Quarantined pending public protocol | QwenWebBench |
 
 BABILong uses a pinned Hugging Face loader and the official constrained-label scorer.
@@ -116,6 +116,10 @@ Add `--live` to resolve public Hugging Face and GitHub sources without downloadi
 benchmark payloads. CI uses the live mode, fails on broken public sources,
 mutable or missing revisions, placeholder scorers, and invalid dataset-shape
 declarations, and retains the JSON report as an artifact.
+
+The live audit checks resolvability, not whether an upstream branch has moved. Pair it
+with the periodic source-tip and semantic-delta procedure recorded in the
+[2026-09-05 freshness review](freshness-review-2026-09-05.md).
 
 Immutable benchmarks keep a pinned data/evaluator identity indefinitely; a new
 upstream release is integrated as a separately reviewed protocol change.

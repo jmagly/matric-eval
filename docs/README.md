@@ -80,6 +80,7 @@ Background research and academic references.
 ### Benchmark Protocols
 
 - [**Reproducibility and Freshness**](benchmarks/reproducibility.md) - Version and source policy
+- [**2026-09-05 Dataset Freshness Review**](benchmarks/freshness-review-2026-09-05.md) - Source-tip audit and new agentic/AGI lanes
 - [**Wave 1 Protocols**](benchmarks/wave1-protocols.md) - Initial expansion decisions
 - [**Wave 2 Protocols**](benchmarks/wave2-protocols.md) - Successor and security benchmarks
 - [**Wave 3 Protocols**](benchmarks/wave3-protocols.md) - Long-context and memory benchmarks

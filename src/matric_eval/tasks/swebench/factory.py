@@ -17,7 +17,7 @@ from inspect_evals.swe_bench.solvers import swe_bench_agent_with_inspect_tool_su
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.datasets import get_dataset_path, seeded_sample
 
-SWEBENCH_EVALUATOR_REVISION = "6a35510e530f236fd1dbcd9df888f01937c8494a"
+SWEBENCH_EVALUATOR_REVISION = "1eda2bfd205dc7d97e4dc91cfb1e7f05a2d4c504"
 SWEBENCH_SYSTEM_PROMPT = (
     "Please solve the following coding issue by editing the repository. "
     "Your changes will be evaluated as a git patch.\n\n{issue_text}"
@@ -26,21 +26,24 @@ SWEBENCH_SYSTEM_PROMPT = (
 VARIANT_CONFIG: dict[str, dict[str, Any]] = {
     "verified": {
         "dataset_id": "SWE-bench/SWE-bench_Verified",
-        "revision": "91aa3ed51b709be6457e12d00300a6a596d4c6a3",
+        "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
         "split": "test",
         "total_samples": 500,
+        "protocol_version": "official-harness-v5-2026.08",
     },
     "multilingual": {
         "dataset_id": "SWE-bench/SWE-bench_Multilingual",
-        "revision": "e5c585e008e2cb5eecc7c64192d855c53279d788",
+        "revision": "846e647b9f33c0b51b739d005d13d85493c9af09",
         "split": "test",
         "total_samples": 300,
+        "protocol_version": "official-harness-v5-2026.08",
     },
     "pro": {
         "dataset_id": "ScaleAI/SWE-bench_Pro",
         "revision": "7ab5114912baf22bb098818e604c02fe7ad2c11f",
         "split": "test",
         "total_samples": 731,
+        "protocol_version": "official-harness-2026",
     },
 }
 
@@ -199,7 +202,7 @@ def create_swebench_task(
         message_limit=30,
         name=f"swebench_{variant}",
         metadata={
-            "protocol_version": "official-harness-2026",
+            "protocol_version": config["protocol_version"],
             "dataset_source": config["dataset_id"],
             "dataset_revision": config["revision"],
             "evaluator_revision": SWEBENCH_EVALUATOR_REVISION,

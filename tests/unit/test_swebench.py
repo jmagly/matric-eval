@@ -17,6 +17,7 @@ from inspect_ai import Task
 from inspect_ai.dataset import Sample
 
 from matric_eval.tasks.swebench.factory import (
+    SWEBENCH_EVALUATOR_REVISION,
     SWEBENCH_SYSTEM_PROMPT,
     VARIANT_CONFIG,
     _extract_test_path,
@@ -89,6 +90,14 @@ def _isolated_registry(isolated_registry):
 # =============================================================================
 # Record to Sample Conversion
 # =============================================================================
+
+
+def test_august_2026_swebench_snapshots_and_evaluator_are_pinned() -> None:
+    assert VARIANT_CONFIG["verified"]["revision"] == ("78f471bf655a3137b2e8a75af1501690ec009ec3")
+    assert VARIANT_CONFIG["multilingual"]["revision"] == (
+        "846e647b9f33c0b51b739d005d13d85493c9af09"
+    )
+    assert SWEBENCH_EVALUATOR_REVISION == "1eda2bfd205dc7d97e4dc91cfb1e7f05a2d4c504"
 
 
 class TestSwebenchRecordToSample:

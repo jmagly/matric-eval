@@ -75,6 +75,7 @@ def test_registration_and_configuration_name(record: dict) -> None:
     metadata = videomme._benchmark_metadata
     assert metadata.total_samples == 3200
     assert metadata.protocol_version == "v2"
+    assert VIDEOMME_DATASET_REVISION == "6e4bebb03202e1ddbf3d37703e560e51c5aa2d64"
     with patch(
         "matric_eval.tasks.videomme.load_videomme",
         return_value=[record_to_sample(record, frame_paths=["/tmp/a.jpg"])],

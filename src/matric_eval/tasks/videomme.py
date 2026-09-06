@@ -30,7 +30,7 @@ from matric_eval.datasets import get_dataset_path
 from matric_eval.tasks.registry import register_benchmark
 
 VIDEOMME_DATASET = "MME-Benchmarks/Video-MME-v2"
-VIDEOMME_DATASET_REVISION = "31ca5db7bc5ccfc3033a1075efc7858e783c6203"
+VIDEOMME_DATASET_REVISION = "6e4bebb03202e1ddbf3d37703e560e51c5aa2d64"
 VIDEOMME_EVALUATOR_REVISION = "28fc3bcfbd4d162594c8e4bad866b694d9b035aa"
 VALID_ANSWERS = frozenset("ABCDEFGH")
 DEFAULT_MAX_FRAMES = 64
