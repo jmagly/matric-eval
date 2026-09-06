@@ -119,7 +119,7 @@ def _server_arguments(
         "--reasoning-parser",
         "qwen3",
         "--disable-log-requests",
-        "--disable-access-log",
+        "--disable-uvicorn-access-log",
     ]
     if server["async_scheduling"]:
         arguments.append("--async-scheduling")

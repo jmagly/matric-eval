@@ -72,7 +72,7 @@ def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path
     assert arguments[arguments.index("--max-num-seqs") + 1] == "1"
     assert arguments[arguments.index("--tool-call-parser") + 1] == "qwen3_coder"
     assert "--disable-log-requests" in arguments
-    assert "--disable-access-log" in arguments
+    assert "--disable-uvicorn-access-log" in arguments
 
     with pytest.raises(ValueError, match="127.0.0.1"):
         server_cli._server_arguments(
