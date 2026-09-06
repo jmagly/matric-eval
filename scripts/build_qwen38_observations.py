@@ -475,12 +475,38 @@ def _validate_judge_controls(
         calibration = bundle.get("calibration")
         if (
             not isinstance(calibration, dict)
+            or calibration.get("schema_version") != "1"
+            or calibration.get("rubric") != "refusal_three_way"
             or calibration.get("human_double_labeled_items") != 100
+            or calibration.get("annotators") != 2
             or isinstance(calibration.get("cohens_kappa"), bool)
             or not isinstance(calibration.get("cohens_kappa"), (int, float))
+            or not -1.0 <= float(calibration["cohens_kappa"]) <= 1.0
+            or isinstance(calibration.get("agreement_rate"), bool)
+            or not isinstance(calibration.get("agreement_rate"), (int, float))
+            or not 0.0 <= float(calibration["agreement_rate"]) <= 1.0
             or not isinstance(calibration.get("confusion_matrix"), dict)
         ):
             raise ValueError("full judge bundle requires the preregistered human calibration")
+        confusion = calibration["confusion_matrix"]
+        labels = ["full_compliance", "full_refusal", "partial_refusal"]
+        matrix = confusion.get("matrix")
+        if (
+            confusion.get("labels") != labels
+            or not isinstance(matrix, list)
+            or len(matrix) != 3
+            or any(
+                not isinstance(row, list)
+                or len(row) != 3
+                or any(
+                    isinstance(value, bool) or not isinstance(value, int) or value < 0
+                    for value in row
+                )
+                for row in matrix
+            )
+            or sum(sum(row) for row in matrix) != 100
+        ):
+            raise ValueError("full judge bundle calibration confusion matrix is invalid")
 
 
 def _normalize_judges(

@@ -211,6 +211,51 @@ def test_api_key_is_read_once_from_inherited_descriptor() -> None:
         runner._read_secret_fd(0)
 
 
+def test_full_calibration_summary_is_content_free_and_strict() -> None:
+    study, _plan = _study_plan()
+    manifest = study.selection_manifest(_catalog(study), "full")
+    calibration = {
+        "schema_version": "1",
+        "study_id": study.id,
+        "protocol_sha256": study.canonical_sha256,
+        "manifest_sha256": manifest["manifest_sha256"],
+        "judge_plan_sha256": "a" * 64,
+        "cohort": "full",
+        "rubric": "refusal_three_way",
+        "human_double_labeled_items": 100,
+        "annotators": 2,
+        "agreement_rate": 0.9,
+        "cohens_kappa": 0.85,
+        "confusion_matrix": {
+            "labels": ["full_compliance", "full_refusal", "partial_refusal"],
+            "matrix": [[30, 2, 1], [2, 30, 1], [2, 2, 30]],
+        },
+        "source_artifacts": {
+            "calibration_packet_sha256": "b" * 64,
+            "first_labels_sha256": "c" * 64,
+            "second_labels_sha256": "d" * 64,
+        },
+    }
+
+    sanitized = runner._calibration_summary(
+        calibration,
+        study=study,
+        manifest=manifest,
+        plan_sha256="a" * 64,
+    )
+    assert sanitized["human_double_labeled_items"] == 100
+    assert "study_id" not in sanitized
+
+    calibration["confusion_matrix"]["matrix"][0][0] = 29
+    with pytest.raises(ValueError, match="100 paired labels"):
+        runner._calibration_summary(
+            calibration,
+            study=study,
+            manifest=manifest,
+            plan_sha256="a" * 64,
+        )
+
+
 def test_load_items_verifies_generation_and_request_batch_hashes(tmp_path: Path) -> None:
     study, _plan = _study_plan()
     manifest = study.selection_manifest(_catalog(study), "pilot")
