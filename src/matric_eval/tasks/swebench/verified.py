@@ -23,9 +23,9 @@ from matric_eval.tasks.swebench.factory import create_swebench_task
     requires_sandbox=True,
     sandbox_profile="agentic-dev",
     scoring_type="official_resolved",
-    protocol_version="official-harness-2026",
+    protocol_version="official-harness-v5-2026.08",
     dataset_source="SWE-bench/SWE-bench_Verified",
-    dataset_revision="91aa3ed51b709be6457e12d00300a6a596d4c6a3",
+    dataset_revision="78f471bf655a3137b2e8a75af1501690ec009ec3",
     dataset_configs=("default",),
     dataset_splits=("test",),
     license="upstream repository terms",
@@ -33,7 +33,7 @@ from matric_eval.tasks.swebench.factory import create_swebench_task
     source_kind="huggingface",
     release_policy="versioned",
     evaluator_source="inspect-evals/swe_bench",
-    evaluator_revision="6a35510e530f236fd1dbcd9df888f01937c8494a",
+    evaluator_revision="1eda2bfd205dc7d97e4dc91cfb1e7f05a2d4c504",
 )
 @task
 def swebench_verified(tier: str = "smoke") -> Task:

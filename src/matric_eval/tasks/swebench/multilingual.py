@@ -61,9 +61,9 @@ def multilingual_record_to_sample(record: dict[str, Any]) -> Sample:
     requires_sandbox=True,
     sandbox_profile="agentic-dev",
     scoring_type="official_resolved",
-    protocol_version="official-harness-2026",
+    protocol_version="official-harness-v5-2026.08",
     dataset_source="SWE-bench/SWE-bench_Multilingual",
-    dataset_revision="e5c585e008e2cb5eecc7c64192d855c53279d788",
+    dataset_revision="846e647b9f33c0b51b739d005d13d85493c9af09",
     dataset_configs=("default",),
     dataset_splits=("test",),
     license="MIT",
@@ -71,7 +71,7 @@ def multilingual_record_to_sample(record: dict[str, Any]) -> Sample:
     source_kind="huggingface",
     release_policy="versioned",
     evaluator_source="SWE-bench/SWE-bench",
-    evaluator_revision="6a35510e530f236fd1dbcd9df888f01937c8494a",
+    evaluator_revision="1eda2bfd205dc7d97e4dc91cfb1e7f05a2d4c504",
 )
 @task
 def swebench_multilingual(tier: str = "smoke") -> Task:

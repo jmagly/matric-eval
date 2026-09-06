@@ -11,8 +11,8 @@ from inspect_ai.dataset import MemoryDataset
 from matric_eval.config import get_sample_count, get_seed
 from matric_eval.datasets import seeded_sample
 
-INSPECT_EVALS_VERSION = "0.16.0"
-INSPECT_EVALS_REVISION = "6a35510e530f236fd1dbcd9df888f01937c8494a"
+INSPECT_EVALS_VERSION = "0.19.0"
+INSPECT_EVALS_REVISION = "1eda2bfd205dc7d97e4dc91cfb1e7f05a2d4c504"
 
 
 def adapt_upstream_task(

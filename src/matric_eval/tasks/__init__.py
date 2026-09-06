@@ -37,6 +37,16 @@ from matric_eval.tasks.cyberseceval import record_to_sample as cyberseceval_reco
 from matric_eval.tasks.ds1000 import ds1000, load_ds1000
 from matric_eval.tasks.ds1000 import record_to_sample as ds1000_record_to_sample
 from matric_eval.tasks.evalplus import humaneval_plus, load_evalplus, mbpp_plus
+from matric_eval.tasks.frontier_agentic import (
+    arc_agi_3,
+    arc_agi_3_environment_manifest,
+    browsecomp,
+    build_arc_agi_3_server_command,
+    build_osworld2_download_commands,
+    gdpval,
+    hle,
+    osworld2,
+)
 from matric_eval.tasks.gaia import (
     gaia,
     gaia_scorer,
@@ -186,10 +196,15 @@ __all__ = [
     "register_benchmark",
     # Benchmarks
     "arc",
+    "arc_agi_3",
+    "arc_agi_3_environment_manifest",
     "babilong",
     "bfcl_v4_agentic",
     "build_bfcl_evaluate_command",
     "build_bfcl_generate_command",
+    "build_arc_agi_3_server_command",
+    "build_osworld2_download_commands",
+    "browsecomp",
     "build_swebench_live_evaluate_command",
     "build_tau2_command",
     "load_babilong",
@@ -234,6 +249,8 @@ __all__ = [
     "gsm8k",
     "gsm8k_record_to_sample",
     "gsm8k_scorer",
+    "gdpval",
+    "hle",
     "humaneval",
     "humaneval_plus",
     "humaneval_record_to_sample",
@@ -274,6 +291,7 @@ __all__ = [
     "mbpp",
     "mbpp_plus",
     "normalize_answer",
+    "osworld2",
     "mbpp_record_to_sample",
     "mmlu",
     "mmlu_pro",
