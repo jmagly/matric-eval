@@ -36,6 +36,60 @@ then to AIWG.md for framework discovery and routing.
 
 ## Project Context
 
-Add project conventions, local hook/context pointers, and links to deeper project documents here.
+matric-eval is a Python 3.11+ model evaluation framework built on Inspect AI.
+The CLI, provider adapters, benchmark registry, checkpoint recovery, study
+workflows, and TypeScript subprocess bindings are implemented in this repository.
+
+### Development commands
+
+Run commands from the repository root:
+
+```bash
+uv sync --locked --extra dev
+uv run matric-eval --help
+uv run matric-eval list-benchmarks
+uv run matric-eval list-providers
+make test-unit
+make ci
+uv build
+```
+
+`make ci` runs Ruff lint/format checks, the mypy baseline ratchet, and tests with
+an 80% coverage floor. `make type-check-strict` displays all strict mypy findings;
+`make type-check-update` is reserved for reviewed baseline reductions. Provider
+smoke tests require the services and opt-ins described in the
+[real-provider smoke guide](docs/testing/real-provider-smoke.md).
+
+### Code and documentation map
+
+- [Package metadata](pyproject.toml), [locked dependencies](uv.lock), and
+  [development targets](Makefile) define installation and validation.
+- [CLI](src/matric_eval/cli.py) defines commands and options;
+  [settings](src/matric_eval/config/settings.py) and
+  [config compatibility exports](src/matric_eval/config/__init__.py) define active
+  configuration behavior. The adjacent `src/matric_eval/config.py` is legacy.
+- [Benchmark registry](src/matric_eval/tasks/registry.py),
+  [tasks](src/matric_eval/tasks/), and [scorers](src/matric_eval/scorers/) define
+  benchmark availability and evaluation behavior.
+- [Providers](src/matric_eval/providers/) implement inference backends;
+  [core](src/matric_eval/core/) and [state](src/matric_eval/state/) implement
+  execution and recovery; [studies](src/matric_eval/studies/) implements study
+  protocol and manifest workflows.
+- [TypeScript bindings](bindings/typescript/) call the Python CLI.
+- [README](README.md), [documentation index](docs/README.md), and
+  [contributing guide](CONTRIBUTING.md) are the starting points for users and
+  contributors. [Planning](docs/development/planning.md) and
+  [roadmap](docs/development/roadmap.md) contain historical design and planned work;
+  verify current behavior against source and tests.
+
+### Repository delivery
+
+The canonical repository and engineering tracker are
+[Integro Labs Gitea](https://git.integrolabs.net/roctinam/matric-eval) (`origin`).
+The `github` remote is a public mirror. Follow the delivery policy in
+[AIWG configuration](.aiwg/aiwg.config): changes require a pull request to `main`,
+green CI, and no force pushes. Publication uses the validated
+[release workflow](.gitea/workflows/release.yml); direct Makefile publication
+commands are disabled.
 
 <!-- AIWG:workspace-operator:end -->

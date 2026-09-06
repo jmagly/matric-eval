@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "direction": "code-to-docs",
+  "guidance": true,
+  "completed_at": "2026-09-06T15:05:54.520729+00:00",
+  "scope": [
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "WORKSPACE.md",
+    "docs/README.md",
+    "docs/cli.md",
+    "docs/architecture/overview.md",
+    "docs/development/session-init.md"
+  ],
+  "report": ".aiwg/reports/doc-sync-2026-09-06.md",
+  "validation": ".aiwg/working/doc-sync/verification.json",
+  "files": {
+    "README.md": "ae07f53547b905707614746739a3db0061b0ae324a9f2b06197f12bb8716e219",
+    "CONTRIBUTING.md": "7d84c5fc712acd05bf2d6279e09b8524455b307b8693f82bea0511315594127f",
+    "SECURITY.md": "8839f29aa44e0b96b5361efcd67415a1594b6e485717aa58dcfdb66db3d4a78c",
+    "WORKSPACE.md": "124465b05addac20474ff796c619fbc45120b00466aafc98047894b0d5b96bfd",
+    "docs/README.md": "424aff26f17a9852c69db1ea1faa475080b2643861082f6fa0b5a6fb188815e3",
+    "docs/cli.md": "96fa39ee5c9168298bb79b0b067af5185b80f1cfceaa3b5abf4a84697e7736c5",
+    "docs/architecture/overview.md": "8475cc7f6099dcb71be78b196c56806e1d8231363be82c3ba96d06105dbacb76",
+    "docs/development/session-init.md": "5fdcaf8a8315ea2829cfb55728971c908a4af4f9e705962e721b28ec2b102022"
+  },
+  "readme_basis": "AIWG README example and docs/contributing/versioning.md published-package README standard",
+  "status": "complete"
+}
