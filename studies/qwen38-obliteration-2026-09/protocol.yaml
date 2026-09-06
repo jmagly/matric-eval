@@ -289,7 +289,8 @@ study:
       speculative_decoding: false
     model_assignment: randomized-crossover-across-three-a100s
     cache_policy: stage-one-model-at-a-time-and-reuse-qualified-local-checkpoints
-    minimum_free_srv_gib_before_new-download: 96
+    model_cache_root: /srv/obliteratus/matric-eval/cache/huggingface
+    minimum_free_model_filesystem_gib_before_new-download: 512
     preflight_evidence_required: true
 
   reporting:

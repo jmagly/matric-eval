@@ -30,6 +30,13 @@ score is prohibited because it would hide materially different failure modes.
 | `qwen38-27b-e03-bf16` | intervention | `95583d3ee44c40e840cb0ceb7106d12a1087d52f` | text-only, no MTP |
 | `qwen38-27b-pliny-v3-bf16` | intervention | `a58c3b53b3ce71551eafde2ed5ec8df48e0f4ff8` | vision-language + MTP |
 
+The retained E03 archive corresponds to the earlier Hub revision `56bbc4a…`.
+An A100-side Hub API comparison on 2026-09-06 found the same 28 safetensor names,
+53,792,095,760 total tensor bytes, and identical LFS SHA-256 values at `56bbc4a…`
+and the study pin `95583d3…`. The existing 51 GiB archive is therefore a qualified
+weight source for the primary study, while the current pinned non-weight files and
+their hashes remain part of the runtime manifest.
+
 The primary comparison is text-only and disables speculative decoding. Vision cannot
 be part of a three-way aggregate because E03 does not contain the vision tower. A
 future source-versus-Pliny vision diagnostic must be labeled as a different two-model
@@ -90,10 +97,11 @@ receipt, container digest, package inventory, and endpoint or offline-engine hea
 evidence.
 
 The host currently has three A100 80 GB cards, but resident memory is not evidence of
-availability. Acquire explicit leases. `/srv` had only 162 GiB free at preregistration,
-so do not download all three roughly 54 GB BF16 artifacts into a second cache. Reuse
-qualified local artifacts and stage one missing checkpoint at a time. Stop if a new
-download would leave less than the protocol's free-space floor.
+availability. Acquire explicit leases. `/srv` had only 162 GiB free at preregistration;
+the large model cache therefore lives under `/srv/obliteratus/matric-eval`, a bind
+mount on the separate 3.6 TiB model SSD with roughly 1.5 TiB free at inspection. Keep
+small run manifests under `/srv/matric-eval`, reuse the qualified E03 archive, and stop
+if a new download would leave less than the protocol's model-filesystem floor.
 
 After the 300 pilot generations finish, calculate elapsed time separately for direct,
 code-execution, judge, and agentic lanes. Report wall-clock and GPU-hours with median,
