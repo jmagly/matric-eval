@@ -4,12 +4,15 @@ import pytest
 
 from matric_eval.tasks.frontier_agentic import (
     ARC_AGI_3_REVISION,
+    ARC_AGI_3_PUBLIC_ENVIRONMENTS,
+    ARC_AGI_3_PUBLIC_MANIFEST_SHA256,
     BROWSECOMP_DATASET_SHA256,
     HLE_DATASET_REVISION,
     OSWORLD2_RELEASE,
     OSWORLD2_REVISION,
     OSWORLD2_TASK_MANIFEST_SHA256,
     arc_agi_3,
+    arc_agi_3_environment_manifest,
     browsecomp,
     build_arc_agi_3_server_command,
     build_osworld2_download_commands,
@@ -54,6 +57,10 @@ def test_arc_agi_3_command_and_external_runtime_contract() -> None:
     assert "port=8123" in command[-1]
     assert "save_all_recordings=True" in command[-1]
     assert arc_agi_3._benchmark_metadata.dataset_revision == ARC_AGI_3_REVISION
+    assert arc_agi_3._benchmark_metadata.total_samples == 25
+    manifest = arc_agi_3_environment_manifest(reversed(ARC_AGI_3_PUBLIC_ENVIRONMENTS))
+    assert manifest["count"] == 25
+    assert manifest["sha256"] == ARC_AGI_3_PUBLIC_MANIFEST_SHA256
     with pytest.raises(BenchmarkUnavailableError, match="stateful visual-action"):
         arc_agi_3()
 

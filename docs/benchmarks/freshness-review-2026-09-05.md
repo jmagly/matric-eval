@@ -73,13 +73,15 @@ controls with their registered Plus/Pro successors evaluated separately.
 | BrowseComp | Inspect Evals `3-B`; dataset SHA-256 `7b24471c…1454abf` | Hard web discovery and synthesis with auditable single answers | Networked browser/search and judge model |
 | Humanity's Last Exam | Inspect Evals `5-C`; `cais/hle@5a81a4c…4c29` | Broad frontier knowledge/reasoning, including multimodal items | Accepted dataset terms, vision, two grader roles |
 | GDPval open set | Inspect Evals `2-A`; `openai/gdpval@a3848a2…05962` | Realistic professional deliverables across 44 occupations | Explicit expert or validated rubric scorer; exact match is rejected |
-| ARC-AGI-3 public | Toolkit `0.9.9` at `f12822c…d2f` | Interactive exploration, planning, memory, and adaptation | Stateful visual-action adapter and official scorecards |
+| ARC-AGI-3 public | Toolkit `0.9.9` at `f12822c…d2f`; 25-environment API snapshot hash `8b944e67…8b638` | Interactive exploration, planning, memory, and adaptation | Stateful visual-action adapter and official scorecards |
 | OSWorld 2.0 | Release `osworld-v2-2026.08.08` at `d578d2d…154` | Long-horizon computer use in realistic workflows | Matched gated assets, VM image, websites, and agent adapter |
 
 ARC-AGI-3 and OSWorld 2.0 are distinct successor lanes, not silent replacements for
-ARC or OSWorld v1. ARC-AGI-3 currently registers the three named public environments
-only. OSWorld 2.0 pins all 108 tasks, task/assets revisions, task-manifest hash, and VM
-image hash from the official release manifest.
+ARC or OSWorld v1. ARC-AGI-3 registers all 25 environments returned to an anonymous
+client on 2026-09-05, including their full IDs and a normalized manifest hash. Because
+the public service is dynamic, each run must capture and compare its live environment
+manifest. OSWorld 2.0 pins all 108 tasks, task/assets revisions, task-manifest hash,
+and VM image hash from the official release manifest.
 
 ## Candidates for the next integration wave
 

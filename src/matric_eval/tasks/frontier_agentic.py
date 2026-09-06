@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Iterable
 from pathlib import Path
 
 from inspect_ai import Task, task
@@ -29,6 +31,37 @@ GDPVAL_DATASET_REVISION = "a3848a2a812d5d4d0f08003fac3c8eac40805962"
 ARC_AGI_3_REPOSITORY = "arcprize/ARC-AGI"
 ARC_AGI_3_REVISION = "f12822c4d550121c35a275008d964afbbed47d2f"
 ARC_AGI_3_VERSION = "0.9.9"
+ARC_AGI_3_PUBLIC_SNAPSHOT = "2026-09-05"
+ARC_AGI_3_PUBLIC_ENVIRONMENTS = (
+    "ar25-0c556536",
+    "bp35-0a0ad940",
+    "cd82-fb555c5d",
+    "cn04-2fe56bfb",
+    "dc22-fdcac232",
+    "ft09-0d8bbf25",
+    "g50t-5849a774",
+    "ka59-38d34dbb",
+    "lf52-271a04aa",
+    "lp85-305b61c3",
+    "ls20-9607627b",
+    "m0r0-492f87ba",
+    "r11l-495a7899",
+    "re86-8af5384d",
+    "s5i5-18d95033",
+    "sb26-7fbdac44",
+    "sc25-635fd71a",
+    "sk48-d8078629",
+    "sp80-589a99af",
+    "su15-1944f8ab",
+    "tn36-ef4dde99",
+    "tr87-cd924810",
+    "tu93-0768757b",
+    "vc33-5430563c",
+    "wa30-ee6fef47",
+)
+ARC_AGI_3_PUBLIC_MANIFEST_SHA256 = (
+    "8b944e67bef56e094c907443c1bd4852d35d32902ca5c18e49e8686d6878b638"
+)
 
 OSWORLD2_REPOSITORY = "xlang-ai/OSWorld-V2"
 OSWORLD2_REVISION = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
@@ -203,12 +236,19 @@ def build_arc_agi_3_server_command(repository: str | Path, *, port: int = 8001) 
     ]
 
 
+def arc_agi_3_environment_manifest(environment_ids: Iterable[str]) -> dict[str, object]:
+    """Normalize and hash the live public environment identity returned by the API."""
+    ids = tuple(sorted(environment_ids))
+    digest = hashlib.sha256(("\n".join(ids) + "\n").encode()).hexdigest()
+    return {"count": len(ids), "environment_ids": ids, "sha256": digest}
+
+
 @register_benchmark(
     name="arc_agi_3",
-    description="ARC-AGI-3 v0.9.9 - interactive exploration, planning, and adaptation",
+    description="ARC-AGI-3 v0.9.9 - 25 public interactive environments (2026-09-05)",
     category="agentic",
-    tier_samples={"smoke": 1, "quick": 3, "full": 3},
-    total_samples=3,
+    tier_samples={"smoke": 1, "quick": 10, "full": 25},
+    total_samples=25,
     requires_sandbox=True,
     requires_vision=True,
     sandbox_profile="arc-agi-3",
@@ -216,18 +256,19 @@ def build_arc_agi_3_server_command(repository: str | Path, *, port: int = 8001) 
     provider_requirements=("arc-agi-sdk", "python-3.12", "network", "vision-actions"),
     status=BenchmarkStatus.GATED,
     status_reason="Requires an interactive ARC agent adapter and official scorecard service.",
-    protocol_version=f"toolkit-{ARC_AGI_3_VERSION}-public",
+    protocol_version=f"toolkit-{ARC_AGI_3_VERSION}-public-{ARC_AGI_3_PUBLIC_SNAPSHOT}",
     dataset_source=ARC_AGI_3_REPOSITORY,
     dataset_revision=ARC_AGI_3_REVISION,
-    dataset_configs=("AR25", "LF52", "SB26"),
-    dataset_splits=("public",),
+    dataset_configs=ARC_AGI_3_PUBLIC_ENVIRONMENTS,
+    dataset_splits=(f"public-api-{ARC_AGI_3_PUBLIC_SNAPSHOT}",),
     evaluator_source=ARC_AGI_3_REPOSITORY,
     evaluator_revision=ARC_AGI_3_REVISION,
+    prompt_revision=ARC_AGI_3_PUBLIC_MANIFEST_SHA256,
     release_date="2026-06-11",
     license="Apache-2.0",
     access="gated",
     source_kind="github",
-    release_policy="versioned",
+    release_policy="continuous",
 )
 @task
 def arc_agi_3(tier: str = "smoke") -> Task:

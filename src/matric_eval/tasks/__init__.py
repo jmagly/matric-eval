@@ -39,6 +39,7 @@ from matric_eval.tasks.ds1000 import record_to_sample as ds1000_record_to_sample
 from matric_eval.tasks.evalplus import humaneval_plus, load_evalplus, mbpp_plus
 from matric_eval.tasks.frontier_agentic import (
     arc_agi_3,
+    arc_agi_3_environment_manifest,
     browsecomp,
     build_arc_agi_3_server_command,
     build_osworld2_download_commands,
@@ -197,6 +198,7 @@ __all__ = [
     # Benchmarks
     "arc",
     "arc_agi_3",
+    "arc_agi_3_environment_manifest",
     "babilong",
     "bfcl_v4_agentic",
     "build_bfcl_evaluate_command",
