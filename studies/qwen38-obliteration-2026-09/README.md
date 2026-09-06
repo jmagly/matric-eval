@@ -320,6 +320,8 @@ for `/usr/bin/bwrap` containing `userns,`; verify an actual sandbox command, not
 binary presence. Install the Python knowledge extra with `uv sync --extra knowledge
 --frozen`. The bridge rechecks package versions, the AppArmor-dependent execution
 canary, the selected tasks, and the recorded tau source worktree before every run.
+The exact profile is retained at `host/bwrap.apparmor` and can be installed with
+`sudo install -o root -g root -m 0644` followed by `sudo apparmor_parser -r`.
 
 The pinned tau2 1.0.1 defaults use `gpt-4.1-2025-04-14` for both the user simulator
 and its official NL-assertion evaluator. Supply its credential only through the
@@ -344,6 +346,38 @@ unchanged, instead of being replaced by the batch runner's trial-seed generator:
   --required-secret-env OPENAI_API_KEY \
   --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-raw \
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-receipt.json
+```
+
+Terminal-Bench uses Harbor 0.22.0, its Terminus 2 agent, the pinned local task
+checkout, and each task's official container verifier. As with tau, the bridge creates
+one concurrency-one job per selected task so the full protocol seed is supplied to
+every model call. Harbor's complete job directories are private; the separate receipt
+contains only hashes, official rewards, exception classes, timing, and version data:
+
+Harbor must use the isolated daemon on `/run/matric-eval-docker.sock`, whose data root
+is on the model filesystem. Install `host/matric-eval-docker-daemon.json` as that
+daemon's configuration and restart the transient service. Its default bridge stays
+disabled, while iptables/NAT are enabled only for Harbor-created networks allocated
+from the non-overlapping `10.241.0.0/16` pool. Grant the evaluation account access to
+that dedicated socket (for this host, `sudo setfacl -m u:roctinam:rw
+/run/matric-eval-docker.sock`) after each daemon restart. The bridge validates the
+daemon configuration, socket access, and data root before creating any study output.
+
+```bash
+/srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/python \
+  scripts/run_qwen38_terminal.py \
+  studies/qwen38-obliteration-2026-09/protocol.yaml \
+  /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --model-id qwen38-27b-source-bf16 \
+  --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
+  --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
+  --terminal-checkout /srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1 \
+  --harbor-python /srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/python \
+  --harbor-executable /srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/harbor \
+  --inputs-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/agentic-inputs-summary.json \
+  --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/terminal-bench-scored-ids.json \
+  --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-raw \
+  --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-receipt.json
 ```
 
 After both score passes match, build the content-free public pilot summary. It reports
