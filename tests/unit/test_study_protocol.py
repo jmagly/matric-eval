@@ -585,7 +585,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["async_scheduling"] is False
     assert rows[0]["runtime"]["language_model_only"] is True
     assert rows[0]["runtime"]["architecture_registrations"] == {
-        "Qwen3_5ForCausalLM": "vllm.model_executor.models.qwen3_5:Qwen3_5ForCausalLM"
+        "Qwen3_5ForCausalLM": "matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM"
     }
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
