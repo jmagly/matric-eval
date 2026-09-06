@@ -193,8 +193,16 @@ def verify_model_artifact(
     model: ModelSpec,
     model_directory: Path,
     qualification: dict[str, Any],
+    *,
+    verify_tensor_hashes: bool = True,
 ) -> str:
-    """Verify every qualified artifact and all tensors referenced by the model index."""
+    """Verify qualification identity, support hashes, and every indexed tensor artifact."""
+    if not verify_tensor_hashes:
+        filesystem = os.statvfs(model_directory)
+        if not filesystem.f_flag & os.ST_RDONLY:
+            raise ValueError(
+                "prequalified tensor verification requires a read-only model filesystem"
+            )
     required_identity = {
         "schema_version": "1",
         "model_id": model.id,
@@ -231,9 +239,10 @@ def verify_model_artifact(
         artifact = model_directory / relative
         if not artifact.is_file() or artifact.stat().st_size != size:
             raise ValueError(f"qualified model artifact is missing or has wrong size: {relative}")
-        actual_sha256 = _sha256_file(artifact)
-        if actual_sha256 != expected_sha256.lower():
-            raise ValueError(f"qualified model artifact SHA-256 mismatch: {relative}")
+        if verify_tensor_hashes or not relative.endswith(".safetensors"):
+            actual_sha256 = _sha256_file(artifact)
+            if actual_sha256 != expected_sha256.lower():
+                raise ValueError(f"qualified model artifact SHA-256 mismatch: {relative}")
         qualified_paths.add(relative)
 
     index_name = qualification.get("model_index", "model.safetensors.index.json")
@@ -509,7 +518,12 @@ def run_offline_batch(
     if not model_directory.is_dir():
         raise ValueError(f"model path is not a directory: {model_directory}")
     qualification = _load_json_object(model_qualification_path, "model qualification")
-    qualification_sha256 = verify_model_artifact(model, model_directory, qualification)
+    qualification_sha256 = verify_model_artifact(
+        model,
+        model_directory,
+        qualification,
+        verify_tensor_hashes=not production_runtime,
+    )
     lease_receipt = Path(lease_receipt_path)
     if production_runtime:
         if lease_receipt.exists():
@@ -633,6 +647,11 @@ def run_offline_batch(
                     "chat_template_sha256": template_sha256,
                     "lease_receipt_sha256": lease_sha256,
                     "model_qualification_sha256": qualification_sha256,
+                    "model_verification": (
+                        "full-sha256"
+                        if not production_runtime
+                        else "prequalified-sha256-readonly-tensors"
+                    ),
                 },
             }
             handle.write(json.dumps(record, sort_keys=True) + "\n")

@@ -479,6 +479,32 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     ).hexdigest()
     qualification_path = tmp_path / "qualification.json"
     qualification_path.write_text(json.dumps(qualification), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="read-only model filesystem"):
+        batch_module.verify_model_artifact(
+            study.models[0],
+            model_path,
+            qualification,
+            verify_tensor_hashes=False,
+        )
+
+    class ReadOnlyFilesystem:
+        f_flag = batch_module.os.ST_RDONLY
+
+    monkeypatch.setattr(batch_module.os, "statvfs", lambda _path: ReadOnlyFilesystem())
+    tensor_path = model_path / "model-00001-of-00001.safetensors"
+    tensor_path.write_bytes(b"mutate")
+    assert (
+        batch_module.verify_model_artifact(
+            study.models[0],
+            model_path,
+            qualification,
+            verify_tensor_hashes=False,
+        )
+        == qualification["qualification_sha256"]
+    )
+    tensor_path.write_bytes(b"tensor")
+
     template_path = tmp_path / "template.jinja"
     template_path.write_text(template, encoding="utf-8")
     lease_path = tmp_path / "lease.json"
@@ -526,4 +552,5 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["generation_seed"] == study.generation_seed(*expected[0])
     assert rows[0]["runtime"]["batch_invariant"] is True
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
+    assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert rows[0]["model_revision"] == study.models[0].checkpoint_revision
