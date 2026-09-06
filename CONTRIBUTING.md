@@ -10,7 +10,7 @@ git clone https://git.integrolabs.net/roctinam/matric-eval.git
 cd matric-eval
 
 # Install dependencies
-uv sync --locked --extra dev
+uv sync --locked --extra dev --extra study
 
 # Run tests
 uv run pytest tests/ -q
@@ -18,6 +18,9 @@ uv run pytest tests/ -q
 # Run tests with coverage
 uv run pytest tests/ --cov=src/matric_eval --cov-fail-under=80
 ```
+
+The full test suite exercises the official IFEval study scorer, so development
+setup includes both `dev` and `study` extras.
 
 ## Code Style
 

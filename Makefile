@@ -8,7 +8,7 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install dependencies (dev mode)
-	uv sync --extra dev
+	uv sync --extra dev --extra study
 
 test:  ## Run all tests
 	uv run pytest
@@ -79,7 +79,7 @@ operational-validation:  ## Generate scorer parity and operational evidence
 ci: lint format-check type-check test-coverage-fail  ## Run all authoritative CI gates
 
 dev:  ## Set up development environment
-	uv sync --extra dev
+	uv sync --extra dev --extra study
 	@echo ""
 	@echo "Development environment ready!"
 	@echo "Run 'make test' to run tests"

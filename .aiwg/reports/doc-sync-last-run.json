@@ -16,15 +16,16 @@
   "report": ".aiwg/reports/doc-sync-2026-09-06.md",
   "validation": ".aiwg/working/doc-sync/verification.json",
   "files": {
-    "README.md": "ae07f53547b905707614746739a3db0061b0ae324a9f2b06197f12bb8716e219",
-    "CONTRIBUTING.md": "7d84c5fc712acd05bf2d6279e09b8524455b307b8693f82bea0511315594127f",
+    "README.md": "0bddae1c9c5514da4b2dbf2cbe721a15d488fd3161dec8ada4556b9702a58534",
+    "CONTRIBUTING.md": "f544e47ac6b6a00021d0813bf665dce5069a65bc3032efb031085709c27287c5",
     "SECURITY.md": "8839f29aa44e0b96b5361efcd67415a1594b6e485717aa58dcfdb66db3d4a78c",
-    "WORKSPACE.md": "124465b05addac20474ff796c619fbc45120b00466aafc98047894b0d5b96bfd",
+    "WORKSPACE.md": "a2eb615ddf6788ce356bf635795b42d45956cfa233a2c142d80f82ab74fd044f",
     "docs/README.md": "424aff26f17a9852c69db1ea1faa475080b2643861082f6fa0b5a6fb188815e3",
     "docs/cli.md": "96fa39ee5c9168298bb79b0b067af5185b80f1cfceaa3b5abf4a84697e7736c5",
     "docs/architecture/overview.md": "8475cc7f6099dcb71be78b196c56806e1d8231363be82c3ba96d06105dbacb76",
-    "docs/development/session-init.md": "5fdcaf8a8315ea2829cfb55728971c908a4af4f9e705962e721b28ec2b102022"
+    "docs/development/session-init.md": "bda14239532e54b29cc7db795bbd5ecf9cce91d117a3e648d855a890db94b188"
   },
   "readme_basis": "AIWG README example and docs/contributing/versioning.md published-package README standard",
-  "status": "complete"
+  "status": "complete",
+  "delivery_note": "CI validation required adding the study extra to full-test setup instructions; hashes refreshed during delivery."
 }

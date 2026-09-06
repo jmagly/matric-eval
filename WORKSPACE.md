@@ -45,7 +45,7 @@ workflows, and TypeScript subprocess bindings are implemented in this repository
 Run commands from the repository root:
 
 ```bash
-uv sync --locked --extra dev
+uv sync --locked --extra dev --extra study
 uv run matric-eval --help
 uv run matric-eval list-benchmarks
 uv run matric-eval list-providers

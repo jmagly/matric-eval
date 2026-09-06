@@ -58,7 +58,7 @@ python -m pip install matric-eval \
 matric-eval --version
 ```
 
-Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/0.2.0.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev`.
+Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/0.2.0.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
 
 ## Quick Start
 
@@ -280,7 +280,7 @@ Code benchmarks execute model-generated programs. The basic Python scorer uses a
 Read [CONTRIBUTING.md](https://github.com/jmagly/matric-eval/blob/main/CONTRIBUTING.md). From a source checkout:
 
 ```bash
-uv sync --locked --extra dev
+uv sync --locked --extra dev --extra study
 make ci
 uv build
 ```

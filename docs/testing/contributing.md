@@ -6,7 +6,7 @@ Complete pytest testing infrastructure for the matric-eval framework.
 
 ```bash
 # Install dependencies
-uv sync --extra dev
+uv sync --extra dev --extra study
 
 # Run all tests
 make test
@@ -488,7 +488,7 @@ dev = [
 
 ```bash
 # Install all dev dependencies
-uv sync --extra dev
+uv sync --extra dev --extra study
 
 # Or with pip
 pip install -e ".[dev]"

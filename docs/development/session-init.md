@@ -17,7 +17,7 @@ Find commands in src/matric_eval/cli.py, active configuration in
 src/matric_eval/config/settings.py, benchmarks in src/matric_eval/tasks/registry.py,
 and runtime/recovery behavior in src/matric_eval/core/ and src/matric_eval/state/.
 
-Development setup: uv sync --locked --extra dev
+Development setup: uv sync --locked --extra dev --extra study
 CLI discovery: uv run matric-eval --help
 Benchmark discovery: uv run matric-eval list-benchmarks
 Provider discovery: uv run matric-eval list-providers

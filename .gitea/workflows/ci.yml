@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+          uv sync --extra dev --extra study
 
       - name: Run all tests with coverage
         run: |
@@ -127,7 +127,7 @@ jobs:
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+          uv sync --extra dev --extra study
 
       - name: Run smoke tests
         run: |
