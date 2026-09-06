@@ -72,7 +72,9 @@ def _mmlu_prompt(row: dict[str, Any]) -> str:
     module = importlib.import_module("inspect_evals.mmlu_pro.mmlu_pro")
     template = str(module.USER_PROMPT_TEMPLATE)
     options = [str(option) for option in row["options"] if option != "N/A"]
-    choices = "\n".join(f"{chr(ord('A') + index)}) {option}" for index, option in enumerate(options))
+    choices = "\n".join(
+        f"{chr(ord('A') + index)}) {option}" for index, option in enumerate(options)
+    )
     letters = ",".join(chr(ord("A") + index) for index in range(len(options)))
     return template.format(question=row["question"], choices=choices, letters=letters)
 
@@ -167,9 +169,7 @@ def build_inputs(args: argparse.Namespace) -> dict[str, Any]:
             _sample_record(sample),
         )
 
-    mtbench_path = (
-        args.fastchat_checkout / "fastchat/llm_judge/data/mt_bench/question.jsonl"
-    )
+    mtbench_path = args.fastchat_checkout / "fastchat/llm_judge/data/mt_bench/question.jsonl"
     sample_maps["mtbench"] = {}
     for line in mtbench_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -181,7 +181,9 @@ def build_inputs(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     offline_allocations = [
-        allocation for allocation in study.benchmarks if allocation.execution_mode == "offline-batch"
+        allocation
+        for allocation in study.benchmarks
+        if allocation.execution_mode == "offline-batch"
     ]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir.chmod(0o750)
