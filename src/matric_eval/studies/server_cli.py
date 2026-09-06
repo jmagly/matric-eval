@@ -268,7 +268,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--lease-receipt", type=Path, required=True)
     serve.add_argument("--server-receipt", type=Path, required=True)
     serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=18080)
+    serve.add_argument("--port", type=int, default=18083)
     serve.add_argument("--ready-timeout", type=int, default=900)
 
     child = subparsers.add_parser("child")

@@ -275,7 +275,8 @@ uv run python scripts/build_qwen38_agentic_inputs.py \
 Official agent runners share one broker-attested, localhost-only vLLM endpoint. Start
 it in a dedicated A100 shell and leave it supervising the lease while the runner is
 active. The server advertises both the immutable study model ID and checkpoint path;
-each bridge refuses any other endpoint identity. This source-model example must be
+each bridge refuses any other endpoint identity. The fixed host-local port is `18083`;
+`18080` is reserved by the host's existing `lingbot-map` service. This source-model example must be
 repeated with distinct evidence paths for E03 and Pliny:
 
 ```bash

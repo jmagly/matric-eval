@@ -521,7 +521,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--model-path", type=Path, required=True)
     parser.add_argument("--server-receipt", type=Path, required=True)
-    parser.add_argument("--endpoint", default="http://127.0.0.1:18080/v1")
+    parser.add_argument("--endpoint", default="http://127.0.0.1:18083/v1")
     parser.add_argument("--terminal-checkout", type=Path, required=True)
     parser.add_argument("--harbor-python", type=Path, required=True)
     parser.add_argument("--harbor-executable", type=Path, required=True)
