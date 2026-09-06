@@ -65,6 +65,13 @@ _REFUSAL_PREFIXES = (
 )
 
 
+def _tier_count(benchmark: str, tier: str, total: int) -> int:
+    configured = get_sample_count(benchmark, tier)
+    if configured:
+        return configured
+    return {"smoke": min(5, total), "quick": min(50, total), "full": total}.get(tier, 0)
+
+
 def _cache_root() -> Path:
     root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     return root / "matric-eval" / "refusal"
@@ -162,7 +169,7 @@ def load_xstest(
     benchmark = f"xstest_{subset}"
     return cast(
         list[Sample],
-        stratified_sample(samples, get_sample_count(benchmark, tier), get_seed()),
+        stratified_sample(samples, _tier_count(benchmark, tier, len(samples)), get_seed()),
     )
 
 
@@ -194,7 +201,7 @@ def load_or_bench_hard(tier: str = "smoke") -> list[Sample]:
         list[Sample],
         stratified_sample(
             samples,
-            get_sample_count("or_bench_hard", tier),
+            _tier_count("or_bench_hard", tier, len(samples)),
             get_seed(),
         ),
     )
@@ -226,7 +233,11 @@ def load_strongreject(tier: str = "smoke") -> list[Sample]:
     ]
     return cast(
         list[Sample],
-        stratified_sample(samples, get_sample_count("strongreject", tier), get_seed()),
+        stratified_sample(
+            samples,
+            _tier_count("strongreject", tier, len(samples)),
+            get_seed(),
+        ),
     )
 
 

@@ -492,6 +492,11 @@ class StudyProtocol:
         cohort: str,
     ) -> dict[str, Any]:
         """Build a content-addressed ordered manifest from canonical dataset IDs."""
+        catalog_payload = json.dumps(
+            id_catalog,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
         allocations = []
         for allocation in self.benchmarks:
             if allocation.id not in id_catalog:
@@ -549,6 +554,7 @@ class StudyProtocol:
             "cohort": cohort,
             "seed": self.seed,
             "selection_algorithm": "allocation-declared-v1",
+            "catalog_sha256": hashlib.sha256(catalog_payload).hexdigest(),
             "allocations": allocations,
         }
         manifest_payload = json.dumps(

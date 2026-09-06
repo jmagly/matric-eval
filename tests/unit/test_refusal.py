@@ -90,3 +90,11 @@ def test_registry_metadata_discloses_diagnostic_only_scoring() -> None:
     assert metadata.total_samples == 313
     assert metadata.status.value == "experimental"
     assert "external_dual_judge" in metadata.scoring_type
+
+
+def test_refusal_tier_count_falls_back_for_new_benchmarks(monkeypatch) -> None:
+    monkeypatch.setattr(refusal, "get_sample_count", lambda benchmark, tier: 0)
+
+    assert refusal._tier_count("strongreject", "smoke", 313) == 5
+    assert refusal._tier_count("strongreject", "quick", 313) == 50
+    assert refusal._tier_count("strongreject", "full", 313) == 313
