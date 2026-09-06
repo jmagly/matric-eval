@@ -474,7 +474,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     model_path = tmp_path / "model"
     model_path.mkdir()
     artifacts = {
-        "config.json": b"{}",
+        "config.json": json.dumps({"architectures": ["FakeForCausalLM"]}).encode(),
         "tokenizer_config.json": b"{}",
         "chat_template.jinja": template.encode(),
         "model-00001-of-00001.safetensors": b"tensor",
@@ -587,6 +587,11 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     assert rows[0]["runtime"]["architecture_registrations"] == {
         "Qwen3_5ForCausalLM": "matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM"
     }
+    assert rows[0]["runtime"]["checkpoint_architectures"] == ["FakeForCausalLM"]
+    assert rows[0]["runtime"]["request_batch_size"] == 80
+    assert len(rows[0]["runtime"]["request_batch_sha256"]) == 64
+    assert rows[0]["runtime"]["initialization_seconds"] >= 0
+    assert rows[0]["runtime"]["generation_seconds"] >= 0
     assert rows[0]["runtime"]["versions"]["vllm"] == "injected-test-double"
     assert rows[0]["runtime"]["model_verification"] == "full-sha256"
     assert engine_kwargs["gpu_memory_utilization"] == 0.9

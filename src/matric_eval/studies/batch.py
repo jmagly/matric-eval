@@ -515,6 +515,7 @@ def run_offline_batch(
     manifest = _load_json_object(manifest_path, "study manifest")
     requests = load_batch_requests(requests_path)
     validate_batch_contract(study, manifest, requests)
+    request_batch_sha256 = _sha256_file(Path(requests_path))
 
     output = Path(output_path)
     if output.exists():
@@ -529,6 +530,14 @@ def run_offline_batch(
         qualification,
         verify_tensor_hashes=not production_runtime,
     )
+    checkpoint_config = _load_json_object(model_directory / "config.json", "model config")
+    checkpoint_architectures = checkpoint_config.get("architectures")
+    if (
+        not isinstance(checkpoint_architectures, list)
+        or not checkpoint_architectures
+        or not all(isinstance(architecture, str) for architecture in checkpoint_architectures)
+    ):
+        raise ValueError("qualified model config must declare architectures")
     lease_receipt = Path(lease_receipt_path)
     if production_runtime:
         if lease_receipt.exists():
@@ -593,6 +602,7 @@ def run_offline_batch(
         )
         for request in requests
     ]
+    initialization_started = time.time()
     engine = engine_factory(
         model=str(model_directory),
         dtype=model.runtime.dtype,
@@ -611,10 +621,11 @@ def run_offline_batch(
             lease_sha256 = capture_active_gpu_lease(lease_receipt)
         finally:
             ready_marker.unlink(missing_ok=True)
+    initialization_seconds = time.time() - initialization_started
 
-    started = time.time()
+    generation_started = time.time()
     generated = engine.generate(prompts, sampling_params, use_tqdm=True)
-    elapsed_seconds = time.time() - started
+    elapsed_seconds = time.time() - generation_started
     if len(generated) != len(requests):
         raise RuntimeError(f"vLLM returned {len(generated)} results for {len(requests)} requests")
 
@@ -658,6 +669,11 @@ def run_offline_batch(
                         if production_runtime
                         else "injected-test-double"
                     ),
+                    "checkpoint_architectures": checkpoint_architectures,
+                    "request_batch_sha256": request_batch_sha256,
+                    "request_batch_size": len(requests),
+                    "initialization_seconds": initialization_seconds,
+                    "generation_seconds": elapsed_seconds,
                     "batch_invariant": server["batch_invariance"],
                     "v1_multiprocessing": False,
                     "async_scheduling": server["async_scheduling"],
@@ -684,7 +700,9 @@ def run_offline_batch(
         "study_id": study.id,
         "model_id": model.id,
         "requests": len(requests),
+        "request_batch_sha256": request_batch_sha256,
         "allocations": list(dict.fromkeys(request.allocation_id for request in requests)),
+        "initialization_seconds": initialization_seconds,
         "elapsed_seconds": elapsed_seconds,
         "output": str(output),
         "output_sha256": _sha256_file(output),

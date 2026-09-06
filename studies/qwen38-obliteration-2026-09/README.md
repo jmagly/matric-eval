@@ -282,7 +282,11 @@ protocol order. This supports benchmark-specific scoring and MT-Bench's dependen
 second turn without weakening cohort identity: partial allocation samples are refused.
 The runner also refuses an unqualified artifact, a mismatched template, a non-A100
 hostname, or an existing output path. It records each derived seed and prompt hash
-next to the completion and hashes the lease and model qualification evidence.
+next to the completion; records the immutable checkpoint architecture, exact request
+batch hash and size, initialization time, and generation time; and hashes the lease
+and model qualification evidence. Because vLLM's deterministic scheduling is not
+batch-invariant for Qwen GDN, the request-batch hash and order are part of the primary
+inference contract and must match across models.
 
 ## Primary sources
 
