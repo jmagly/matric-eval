@@ -14,6 +14,7 @@ import sys
 import time
 import urllib.request
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -289,10 +290,10 @@ def _job_config(
     }
 
 
-def _private_path(path: Path, label: str) -> None:
+def _private_path(path: Path, label: str, *, allow_existing: bool = False) -> None:
     if not path.is_absolute() or not path.is_relative_to(PRIVATE_ROOT):
         raise ValueError(f"{label} is outside {PRIVATE_ROOT}: {path}")
-    if path.exists():
+    if path.exists() and not allow_existing:
         raise ValueError(f"refusing to overwrite Terminal-Bench evidence: {path}")
 
 
@@ -332,9 +333,28 @@ def _seal_private_tree(root: Path) -> None:
 def _parse_job_result(path: Path) -> tuple[JsonObject, JsonObject | None, str | None]:
     result = _load_object(path, "Harbor job result")
     trials = result.get("trial_results")
-    if not isinstance(trials, list) or len(trials) != 1 or not isinstance(trials[0], dict):
-        raise RuntimeError("Harbor job result must contain exactly one official trial")
-    trial: JsonObject = trials[0]
+    if isinstance(trials, list):
+        if len(trials) != 1 or not isinstance(trials[0], dict):
+            raise RuntimeError("Harbor job result must contain exactly one official trial")
+        trial: JsonObject = trials[0]
+    else:
+        # Harbor 0.22 writes a summary at <job>/result.json and the official
+        # TrialResult at <job>/<trial>/result.json instead of embedding a
+        # trial_results array in the summary. Keep support for the embedded
+        # layout so retained evidence from either supported shape is readable.
+        if result.get("n_total_trials") != 1:
+            raise RuntimeError("Harbor job result must declare exactly one official trial")
+        nested_results = sorted(
+            candidate / "result.json"
+            for candidate in path.parent.iterdir()
+            if candidate.is_dir()
+            and not candidate.is_symlink()
+            and (candidate / "result.json").is_file()
+            and not (candidate / "result.json").is_symlink()
+        )
+        if len(nested_results) != 1:
+            raise RuntimeError("Harbor job result must contain exactly one nested trial result")
+        trial = _load_object(nested_results[0], "Harbor trial result")
     verifier = trial.get("verifier_result")
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
     if rewards is not None and not isinstance(rewards, dict):
@@ -344,10 +364,45 @@ def _parse_job_result(path: Path) -> tuple[JsonObject, JsonObject | None, str | 
     return result, rewards, exception_type if isinstance(exception_type, str) else None
 
 
+def _result_duration_seconds(result: JsonObject) -> float:
+    """Recover elapsed time from a retained Harbor 0.22 job summary."""
+    started = result.get("started_at")
+    finished = result.get("finished_at")
+    if not isinstance(started, str) or not isinstance(finished, str):
+        raise RuntimeError("retained Harbor job result omits execution timestamps")
+    try:
+        duration = (
+            datetime.fromisoformat(finished.replace("Z", "+00:00"))
+            - datetime.fromisoformat(started.replace("Z", "+00:00"))
+        ).total_seconds()
+    except ValueError as error:
+        raise RuntimeError("retained Harbor job result timestamps are invalid") from error
+    if duration < 0:
+        raise RuntimeError("retained Harbor job result has negative execution time")
+    return duration
+
+
+def _job_configs_match(actual: JsonObject, expected: JsonObject) -> bool:
+    """Compare configs while normalizing Harbor's set-backed retry exclusion list."""
+    normalized: list[JsonObject] = []
+    for payload in (actual, expected):
+        candidate = json.loads(json.dumps(payload))
+        retry = candidate.get("retry")
+        exclusions = retry.get("exclude_exceptions") if isinstance(retry, dict) else None
+        if isinstance(exclusions, list) and all(isinstance(value, str) for value in exclusions):
+            retry["exclude_exceptions"] = sorted(exclusions)
+        normalized.append(candidate)
+    return normalized[0] == normalized[1]
+
+
 def run_terminal(args: argparse.Namespace) -> JsonObject:
     if platform.node() != "basilisk":
         raise RuntimeError("Terminal-Bench study execution requires host basilisk")
-    _private_path(args.result_dir, "Terminal-Bench result directory")
+    _private_path(
+        args.result_dir,
+        "Terminal-Bench result directory",
+        allow_existing=args.resume_existing,
+    )
     _private_path(args.receipt, "Terminal-Bench receipt")
     if importlib.metadata.version("harbor") != HARBOR_PACKAGE_VERSION:
         raise RuntimeError("installed Harbor version does not match the study contract")
@@ -400,12 +455,27 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
 
     from harbor.models.job.config import JobConfig
 
-    args.result_dir.mkdir(parents=True, exist_ok=False)
-    args.result_dir.chmod(0o750)
     control_dir = args.result_dir / "control"
-    control_dir.mkdir(mode=0o750)
+    if args.result_dir.exists():
+        if (
+            not args.resume_existing
+            or not args.result_dir.is_dir()
+            or args.result_dir.is_symlink()
+            or not control_dir.is_dir()
+            or control_dir.is_symlink()
+        ):
+            raise RuntimeError("resume requires an existing private result and control directory")
+        for retained in args.result_dir.rglob("*"):
+            if retained.is_symlink():
+                raise RuntimeError("private evidence tree contains a symbolic link")
+    else:
+        args.result_dir.mkdir(parents=True, exist_ok=False)
+        args.result_dir.chmod(0o750)
+        control_dir.mkdir(mode=0o750)
     records: list[JsonObject] = []
     exceptions: Counter[str] = Counter()
+    recovered_tasks = 0
+    recovered_execution_seconds = 0.0
     started = time.time()
     runtime = model["runtime"]
     for sample_id in scored_ids:
@@ -420,51 +490,77 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             agent_kwargs=_agent_kwargs(args.endpoint, sampler, seed, int(runtime["context_limit"])),
         )
         validated = JobConfig.model_validate(config)
-        config_path = control_dir / f"{job_name}.json"
-        _write_private_json(
-            config_path,
-            validated.model_dump(
-                mode="json",
-                exclude_none=True,
-                context={"redact_sensitive_env": True},
-            ),
+        config_payload = validated.model_dump(
+            mode="json",
+            exclude_none=True,
+            context={"redact_sensitive_env": True},
         )
+        config_path = control_dir / f"{job_name}.json"
         stdout_path = control_dir / f"{job_name}.stdout.log"
         stderr_path = control_dir / f"{job_name}.stderr.log"
-        task_started = time.time()
-        env = dict(os.environ)
-        env["OPENAI_API_KEY"] = "EMPTY"
-        env["DOCKER_HOST"] = DOCKER_HOST
-        with (
-            stdout_path.open("x", encoding="utf-8") as stdout,
-            stderr_path.open("x", encoding="utf-8") as stderr,
-        ):
-            stdout_path.chmod(0o600)
-            stderr_path.chmod(0o600)
-            completed = subprocess.run(
-                [str(args.harbor_executable), "run", "--config", str(config_path), "--yes"],
-                cwd=args.terminal_checkout,
-                env=env,
-                stdout=stdout,
-                stderr=stderr,
-                text=True,
-                timeout=None,
-            )
         job_dir = args.result_dir / job_name
         job_result_path = job_dir / "result.json"
-        if not job_result_path.is_file():
-            raise RuntimeError(f"Harbor omitted the job result for {sample_id}")
-        _, rewards, exception_type = _parse_job_result(job_result_path)
+        recovered = job_dir.exists()
+        if recovered:
+            if not args.resume_existing:
+                raise RuntimeError("existing Harbor job requires --resume-existing")
+            if not config_path.is_file() or not _job_configs_match(
+                _load_object(config_path, "retained Harbor job configuration"),
+                config_payload,
+            ):
+                raise RuntimeError("retained Harbor job configuration differs from the study")
+            if not stdout_path.is_file() or not stderr_path.is_file():
+                raise RuntimeError("retained Harbor job omits its control logs")
+            result, rewards, exception_type = _parse_job_result(job_result_path)
+            duration_seconds = _result_duration_seconds(result)
+            harbor_exit_code: int | None = None
+            recovered_tasks += 1
+            recovered_execution_seconds += duration_seconds
+        else:
+            if config_path.exists() or stdout_path.exists() or stderr_path.exists():
+                raise RuntimeError("orphaned Harbor control evidence prevents a clean trial")
+            _write_private_json(config_path, config_payload)
+            task_started = time.time()
+            env = dict(os.environ)
+            env["OPENAI_API_KEY"] = "EMPTY"
+            env["DOCKER_HOST"] = DOCKER_HOST
+            with (
+                stdout_path.open("x", encoding="utf-8") as stdout,
+                stderr_path.open("x", encoding="utf-8") as stderr,
+            ):
+                stdout_path.chmod(0o600)
+                stderr_path.chmod(0o600)
+                completed = subprocess.run(
+                    [
+                        str(args.harbor_executable),
+                        "run",
+                        "--config",
+                        str(config_path),
+                        "--yes",
+                    ],
+                    cwd=args.terminal_checkout,
+                    env=env,
+                    stdout=stdout,
+                    stderr=stderr,
+                    text=True,
+                    timeout=None,
+                )
+            if not job_result_path.is_file():
+                raise RuntimeError(f"Harbor omitted the job result for {sample_id}")
+            _, rewards, exception_type = _parse_job_result(job_result_path)
+            duration_seconds = time.time() - task_started
+            harbor_exit_code = completed.returncode
         if exception_type:
             exceptions[exception_type] += 1
         records.append(
             {
                 "canonical_id": sample_id,
                 "generation_seed": seed,
-                "harbor_exit_code": completed.returncode,
+                "harbor_exit_code": harbor_exit_code,
+                "recovered_existing_trial": recovered,
                 "rewards": rewards,
                 "exception_type": exception_type,
-                "duration_seconds": time.time() - task_started,
+                "duration_seconds": duration_seconds,
                 "job_name": job_name,
                 "job_result_sha256": _sha256_file(job_result_path),
             }
@@ -502,6 +598,9 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             "concurrency": 1,
             "retries": 0,
             "timeout_multiplier": 1.0,
+            "resume_existing": args.resume_existing,
+            "recovered_tasks": recovered_tasks,
+            "recovered_execution_seconds": recovered_execution_seconds,
         },
         "sampler": sampler,
         "scored_samples": len(records),
@@ -511,7 +610,7 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             sum(primary_rewards) / len(primary_rewards) if primary_rewards else None
         ),
         "exception_counts": dict(sorted(exceptions.items())),
-        "execution_seconds": time.time() - started,
+        "execution_seconds": recovered_execution_seconds + time.time() - started,
         "private_files": _file_manifest(args.result_dir),
     }
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
@@ -544,6 +643,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scored-ids", type=Path, required=True)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument(
+        "--resume-existing",
+        action="store_true",
+        help="verify and retain completed official trials in an existing result directory",
+    )
     return parser
 
 
