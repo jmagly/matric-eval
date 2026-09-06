@@ -131,34 +131,44 @@ def _fixture(
         for sample_id in selected[allocation.id]
     ]
     judge = {
-        "schema_version": "1",
+        "schema_version": "2",
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
         "manifest_sha256": manifest["manifest_sha256"],
         "cohort": "pilot",
+        "judge_plan_sha256": "d" * 64,
         "judges": {
             "primary": {
                 "provider": "provider-a",
                 "model": "judge-a",
                 "snapshot": "judge-a-2026-09-01",
             },
-            "adjudicator": {
+            "secondary": {
                 "provider": "provider-b",
                 "model": "judge-b",
                 "snapshot": "judge-b-2026-09-01",
+            },
+            "adjudicator": {
+                "provider": "provider-c",
+                "model": "judge-c",
+                "snapshot": "judge-c-2026-09-01",
             },
         },
         "controls": {
             "blinded_model_labels": True,
             "order_randomized": True,
             "target_models_may_not_judge": True,
+            "first_pass_judges_per_outcome": 2,
+            "first_pass_independent": True,
             "disagreement_policy": "adjudicate-all",
         },
         "runtime": {
             "primary_calls": len(outcomes),
+            "secondary_calls": len(outcomes),
             "adjudicator_calls": 0,
             "retries": 0,
             "primary_seconds": 90.0,
+            "secondary_seconds": 80.0,
             "adjudication_seconds": 0.0,
         },
         "outcomes": outcomes,
@@ -187,7 +197,7 @@ def test_builds_complete_content_free_runtime_summary(tmp_path: Path) -> None:
         "direct_generation_seconds": 300.0,
         "deterministic_scoring_seconds_including_repeat": 12.0,
         "agentic_seconds": 615.0,
-        "judge_seconds": 90.0,
+        "judge_seconds": 170.0,
     }
     for model in result["models"].values():
         assert model["agentic"]["pilot_seconds"] == 205.0

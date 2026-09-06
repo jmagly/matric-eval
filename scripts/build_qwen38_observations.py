@@ -422,6 +422,8 @@ def _validate_judge_controls(
     manifest_sha256: str,
     cohort: str,
 ) -> None:
+    if bundle.get("schema_version") != "2":
+        raise ValueError("judge bundle schema_version must be '2'")
     expected = {
         "study_id": study.id,
         "protocol_sha256": study.canonical_sha256,
@@ -432,9 +434,9 @@ def _validate_judge_controls(
         raise ValueError("judge bundle identity does not match the study manifest")
     judges = bundle.get("judges")
     if not isinstance(judges, dict):
-        raise ValueError("judge bundle must identify primary and adjudicator snapshots")
+        raise ValueError("judge bundle must identify primary, secondary, and adjudicator snapshots")
     snapshots = []
-    for role in ("primary", "adjudicator"):
+    for role in ("primary", "secondary", "adjudicator"):
         judge = judges.get(role)
         if not isinstance(judge, dict):
             raise ValueError(f"judge bundle {role} identity must be an object")
@@ -443,6 +445,8 @@ def _validate_judge_controls(
             raise ValueError(f"judge bundle {role} identity must be immutable")
         snapshots.append(identity)
     if snapshots[0] == snapshots[1]:
+        raise ValueError("primary and secondary judges must be distinct snapshots")
+    if snapshots[0] == snapshots[2]:
         raise ValueError("primary judge and adjudicator must be distinct snapshots")
     target_names = {model.id for model in study.models} | {model.source for model in study.models}
     if any(value in target_names for identity in snapshots for value in identity):
@@ -452,12 +456,21 @@ def _validate_judge_controls(
         "blinded_model_labels": True,
         "order_randomized": True,
         "target_models_may_not_judge": True,
+        "first_pass_judges_per_outcome": 2,
+        "first_pass_independent": True,
         "disagreement_policy": "adjudicate-all",
     }
     if not isinstance(controls, dict) or any(
         controls.get(key) != value for key, value in required_controls.items()
     ):
         raise ValueError("judge bundle controls do not match the preregistration")
+    judge_plan_sha256 = bundle.get("judge_plan_sha256")
+    if (
+        not isinstance(judge_plan_sha256, str)
+        or len(judge_plan_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in judge_plan_sha256)
+    ):
+        raise ValueError("judge bundle must identify its locked judge plan")
     if cohort == "full":
         calibration = bundle.get("calibration")
         if (
@@ -528,6 +541,59 @@ def _normalize_judges(
     if seen != expected:
         raise ValueError("judge bundle does not exactly cover all selected judged outcomes")
     return rows
+
+
+def _judge_component_aggregates(bundle: JsonObject, study: StudyProtocol) -> JsonObject:
+    expected_components = {
+        "xstest-safe": {"behavior", "full_compliance", "full_refusal", "partial_refusal"},
+        "xstest-unsafe": {"behavior", "full_compliance", "full_refusal", "partial_refusal"},
+        "or-bench-hard-benign": {
+            "behavior",
+            "full_compliance",
+            "full_refusal",
+            "partial_refusal",
+        },
+        "strongreject-harmful": {
+            "refusal",
+            "convincingness",
+            "specificity",
+            "harmfulness",
+        },
+        "mtbench": {"turn_1_score", "turn_2_score", "normalized_two_turn_score"},
+    }
+    values: dict[tuple[str, str], dict[str, list[float]]] = {}
+    for outcome in bundle["outcomes"]:
+        if outcome.get("status") != "observed":
+            continue
+        model_id = outcome["model_id"]
+        allocation_id = outcome["allocation_id"]
+        components = outcome.get("components")
+        if not isinstance(components, dict) or set(components) != expected_components[allocation_id]:
+            raise ValueError(f"judge components for {allocation_id} do not match the rubric")
+        numeric = {key: value for key, value in components.items() if key != "behavior"}
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in numeric.values()
+        ):
+            raise ValueError(f"judge components for {allocation_id} must be numeric")
+        grouped = values.setdefault((model_id, allocation_id), {})
+        for key, value in numeric.items():
+            grouped.setdefault(key, []).append(float(value))
+    result: JsonObject = {}
+    for allocation in study.benchmarks:
+        if allocation.id not in JUDGED_ALLOCATIONS:
+            continue
+        result[allocation.id] = {}
+        for model in study.models:
+            grouped = values.get((model.id, allocation.id), {})
+            result[allocation.id][model.id] = {
+                "observed": len(next(iter(grouped.values()), [])),
+                "means": {
+                    key: sum(component_values) / len(component_values)
+                    for key, component_values in sorted(grouped.items())
+                },
+            }
+    return result
 
 
 def _normalize_missingness(
@@ -659,6 +725,8 @@ def build_observations(
         "observations": len(ordered),
         "status_counts": dict(sorted(counts.items())),
         "judge_bundle_sha256": "supplied-by-cli",
+        "judge_plan_sha256": judge_bundle["judge_plan_sha256"],
+        "judge_component_aggregates": _judge_component_aggregates(judge_bundle, study),
         "missingness_outcomes_sha256": None,
         "source_artifacts": artifacts,
     }
