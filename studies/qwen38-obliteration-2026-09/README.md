@@ -417,15 +417,18 @@ daemon configuration, socket access, and data root before creating any study out
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-receipt.json
 ```
 
-After both score passes match, build the content-free public pilot summary. It reports
-only pipeline-validation metrics and a linear direct-run forecast; agentic execution
-and judge time remain explicitly pending until those lanes complete:
+After both score passes match and all three MT-Bench second-turn batches finish, build
+the content-free public pilot summary. It reports only pipeline-validation metrics and
+scales the first-turn and MT-Bench second-turn timings separately, including both cold
+model initializations. Agentic execution and judge time remain explicitly pending
+until those lanes complete. Because the earlier first-turn-only summary is immutable,
+write the complete direct-pilot summary to a distinct path:
 
 ```bash
 uv run python scripts/build_qwen38_pilot_summary.py \
   --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
   --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
-  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary.json
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete-direct.json
 ```
 
 After an artifact qualification manifest has recorded and verified every indexed
