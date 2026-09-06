@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import Sequence
 
 from matric_eval.studies.protocol import StudyProtocol
-from matric_eval.studies.scoring import load_jsonl, score_offline_outputs, sha256_file
-from matric_eval.studies.scoring import write_private_jsonl
+from matric_eval.studies.scoring import (
+    load_jsonl,
+    score_offline_outputs,
+    sha256_file,
+    write_private_jsonl,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
