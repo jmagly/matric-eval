@@ -1838,6 +1838,89 @@ def assess_judge_calibration(
         raise click.ClickException(str(exc)) from exc
 
 
+@cli.command("export-role-sft")
+@click.argument("vault_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("request_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--dry-run", is_flag=True, help="Record role decisions without materializing data.")
+def export_role_sft(
+    vault_path: Path, request_file: Path, output: Path | None, dry_run: bool
+) -> None:
+    """Export explicitly permitted synthetic SFT rows from a private source vault."""
+    from matric_eval.contamination.diagnostics import strict_json
+    from matric_eval.data.access import SourceVault
+    from matric_eval.data.exports import dry_run as plan_request
+    from matric_eval.data.exports import export_sft
+    from matric_eval.data.role_ledger import RoleLedger
+    from matric_eval.data.roles import ExportRequest, canonical
+
+    vault = None
+    ledger = None
+    try:
+        if not dry_run and output is None:
+            raise ValueError("output_required")
+        request = ExportRequest.model_validate(strict_json(request_file.read_text()))
+        vault = SourceVault(vault_path)
+        ledger = RoleLedger(vault)
+        if dry_run:
+            report = plan_request(vault, ledger, request)
+        else:
+            assert output is not None
+            report = export_sft(vault, ledger, request, output)
+        click.echo(canonical(report).decode())
+    except (ValueError, TypeError, OSError) as exc:
+        raise click.ClickException("Role export failed; inspect the private role ledger") from exc
+    finally:
+        if ledger is not None:
+            ledger.close()
+        if vault is not None:
+            vault.close()
+
+
+@cli.command("record-role-use")
+@click.argument("vault_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("record_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--kind",
+    required=True,
+    type=click.Choice(["checkpoint", "use", "selection", "withdrawal", "untouched"]),
+)
+def record_role_use(vault_path: Path, record_file: Path, kind: str) -> None:
+    """Record checkpoint lineage, disclosure or withdrawal without exposing source text."""
+    from matric_eval.contamination.diagnostics import strict_json
+    from matric_eval.data.access import SourceVault
+    from matric_eval.data.role_ledger import RoleLedger
+    from matric_eval.data.roles import Checkpoint, UseRecord, canonical
+
+    vault = None
+    ledger = None
+    try:
+        record = strict_json(record_file.read_text())
+        if not isinstance(record, dict):
+            raise ValueError("record_object_required")
+        vault = SourceVault(vault_path)
+        ledger = RoleLedger(vault)
+        report = {"status": "recorded"}
+        if kind == "checkpoint":
+            ledger.checkpoint(Checkpoint.model_validate(record))
+        elif kind == "use":
+            ledger.record_use(UseRecord.model_validate(record))
+        elif kind == "selection":
+            ledger.disclose(**record)
+        elif kind == "withdrawal":
+            ledger.withdraw(**record)
+        else:
+            report = ledger.untouched(**record)
+        click.echo(canonical(report).decode())
+    except (ValueError, TypeError, OSError) as exc:
+        raise click.ClickException("Role use failed; inspect the private role ledger") from exc
+    finally:
+        if ledger is not None:
+            ledger.close()
+        if vault is not None:
+            vault.close()
+
+
 def main() -> None:
     """Entry point for the CLI."""
     cli()

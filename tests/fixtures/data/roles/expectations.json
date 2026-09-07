@@ -1,0 +1,76 @@
+{
+  "fixture_expectations_version": "1",
+  "mixed_role_subset": {
+    "request_order": ["train-a","dev-b","final-c","restricted-d","calibration-e","validation-f","unknown-g","renamed-target-c","cluster-peer-c"],
+    "allowed_row_ids": ["train-a","dev-b"],
+    "denied_row_ids": ["final-c","restricted-d","calibration-e","validation-f","unknown-g","renamed-target-c","cluster-peer-c"],
+    "required_reasons": {
+      "final-c": "final_test_export_denied",
+      "restricted-d": "restricted_access",
+      "calibration-e": "role_unsupported_by_sft_profile",
+      "validation-f": "role_unsupported_by_sft_profile",
+      "unknown-g": "unknown_partition_role",
+      "renamed-target-c": "input_matches_final_holdout",
+      "cluster-peer-c": "independent_unit_crosses_holdout_boundary"
+    },
+    "subset_not_explicitly_approved": "reject_without_payload",
+    "approved_subset_payload": "expected-sft.jsonl",
+    "approved_subset_payload_sha256": "3ccaeaa2fbd0a2bbcc2bd6e7bbf2b39b6863820bbb3467e736977b4effeb143b"
+  },
+  "changed_target": {
+    "heldout_row": "final-c",
+    "candidate_row": "renamed-target-c",
+    "shared_input_sha256": "63514760f578b933cfc302805489ba2af080ede95c5711cc36b218ae996db410",
+    "heldout_record_file_sha256": "b872ad004730f7ea16c987ac4172a82442bf358eda5b606a00f77663e535c852",
+    "candidate_record_file_sha256": "6a9079a763bc5716f26d476c554d9770f36d2b12f45be15a0a448efea2a24929",
+    "expected": "deny_despite_distinct_record_hashes_and_unit_ids"
+  },
+  "incomplete_inventory": {
+    "caller_omits": ["final-c"],
+    "expected": "inventory_completeness_unverified",
+    "may_claim_clearance": false
+  },
+  "final_selection": {
+    "checkpoint_lineage": {"checkpoint-child":"checkpoint-selected","checkpoint-grandchild":"checkpoint-child"},
+    "event": {"request_id":"selection-1","purpose":"checkpoint_selection","holdout_row_ids":["final-c"],"selected_checkpoint":"checkpoint-selected"},
+    "before_disclosure": "untouched_relative_to_complete_fixture_ledger",
+    "after_disclosure_untouched": {"checkpoint-selected":false,"checkpoint-child":false,"checkpoint-grandchild":false},
+    "unknown_checkpoint_lineage": "unverified",
+    "original_role_after_event": "final_test",
+    "new_run_id_restores_untouched": false
+  },
+  "withdrawal_replay": {
+    "steps": ["authorize_request_export-1","materialize_and_accept_export-1","withdraw_train-a","retry_request_export-1"],
+    "expected_retry": "withdrawn",
+    "may_return_prior_success_as_current_authorization": false,
+    "may_overwrite_prior_payload": false,
+    "expiry_variant_expected_retry": "grant_expired",
+    "ledger_cutoff_must_be_bound": true
+  },
+  "orphan_publication": {
+    "steps": ["commit_intent","commit_policy_cutoff","fsync_payload","interrupt_before_terminal","withdraw_train-a","retry_same_request"],
+    "expected": "unreleased_orphan_and_denied_retry",
+    "may_overwrite_or_release": false
+  },
+  "reward_quality": {
+    "reward_before": 0.25,
+    "reward_after": 0.75,
+    "quality_before": 0.5,
+    "quality_after": 0.5,
+    "quality_file_sha256_before_and_after": "ff32b5451ca7d2c4a9e3d5a37bd1416e3c92b7b9c5c90141664392f2677df97b",
+    "quality_eligibility": false,
+    "reward_increase_establishes_independent_improvement": false
+  },
+  "privacy_access": {
+    "profile": "reuse_exact_qualified_issue_123_profile",
+    "worker_uid": 65534,
+    "network": false,
+    "bind_mounts": [],
+    "sentinel_location": "host_private_temporary_directory_only",
+    "sentinel_passed_to_worker": false,
+    "required_denials": ["direct_host_path","traversal_host_path","symlink_to_host_path"],
+    "required_leak_free_outputs": ["payload","manifest","audit","stdout","stderr"],
+    "cleanup_required": "verified_absent",
+    "missing_runtime_or_uncertain_cleanup": "unqualified"
+  }
+}
