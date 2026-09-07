@@ -142,13 +142,19 @@ def _agentic_evidence(
     manifest_sha256: str,
     selected: Mapping[str, list[str]],
     result_root: Path,
-) -> tuple[dict[str, JsonObject], JsonObject]:
+    tau_receipt_variant: str,
+    incomplete_tau_runtime_models: frozenset[str],
+) -> tuple[dict[str, JsonObject], JsonObject, JsonObject, JsonObject]:
     models: dict[str, JsonObject] = {}
     artifact_hashes: JsonObject = {}
+    tau_amendment: JsonObject | None = None
+    tau_runner_exceptions = 0
+    terminal_timeouts = 0
     for model in study.models:
         prefix = MODEL_FILES[model.id]
         paths = {
-            lane: result_root / f"{prefix}-pilot-{lane}-receipt.json"
+            lane: result_root
+            / f"{prefix}-pilot-{'tau-local' if lane == 'tau' and tau_receipt_variant == 'local-amended' else lane}-receipt.json"
             for lane in AGENTIC_ALLOCATIONS
         }
         receipts = {lane: _json(path, f"{model.id} {lane}") for lane, path in paths.items()}
@@ -160,6 +166,16 @@ def _agentic_evidence(
                 model=model,
                 label=f"{model.id} {lane}",
             )
+        amendment = receipts["tau"].get("protocol_amendment")
+        if tau_receipt_variant == "local-amended":
+            if not isinstance(amendment, dict) or not amendment:
+                raise ValueError(f"{model.id} amended Tau receipt lacks protocol_amendment")
+            if tau_amendment is None:
+                tau_amendment = amendment
+            elif amendment != tau_amendment:
+                raise ValueError("amended Tau receipts do not share one protocol amendment")
+        elif amendment is not None:
+            raise ValueError(f"{model.id} default Tau receipt unexpectedly declares an amendment")
         bfcl_ids = receipts["bfcl"].get("scored_ids")
         if bfcl_ids != selected[AGENTIC_ALLOCATIONS["bfcl"]]:
             raise ValueError(f"{model.id} BFCL receipt does not match selected pilot IDs")
@@ -191,17 +207,36 @@ def _agentic_evidence(
             "tau3-bench": tau_seconds,
             "terminal-bench-2.1": terminal_seconds,
         }
+        tau_terminations = receipts["tau"].get("termination_counts")
+        terminal_exceptions = receipts["terminal"].get("exception_counts")
+        if not isinstance(tau_terminations, dict):
+            raise ValueError(f"{model.id}.tau.termination_counts must be an object")
+        if not isinstance(terminal_exceptions, dict):
+            raise ValueError(f"{model.id}.terminal.exception_counts must be an object")
+        tau_runner_exceptions += _integer(
+            tau_terminations.get("runner_error", 0), f"{model.id}.tau.runner_error"
+        )
+        terminal_timeouts += _integer(
+            terminal_exceptions.get("AgentTimeoutError", 0),
+            f"{model.id}.terminal.AgentTimeoutError",
+        )
         estimated_full = sum(
             seconds
             * next(item.full_samples for item in study.benchmarks if item.id == allocation_id)
             / next(item.pilot_samples for item in study.benchmarks if item.id == allocation_id)
             for allocation_id, seconds in lane_seconds.items()
         )
+        runtime_accounting_complete = model.id not in incomplete_tau_runtime_models
         models[model.id] = {
             "pilot_seconds": sum(lane_seconds.values()),
             "pilot_gpu_hours": sum(lane_seconds.values()) / 3600.0,
-            "estimated_full_seconds": estimated_full,
-            "estimated_full_gpu_hours": estimated_full / 3600.0,
+            "estimated_full_seconds": estimated_full if runtime_accounting_complete else None,
+            "estimated_full_gpu_hours": (
+                estimated_full / 3600.0 if runtime_accounting_complete else None
+            ),
+            "estimated_full_seconds_recorded_lower_bound": (
+                estimated_full if not runtime_accounting_complete else None
+            ),
             "lanes": {
                 "bfcl-v4-agentic": {
                     "selected_samples": len(bfcl_ids),
@@ -214,21 +249,51 @@ def _agentic_evidence(
                 "tau3-bench": {
                     "selected_samples": len(selected["tau3-bench"]),
                     "execution_seconds": tau_seconds,
+                    "runtime_accounting_complete": runtime_accounting_complete,
                     "reward_count": receipts["tau"].get("reward_count"),
-                    "termination_counts": receipts["tau"].get("termination_counts"),
+                    "termination_counts": tau_terminations,
                 },
                 "terminal-bench-2.1": {
                     "selected_samples": len(selected["terminal-bench-2.1"]),
                     "execution_seconds": terminal_seconds,
                     "primary_reward_count": receipts["terminal"].get("primary_reward_count"),
-                    "exception_counts": receipts["terminal"].get("exception_counts"),
+                    "exception_counts": terminal_exceptions,
                 },
             },
         }
         artifact_hashes[model.id] = {
             f"{lane}_receipt_sha256": _sha256(path) for lane, path in paths.items()
         }
-    return models, artifact_hashes
+    gate = {
+        "decision": (
+            "no-go"
+            if tau_runner_exceptions or terminal_timeouts or incomplete_tau_runtime_models
+            else "go"
+        ),
+        "tau_runner_exceptions": tau_runner_exceptions,
+        "terminal_agent_timeouts": terminal_timeouts,
+        "incomplete_tau_runtime_models": sorted(incomplete_tau_runtime_models),
+        "blockers": [
+            message
+            for count, message in (
+                (
+                    tau_runner_exceptions,
+                    "Repair and replay Tau runner exceptions for every model in affected paired blocks.",
+                ),
+                (
+                    terminal_timeouts,
+                    "Repair Terminal-Bench execution and replay the complete paired pilot lane.",
+                ),
+                (
+                    len(incomplete_tau_runtime_models),
+                    "Reconstruct complete Tau runtime accounting before forecasting expansion cost.",
+                ),
+            )
+            if count
+        ],
+    }
+    amendments = {"tau3-bench": tau_amendment} if tau_amendment is not None else {}
+    return models, artifact_hashes, amendments, gate
 
 
 def _judge_evidence(
@@ -422,6 +487,8 @@ def build_summary(
     judge_bundle: JsonObject,
     judge_bundle_sha256: str,
     code_revision: str,
+    tau_receipt_variant: str = "default",
+    incomplete_tau_runtime_models: frozenset[str] = frozenset(),
 ) -> JsonObject:
     manifest_sha256, selected = _manifest(study, manifest)
     model_ids = [model.id for model in study.models]
@@ -436,8 +503,11 @@ def build_summary(
     if any(direct.get(key) != value for key, value in expected_direct.items()):
         raise ValueError("direct pilot summary identity or status does not match")
     direct_models = direct.get("models")
-    if not isinstance(direct_models, dict) or list(direct_models) != model_ids:
-        raise ValueError("direct pilot summary model order does not match the protocol")
+    if not isinstance(direct_models, dict) or set(direct_models) != set(model_ids):
+        raise ValueError("direct pilot summary model set does not match the protocol")
+    unknown_incomplete = incomplete_tau_runtime_models - set(model_ids)
+    if unknown_incomplete:
+        raise ValueError(f"unknown incomplete Tau runtime models: {sorted(unknown_incomplete)}")
     for model_id, model in direct_models.items():
         if not isinstance(model, dict):
             raise ValueError(f"direct pilot model {model_id} must be an object")
@@ -454,11 +524,13 @@ def build_summary(
             model.get("estimated_full_direct_seconds_from_scratch"),
             f"{model_id}.estimated_full_direct_seconds_from_scratch",
         )
-    agentic, agentic_hashes = _agentic_evidence(
+    agentic, agentic_hashes, amendments, scale_gate = _agentic_evidence(
         study=study,
         manifest_sha256=manifest_sha256,
         selected=selected,
         result_root=result_root,
+        tau_receipt_variant=tau_receipt_variant,
+        incomplete_tau_runtime_models=incomplete_tau_runtime_models,
     )
     judge = _judge_evidence(
         study=study,
@@ -478,10 +550,14 @@ def build_summary(
             )
             / 3600.0,
             "estimated_full_gpu_hours": (
-                float(direct_models[model_id]["estimated_full_direct_seconds_from_scratch"])
-                + float(agentic[model_id]["estimated_full_seconds"])
-            )
-            / 3600.0,
+                (
+                    float(direct_models[model_id]["estimated_full_direct_seconds_from_scratch"])
+                    + float(agentic[model_id]["estimated_full_seconds"])
+                )
+                / 3600.0
+                if agentic[model_id]["estimated_full_seconds"] is not None
+                else None
+            ),
         }
     totals = {
         "direct_initialization_seconds": sum(
@@ -502,13 +578,17 @@ def build_summary(
         "protocol_sha256": study.canonical_sha256,
         "manifest_sha256": manifest_sha256,
         "study_seed": study.seed,
-        "status": "complete",
-        "interpretation": "Pilot metrics validate the pipeline and forecast runtime only; they are not confirmatory results.",
+        "status": (
+            "complete" if scale_gate["decision"] == "go" else "evidence-complete-scale-no-go"
+        ),
+        "interpretation": "Pilot metrics are calibration evidence, not confirmatory results. Expansion remains governed by scale_gate.",
         "summary_code_revision": code_revision,
         "pilot_samples_per_model": study.pilot_samples_per_model,
         "full_samples_per_model": study.full_samples_per_model,
         "models": models,
         "judge": judge,
+        "protocol_amendments": amendments,
+        "scale_gate": scale_gate,
         "runtime_totals": totals,
         "artifact_sha256": {
             "judge_bundle": judge_bundle_sha256,
@@ -517,6 +597,7 @@ def build_summary(
         "forecast_limits": [
             "direct first-turn and MT-Bench turn-two times are scaled separately",
             "agentic lanes are scaled by each allocation full/pilot sample ratio",
+            "execution_seconds are receipt-accounted time; models marked runtime_accounting_complete=false are lower bounds after resume",
             "judge time is scaled by the aggregate judged-outcome ratio",
             "forecasts exclude queue delay and are not throughput guarantees",
         ],
@@ -543,6 +624,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--result-root", type=Path, required=True)
     parser.add_argument("--judge-outcomes", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--tau-receipt-variant",
+        choices=("default", "local-amended"),
+        default="default",
+        help="Select immutable default or explicitly amended local-simulator Tau receipts.",
+    )
+    parser.add_argument(
+        "--incomplete-tau-runtime-model",
+        action="append",
+        default=[],
+        help="Model ID whose Tau receipt time covers only a resumed segment (repeatable).",
+    )
     args = parser.parse_args(argv)
     if platform.node() != "basilisk":
         raise RuntimeError("complete Qwen3.8 pilot accounting requires host basilisk")
@@ -566,6 +659,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         judge_bundle=_json(args.judge_outcomes, "pilot judge bundle"),
         judge_bundle_sha256=_sha256(args.judge_outcomes),
         code_revision=_code_revision(),
+        tau_receipt_variant=args.tau_receipt_variant,
+        incomplete_tau_runtime_models=frozenset(args.incomplete_tau_runtime_model),
     )
     output_sha256 = _write(args.output, summary)
     print(

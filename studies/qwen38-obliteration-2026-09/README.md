@@ -750,6 +750,29 @@ UV_PYTHON=3.11 uv run python scripts/build_qwen38_complete_pilot_summary.py \
   --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete.json
 ```
 
+When the operator-authorized local Tau simulator amendment is used, select those
+receipts explicitly rather than copying them to the default receipt names. Mark
+any receipt whose runtime covers only a resumed segment so the expansion forecast
+is suppressed instead of reporting a misleading point estimate:
+
+```bash
+UV_PYTHON=3.11 uv run python scripts/build_qwen38_complete_pilot_summary.py \
+  --protocol studies/qwen38-obliteration-2026-09/protocol.yaml \
+  --manifest /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
+  --direct-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete-direct.json \
+  --result-root /srv/matric-eval/results/qwen38-obliteration-2026-09 \
+  --judge-outcomes /srv/matric-eval/results/qwen38-obliteration-2026-09/private/pilot-judge-outcomes.json \
+  --tau-receipt-variant local-amended \
+  --incomplete-tau-runtime-model qwen38-27b-source-bf16 \
+  --output /srv/matric-eval/results/qwen38-obliteration-2026-09/public/pilot-summary-complete.json
+```
+
+The sealed summary reports evidence completeness separately from its `scale_gate`.
+Any Tau runner exception, Terminal-Bench agent timeout, or incomplete runtime
+accounting yields `status: evidence-complete-scale-no-go` until repaired paired
+evidence is available. Only a clean `go` gate emits `status: complete`, which is
+the report renderer's finalization sentinel.
+
 After an artifact qualification manifest has recorded and verified every indexed
 tensor and required support-file SHA-256, execute each locked allocation batch on the
 leased A100. The request path below is illustrative; use one of the immutable files
