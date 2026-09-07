@@ -214,7 +214,11 @@ def validate_resume(matrix: dict[str, Any]) -> dict[str, Any]:
             models=[model],
             benchmarks=benchmarks,
         )
-        preserved = {"benchmark": benchmarks[0], "sample_ids": ["a", "b", "c"]}
+        preserved = {
+            "benchmark": benchmarks[0],
+            "sample_ids": ["a", "b", "c"],
+            "execution": "completed",
+        }
         manager.mark_complete(model, benchmarks[0], 1.0, 3, preserved)
         completed_before = {benchmarks[0]}
         pending = manager.get_resume_work()[model]
@@ -227,7 +231,7 @@ def validate_resume(matrix: dict[str, Any]) -> dict[str, Any]:
                 benchmark,
                 1.0,
                 3,
-                {"benchmark": benchmark, "sample_ids": ["d", "e", "f"]},
+                {"benchmark": benchmark, "sample_ids": ["d", "e", "f"], "execution": "completed"},
             )
 
         final_result = manager.build_model_result(model)

@@ -7,14 +7,19 @@ and result aggregation. Supports multiple inference providers.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
+from uuid import uuid4
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 
 from matric_eval.config import get_tier
 from matric_eval.provenance import benchmark_provenance, framework_provenance
+from matric_eval.results.accounting import summarize_benchmarks
+from matric_eval.results.contract import MetricDescriptor, ResultEnvelope
+from matric_eval.results.inspect_adapter import adapt_log, envelope, native_reference, unavailable
 
 if TYPE_CHECKING:
     from matric_eval.state import StateManager
@@ -76,6 +81,7 @@ class EvaluationEngine:
                 When set, adds judge scoring alongside deterministic scorers.
         """
         self.provider = provider
+        self.run_id = str(uuid4())
         self.tier = tier
         self.tier_config = get_tier(tier)
         self.thinking_mode = thinking_mode
@@ -145,6 +151,9 @@ class EvaluationEngine:
         self,
         benchmark: str,
         task: Optional[Task] = None,
+        result_format: str = "legacy",
+        primary_metric_id: str | None = None,
+        metric_descriptors: dict[str, MetricDescriptor] | None = None,
         **eval_kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -157,8 +166,8 @@ class EvaluationEngine:
 
         Returns:
             Dictionary containing:
-            - status: "success" or "error"
-            - score: Overall accuracy (0.0-1.0)
+            - status/execution: native execution completion, failure or cancellation
+            - score: Declared primary estimate, or None when unavailable
             - samples: Number of samples evaluated
             - log_path: Path to evaluation log file
             - error: Error message (if status == "error")
@@ -167,11 +176,13 @@ class EvaluationEngine:
         Raises:
             ValueError: If benchmark name is invalid
         """
+        if result_format not in {"legacy", "v2"}:
+            raise ValueError("result_format must be legacy or v2")
         if task is None:
             # Dynamically load task from matric_eval.tasks
             task = self._load_task(benchmark)
 
-        result = {
+        result: dict[str, Any] = {
             "benchmark": benchmark,
             "model": self.model,
             "tier": self.tier,
@@ -206,49 +217,57 @@ class EvaluationEngine:
                 **merged_kwargs,
             )
 
+            result["log_paths"] = [str(log.location) for log in logs if log.location]
+            result["native_logs"] = [native_reference(log) for log in logs]
             if not logs:
-                result.update(
-                    {
-                        "status": "error",
-                        "error": "No evaluation logs returned",
-                        "score": 0.0,
-                        "samples": 0,
-                    }
+                raise ValueError("No evaluation logs returned")
+            if len(logs) != 1:
+                raise ValueError(
+                    "Multiple evaluation logs returned; benchmark execution is ambiguous"
                 )
-                return result
-
-            # Extract results from log
-            log = logs[0]
+            measured = adapt_log(
+                logs[0],
+                run_id=self.run_id,
+                model_id=self.model,
+                benchmark_id=benchmark,
+                primary_metric_id=primary_metric_id,
+                descriptors=metric_descriptors,
+            )
+            if result_format == "v2":
+                return envelope(measured, self.run_id, self.model).model_dump()
             result.update(
                 {
-                    "status": "success",
-                    "log_path": str(log.location) if hasattr(log, "location") else None,
-                    "samples": len(log.samples) if log.samples else 0,
+                    "status": {"completed": "success", "failed": "error"}.get(
+                        measured.execution, measured.execution
+                    ),
+                    "execution": measured.execution,
+                    "score": measured.primary_estimate.value,
+                    "samples": measured.coverage.attempted,
+                    "log_path": str(logs[0].location) if logs[0].location else None,
+                    "eligible": measured.eligibility.eligible,
+                    "eligibility_reasons": measured.eligibility.reasons,
+                    "counts": measured.coverage.model_dump(),
+                    "observation_result": measured.model_dump(),
                 }
             )
-
-            # Extract accuracy score
-            if log.results and log.results.scores:
-                metrics = log.results.scores[0].metrics
-                accuracy_metric = metrics.get("accuracy")
-                if accuracy_metric is not None:
-                    result["score"] = accuracy_metric.value
-                else:
-                    # Fall back to first available metric
-                    first_metric = next(iter(metrics.values()), None)
-                    result["score"] = first_metric.value if first_metric else 0.0
-            else:
-                result["score"] = 0.0
+            if measured.execution != "completed":
+                result["error"] = f"Inspect terminal status: {logs[0].status}"
 
         except Exception as e:
             result.update(
                 {
                     "status": "error",
                     "error": str(e),
-                    "score": 0.0,
+                    "score": None,
                     "samples": 0,
+                    "execution": "failed",
+                    "eligible": False,
+                    "eligibility_reasons": ["execution_failed"],
+                    "counts": None,
                 }
             )
+            if result_format == "v2":
+                raise ValueError(f"v2 projection unavailable: {e}") from e
 
         return result
 
@@ -258,6 +277,7 @@ class EvaluationEngine:
         checkpoint: bool = True,
         state_manager: StateManager | None = None,
         checkpoint_model: str | None = None,
+        result_format: str = "legacy",
         **eval_kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -276,10 +296,14 @@ class EvaluationEngine:
             - model: Model identifier
             - tier: Evaluation tier
             - benchmarks: Dict mapping benchmark name to results
-            - overall_score: Average score across successful benchmarks
-            - status: "success" if any benchmark succeeded, "error" otherwise
+            - overall_score: None unless a cross-benchmark aggregation is declared
+            - status: "success" only if every requested benchmark completed
             - thinking_mode: Thinking mode used (if applicable)
         """
+        if result_format not in {"legacy", "v2"}:
+            raise ValueError("result_format must be legacy or v2")
+        if checkpoint and state_manager is not None:
+            self.run_id = state_manager.load_run_state().run_id
         results: dict[str, Any] = {
             "model": self.model,
             "tier": self.tier,
@@ -300,17 +324,15 @@ class EvaluationEngine:
         if self.judge_spec:
             results["judge"] = self.judge_spec
 
-        successful_scores: list[float] = []
         checkpoint_key = checkpoint_model or self._raw_model
         results["checkpoint_model"] = checkpoint_key
 
         for benchmark in benchmarks:
             if checkpoint and state_manager is not None:
                 saved_result = state_manager.get_benchmark_result(checkpoint_key, benchmark)
-                if saved_result is not None:
+                if saved_result is not None and saved_result.get("execution") == "completed":
                     result = {**saved_result, "resumed_from_checkpoint": True}
                     results["benchmarks"][benchmark] = result
-                    successful_scores.append(float(result.get("score", 0.0) or 0.0))
                     continue
                 state_manager.mark_running(checkpoint_key, benchmark)
 
@@ -326,9 +348,8 @@ class EvaluationEngine:
                 raise
             results["benchmarks"][benchmark] = result
 
-            if result["status"] == "success":
-                score = float(result.get("score", 0.0) or 0.0)
-                successful_scores.append(score)
+            if result.get("execution") == "completed":
+                score = result.get("score")
                 if checkpoint and state_manager is not None:
                     state_manager.mark_complete(
                         checkpoint_key,
@@ -345,13 +366,34 @@ class EvaluationEngine:
                     result=result,
                 )
 
-        # Calculate overall score
-        if successful_scores:
-            results["overall_score"] = sum(successful_scores) / len(successful_scores)
-            results["status"] = "success"
-        else:
-            results["overall_score"] = 0.0
-            results["status"] = "error"
+        results.update(summarize_benchmarks(results["benchmarks"], benchmarks))
+
+        if result_format == "v2":
+            if any("observation_result" not in value for value in results["benchmarks"].values()):
+                raise ValueError(
+                    "v2 projection unavailable: benchmark has no verified observation manifest"
+                )
+            return ResultEnvelope.model_validate(
+                {
+                    "result_schema_version": "2",
+                    "run_id": self.run_id,
+                    "model_id": self.model,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "provenance_schema_version": "1",
+                    "configuration_sha256": None,
+                    "execution": results["execution"],
+                    "eligibility": {
+                        "eligible": results["eligible"],
+                        "reasons": results["eligibility_reasons"],
+                    },
+                    "benchmarks": [
+                        value["observation_result"] for value in results["benchmarks"].values()
+                    ],
+                    "aggregation_id": None,
+                    "overall_estimate": unavailable("aggregation_undeclared"),
+                    "artifacts": [],
+                }
+            ).model_dump()
 
         return results
 
@@ -400,7 +442,11 @@ class EvaluationEngine:
             run_results.append(result)
 
             # A run "passes" if it succeeded and scored > 0
-            passed = result.get("status") == "success" and result.get("score", 0.0) > 0
+            passed = (
+                result.get("status") == "success"
+                and result.get("score") is not None
+                and result["score"] > 0
+            )
             run_pass_flags.append(passed)
 
         successful_runs = [r for r in run_results if r.get("status") == "success"]

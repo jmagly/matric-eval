@@ -402,6 +402,7 @@ class TestResumeExecution:
             run_benchmark.return_value = {
                 "benchmark": "humaneval",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.75,
                 "samples": 5,
             }
@@ -454,6 +455,7 @@ class TestResumeExecution:
                 "benchmark": "humaneval",
                 "model": "ollama/llama3.2:3b",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.8,
                 "samples": 5,
             },
@@ -472,6 +474,7 @@ class TestResumeExecution:
                     "benchmark": benchmark,
                     "model": "ollama/llama3.2:3b",
                     "status": "success",
+                    "execution": "completed",
                     "score": 0.6,
                     "samples": 5,
                 }

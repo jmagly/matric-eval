@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalResults, EvalScore
+from inspect_ai.log import EvalLog
 
 # =============================================================================
 # Directory Fixtures
@@ -155,27 +155,43 @@ def sample_problems_list(
 
 @pytest.fixture
 def mock_eval_log() -> EvalLog:
-    """
-    Mock EvalLog object with realistic structure.
-
-    Note: This is a simplified mock. For real Inspect AI logs,
-    use actual eval() calls in integration tests.
-    """
-    mock_log = MagicMock(spec=EvalLog)
-
-    # Mock results
-    mock_results = MagicMock(spec=EvalResults)
-    mock_score = MagicMock(spec=EvalScore)
-    mock_metric = MagicMock()
-    mock_metric.value = 0.8
-    mock_score.metrics = {"accuracy": mock_metric}
-    mock_results.scores = [mock_score]
-
-    mock_log.results = mock_results
-    mock_log.samples = [MagicMock() for _ in range(5)]
-    mock_log.status = "success"
-
-    return mock_log
+    """A real native log with five selected samples and four correct answers."""
+    return EvalLog.model_validate(
+        {
+            "status": "success",
+            "eval": {
+                "eval_id": "fixture-log",
+                "created": "2026-09-06T00:00:00Z",
+                "task": "fixture",
+                "model": "ollama/test",
+                "dataset": {"name": "fixture/1", "samples": 5, "sample_ids": list(range(5))},
+                "config": {"epochs": 1},
+            },
+            "samples": [
+                {
+                    "id": i,
+                    "epoch": 1,
+                    "input": "synthetic",
+                    "target": "synthetic",
+                    "scores": {"exact": {"value": "C" if i < 4 else "I"}},
+                }
+                for i in range(5)
+            ],
+            "results": {
+                "total_samples": 5,
+                "completed_samples": 5,
+                "scores": [
+                    {
+                        "name": "exact",
+                        "scorer": "exact",
+                        "metrics": {
+                            "accuracy": {"name": "accuracy", "value": 0.8},
+                        },
+                    }
+                ],
+            },
+        }
+    )
 
 
 @pytest.fixture

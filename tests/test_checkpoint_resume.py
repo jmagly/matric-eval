@@ -611,6 +611,7 @@ class TestIdempotentExecution:
             model="llama3.2:3b",
             benchmark="humaneval",
             score=0.8,
+            result={"execution": "completed", "score": 0.8},
         )
 
         # Check if should skip

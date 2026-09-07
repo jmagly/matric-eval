@@ -483,7 +483,7 @@ class TestStateManager:
         model_state = manager.load_model_state("m1")
         assert model_state is not None
         assert model_state.status == Status.COMPLETED
-        assert model_state.overall_score == 0.7  # (0.8 + 0.6) / 2
+        assert model_state.overall_score is None  # No declared cross-benchmark aggregation.
 
     def test_should_skip_incomplete(self, manager: StateManager) -> None:
         """Should not skip incomplete benchmarks."""
@@ -507,7 +507,13 @@ class TestStateManager:
             benchmarks=["b1"],
         )
 
-        manager.mark_complete("m1", "b1", score=0.9, total_problems=10)
+        manager.mark_complete(
+            "m1",
+            "b1",
+            score=0.9,
+            total_problems=10,
+            result={"execution": "completed", "score": 0.9},
+        )
 
         assert manager.should_skip("m1", "b1") is True
 
@@ -632,13 +638,13 @@ class TestStateManagerIntegration:
         # Verify model scores
         llama_state = manager.load_model_state("llama3.2:3b")
         assert llama_state is not None
-        assert llama_state.overall_score is not None
-        assert abs(llama_state.overall_score - 0.8) < 0.001
+        assert llama_state.overall_score is None
+        assert all(benchmark.score == 0.8 for benchmark in llama_state.benchmarks.values())
 
         mistral_state = manager.load_model_state("mistral:7b")
         assert mistral_state is not None
-        assert mistral_state.overall_score is not None
-        assert abs(mistral_state.overall_score - 0.7) < 0.001
+        assert mistral_state.overall_score is None
+        assert all(benchmark.score == 0.7 for benchmark in mistral_state.benchmarks.values())
 
     def test_resume_interrupted_run(self, manager: StateManager) -> None:
         """Should resume from interruption point."""

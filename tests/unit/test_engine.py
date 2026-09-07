@@ -10,9 +10,10 @@ Covers:
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
+from inspect_ai.log import EvalLog
 
 from matric_eval.core import EvaluationEngine
 from matric_eval.state import StateManager
@@ -67,7 +68,7 @@ class TestRunBenchmark:
     def test_successful_benchmark(
         self,
         tmp_path: Path,
-        mock_eval_log: MagicMock,
+        mock_eval_log: EvalLog,
     ) -> None:
         """Should run benchmark successfully and return results."""
         engine = EvaluationEngine(
@@ -86,7 +87,13 @@ class TestRunBenchmark:
             assert result["status"] == "success"
             assert result["benchmark"] == "humaneval"
             assert result["model"] == "ollama/test"
-            assert result["score"] == 0.8
+            assert result["score"] is None
+            assert result["execution"] == "completed"
+            assert result["eligible"] is False
+            assert (
+                result["observation_result"]["metrics"]["exact/accuracy"]["estimate"]["value"]
+                == 0.8
+            )
             assert result["samples"] == 5
             assert result["provenance"]["schema_version"] == "1"
             assert result["provenance"]["framework"]["inspect_ai"] == "0.3.263"
@@ -110,7 +117,9 @@ class TestRunBenchmark:
 
             assert result["status"] == "error"
             assert "Model timeout" in result["error"]
-            assert result["score"] == 0.0
+            assert result["score"] is None
+            assert result["execution"] == "failed"
+            assert result["eligible"] is False
             assert result["provenance"]["benchmark"]["name"] == "humaneval"
 
     def test_benchmark_no_logs_returned(self, tmp_path: Path) -> None:
@@ -130,11 +139,13 @@ class TestRunBenchmark:
 
             assert result["status"] == "error"
             assert "No evaluation logs" in result["error"]
+            assert result["score"] is None
+            assert result["execution"] == "failed"
 
     def test_thinking_config_is_expanded_into_inspect_eval_kwargs(
         self,
         tmp_path: Path,
-        mock_eval_log: MagicMock,
+        mock_eval_log: EvalLog,
     ) -> None:
         """Inspect eval rejects a nested generate_config keyword."""
         engine = EvaluationEngine(
@@ -159,7 +170,7 @@ class TestRunAll:
         self,
         tmp_path: Path,
     ) -> None:
-        """Should run all benchmarks and calculate overall score."""
+        """Complete benchmarks retain scores without an undeclared overall aggregate."""
         engine = EvaluationEngine(
             model="ollama/test",
             log_dir=tmp_path,
@@ -171,6 +182,7 @@ class TestRunAll:
             return {
                 "benchmark": benchmark,
                 "status": "success",
+                "execution": "completed",
                 "score": scores.get(benchmark, 0.0),
                 "samples": 5,
             }
@@ -181,14 +193,15 @@ class TestRunAll:
             assert result["status"] == "success"
             assert result["model"] == "ollama/test"
             assert len(result["benchmarks"]) == 3
-            assert result["overall_score"] == pytest.approx(0.7)  # (0.8 + 0.7 + 0.6) / 3
+            assert result["overall_score"] is None
+            assert result["aggregation_reason"] == "aggregation_undeclared"
             assert result["provenance"]["framework"]["inspect_evals"] == "0.19.0"
 
     def test_run_all_with_failures(
         self,
         tmp_path: Path,
     ) -> None:
-        """Should handle partial failures and calculate score from successful benchmarks only."""
+        """A partial suite cannot masquerade as successful full-suite performance."""
         engine = EvaluationEngine(
             model="ollama/test",
             log_dir=tmp_path,
@@ -199,12 +212,14 @@ class TestRunAll:
                 return {
                     "benchmark": benchmark,
                     "status": "error",
+                    "execution": "failed",
                     "error": "Model timeout",
-                    "score": 0.0,
+                    "score": None,
                 }
             return {
                 "benchmark": benchmark,
                 "status": "success",
+                "execution": "completed",
                 "score": 0.75,
                 "samples": 5,
             }
@@ -212,12 +227,12 @@ class TestRunAll:
         with patch.object(engine, "run_benchmark", side_effect=mock_run_benchmark):
             result = engine.run_all(["humaneval", "mbpp", "gsm8k"])
 
-            assert result["status"] == "success"
+            assert result["status"] == "partial"
             assert result["benchmarks"]["humaneval"]["status"] == "success"
             assert result["benchmarks"]["mbpp"]["status"] == "error"
             assert result["benchmarks"]["gsm8k"]["status"] == "success"
-            # Score should average only successful benchmarks
-            assert result["overall_score"] == pytest.approx(0.75)
+            assert result["overall_score"] is None
+            assert result["suite_scope"] == {"requested": 3, "completed": 2, "scored": 2}
 
     def test_run_all_complete_failure(
         self,
@@ -233,15 +248,17 @@ class TestRunAll:
             return {
                 "benchmark": benchmark,
                 "status": "error",
+                "execution": "failed",
                 "error": "Connection refused",
-                "score": 0.0,
+                "score": None,
             }
 
         with patch.object(engine, "run_benchmark", side_effect=mock_run_benchmark):
             result = engine.run_all(["humaneval", "mbpp", "gsm8k"])
 
             assert result["status"] == "error"
-            assert result["overall_score"] == 0.0
+            assert result["overall_score"] is None
+            assert result["execution"] == "failed"
 
     def test_run_all_persists_and_reuses_completed_benchmarks(
         self,
@@ -265,6 +282,7 @@ class TestRunAll:
                 "benchmark": "humaneval",
                 "model": "ollama/test",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.8,
                 "samples": 5,
             },
@@ -276,6 +294,7 @@ class TestRunAll:
                 "benchmark": "mbpp",
                 "model": "ollama/test",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.6,
                 "samples": 5,
             }
@@ -287,7 +306,8 @@ class TestRunAll:
 
         run_benchmark.assert_called_once_with("mbpp")
         assert result["benchmarks"]["humaneval"]["resumed_from_checkpoint"] is True
-        assert result["overall_score"] == pytest.approx(0.7)
+        assert result["overall_score"] is None
+        assert result["aggregation_reason"] == "aggregation_undeclared"
         assert manager.load_run_state().status == Status.COMPLETED
 
     def test_interrupted_run_retries_only_interrupted_benchmark(
@@ -309,6 +329,7 @@ class TestRunAll:
             "benchmark": "humaneval",
             "model": "ollama/test",
             "status": "success",
+            "execution": "completed",
             "score": 0.8,
             "samples": 5,
         }
@@ -332,6 +353,7 @@ class TestRunAll:
             "benchmark": "mbpp",
             "model": "ollama/test",
             "status": "success",
+            "execution": "completed",
             "score": 0.6,
             "samples": 5,
         }
@@ -343,7 +365,8 @@ class TestRunAll:
             )
 
         run_benchmark.assert_called_once_with("mbpp")
-        assert result["overall_score"] == pytest.approx(0.7)
+        assert result["overall_score"] is None
+        assert result["aggregation_reason"] == "aggregation_undeclared"
         assert manager.load_run_state().status == Status.COMPLETED
 
 
@@ -421,7 +444,7 @@ class TestEngineIntegration:
     def test_full_evaluation_workflow(
         self,
         tmp_path: Path,
-        mock_eval_log: MagicMock,
+        mock_eval_log: EvalLog,
     ) -> None:
         """Should execute complete evaluation workflow."""
         engine = EvaluationEngine(

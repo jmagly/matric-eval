@@ -400,6 +400,9 @@ export class MatricEvalClient {
       if (Object.hasOwn(result, 'result_schema_version')) {
         throw new Error('Versioned results require the validated readResult v2 reader');
       }
+      if (result['overall_score'] === null) {
+        throw new Error('Unavailable overall scores cannot be projected into the legacy numeric contract');
+      }
       const rawStatus = String(result['status'] ?? 'failed');
       const status = rawStatus === 'error' ? 'failed' : rawStatus;
       return {

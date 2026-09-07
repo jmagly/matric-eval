@@ -504,6 +504,19 @@ class ModelEvaluator:
         self.config = config or ParallelConfig()
         self._results: dict[str, dict[str, Any]] = {}
 
+    @staticmethod
+    def _execution_failure(error: str | None) -> dict[str, Any]:
+        """Keep callable failure distinct from measured incorrect performance."""
+        return {
+            "status": "error",
+            "execution": "failed",
+            "score": None,
+            "samples": 0,
+            "error": error if error is not None else "Unknown execution failure",
+            "eligible": False,
+            "eligibility_reasons": ["execution_failed"],
+        }
+
     def evaluate_all(
         self,
         eval_fn: Callable[[str, str], dict[str, Any]],
@@ -525,22 +538,29 @@ class ModelEvaluator:
 
         if parallel_models:
             # Create tasks for all model-benchmark combinations
-            tasks = [(model, benchmark) for model in self.models for benchmark in self.benchmarks]
+            task_bindings = {
+                str(index): (model, benchmark)
+                for index, (model, benchmark) in enumerate(
+                    (model, benchmark) for model in self.models for benchmark in self.benchmarks
+                )
+            }
 
             executor = ParallelExecutor(self.config)
             parallel_result = executor.execute(
-                tasks,
-                lambda t: eval_fn(t[0], t[1]),
-                lambda t: f"{t[0]}:{t[1]}",
+                list(task_bindings),
+                lambda task_id: eval_fn(*task_bindings[task_id]),
+                lambda task_id: task_id,
             )
 
             # Organize results
             for task_result in parallel_result.results:
-                model, benchmark = task_result.task_id.split(":", 1)
+                model, benchmark = task_bindings[task_result.task_id]
                 if model not in results:
                     results[model] = {}
                 results[model][benchmark] = (
-                    task_result.result if task_result.success else {"error": task_result.error}
+                    task_result.result
+                    if task_result.success
+                    else self._execution_failure(task_result.error)
                 )
 
             logger.info(
@@ -567,7 +587,7 @@ class ModelEvaluator:
                         results[model][task_result.task_id] = (
                             task_result.result
                             if task_result.success
-                            else {"error": task_result.error}
+                            else self._execution_failure(task_result.error)
                         )
                 else:
                     # Sequential benchmark evaluation
@@ -576,7 +596,7 @@ class ModelEvaluator:
                         try:
                             results[model][benchmark] = eval_fn(model, benchmark)
                         except Exception as e:
-                            results[model][benchmark] = {"error": str(e)}
+                            results[model][benchmark] = self._execution_failure(str(e))
 
         self._results = results
         return results
