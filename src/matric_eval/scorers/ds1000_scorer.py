@@ -1,15 +1,15 @@
 """
 DS-1000 specialized code execution scorer.
 
-Uses the code_context test harnesses from the DS-1000 dataset
-to validate model-generated data science code.
+Execution is unavailable until a dedicated DS-1000 image and dependency profile
+are qualified. The standard-library Python profile cannot validate pandas,
+NumPy, or other data-science dependencies, and this module never falls back to
+host execution. The pure context extraction helper remains available.
 
 Based on https://github.com/xlang-ai/DS-1000
 """
 
 import re
-import subprocess
-import sys
 from typing import Any
 
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
@@ -73,187 +73,55 @@ def execute_ds1000_test(
     code_context: str,
     timeout: int = 60,
 ) -> dict[str, Any]:
+    """Refuse execution until a DS-1000 dependency profile is qualified.
+
+    Arguments remain accepted for compatibility; no source is evaluated and no
+    process is launched. A future qualified profile needs its own dependency,
+    resource, isolation, and correctness validation before enabling this path.
     """
-    Execute DS-1000 test using the dataset's code_context test harness.
-
-    The code_context contains:
-    - generate_test_case(): Creates test inputs and expected outputs
-    - exec_test(): Validates result against expected
-    - test_execution(): Main test runner that injects solution at [insert]
-
-    Args:
-        code: Model-generated solution code
-        code_context: DS-1000 code_context containing test infrastructure
-        timeout: Maximum execution time in seconds (default: 60)
-
-    Returns:
-        Dictionary with keys:
-        - passed: bool indicating if tests passed
-        - error: str or None with error message if failed
-        - output: str with any captured output
-    """
-    # Build the test script
-    # The code_context has test_execution(solution: str) that:
-    # 1. Injects solution at [insert] marker
-    # 2. Runs test cases
-    # 3. Asserts results
-
-    # Extract exec_context from code_context to understand [insert] placement
-    # DS-1000 uses triple-quoted strings: exec_context = r""" ... """
-    exec_context_match = re.search(
-        r'exec_context\s*=\s*r?(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', code_context, re.DOTALL
-    )
-    if exec_context_match:
-        # Match group 1 for """ or group 2 for '''
-        exec_context = exec_context_match.group(1) or exec_context_match.group(2) or ""
-    else:
-        exec_context = ""
-
-    # Extract appropriate solution based on [insert] context
-    solution = extract_solution_for_context(code, exec_context)
-
-    # Use base64 encoding to safely embed solution code
-    # This avoids all escaping issues with quotes, backslashes, etc.
-    import base64
-
-    encoded_code = base64.b64encode(solution.encode()).decode()
-
-    test_script = f'''
-import base64
-{code_context}
-
-# Run the test with the model's solution
-solution = base64.b64decode("{encoded_code}").decode()
-
-try:
-    test_execution(solution)
-    print("PASS")
-except AssertionError as e:
-    print(f"FAIL: AssertionError - {{e}}")
-except Exception as e:
-    print(f"FAIL: {{type(e).__name__}} - {{e}}")
-'''
-
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", test_script],
-            capture_output=True,
-            timeout=timeout,
-            text=True,
-        )
-
-        output = result.stdout + result.stderr
-
-        if result.returncode == 0 and "PASS" in result.stdout:
-            return {
-                "passed": True,
-                "error": None,
-                "output": output,
-            }
-        else:
-            # Extract error message
-            error_lines = [
-                line
-                for line in output.split("\n")
-                if line.startswith("FAIL:") or "Error" in line or "error" in line
-            ]
-            error_msg = error_lines[0] if error_lines else "Test execution failed"
-
-            return {
-                "passed": False,
-                "error": error_msg,
-                "output": output,
-            }
-
-    except subprocess.TimeoutExpired:
-        return {
-            "passed": False,
-            "error": f"Execution timeout after {timeout} seconds",
-            "output": "",
-        }
-    except Exception as e:
-        return {
-            "passed": False,
-            "error": f"Execution error: {str(e)}",
-            "output": "",
-        }
+    return {
+        "passed": False,
+        "status": "unavailable",
+        "error": "ds1000_profile_unqualified",
+        "output": "",
+        "provenance": {
+            "profile": None,
+            "required_profile": "ds1000",
+            "reason": "ds1000_profile_unqualified",
+            "cleanup": "not_created",
+        },
+    }
 
 
 @scorer(metrics=[mean()])
 def ds1000_scorer(timeout: int = 60) -> Scorer:
-    """
-    Create Inspect AI scorer for DS-1000 data science problems.
+    """Return unscored observations until a DS-1000 runner profile is qualified.
 
-    Uses the code_context test harnesses from the DS-1000 dataset
-    to validate model-generated code. The test harnesses include
-    sophisticated comparison logic for pandas DataFrames, numpy arrays,
-    and other data science objects.
-
-    Args:
-        timeout: Maximum execution time per problem in seconds (default: 60)
-                 DS-1000 problems may require more time for data operations
-
-    Returns:
-        Scorer function compatible with Inspect AI
-
-    Example:
-        >>> task = Task(
-        ...     dataset=ds1000_samples,
-        ...     solver=[generate()],
-        ...     scorer=ds1000_scorer(timeout=120)
-        ... )
+    ``timeout`` remains an accepted compatibility argument, not authorization to
+    run a data-science harness under the standard-library runner profile.
     """
 
     async def score(state: TaskState, target: Target) -> Score:
-        """
-        Score a model response using DS-1000 test harness.
-
-        Args:
-            state: Current task state with model output and metadata
-            target: Target (reference code, not used directly)
-
-        Returns:
-            Score with value 1.0 for pass, 0.0 for fail
-        """
-        # Extract code from model response
-        response = state.output.completion
-        code = extract_code(response)
-
-        if not code:
-            return Score(
-                value=0.0,
-                explanation="No code found in response",
+        code_context = (state.metadata or {}).get("code_context", "")
+        if not code_context or "test_execution" not in code_context:
+            return Score.unscored(
+                reason="grader_failed",
+                explanation="DS-1000 test harness unavailable",
+                metadata={"runner_status": "test_harness_unavailable"},
             )
-
-        # Get code_context from metadata
-        metadata = state.metadata or {}
-        code_context = metadata.get("code_context", "")
-
-        if not code_context:
-            return Score(
-                value=0.0,
-                explanation="No code_context available for testing",
-            )
-
-        # Check if code_context has the required test_execution function
-        if "test_execution" not in code_context:
-            return Score(
-                value=0.0,
-                explanation="code_context missing test_execution function",
-            )
-
-        # Execute the test
-        result = execute_ds1000_test(code, code_context, timeout=timeout)
-
-        if result["passed"]:
-            return Score(
-                value=1.0,
-                explanation="All tests passed",
-            )
-        else:
-            return Score(
-                value=0.0,
-                explanation=result["error"] or "Test execution failed",
-            )
+        result = execute_ds1000_test(
+            extract_code(state.output.completion),
+            code_context,
+            timeout=timeout,
+        )
+        return Score.unscored(
+            reason="grader_failed",
+            explanation=result["error"],
+            metadata={
+                "runner_status": result["status"],
+                "runner_error": result["error"],
+                "execution_provenance": result["provenance"],
+            },
+        )
 
     return score

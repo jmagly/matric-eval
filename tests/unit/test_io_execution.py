@@ -1,6 +1,7 @@
 """Unit tests for I/O execution scorer (LiveCodeBench)."""
 
-from unittest.mock import MagicMock
+import math
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -75,225 +76,141 @@ class TestCompareOutputs:
         assert compare_outputs("", "") is True
 
 
-@pytest.mark.unit
-class TestIoExecute:
-    """Tests for io_execute function."""
-
-    def test_execute_simple_print(self) -> None:
-        """Simple print statement produces stdout."""
-        code = 'print("hello")'
-        result = io_execute(code, "")
-        assert result["success"] is True
-        assert "hello" in result["stdout"]
-
-    def test_execute_with_stdin(self) -> None:
-        """Code can read from stdin."""
-        code = 'x = input(); print(f"got: {x}")'
-        result = io_execute(code, "test_input")
-        assert result["success"] is True
-        assert "got: test_input" in result["stdout"]
-
-    def test_execute_multiline_input(self) -> None:
-        """Code can read multiple lines from stdin."""
-        code = "a = input(); b = input(); print(a + b)"
-        result = io_execute(code, "hello\nworld")
-        assert result["success"] is True
-        assert "helloworld" in result["stdout"]
-
-    def test_execute_syntax_error(self) -> None:
-        """Syntax errors are caught and reported."""
-        code = 'print("unclosed'
-        result = io_execute(code, "")
-        assert result["success"] is False
-        assert result["error"] is not None
-
-    def test_execute_runtime_error(self) -> None:
-        """Runtime errors are caught and reported."""
-        code = "x = 1 / 0"
-        result = io_execute(code, "")
-        assert result["success"] is False
-        assert result["error"] is not None
-
-    def test_execute_timeout(self) -> None:
-        """Infinite loops are timed out."""
-        code = "while True: pass"
-        result = io_execute(code, "", timeout=1)
-        assert result["success"] is False
-        assert "timeout" in result["error"].lower()
-
-    def test_execute_empty_code(self) -> None:
-        """Empty code executes successfully with no output."""
-        result = io_execute("", "")
-        assert result["success"] is True
-        assert result["stdout"] == ""
+def execution_result(status="passed", stdout="hello\n"):
+    return {
+        "status": status,
+        "stdout": stdout,
+        "stderr": "",
+        "error": None if status == "passed" else status,
+        "provenance": {"profile": "python-restricted/1", "cleanup": "verified_absent"},
+    }
 
 
-@pytest.mark.unit
-class TestIoExecutionScorer:
-    """Tests for io_execution_scorer."""
-
-    @pytest.mark.asyncio
-    async def test_scorer_returns_scorer_function(self) -> None:
-        """scorer() returns a callable."""
-        scorer = io_execution_scorer()
-        assert callable(scorer)
-
-    @pytest.mark.asyncio
-    async def test_scorer_passes_all_tests(self) -> None:
-        """Scorer returns 1.0 when all tests pass."""
-        scorer = io_execution_scorer()
-
-        # Create mock state
-        state = MagicMock()
-        state.output.completion = "print(input())"
-        state.metadata = {
-            "public_test_cases": [
-                {"input": "hello", "output": "hello\n"},
-                {"input": "world", "output": "world\n"},
-            ],
-            "private_test_cases": [],
-        }
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 1.0
-        assert "All" in result.explanation or "passed" in result.explanation
-
-    @pytest.mark.asyncio
-    async def test_scorer_partial_pass(self) -> None:
-        """Scorer returns partial score when some tests pass."""
-        scorer = io_execution_scorer()
-
-        # Create mock state with code that only works for certain inputs
-        state = MagicMock()
-        state.output.completion = 'x = input(); print("hello" if x == "hello" else "wrong")'
-        state.metadata = {
-            "public_test_cases": [
-                {"input": "hello", "output": "hello\n"},
-                {"input": "world", "output": "world\n"},
-            ],
-            "private_test_cases": [],
-        }
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 0.5  # 1 of 2 tests pass
-
-    @pytest.mark.asyncio
-    async def test_scorer_no_code(self) -> None:
-        """Scorer returns 0.0 when no code found."""
-        scorer = io_execution_scorer()
-
-        state = MagicMock()
-        state.output.completion = ""
-        state.metadata = {"public_test_cases": [{"input": "", "output": ""}]}
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 0.0
-        assert "No code" in result.explanation
-
-    @pytest.mark.asyncio
-    async def test_scorer_no_tests(self) -> None:
-        """Scorer returns 0.0 when no test cases available."""
-        scorer = io_execution_scorer()
-
-        state = MagicMock()
-        state.output.completion = 'print("hello")'
-        state.metadata = {
-            "public_test_cases": [],
-            "private_test_cases": [],
-        }
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 0.0
-        assert "No test" in result.explanation
-
-    @pytest.mark.asyncio
-    async def test_scorer_extracts_code_from_markdown(self) -> None:
-        """Scorer extracts code from markdown fences."""
-        scorer = io_execution_scorer()
-
-        state = MagicMock()
-        state.output.completion = "```python\nprint(input())\n```"
-        state.metadata = {
-            "public_test_cases": [
-                {"input": "test", "output": "test\n"},
-            ],
-            "private_test_cases": [],
-        }
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 1.0
+def state_for_tests(code="print(input())"):
+    state = MagicMock()
+    state.output.completion = code
+    state.metadata = {
+        "public_test_cases": [{"input": "hello", "output": "hello\n"}],
+        "private_test_cases": [{"input": "world", "output": "world\n"}],
+    }
+    return state
 
 
-@pytest.mark.unit
-class TestIoExecutionScorerRegressions:
-    """Regression tests for I/O execution scorer."""
+@pytest.mark.parametrize(
+    "status",
+    [
+        "passed",
+        "incorrect",
+        "timeout",
+        "output_limit",
+        "unavailable",
+        "policy_denied",
+        "infrastructure_error",
+    ],
+)
+def test_io_execute_forwards_input_and_preserves_runner_evidence(status):
+    native = execution_result(status)
+    with patch("matric_eval.scorers.io_execution.execute_python", return_value=native) as runner:
+        result = io_execute("print(input())", "hello", timeout=7)
+    runner.assert_called_once_with("print(input())", stdin_input="hello", timeout=7)
+    assert result["success"] is (status == "passed")
+    assert result["status"] == status
+    assert result["provenance"] == native["provenance"]
+    assert result["stdout"] == native["stdout"]
 
-    @pytest.mark.asyncio
-    async def test_regression_competitive_programming_format(self) -> None:
-        """
-        REGRESSION: Competitive programming style stdin/stdout should work.
 
-        LiveCodeBench problems often have multiple lines of input with
-        specific output format.
-        """
-        scorer = io_execution_scorer()
-
-        # Typical competitive programming problem: sum N numbers
-        code = """
-n = int(input())
-nums = list(map(int, input().split()))
-print(sum(nums))
-"""
-
-        state = MagicMock()
-        state.output.completion = code
-        state.metadata = {
-            "public_test_cases": [
-                {"input": "3\n1 2 3", "output": "6\n"},
-                {"input": "5\n10 20 30 40 50", "output": "150\n"},
-            ],
-            "private_test_cases": [],
-        }
-
-        target = MagicMock()
-
-        result = await scorer(state, target)
-        assert result.value == 1.0, (
-            f"Competitive programming format should work: {result.explanation}"
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("second", "expected"), [("world\n", 1.0), ("wrong\n", 0.5)])
+async def test_io_scorer_keeps_test_fraction_and_normalized_comparison(second, expected):
+    with patch(
+        "matric_eval.scorers.io_execution.execute_python",
+        side_effect=[
+            execution_result(stdout="hello  \r\n"),
+            execution_result(stdout=second),
+        ],
+    ) as runner:
+        result = await io_execution_scorer()(
+            state_for_tests("```python\nprint(input())\n```"), MagicMock()
         )
+    assert result.value == expected
+    assert runner.call_count == 2
+    assert [call.kwargs["stdin_input"] for call in runner.call_args_list] == ["hello", "world"]
+    assert all(call.args[0] == "print(input())" for call in runner.call_args_list)
+    assert len(result.metadata["execution_records"]) == 2
+    assert result.metadata["tests_requested"] == result.metadata["tests_attempted"] == 2
 
-    @pytest.mark.asyncio
-    async def test_regression_output_normalization(self) -> None:
-        """
-        REGRESSION: Output comparison should be normalized.
 
-        Model might produce "6" while expected is "6\n" - should match.
-        """
-        scorer = io_execution_scorer()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["incorrect", "timeout", "output_limit"])
+async def test_confirmed_execution_failure_is_observed_incorrect(status):
+    with patch(
+        "matric_eval.scorers.io_execution.execute_python",
+        side_effect=[
+            execution_result(),
+            execution_result(status),
+        ],
+    ):
+        result = await io_execution_scorer()(state_for_tests(), MagicMock())
+    assert result.value == 0.5
+    assert result.metadata["failed_cases"][0]["error"] == status
+    assert result.metadata["execution_records"][1]["runner_status"] == status
 
-        # Code that doesn't add trailing newline
-        code = 'print(6, end="")'
 
-        state = MagicMock()
-        state.output.completion = code
-        state.metadata = {
-            "public_test_cases": [
-                {"input": "", "output": "6\n"},  # Expected has newline
-            ],
-            "private_test_cases": [],
-        }
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["unavailable", "policy_denied", "infrastructure_error"])
+async def test_any_unavailable_test_makes_entire_sample_unscored(status):
+    state = state_for_tests()
+    state.metadata["private_test_cases"].append({"input": "not run", "output": "not run"})
+    with patch(
+        "matric_eval.scorers.io_execution.execute_python",
+        side_effect=[
+            execution_result(),
+            execution_result(status),
+        ],
+    ) as runner:
+        result = await io_execution_scorer()(state, MagicMock())
+    assert math.isnan(result.value)
+    assert result.reason == "grader_failed"
+    assert runner.call_count == 2
+    assert result.metadata["tests_requested"] == 3
+    assert result.metadata["tests_attempted"] == 2
+    assert result.metadata["tests_passed_before_failure"] == 1
+    assert result.metadata["runner_status"] == status
+    assert (
+        result.metadata["execution_records"][1]["execution_provenance"]["cleanup"]
+        == "verified_absent"
+    )
 
-        target = MagicMock()
 
-        result = await scorer(state, target)
-        assert result.value == 1.0, f"Output normalization should work: {result.explanation}"
+@pytest.mark.asyncio
+async def test_missing_tests_is_unscored_without_execution():
+    state = state_for_tests()
+    state.metadata = {}
+    with patch("matric_eval.scorers.io_execution.execute_python") as runner:
+        result = await io_execution_scorer()(state, MagicMock())
+    runner.assert_not_called()
+    assert math.isnan(result.value)
+    assert result.reason == "grader_failed"
+
+
+@pytest.mark.asyncio
+async def test_empty_response_with_tests_is_observed_incorrect():
+    with patch("matric_eval.scorers.io_execution.execute_python") as runner:
+        result = await io_execution_scorer()(state_for_tests(""), MagicMock())
+    runner.assert_not_called()
+    assert result.value == 0.0
+
+
+@pytest.mark.asyncio
+async def test_mismatch_diagnostics_are_bounded():
+    state = state_for_tests()
+    state.metadata = {"public_test_cases": [{"input": "", "output": "a" * 1000}] * 5}
+    with patch(
+        "matric_eval.scorers.io_execution.execute_python",
+        return_value=execution_result(stdout="b" * 1000),
+    ):
+        result = await io_execution_scorer()(state, MagicMock())
+    assert result.value == 0.0
+    failures = result.metadata["failed_cases"]
+    assert len(failures) == 3
+    assert all(len(item["expected"]) == len(item["actual"]) == 100 for item in failures)
