@@ -1,0 +1,2641 @@
+{
+  "version": "1",
+  "scope": "Historical exact-source run; not a current-revision pass or capability qualification",
+  "source_commit": "be8e9886f6ff82c5503e6ac890d278751bd16085",
+  "uv_lock_sha256": "b9cd2c3940ab85832e3e30ddd714982c11320bcd82e8554114be84cc86e3a253",
+  "profile_id": "study-dev",
+  "artifacts": {
+    "junit": {
+      "uri": "/srv/matric-eval/results/ei-128-overlap/clean-full-junit.xml",
+      "sha256": "de72223ea4f0bc318c36dfef9deac1ff143a26aa868b5c04a3d3ec2673d6aeb3"
+    },
+    "environment": {
+      "uri": "/srv/matric-eval/results/ei-128-overlap/clean-environment.txt",
+      "sha256": "0a1bdbc9f231914e75d3500e3da1932fb9b46410beca1b5b06938774d3516dd4"
+    },
+    "inventory": {
+      "uri": "/srv/matric-eval/results/ei-128-overlap/final-inventory.txt",
+      "sha256": "ebda70e334309cb4d5c6f65c5189c12e781989019878b4fad993be0ab9621a6d"
+    },
+    "full_ci_log": {
+      "uri": "/srv/matric-eval/results/ei-128-overlap/clean-full-ci.log",
+      "sha256": "bd1ebb9396361fdd810b5d2233bad26fff382e9be11b0a7b4e5063dc07f5adad"
+    }
+  },
+  "junit_summary": {
+    "testcases": 2807,
+    "skipped": 321,
+    "failures": 0,
+    "errors": 0
+  },
+  "mapping_review": {
+    "owner_role": "test architect",
+    "named_approval": "not_claimed",
+    "unmapped_records": 0,
+    "promotion_status": "No skipped capability promoted by this artifact",
+    "review_basis": "Observed JUnit reasons mapped to docs/testing/profiles.md by test architect role; all 321 node IDs and reasons retained; no human sign-off asserted"
+  },
+  "policies": {
+    "dataset_missing": {
+      "capability": "Real dataset loading and task construction for the dataset named in reason",
+      "owner_role": "benchmark/data maintainer",
+      "promotion_condition": "Attest permitted dataset revision and ordered manifest on A100; execute this exact fixture in the declared evaluator profile."
+    },
+    "historical_data_skip": {
+      "capability": "Historical actual-data loader fixture",
+      "owner_role": "data maintainer",
+      "promotion_condition": "Review or replace the unconditional skip with a versioned executable fixture and explicit profile; supplying files alone is insufficient."
+    },
+    "historical_inference_skip": {
+      "capability": "Unexecuted inference or thinking-model fixture",
+      "owner_role": "provider/task maintainer",
+      "promotion_condition": "Review or replace the unconditional skip with an explicit bounded opt-in profile and retain actual A100 execution evidence."
+    },
+    "isolated_runtime_opt_in": {
+      "capability": "Real bounded generated-Python isolation",
+      "owner_role": "security/platform engineer",
+      "promotion_condition": "Configure explicit launcher and pinned image on A100; execute controlled probes with native start, effective restrictions and exact-ID cleanup receipts."
+    }
+  },
+  "records": [
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_bounded_children_hit_pid_limit_and_timeout_cleanup",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_correct_incorrect_and_stdin",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_finite_output_flood_is_bounded",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_invalid_utf8_output_has_bounded_text_and_explicit_loss",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_keyboard_interrupt_removes_exact_created_container",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_network_namespace_cannot_reach_owned_host_listener",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_parent_environment_and_host_file_are_inaccessible",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_readonly_root_and_writable_tmpfs",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_isolated_execution_runtime.py::test_unavailable_backend_refuses_payload_before_execution",
+      "reason": "Real isolation probes require MATRIC_EVAL_TEST_ISOLATION=1",
+      "reason_status": "observed",
+      "policy_id": "isolated_runtime_opt_in",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_ollama.py::TestEvaluationIntegration::test_full_evaluation_pipeline",
+      "reason": "Requires model inference - very slow",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/integration/test_ollama.py::TestEvaluationIntegration::test_run_smoke_eval_real_model",
+      "reason": "Requires model inference - very slow",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcConfigIntegration::test_load_arc_respects_environment_override",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcConfigIntegration::test_load_arc_uses_config_tier",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcConfigIntegration::test_load_arc_uses_reproducible_seed",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcEdgeCases::test_format_arc_prompt_with_special_characters",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcEdgeCases::test_load_arc_sample_count_exceeds_dataset_size",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcEdgeCases::test_load_arc_zero_samples_requested",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_sample_choices_have_text_and_label",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_samples_have_choices_metadata",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_samples_have_four_choices",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_samples_have_multiple_choice_prompts",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_samples_have_question_stem_metadata",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcSampleQuality::test_samples_have_valid_answer_keys",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcScorer::test_scorer_can_access_answer_key",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcScorer::test_task_has_multiple_choice_scorer",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_creation",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_default_tier_is_smoke",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_has_dataset",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_has_scorer",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_has_solver",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_immutability",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_name",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestArcTask::test_arc_task_respects_tier_parameter",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_default_is_smoke",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_file_not_found_raises_error",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_full_returns_all_samples",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_ids_match_pattern",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_invalid_json_raises_error",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_quick_returns_75_samples",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_quick_subset_of_full",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_reproducible_with_seed",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_samples_are_sample_objects",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_samples_have_required_fields",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_samples_have_unique_ids",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_smoke_returns_5_samples",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_smoke_subset_of_quick",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_arc.py::TestLoadArc::test_load_arc_unknown_tier_defaults_to_smoke",
+      "reason": "ARC dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_datasets.py::TestDatasetLoading::test_gsm8k_dataset",
+      "reason": "Requires actual GSM8K data",
+      "reason_status": "observed",
+      "policy_id": "historical_data_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_datasets.py::TestDatasetLoading::test_humaneval_dataset",
+      "reason": "Requires actual HumanEval data",
+      "reason_status": "observed",
+      "policy_id": "historical_data_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_datasets.py::TestDatasetLoading::test_load_dataset_tiered",
+      "reason": "Requires actual dataset files",
+      "reason_status": "observed",
+      "policy_id": "historical_data_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_datasets.py::TestDatasetLoading::test_mbpp_dataset",
+      "reason": "Requires actual MBPP data",
+      "reason_status": "observed",
+      "policy_id": "historical_data_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000ConfigIntegration::test_load_ds1000_respects_environment_override",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000ConfigIntegration::test_load_ds1000_uses_config_tier",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000ConfigIntegration::test_load_ds1000_uses_reproducible_seed",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000EdgeCases::test_load_ds1000_sample_count_exceeds_dataset_size",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000EdgeCases::test_load_ds1000_zero_samples_requested",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000EdgeCases::test_record_to_sample_with_long_code_context",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000EdgeCases::test_record_to_sample_with_minimal_metadata",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_first_sample_is_pandas_problem",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_samples_have_code_context",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_samples_have_data_science_problems",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_samples_have_library_metadata",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_samples_have_problem_ids",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000SampleQuality::test_samples_have_reference_solutions",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_creation",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_default_tier_is_smoke",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_has_dataset",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_has_scorer",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_has_solver",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_immutability",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_name",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestDS1000Task::test_ds1000_task_respects_tier_parameter",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_default_is_smoke",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_file_not_found_raises_error",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_full_returns_all_samples",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_ids_match_pattern",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_invalid_json_raises_error",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_quick_returns_50_samples",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_quick_subset_of_full",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_reproducible_with_seed",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_samples_are_sample_objects",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_samples_have_required_fields",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_samples_have_unique_ids",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_smoke_returns_5_samples",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_smoke_subset_of_quick",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ds1000.py::TestLoadDS1000::test_load_ds1000_unknown_tier_defaults_to_smoke",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KConfigIntegration::test_load_gsm8k_respects_environment_override",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KConfigIntegration::test_load_gsm8k_uses_config_tier",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KConfigIntegration::test_load_gsm8k_uses_reproducible_seed",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KEdgeCases::test_extract_answer_with_fraction_notation",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KEdgeCases::test_extract_answer_with_scientific_notation",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KEdgeCases::test_load_gsm8k_sample_count_exceeds_dataset_size",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KEdgeCases::test_load_gsm8k_zero_samples_requested",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KSampleQuality::test_first_sample_is_janet_ducks",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KSampleQuality::test_samples_are_word_problems",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KSampleQuality::test_samples_have_full_answer_in_metadata",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KSampleQuality::test_samples_have_numeric_targets",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KSampleQuality::test_samples_have_question_text",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KScorer::test_gsm8k_scorer_correct_answer",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KScorer::test_gsm8k_scorer_handles_dollar_signs",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KScorer::test_gsm8k_scorer_handles_formatting_differences",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KScorer::test_gsm8k_scorer_incorrect_answer",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KScorer::test_gsm8k_scorer_returns_scorer",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_creation",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_default_tier_is_smoke",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_has_dataset",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_has_scorer",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_has_solver",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_immutability",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_name",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestGSM8KTask::test_gsm8k_task_respects_tier_parameter",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_default_is_smoke",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_empty_file_raises_error",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_file_not_found_raises_error",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_full_returns_all_samples",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_invalid_json_raises_error",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_quick_returns_75_samples",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_quick_subset_of_full",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_reproducible_with_seed",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_samples_are_sample_objects",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_samples_have_required_fields",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_samples_have_unique_ids",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_smoke_returns_5_samples",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_smoke_subset_of_quick",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_gsm8k.py::TestLoadGSM8K::test_load_gsm8k_unknown_tier_defaults_to_smoke",
+      "reason": "GSM8K dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalConfigIntegration::test_load_humaneval_respects_environment_override",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalConfigIntegration::test_load_humaneval_uses_config_tier",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalConfigIntegration::test_load_humaneval_uses_reproducible_seed",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalEdgeCases::test_load_humaneval_sample_count_exceeds_dataset_size",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalEdgeCases::test_load_humaneval_zero_samples_requested",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalEdgeCases::test_record_to_sample_with_long_solution",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_first_sample_is_has_close_elements",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_samples_have_canonical_solutions",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_samples_have_entry_point_metadata",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_samples_have_function_signatures",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_samples_have_python_code_prompts",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalSampleQuality::test_samples_have_test_metadata",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalScorer::test_scorer_can_access_test_metadata",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalScorer::test_task_has_code_execution_scorer",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_creation",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_default_tier_is_smoke",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_has_dataset",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_has_scorer",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_has_solver",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_immutability",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_name",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestHumanEvalTask::test_humaneval_task_respects_tier_parameter",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_default_is_smoke",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_file_not_found_raises_error",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_full_returns_all_samples",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_ids_match_task_id_pattern",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_invalid_json_raises_error",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_quick_returns_75_samples",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_quick_subset_of_full",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_reproducible_with_seed",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_samples_are_sample_objects",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_samples_have_required_fields",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_samples_have_unique_ids",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_smoke_returns_5_samples",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_smoke_subset_of_quick",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_humaneval.py::TestLoadHumanEval::test_load_humaneval_unknown_tier_defaults_to_smoke",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalConfigIntegration::test_load_ifeval_respects_environment_override",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalConfigIntegration::test_load_ifeval_uses_config_tier",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalConfigIntegration::test_load_ifeval_uses_reproducible_seed",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalEdgeCases::test_check_constraint_with_very_long_response",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalEdgeCases::test_load_ifeval_sample_count_exceeds_dataset_size",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalEdgeCases::test_load_ifeval_zero_samples_requested",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalSampleQuality::test_samples_have_constraints_metadata",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalSampleQuality::test_samples_have_empty_targets",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalSampleQuality::test_samples_have_matching_constraint_and_kwargs_lengths",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_creation",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_default_tier_is_smoke",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_has_dataset",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_has_scorer",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_has_solver",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_immutability",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_name",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestIFEvalTask::test_ifeval_task_respects_tier_parameter",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_default_is_smoke",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_file_not_found_raises_error",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_full_returns_all_samples",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_invalid_json_raises_error",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_quick_returns_100_samples",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_quick_subset_of_full",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_reproducible_with_seed",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_samples_are_sample_objects",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_samples_have_required_fields",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_samples_have_unique_ids",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_smoke_returns_10_samples",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_smoke_subset_of_quick",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_ifeval.py::TestLoadIFEval::test_load_ifeval_unknown_tier_defaults_to_smoke",
+      "reason": "IFEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchConfigIntegration::test_load_livecodebench_respects_environment_override",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchConfigIntegration::test_load_livecodebench_uses_config_tier",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchConfigIntegration::test_load_livecodebench_uses_reproducible_seed",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchEdgeCases::test_load_livecodebench_sample_count_exceeds_dataset_size",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchEdgeCases::test_load_livecodebench_zero_samples_requested",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchEdgeCases::test_record_to_sample_with_empty_starter_code",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchEdgeCases::test_record_to_sample_with_no_public_test_cases",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchSampleQuality::test_samples_have_difficulty_metadata",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchSampleQuality::test_samples_have_non_empty_targets",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchSampleQuality::test_samples_have_platform_metadata",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchSampleQuality::test_samples_have_problem_descriptions",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchSampleQuality::test_samples_have_test_cases",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_creation",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_default_tier_is_smoke",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_has_dataset",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_has_scorer",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_has_solver",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_immutability",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_name",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLiveCodeBenchTask::test_livecodebench_task_respects_tier_parameter",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_default_is_smoke",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_file_not_found_raises_error",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_full_returns_all_samples",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_ids_match_pattern",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_invalid_json_raises_error",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_quick_returns_50_samples",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_quick_samples_from_full_dataset",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_reproducible_with_seed",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_samples_are_sample_objects",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_samples_have_required_fields",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_samples_have_unique_ids",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_smoke_returns_5_samples",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_smoke_subset_of_quick",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_livecodebench.py::TestLoadLiveCodeBench::test_load_livecodebench_unknown_tier_defaults_to_smoke",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_default_is_smoke",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_file_not_found_raises_error",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_full_returns_all_samples",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_ids_match_task_id_pattern",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_invalid_json_raises_error",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_quick_returns_100_samples",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_quick_subset_of_full",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_reproducible_with_seed",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_samples_are_sample_objects",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_samples_have_required_fields",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_samples_have_unique_ids",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_smoke_returns_5_samples",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_smoke_subset_of_quick",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestLoadMBPP::test_load_mbpp_unknown_tier_defaults_to_smoke",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPConfigIntegration::test_load_mbpp_respects_environment_override",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPConfigIntegration::test_load_mbpp_uses_config_tier",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPConfigIntegration::test_load_mbpp_uses_reproducible_seed",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPEdgeCases::test_extract_function_name_with_method_call",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPEdgeCases::test_load_mbpp_sample_count_exceeds_dataset_size",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPEdgeCases::test_load_mbpp_zero_samples_requested",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPEdgeCases::test_record_to_sample_with_long_code",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_first_sample_is_min_cost",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_samples_have_entry_point_metadata",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_samples_have_function_names_in_prompts",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_samples_have_function_signatures_in_prompts",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_samples_have_reference_solutions",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPSampleQuality::test_samples_have_test_list_metadata",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPScorer::test_scorer_can_access_test_metadata",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPScorer::test_task_has_code_execution_scorer",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_creation",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_default_tier_is_smoke",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_has_dataset",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_has_scorer",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_has_solver",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_immutability",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_name",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mbpp.py::TestMBPPTask::test_mbpp_task_respects_tier_parameter",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mmlu.py::TestLoadMmluRealData::test_multiple_subjects_represented",
+      "reason": "MMLU dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mmlu.py::TestLoadMmluRealData::test_quick_tier_loads",
+      "reason": "MMLU dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mmlu.py::TestLoadMmluRealData::test_samples_have_valid_metadata",
+      "reason": "MMLU dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mmlu.py::TestLoadMmluRealData::test_smoke_tier_loads",
+      "reason": "MMLU dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_default_is_smoke",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_file_not_found_raises_error",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_full_returns_all_samples",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_invalid_json_raises_error",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_reproducible_with_seed",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_samples_are_sample_objects",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_samples_have_required_fields",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_samples_have_unique_ids",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_smoke_returns_expected_samples",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_unknown_tier_defaults_to_smoke",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestLoadMTBench::test_load_mtbench_zero_samples_returns_empty_list",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchConfigIntegration::test_load_mtbench_respects_environment_override",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchConfigIntegration::test_load_mtbench_uses_config_tier",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchConfigIntegration::test_load_mtbench_uses_reproducible_seed",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchEdgeCases::test_load_mtbench_sample_count_exceeds_dataset_size",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchEdgeCases::test_load_mtbench_zero_samples_requested",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchEdgeCases::test_record_to_sample_with_unicode_characters",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchEdgeCases::test_record_to_sample_with_very_long_turns",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchMultiTurn::test_first_turn_is_in_input",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchMultiTurn::test_samples_store_conversation_turns",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchSampleQuality::test_first_sample_matches_expected_format",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchSampleQuality::test_samples_cover_multiple_categories",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchSampleQuality::test_samples_have_category_metadata",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchSampleQuality::test_samples_have_multiple_turns",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchSampleQuality::test_samples_have_question_ids",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_creation",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_default_tier_is_smoke",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_has_dataset",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_has_scorer",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_has_solver",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_immutability",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_name",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_mtbench.py::TestMTBenchTask::test_mtbench_task_respects_tier_parameter",
+      "reason": "MT-Bench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestBackwardCompatibility::test_ds1000_works_without_thinking_parameter",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestBackwardCompatibility::test_humaneval_works_without_thinking_parameter",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestBackwardCompatibility::test_livecodebench_works_without_thinking_parameter",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestBackwardCompatibility::test_mbpp_works_without_thinking_parameter",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_ds1000_accepts_thinking_parameter",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_ds1000_thinking_parameter_propagates",
+      "reason": "DS-1000 dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_humaneval_accepts_thinking_parameter",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_humaneval_thinking_changes_system_message",
+      "reason": "HumanEval dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_livecodebench_accepts_thinking_parameter",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_livecodebench_default_thinking_is_true",
+      "reason": "LiveCodeBench dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_mbpp_accepts_thinking_parameter",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_task_thinking_integration.py::TestThinkingParameter::test_mbpp_thinking_uses_correct_prompt",
+      "reason": "MBPP dataset not available in CI",
+      "reason_status": "observed",
+      "policy_id": "dataset_missing",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_tasks.py::TestTaskExecution::test_run_gsm8k_task",
+      "reason": "Requires Ollama running",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_tasks.py::TestTaskExecution::test_run_humaneval_task",
+      "reason": "Requires Ollama running",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_tasks.py::TestTaskExecution::test_run_mbpp_task",
+      "reason": "Requires Ollama running",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_thinking.py::TestThinkingModeIntegration::test_run_qwen3_with_thinking_off",
+      "reason": "Requires Ollama with thinking model installed",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    },
+    {
+      "node_id": "tests/unit/test_thinking.py::TestThinkingModeIntegration::test_run_qwen3_with_thinking_on",
+      "reason": "Requires Ollama with thinking model installed",
+      "reason_status": "observed",
+      "policy_id": "historical_inference_skip",
+      "disposition": "unqualified",
+      "evidence": "junit"
+    }
+  ],
+  "full_run_receipt": {
+    "source_commit": "be8e9886f6ff82c5503e6ac890d278751bd16085",
+    "host": "basilisk",
+    "python": "3.11.15",
+    "observed_pytest_summary": "2486 passed, 321 skipped, 4 warnings",
+    "observed_coverage_percent": 81.53,
+    "summary_evidence": "full_ci_log",
+    "exact_exit_code": null,
+    "exit_code_disposition": "Not serialized in retained log/JUnit; the terminal passing summary is retained separately from orchestration exit status",
+    "claim_limit": "Historical #128 exact-source semantic run only; skipped capabilities and #130 revision are not qualified"
+  }
+}

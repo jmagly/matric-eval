@@ -1,725 +1,111 @@
-# Test Strategy - matric-eval
-
-**Project**: matric-eval - Consolidated Model Evaluation Framework
-**Profile**: Production (Requires 80%+ coverage)
-**Status**: Planning Phase
-**Last Updated**: 2026-01-24
-
-For the current model-comparison program, all executable validation and benchmark
-runs follow the [A100 execution policy](a100-execution.md). Local work is limited
-to source editing and static diff inspection.
-
-## Document Purpose
-
-This document defines the comprehensive test strategy for matric-eval, establishing mandatory quality gates and coverage thresholds that MUST be met before phase transitions. Testing is a blocking requirement, not optional.
-
-## Executive Summary
-
-matric-eval is a mission-critical component that validates LLM performance across the matric ecosystem. Given its critical role and Production profile, the following are NON-NEGOTIABLE:
-
-- **80% minimum code coverage** across all Python modules
-- **100% coverage** for checkpoint/resume state management (critical reliability requirement)
-- **100% coverage** for all custom scorers (correctness is paramount)
-- **Blocking test gates** at PR merge, release, and production deployment
-- **Zero tolerance** for flaky tests in critical paths
-
-## Test Coverage Matrix (Mandatory)
-
-| Test Level | Coverage Target | Blocking | Owner | Automation | Execution Time |
-|------------|-----------------|----------|-------|------------|----------------|
-| Unit | 80% lines, 75% branches | Yes - PR merge | Developer | CI-required | <5 min |
-| Integration | 100% Ollama endpoints | Yes - PR merge | Test Engineer | CI-required | <15 min |
-| System | 100% CLI commands | Yes - Release | QA | CI-required | <30 min |
-| Benchmark Validation | 100% public benchmarks | Yes - Release | Test Engineer | CI-required | <60 min |
-| Performance | Baseline established | Yes - Release | Performance Engineer | Scheduled daily | <120 min |
-| Reliability | 100% checkpoint scenarios | Yes - Release | Reliability Engineer | CI-required | <20 min |
-| Security | Code execution sandbox | Yes - Release | Security | Scheduled weekly | <10 min |
-| Bindings | 100% TS/Rust IPC | Yes - Release | Developer | CI-required | <5 min |
-
-## Test Levels
-
-### 1. Unit Tests (L1)
-
-**Scope**: Individual functions, classes, and modules in isolation.
-
-**Coverage Requirement**: 80% line coverage, 75% branch coverage
-
-**Critical Components** (100% coverage required):
-- `/src/matric_eval/state/checkpoint.py` - Checkpoint state management
-- `/src/matric_eval/state/recovery.py` - Recovery logic
-- `/src/matric_eval/scorers/` - All custom scorers
-- `/src/matric_eval/extractors/` - Code/response extraction
-- `/src/matric_eval/validators/` - Validation logic
-
-**Testing Approach**:
-- pytest framework with pytest-cov for coverage
-- Mock all external dependencies (Ollama, file I/O, network)
-- Parameterized tests for edge cases
-- Property-based testing for scorers (hypothesis library)
-
-**Entry Criteria**:
-- [ ] Module exists with public API
-- [ ] Dependencies are mockable
-- [ ] Expected behavior documented
-
-**Exit Criteria**:
-- [ ] 80% line coverage achieved (100% for critical components)
-- [ ] All edge cases tested
-- [ ] No hardcoded values (use fixtures)
-- [ ] Fast execution (<5 seconds per module)
-
-### 2. Integration Tests (L2)
-
-**Scope**: Component interactions, external service integration.
-
-**Coverage Requirement**: 100% of integration points
-
-**Critical Integration Points**:
-- Ollama API (model loading, inference, error handling)
-- Inspect AI framework (task execution, scoring)
-- File system (state persistence, checkpoint writes)
-- CLI to core library integration
-
-**Testing Approach**:
-- Real Ollama instance (controlled model)
-- Temporary file systems for state management
-- Docker containers for isolated environments
-- Pytest fixtures for setup/teardown
-
-**Entry Criteria**:
-- [ ] Unit tests passing for integrated components
-- [ ] Test environment provisioned (Ollama, datasets)
-- [ ] Test data available
-
-**Exit Criteria**:
-- [ ] All integration points tested
-- [ ] Error scenarios validated (connection failures, timeouts)
-- [ ] Cleanup verified (no leaked resources)
-- [ ] Deterministic results (no flakiness)
-
-### 3. System Tests (L3)
-
-**Scope**: End-to-end CLI workflows, complete evaluation runs.
-
-**Coverage Requirement**: 100% of CLI commands and flags
-
-**Test Scenarios**:
-- Smoke tier evaluation (5 problems per benchmark)
-- Quick tier evaluation (75 problems per benchmark)
-- Full tier evaluation (subset for CI)
-- Resume interrupted run
-- Fill gaps in incomplete run
-- Validate run completeness
-- Model-specific re-run
-- Benchmark-specific re-run
-
-**Testing Approach**:
-- Black-box CLI testing via subprocess
-- Golden file comparison for output validation
-- Regression test suite for config recommendations
-- Performance benchmarking (execution time)
-
-**Entry Criteria**:
-- [ ] Integration tests passing
-- [ ] CLI fully implemented
-- [ ] Test datasets available
-- [ ] Baseline results captured
-
-**Exit Criteria**:
-- [ ] All CLI commands execute successfully
-- [ ] Output format validated
-- [ ] Performance within acceptable bounds
-- [ ] Error messages are actionable
-
-### 4. Benchmark Validation Tests (L4)
-
-**Scope**: Verify public benchmark implementations match reference implementations.
-
-**Coverage Requirement**: 100% of supported public benchmarks
-
-**Benchmarks to Validate**:
-- HumanEval (164 problems) - validate against openai/human-eval reference
-- MBPP (974 problems) - validate against google-research/mbpp
-- GSM8K (1,319 problems) - validate against openai/grade-school-math
-- ARC (1,172 problems) - validate against allenai/ARC
-- IFEval (541 problems) - validate constraint checking
-- LiveCodeBench (1,055 problems, release_v6) - validate against livecodebench/code_generation
-- DS-1000 (1,000 problems) - validate against xlang-ai/DS-1000
-- MMLU (14,042 questions, 57 subjects) - validate against hendrycks/test
-- MTBench (80 questions) - validate multi-turn handling
-
-**Testing Approach**:
-- Smoke test subset (5 problems) against known results
-- Validate scoring logic matches reference
-- Check prompt formatting matches reference
-- Verify metric calculation (pass@k, accuracy, etc.)
-
-**Entry Criteria**:
-- [ ] Benchmark implemented in matric-eval
-- [ ] Reference implementation available
-- [ ] Reference results documented
-
-**Exit Criteria**:
-- [ ] Smoke test results match reference (+/- 5% for model variance)
-- [ ] Scoring logic verified
-- [ ] Edge cases handled (malformed output, timeouts)
-
-### 5. Performance Tests (L5)
-
-**Scope**: Execution time, memory usage, throughput.
-
-**Coverage Requirement**: Baseline established for all tiers
-
-**Performance Metrics**:
-- Smoke tier: <2 minutes total
-- Quick tier: <20 minutes total
-- Problem throughput: >5 problems/second (mocked LLM)
-- State write overhead: <100ms per checkpoint
-- Memory usage: <2GB for quick tier
-- Resume overhead: <5 seconds
-
-**Testing Approach**:
-- Benchmark with mocked LLM (eliminate model variance)
-- Profile with py-spy or cProfile
-- Memory profiling with memory_profiler
-- Continuous regression tracking
-
-**Entry Criteria**:
-- [ ] System tests passing
-- [ ] Profiling tools configured
-- [ ] Baseline hardware specs documented
-
-**Exit Criteria**:
-- [ ] Baseline established
-- [ ] No memory leaks detected
-- [ ] Performance regression alerts configured
-- [ ] Optimization opportunities documented
-
-### 6. Reliability Tests (L6)
-
-**Scope**: Checkpoint/resume, error recovery, graceful degradation.
-
-**Coverage Requirement**: 100% of recovery scenarios
-
-**Critical Scenarios** (MUST ALL PASS):
-1. **Checkpoint after each problem** - Verify state saved
-2. **Resume from partial benchmark** - Continue where left off
-3. **Resume from partial model** - Skip completed benchmarks
-4. **EPIPE error during inference** - Retry and continue
-5. **Model crash mid-benchmark** - Skip model, continue next
-6. **Disk full during checkpoint** - Fail gracefully with error
-7. **Corrupted state file** - Detect and report
-8. **Concurrent run prevention** - Lock file mechanism
-9. **Zombie run detection** - Heartbeat timeout
-10. **Gap detection** - Identify missing results
-
-**Testing Approach**:
-- Fault injection (kill processes, fill disk, corrupt files)
-- Chaos engineering (random failures)
-- State machine verification
-- Idempotency validation (re-run produces same results)
-
-**Entry Criteria**:
-- [ ] State management implemented
-- [ ] Checkpoint logic complete
-- [ ] Error handling implemented
-
-**Exit Criteria**:
-- [ ] All 10 scenarios passing
-- [ ] No data loss in any scenario
-- [ ] Recovery time <5 seconds
-- [ ] Clear error messages for unrecoverable failures
-
-### 7. Security Tests (L7)
-
-**Scope**: Code execution sandbox, input validation, dependency scanning.
-
-**Coverage Requirement**: 100% of code execution paths
-
-**Security Concerns**:
-- Arbitrary code execution in generated LLM code
-- Prompt injection in test prompts
-- Path traversal in checkpoint directories
-- Resource exhaustion (CPU, memory, disk)
-- Dependency vulnerabilities
-
-**Testing Approach**:
-- Static analysis (bandit, safety)
-- Sandbox escape attempts
-- Resource limit enforcement
-- Input fuzzing
-- Dependency scanning (pip-audit)
-
-**Entry Criteria**:
-- [ ] Sandbox implementation complete
-- [ ] Security tooling configured
-- [ ] Threat model documented
-
-**Exit Criteria**:
-- [ ] No critical/high vulnerabilities
-- [ ] Sandbox escapes blocked
-- [ ] Resource limits enforced
-- [ ] Input validation complete
-
-### 8. Binding Tests (L8)
-
-**Scope**: TypeScript and Rust bindings for language integration.
-
-**Coverage Requirement**: 100% of binding API surface
-
-**Test Scenarios**:
-- TypeScript subprocess spawning
-- Rust subprocess spawning
-- JSON serialization/deserialization
-- Error propagation
-- Progress streaming
-- Cancellation handling
-
-**Testing Approach**:
-- End-to-end tests in each language
-- Mock Python backend for unit tests
-- Contract testing (JSON schema validation)
-- Cross-platform testing (Linux, macOS, Windows)
-
-**Entry Criteria**:
-- [ ] Bindings implemented
-- [ ] Schema defined
-- [ ] Error codes documented
-
-**Exit Criteria**:
-- [ ] All binding APIs tested
-- [ ] Error scenarios handled
-- [ ] Documentation validated
-- [ ] Cross-platform verified
-
-## Test Types
-
-### Functional Tests
-
-**Purpose**: Verify correct behavior according to specifications.
-
-**Coverage**: All requirements from requirements documents.
-
-**Traceability**: Each test MUST link to a requirement ID.
-
-**Examples**:
-- Scorer produces correct pass/fail for HumanEval problem
-- CLI --resume flag continues from checkpoint
-- Gap detection identifies missing results
-
-### Non-Functional Tests
-
-#### Performance
-
-**Metrics**:
-- Execution time per tier
-- Throughput (problems/second)
-- State write latency
-- Resume overhead
-
-**Thresholds**:
-- Smoke: <2 min
-- Quick: <20 min
-- State write: <100ms
-- Resume: <5s
-
-#### Reliability
-
-**Metrics**:
-- Checkpoint success rate (100% required)
-- Recovery success rate (100% required)
-- Mean time to recovery (MTTR < 5s)
-
-**Thresholds**:
-- Zero data loss
-- 100% idempotent operations
-
-#### Usability
-
-**Metrics**:
-- CLI error message clarity
-- Documentation completeness
-- API discoverability
-
-**Validation**:
-- User testing with developers from matric-cli/matric-memory
-- Error message review (actionable + clear)
-
-#### Security
-
-**Metrics**:
-- Sandbox escape attempts blocked (100%)
-- Vulnerability count (0 critical/high)
-- Resource limit enforcement (100%)
-
-**Validation**:
-- Security scan passing
-- Penetration testing (manual)
-
-## Test Data Management
-
-### Public Benchmark Data
-
-**Location**: `/home/roctinam/data/evals/`
-
-**Management**:
-- Versioned datasets (symlinks with version tags)
-- Checksums for integrity validation
-- Local caching strategy
-- Download automation
-
-**Datasets**:
-- humaneval (164 problems)
-- mbpp (974 problems)
-- gsm8k (1,319 problems)
-- arc (1,172 problems)
-- ifeval (541 problems)
-- livecodebench (1,055 problems, release_v6)
-- ds1000 (1,000 problems)
-- mtbench (80 questions)
-
-### Custom Test Data
-
-**Location**: `/home/roctinam/dev/matric-eval/datasets/custom/`
-
-**Format**: JSONL (one test case per line)
-
-**Schema**:
-```json
-{
-  "id": "test-001",
-  "capability": "tool-calling",
-  "prompt": "User request text",
-  "expected": {
-    "tools": ["read_file", "write_file"],
-    "outcome": "success"
-  },
-  "metadata": {
-    "difficulty": "medium",
-    "source": "matric-cli"
-  }
-}
-```
-
-**Versioning**: Git-tracked, semantic versioning for major changes.
-
-### Test Fixtures
-
-**Location**: `/home/roctinam/dev/matric-eval/tests/fixtures/`
-
-**Content**:
-- Mock Ollama responses
-- Sample checkpoint state files
-- Expected validation outputs
-- Configuration files
-
-**Management**: Pytest fixtures, version controlled.
-
-## Test Environment Requirements
-
-### Development Environment
-
-**Python**: 3.11+
-**Package Manager**: uv
-**Testing Framework**: pytest 8.0+
-**Coverage Tool**: pytest-cov
-
-**Required Services**:
-- Ollama (local instance, small model for tests)
-- File system (temp directories for state)
-
-**Environment Variables**:
-```bash
-OLLAMA_API_BASE=http://localhost:11434
-MATRIC_EVAL_TEST_MODE=true
-MATRIC_EVAL_DATA_DIR=/tmp/matric-eval-test
-```
-
-### CI Environment
-
-**Platform**: GitHub Actions / GitLab CI
-**Container**: Python 3.11 slim
-**Services**: Ollama (Docker container)
-
-**Required Resources**:
-- CPU: 4 cores
-- Memory: 8GB
-- Disk: 20GB
-- Network: Access to Ollama API
-
-**Execution**:
-- PR: Unit + Integration tests
-- Main: Unit + Integration + System tests
-- Nightly: All test levels
-
-### Staging Environment
-
-**Purpose**: Pre-production validation with full dataset.
-
-**Configuration**: Production-like hardware and data.
-
-**Tests**: Full tier evaluation with all benchmarks.
-
-## Quality Gates
-
-### Phase Transition Gates
-
-#### Inception → Elaboration
-
-- [ ] Test strategy approved
-- [ ] Coverage targets defined
-- [ ] Test environment requirements documented
-
-#### Elaboration → Construction
-
-- [ ] Test plan approved for all levels
-- [ ] CI pipeline configured
-- [ ] Test data available
-- [ ] Baseline coverage established (may be 0% for greenfield)
-
-#### Construction → Transition
-
-- [ ] 80% code coverage achieved
-- [ ] 100% coverage for critical components
-- [ ] All reliability scenarios passing
-- [ ] Benchmark validation complete
-- [ ] No critical/high defects open
-
-#### Transition → Production
-
-- [ ] Full tier evaluation passing
-- [ ] Performance baseline validated
-- [ ] Security scan passed
-- [ ] Documentation complete
-- [ ] Operational runbook validated
-
-### Pull Request Merge Gate (BLOCKING)
-
-**Required**:
-- [ ] All unit tests passing
-- [ ] Coverage maintained or increased (no decrease)
-- [ ] Integration tests passing
-- [ ] No new linter warnings
-- [ ] Test added for new functionality
-
-**Automated**:
-- pytest run
-- coverage report
-- lint check
-
-**Manual Review**:
-- Test quality (not just coverage)
-- Edge cases covered
-
-### Release Gate (BLOCKING)
-
-**Required**:
-- [ ] All test levels passing
-- [ ] Performance within thresholds
-- [ ] Reliability scenarios validated
-- [ ] Security scan passed
-- [ ] Benchmark validation complete
-- [ ] Bindings tested
-
-**Sign-off Required**:
-- Test Architect
-- Security Engineer
-- Product Owner
-
-### Production Deployment Gate (BLOCKING)
-
-**Required**:
-- [ ] Staging environment validated
-- [ ] Operational runbook tested
-- [ ] Rollback plan documented
-- [ ] Monitoring configured
-- [ ] Alerts configured
-
-**Sign-off Required**:
-- Deployment Manager
-- Operations Engineer
-
-## Test Execution Strategy
-
-### Continuous Integration (CI)
-
-**Trigger**: Every PR commit
-
-**Tests**:
-- Unit tests (all)
-- Integration tests (all)
-- Lint and type checking
-- Coverage report
-
-**Time Budget**: <15 minutes
-
-**Failure Action**: Block merge
-
-### Continuous Deployment (CD)
-
-**Trigger**: Merge to main
-
-**Tests**:
-- Unit + Integration + System
-- Smoke tier end-to-end
-- Performance regression
-
-**Time Budget**: <30 minutes
-
-**Failure Action**: Block deployment
-
-### Nightly Build
-
-**Trigger**: Scheduled (2 AM UTC)
-
-**Tests**:
-- Full test suite
-- Quick tier end-to-end
-- Benchmark validation
-- Performance profiling
-- Security scan
-
-**Time Budget**: <2 hours
-
-**Failure Action**: Alert team
-
-### Release Candidate
-
-**Trigger**: Manual (pre-release)
-
-**Tests**:
-- Full tier end-to-end
-- All reliability scenarios
-- Cross-platform validation
-- Binding integration tests
-
-**Time Budget**: <4 hours
-
-**Failure Action**: Block release
-
-## Coverage Targets (Minimum Thresholds)
-
-| Component | Line Coverage | Branch Coverage | Mutation Score |
-|-----------|---------------|-----------------|----------------|
-| **Critical** |
-| Checkpoint/Resume | 100% | 100% | 80% |
-| Scorers | 100% | 100% | 80% |
-| Validators | 100% | 95% | 75% |
-| **Core** |
-| CLI | 85% | 80% | N/A |
-| Tasks | 80% | 75% | N/A |
-| Extractors | 85% | 80% | 70% |
-| **Supporting** |
-| Config | 75% | 70% | N/A |
-| Utils | 80% | 75% | N/A |
-| Bindings | 90% | 85% | N/A |
-| **Overall** | 80% | 75% | 70% |
-
-**Mutation Testing**: Using mutmut or cosmic-ray for critical components.
-
-## Anti-Patterns to Flag (ESCALATE)
-
-1. **"We'll add tests later"** - Tests MUST be written with code (TDD)
-2. **"Coverage is aspirational"** - Coverage is a minimum requirement
-3. **"Skip flaky tests"** - Flaky tests MUST be fixed, not ignored
-4. **"Manual testing is sufficient"** - Automation enables CI/CD
-5. **"Integration tests are expensive"** - They prevent production bugs
-6. **"100% coverage is impossible"** - It's mandatory for critical components
-7. **"Coverage doesn't equal quality"** - True, but it's a minimum bar
-8. **"Mocking is too complex"** - Required for unit test isolation
-
-## Success Criteria
-
-The Test Architect has succeeded when:
-
-1. **Coverage Goals Met**:
-   - [ ] 80% overall code coverage
-   - [ ] 100% coverage for critical components
-   - [ ] No coverage decrease sprint-over-sprint
-
-2. **Quality Gates Enforced**:
-   - [ ] PR merge blocked without tests
-   - [ ] Release blocked without validation
-   - [ ] Production deployment requires sign-off
-
-3. **Reliability Validated**:
-   - [ ] All 10 checkpoint/resume scenarios passing
-   - [ ] Zero data loss in fault injection tests
-   - [ ] Recovery time <5 seconds
-
-4. **Benchmark Correctness**:
-   - [ ] All 9 public benchmarks validated
-   - [ ] Results match reference implementations
-   - [ ] Scoring logic verified
-
-5. **Performance Acceptable**:
-   - [ ] Smoke tier <2 minutes
-   - [ ] Quick tier <20 minutes
-   - [ ] No memory leaks
-
-6. **Developer Experience**:
-   - [ ] Tests run fast (<15 min in CI)
-   - [ ] Clear failure messages
-   - [ ] Easy to write new tests
-
-## Deliverables
-
-This strategy produces the following deliverables:
-
-1. **Test Strategy Document** (this document)
-2. **Test Plan - Unit** (test-plan-unit.md)
-3. **Test Plan - Integration** (test-plan-integration.md)
-4. **Test Plan - System** (TBD)
-5. **Test Plan - Reliability** (TBD)
-6. **Test Coverage Reports** (automated, weekly)
-7. **Quality Dashboard** (automated, real-time)
-
-## References
-
-| Principle | Source | Reference |
-|-----------|--------|-----------|
-| 80% Coverage Minimum | Google Testing Blog | [Code Coverage Goal: 80% and No Less](https://testing.googleblog.com/2010/07/code-coverage-goal-80-and-no-less.html) |
-| Test Pyramid | Martin Fowler | [Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html) |
-| Mutation Testing | IEEE ICST | [Mutation Testing Workshop](https://conf.researchr.org/home/icst-2024/mutation-2024) |
-| Flaky Test Impact | Google | [Flaky Tests at Google](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html) |
-| Test Automation | ISTQB CTAL-TAE | [Test Automation Engineering](https://istqb.org/certifications/certified-tester-advanced-level-test-automation-engineering-ctal-tae-v2-0/) |
-
-## Appendix A: Test Traceability Matrix
-
-Requirements will be mapped to test cases using the following format:
-
-| Requirement ID | Test Level | Test Case | Status | Coverage |
-|----------------|------------|-----------|--------|----------|
-| REQ-001 | Unit | test_checkpoint_save | Pass | 100% |
-| REQ-002 | Integration | test_ollama_inference | Pass | 100% |
-| REQ-003 | System | test_resume_interrupted | Pass | 100% |
-
-## Appendix B: Risk-Based Test Prioritization
-
-High-risk areas requiring extra test coverage:
-
-1. **Checkpoint/Resume** - Data loss risk
-2. **Code Execution** - Security risk
-3. **Scorers** - Correctness risk
-4. **Ollama Integration** - Reliability risk
-5. **State Management** - Data integrity risk
-
-## Appendix C: Test Maintenance
-
-**Test Code Quality Standards**:
-- Tests are code - apply same quality standards
-- DRY principle - use fixtures and utilities
-- Clear naming - test name describes scenario
-- Isolated - no dependencies between tests
-- Fast - unit tests <1s, integration <5s
-
-**Test Refactoring**:
-- When code changes, update tests
-- When tests are duplicated, refactor
-- When tests are slow, optimize
-- When tests are flaky, fix immediately
-
-**Test Deprecation**:
-- Mark obsolete tests with @pytest.mark.skip + reason
-- Remove after 2 sprints if not re-enabled
-- Document removal in changelog
+# Verification strategy
+
+Reconciled 2026-09-07 for [#130](https://git.integrolabs.net/roctinam/matric-eval/issues/130), REQ-EI-11.
+This document supersedes the January planning strategy and its illustrative test
+names, coverage claims, and example pipelines. It describes implemented gates
+separately from acceptance work that remains open. A fixture listed here is a
+source anchor, not a claim that a particular revision passed it.
+
+All executable validation for the current model-comparison program runs on A100
+under [the execution policy](a100-execution.md). Local work is source editing,
+static review, and Git operations. Ordinary repository CI remains required for
+merging; its evidence does not qualify an A100 measurement.
+
+## Implemented gates and their limits
+
+| Gate | Authoritative implementation | Evidence and meaning | Owner role |
+| --- | --- | --- | --- |
+| PR quality | [Gitea CI](../../.gitea/workflows/ci.yml), `quality`: `make lint`, `make format-check`, `make type-check` | Ruff checks and mypy baseline ratchet on Python 3.11. The ratchet rejects new findings; it does not assert zero existing strict findings. | Maintainer |
+| PR semantics and coverage | Gitea `test`: `make test-coverage-fail`; [Makefile](../../Makefile), [coverage configuration](../../pyproject.toml) | Collected tests and aggregate coverage with `branch = true` and `fail_under = 80`. This is one combined coverage threshold, not independent 80% line/75% branch or per-module gates. Skips leave capabilities unqualified. | Test architect |
+| Public-source freshness | Gitea `test`: `audit-benchmarks --live` | Retained `benchmark-freshness.json`; network freshness auditing does not run live model inference or prove scorer equivalence. | Benchmark maintainer |
+| PR smoke | Gitea `smoke`: `pytest tests/unit/`, CLI help | Fixture/CLI health. The job name does not imply a live provider or every CLI option is covered. | Maintainer |
+| PR build and bindings | Gitea `build`: version contract, `uv build`, wheel import, `npm ci`, TypeScript build/tests/pack dry run | Package construction and source-fixture wire checks. The wheel import occurs in the build job; clean consumers have a separate gate. | Release/platform engineer |
+| Release candidate | [release.yml](../../.gitea/workflows/release.yml), [release contract](../../scripts/release_contract.py), [clean install validator](../../scripts/validate_release_candidate.py) | Version agreement, package contents, checksums, SBOMs, license/vulnerability policy, clean wheel/sdist installs and blank npm consumer checks. Publication requires the workflow's tag/token conditions. | Release engineer, #92/#93 |
+| Recurring real provider | [real-provider-smoke.yml](../../.gitea/workflows/real-provider-smoke.yml), [fixture guide](real-provider-smoke.md) | Scheduled/manual credential-free Ollama CPU fixture, retained report and raw outputs; verifies transport/workflow behavior for that fixture, not a model-quality threshold. | Platform engineer |
+| Isolated generated code | [runner](../../src/matric_eval/scorers/isolated_execution.py), [controlled runtime tests](../../tests/integration/test_isolated_execution_runtime.py), [profile](../development/isolated-code-execution.md) | Explicit opt-in, pinned image, effective restriction/start/cleanup evidence. Ordinary CI mock success or skipped runtime probes do not qualify the container profile. | Security engineer |
+| A100 measurement | [A100 policy](a100-execution.md) and each study's frozen protocol | Exact revision, environment, fixture/task manifest, budget, GPU lease, native results and exclusions. CI coverage and provider smoke cannot substitute. | Study operator and measurement reviewer |
+
+`make ci` implements quality plus Python coverage gates; it does not run every
+Gitea job, TypeScript build, release audit, or live provider fixture. CI currently
+uses `uv sync --extra ...` without `--locked`; capture the resulting lock hash
+and inventory rather than claiming the command enforces an unchanged lock.
+A100 validation uses `uv sync --locked` in an isolated checkout. This
+reconciliation does not remove, replace, or silently strengthen CI checks.
+
+## Disposition of earlier mandatory claims
+
+| January claim | Current disposition / acceptance condition before promotion |
+| --- | --- |
+| 100% critical-component/function coverage, 75% separate branch floor, mutation floors, no coverage decrease | Not implemented gates. The aggregate 80% gate above remains mandatory. A future change needs reviewed scope, measured baseline, tools in the lock, executable failure conditions and retained evidence before adding stricter thresholds. Owner: test architect. |
+| Hypothesis, mutation tools, pytest benchmark/xdist, bandit/safety as installed test stack | Not declared by the current dev extra; old command snippets were proposals. Use installed pytest/Ruff/mypy tools. Additional tools require a dependency/profile decision and real gate, not a documentation assertion. |
+| Every Ollama endpoint, CLI flag, public benchmark and binding API validated | No blanket qualification. Trace named fixtures below and record missing coverage by capability. A benchmark's inventory/freshness status and a model's finite score are insufficient evidence of reference-scoring parity. |
+| Checkpoint after each problem and resume inside a partial benchmark | Unsupported by the generic engine's checkpoint contract. [StateManager](../../src/matric_eval/state/manager.py) and [checkpoint guide](../development/checkpoint-resume.md) operate at benchmark completion; failed/partial benchmarks rerun. Inspect logs and trial observations are not a per-problem resumable engine. Any finer recovery needs a separately reviewed contract and crash fixtures. |
+| Zero data loss in every crash, disk-full, concurrent/zombie/gap scenario; recovery under five seconds | Existing checkpoint/operational fixtures cover their stated cases only. Uncovered failure modes and timing guarantees require bounded fault fixtures, measured environment and independent expected outcomes before promotion. No general data-loss or latency guarantee follows from current tests. |
+| Rust IPC and Linux/macOS/Windows bindings coverage | TypeScript is implemented; Rust remains deferred in #96. Linux package-install scope is finite below. Other operating systems and architectures are not qualified by Ubuntu jobs. |
+| GitHub/GitLab as alternative authoritative CI; nightly full matrix and main-branch deployment gates | Gitea is canonical. A mirror does not establish an additional support matrix. The recurring provider smoke is implemented; arbitrary nightly performance/security/full-model pipelines and automatic production deployment are not. #109 owns live platform pipelines outside PR CI. |
+| Fixed tier times, throughput/memory/latency budgets and ±5% reference-score tolerance | Historical proposals, not measured release conditions. A study/performance owner must specify fixture, runtime, estimator and justified domain tolerance before collecting evidence. There is no universal ±5% scorer-parity acceptance rule. |
+| Universal sandbox-escape prevention or zero vulnerabilities | Bounded container probes establish only observed controls on the pinned runtime; Docker shares the host kernel. Release vulnerability policy reviews findings and accepted exceptions. Neither is a universal security guarantee. |
+| Phase transitions require all levels, nightly dashboards, universal sign-offs | No such automated workflow is present. A future phase/deployment gate needs an owner, explicit checklist, evidence and approval record. Normal PR/CI and existing release checks still apply. |
+| All tests must use TDD, one assertion, or avoid every literal | Test review requires independent expected behavior, meaningful assertions and relevant negative cases. Multiple assertions can establish one cross-record invariant. Literal hand-computed expected values are appropriate; copying the production reducer as an oracle is not. |
+
+## Finite support and dependency profiles
+
+[Profiles and skip dispositions](profiles.md) define the finite evidence scope:
+Python 3.11 for PR semantic checks; CPython 3.11, 3.12, 3.13 and 3.14 on Linux
+for the existing clean release-install gate; Python 3.11 on the attested A100
+checkout for current measurement validation. `requires-python = ">=3.11"` is
+package metadata, not evidence for every later Python/platform/optional extra.
+
+The 3.11–3.14 install scope preserves the existing #93-reviewed release workflow.
+The [#93 candidate record](https://git.integrolabs.net/roctinam/matric-eval/issues/93#issuecomment-102143)
+reports a successful older exact-source candidate; it is historical evidence,
+not proof that the current revision or every optional evaluator is qualified.
+#93 still owns registry installation and release evidence. Expanding semantic,
+platform or interpreter support requires that owner's profile review and fresh
+exact-source checks; #130 makes no new platform-support promise.
+
+## Critical semantic traceability
+
+Each row identifies the invariant, an existing fixture source or an explicitly
+planned fixture, execution profile, and required evidence destination. All paths
+are relative to the repository; artifact names describe the required run bundle,
+not files asserted to exist in this checkout. Issue links retain ownership for
+work that is still under review.
+
+| Requirement / invariant | Fixture source and independent expectation | Profile / evidence destination |
+| --- | --- | --- |
+| #119: versioned records preserve nulls, identities, reasons, bounds and counts | [test_result_contract.py](../../tests/unit/test_result_contract.py), [study adapter](../../tests/unit/test_result_study_adapter.py), shared [mixed.json](../../tests/fixtures/results/v2/mixed.json), TS contract tests; malformed records reject, timeout policy remains explicit, original study rows round-trip | `study-dev` and `typescript`; JUnit, shared-fixture/schema hashes, TS test log |
+| #120: Inspect terminal status is independent of measurement availability | [test_engine_accounting.py](../../tests/unit/test_engine_accounting.py), [native adapter](../../tests/unit/test_inspect_result_adapter.py); all-unscored completed work stays null and completed, failed/partial logs do not become success | `study-dev`; JUnit and native fixture hashes |
+| #121: named/derived metrics and declared suite aggregation | [test_result_reducers.py](../../tests/unit/test_result_reducers.py), [named-metrics.json](../../tests/fixtures/results/v2/named-metrics.json), TS tests; no implicit first metric or heterogeneous average; derived stderr has no invented sample grades; comparison scope mutations reject | `study-dev` and `typescript`; JUnit, declaration/fixture hashes, round-trip output |
+| #122: aligned task trials distinguish any success from all-success | [test_trial_results.py](../../tests/unit/test_trial_results.py), [test_trial_execution.py](../../tests/unit/test_trial_execution.py), [disjoint.json](../../tests/fixtures/results/trials/disjoint.json); two disjoint successes give macro pass@2=1 and all-N=0; missing trials stay null; retries do not increase N | `study-dev` and `typescript`; JUnit, task-content/manifest/protocol hashes, trial wire fixture |
+| #123: generated code cannot fall back to host execution; limits require native start and cleanup evidence | [unit controller tests](../../tests/unit/test_isolated_execution.py) plus [real runtime probes](../../tests/integration/test_isolated_execution_runtime.py); denied mounts/network, bounded resources, explicit infrastructure failures, exact container absence | `study-dev` mocks plus `isolated-python`; JUnit, effective profile/image/bootstrap hashes, raw probe log and cleanup receipts |
+| #124: provenance-bound recovery | Existing [checkpoint tests](../../tests/test_checkpoint_resume.py) are baseline only. Planned additional fixtures under #124 must reject changed protocol/model/data while preserving matching completed work | `study-dev`; before/after checkpoint hashes, identity manifest and JUnit in #124 bundle |
+| #125: consumers preserve versioned/unavailable results | Existing TS shared-fixture tests are baseline. Planned #125 consumer fixtures cover parsing, reporting, exports, incompatible identities and incomplete records without null-to-zero projection | `study-dev` and `typescript`; JSON/CLI golden outputs, schema/fixture hashes, JUnit/TS logs; real consumer adoption remains #94 |
+| #126: judge outputs and position checks remain explicit | [test_llm_judge.py](../../tests/unit/test_llm_judge.py), [test_judges.py](../../tests/unit/test_judges.py); parsing/abstention unit results do not establish judge calibration. Planned #126 paired-position/calibration cases must retain exclusions and reverse failures | `study-dev` for fixtures; separately attested judge qualification bundle for live evidence |
+| #127: inference and missingness honor independent units | Planned #127 hand-calculated/degenerate/clustered fixtures with declared uncertainty estimator and no fabricated intervals for unavailable observations | `study-dev`; protocol/fixture hashes, JUnit and calculation outputs in #127 bundle |
+| #128: overlap diagnostics preserve raw scores and unknown training exposure | Implemented at source `be8e9886f6ff82c5503e6ac890d278751bd16085`: [test_contamination.py](https://git.integrolabs.net/roctinam/matric-eval/src/commit/be8e9886f6ff82c5503e6ac890d278751bd16085/tests/unit/test_contamination.py) exact/short/paraphrase cases; correct-answer overlap cannot prove contamination and raw scores remain unchanged. See [overlap diagnostics](https://git.integrolabs.net/roctinam/matric-eval/src/commit/be8e9886f6ff82c5503e6ac890d278751bd16085/docs/development/overlap-diagnostics.md). #128 was delivered in PR #138; the linked run receipt remains tied to the cited exact source | `study-dev`; [historical full-run and skip receipt](evidence/README.md), diagnostic configuration/golden outputs and JUnit in #128 bundle |
+| #129: role-use history and training exports protect held-out/restricted data | Existing contract partition-role fixture is baseline only. Planned #129 mixed-role/duplicate/export fixtures reject prohibited records, preserve stable manifest hashes, and record final-test reuse as a durable role-use event | `study-dev`; input/output/lineage hashes, export or dry-run ledger, refusal reasons and reviewer role in #129 bundle |
+| REQ-EI-11 / #130: verification claims match gates and profiles | Static reconciliation of this strategy, subordinate plans, pyproject, Makefile and Gitea workflows; retain changed-file review and unresolved skips | Documentation review; source/lock/profile hashes, diff and reviewer role in #130 bundle |
+
+For each execution retain exact commit and clean-tree status, lock and installed
+inventory, fixture hashes, command/exit status, JUnit with skips, initial failures,
+rerun relationship and reviewer role. A100 bundles live under
+`/srv/matric-eval/results/<work-item-or-run>/`; release artifacts use the release
+workflow's evidence directory. Sensitive prompts/native logs stay in controlled
+storage; public records use content-free identifiers and approved references.
+
+## Ownership retained
+
+[#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) owns publication,
+[#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) clean package and
+registry installs, and [#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94)
+actual matric-cli adoption, rollback and consumer CI.
+[#95](https://git.integrolabs.net/roctinam/matric-eval/issues/95) reporting remains
+deferred until #92/#91 close and two comparable production runs exist;
+[#96](https://git.integrolabs.net/roctinam/matric-eval/issues/96) Rust remains deferred
+until #92 and consumer contract approval; [#97](https://git.integrolabs.net/roctinam/matric-eval/issues/97)
+cost accounting remains deferred until #92 or an earlier consumer budget need.
+This strategy does not promote those issues or change #114's frozen study.
+[#109](https://git.integrolabs.net/roctinam/matric-eval/issues/109) owns the
+registry-derived agent-platform matrix and credentialed live pipelines; no live
+model credentials are added to PR CI.

@@ -76,12 +76,16 @@ From the A100 checkout, with cache paths exported to the locations above:
 
 ```bash
 uv lock --check
-uv sync --extra dev
-uv run ruff check .
-uv run mypy src
-uv run pytest tests/unit
-uv run pytest tests
+uv sync --locked --python 3.11 --extra dev --extra study
+make ci
 ```
+
+`make ci` enforces Ruff lint/format, the mypy baseline ratchet, and aggregate
+branch-enabled coverage with an 80% floor. It does not substitute for Gitea's
+build/release/TypeScript jobs or profile-specific runtime qualification. Record
+actual interpreter and inventory, retain JUnit/skip dispositions, and use the
+[finite verification profiles](profiles.md). Full strict mypy output is diagnostic;
+do not rewrite its reviewed baseline to hide new errors.
 
 Then run registry freshness auditing and external-runner canaries before any full
 model matrix. A canary must use fixed task IDs, the same runtime specification as
