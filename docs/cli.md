@@ -159,36 +159,34 @@ Options:
 
 ## recommend
 
-```text
-Usage: matric-eval recommend [OPTIONS]
-
-  Generate model recommendations from evaluation results.
-
-  Analyzes evaluation results and generates recommendations for which models
-  to use for different capabilities (code generation, math, etc.).
-
-  Examples:
-
-      # Generate recommendations from results directory     matric-eval
-      recommend --results-dir results/run-2024-01-20T10-30-00
-
-      # Output to file     matric-eval recommend --results-dir results/latest
-      --output recommendations.json
-
-      # Generate model-categories.json format for matric-cli     matric-eval
-      recommend --results-dir results/latest --output-format model-categories
-
-Options:
-  --results-dir PATH              Directory containing evaluation results
-                                  [required]
-  --output PATH                   Output file for recommendations (default:
-                                  stdout)
-  --output-format [json|model-categories]
-                                  Output format (default: json)
-  --min-score FLOAT               Minimum score to recommend a model (default:
-                                  0.3)
-  --help                          Show this message and exit.
+```sh
+matric-eval recommend --results-dir results/RUN_ID --capability-policy policy.json
 ```
+
+Reads strict native or preserved historical results. Recommendations require an
+explicit comparison identity and complete full-suite capability aggregation
+policy. Otherwise JSON contains `no_recommendation`, retained sources and explicit
+exclusions. `--output FILE` writes that report; `--min-score FLOAT` requires a
+policy with a shared higher-is-better target scale. The legacy
+`--output-format model-categories` conversion is explicitly refused because it
+cannot represent these eligibility and missingness semantics.
+
+## Result readers, conversion and history
+
+```sh
+matric-eval read-result result.json
+matric-eval convert-result historical.json --output new-import.json
+matric-eval trend-import model-result.json --database history.sqlite
+matric-eval trend-series --database history.sqlite --model MODEL --benchmark BENCHMARK --metric METRIC --comparison-sha256 SHA256
+```
+
+Conversion never overwrites existing files. Trend import accepts individual v2
+result envelopes and preserves every named measurement in separate versioned
+SQLite tables. The default series requires unchanged model identity, which
+generic envelopes cannot attest. `--allow-model-change` explicitly selects
+declared measurement comparison without claiming unchanged model weights.
+See [consumer migration](development/consumer-migration.md) for the implemented
+profile, limits, TypeScript APIs and rollback.
 
 ## run
 
@@ -230,6 +228,7 @@ Options:
   --output PATH                  Output directory for results (default:
                                  ./results)
   --output-format [table|json]   Output format (default: table)
+  --result-format [legacy|v2]    Result contract (default: legacy)
   --thinking [auto|on|off|both]  Thinking mode for capable models
                                  (auto=detect, on=enable, off=disable,
                                  both=run twice)

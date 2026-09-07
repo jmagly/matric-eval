@@ -80,6 +80,7 @@ export interface BenchmarkResult {
  * Result for a single model evaluation.
  */
 export interface ModelResult {
+  qualification: 'legacy_unverified';
   /** Model identifier (e.g., "llama3.2:3b") */
   model: string;
   /** Evaluation tier used */
@@ -89,13 +90,13 @@ export interface ModelResult {
   /** Overall weighted score (0.0 to 1.0) */
   overallScore: number;
   /** Model size in GB */
-  sizeGb: number;
+  sizeGb: number | null;
   /** Results by benchmark */
   benchmarks: Record<BenchmarkId, BenchmarkResult>;
   /** Error message if failed */
   error?: string;
   /** Evaluation timestamp */
-  timestamp: string;
+  timestamp: string | null;
 }
 
 /**
@@ -174,12 +175,14 @@ export interface ModelCategoriesConfig {
  * Options for running an evaluation.
  */
 export interface EvalOptions {
+  /** Explicit wire schema; v2 preserves nullable measurements and eligibility. */
+  resultFormat?: 'legacy' | 'v2';
   /** Evaluation tier (default: 'smoke') */
   tier?: EvalTier;
   /** Specific models to evaluate (default: all available) */
   models?: string[];
   /** Specific benchmarks to run (default: all for tier) */
-  benchmarks?: BenchmarkId[];
+  benchmarks?: (BenchmarkId | string)[];
   /** Output directory for results */
   outputDir?: string;
   /** Maximum model size in GB to evaluate */
@@ -210,6 +213,8 @@ export interface EvalOptions {
  * Options for generating recommendations.
  */
 export interface RecommendOptions {
+  /** Versioned comparison and capability aggregation policy file. */
+  capabilityPolicy?: string;
   /** Path to a results directory containing summary.json or result files */
   input: string;
   /** Output path for recommendations */
@@ -224,6 +229,7 @@ export interface RecommendOptions {
  * Evaluation summary returned after a run.
  */
 export interface EvalSummary {
+  qualification: 'legacy_unverified';
   /** Total models evaluated */
   totalModels: number;
   /** Successful evaluations */
@@ -233,9 +239,9 @@ export interface EvalSummary {
   /** Skipped models */
   skipped: number;
   /** Total duration in seconds */
-  durationSeconds: number;
+  durationSeconds: number | null;
   /** Results for each model */
   results: ModelResult[];
   /** Output directory path */
-  outputDir: string;
+  outputDir: string | null;
 }

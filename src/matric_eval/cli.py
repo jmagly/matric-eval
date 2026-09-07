@@ -10,7 +10,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import click
 from rich.console import Console
@@ -313,6 +313,7 @@ def run_evaluation(
     state_manager: StateManager | None = None,
     checkpoint_model: str | None = None,
     eval_kwargs: dict[str, Any] | None = None,
+    result_format: str = "legacy",
 ) -> dict[str, Any]:
     """
     Run evaluation using the synchronous engine.
@@ -334,7 +335,17 @@ def run_evaluation(
     """
     # If no provider given, use legacy ollama/ prefix behavior
     if provider is None:
-        if not model.startswith("ollama/"):
+        from inspect_ai._util.registry import (
+            registry_find,
+            registry_info,
+            registry_unqualified_name,
+        )
+
+        registered = {
+            registry_unqualified_name(registry_info(item))
+            for item in registry_find(lambda info: info.type == "modelapi")
+        }
+        if model.split("/", 1)[0] not in registered:
             model = f"ollama/{model}"
 
     # Determine which benchmarks to run
@@ -360,6 +371,9 @@ def run_evaluation(
         checkpoint=state_manager is not None,
         state_manager=state_manager,
         checkpoint_model=checkpoint_model,
+        **cast(
+            dict[str, Any], {"result_format": result_format} if result_format != "legacy" else {}
+        ),
         **(eval_kwargs or {}),
     )
 
@@ -373,6 +387,7 @@ def _execute_targets(
     provider: Any,
     judge_spec: str | None,
     state_manager: StateManager,
+    result_format: str = "legacy",
 ) -> list[dict[str, Any]]:
     """Execute fresh or resumed targets through the same engine path."""
     logger = get_cli_logger()
@@ -415,10 +430,18 @@ def _execute_targets(
                     judge_spec=judge_spec,
                     state_manager=state_manager,
                     checkpoint_model=target.checkpoint_model,
+                    eval_kwargs={"display": "none"} if output_format == "json" else None,
+                    **cast(
+                        dict[str, Any],
+                        {"result_format": result_format} if result_format != "legacy" else {},
+                    ),
                 )
-                result.setdefault("checkpoint_model", target.checkpoint_model)
+                if result_format == "legacy":
+                    result.setdefault("checkpoint_model", target.checkpoint_model)
                 all_results.append(result)
-                _result_path(output_dir, target).write_text(json.dumps(result, indent=2))
+                _result_path(output_dir, target).write_text(
+                    json.dumps(result, indent=2, allow_nan=False)
+                )
 
                 logger.info(
                     "Model evaluation complete",
@@ -436,9 +459,11 @@ def _execute_targets(
                     extra={
                         "model": target.model,
                         "checkpoint_model": target.checkpoint_model,
-                        "error": str(exc),
+                        "error": "result_projection_unavailable"
+                        if result_format == "v2"
+                        else str(exc),
                     },
-                    exc_info=True,
+                    exc_info=result_format != "v2",
                 )
                 error_result = {
                     "model": target.model,
@@ -447,8 +472,17 @@ def _execute_targets(
                     "status": "error",
                     "error": str(exc),
                 }
+                if result_format == "v2":
+                    from matric_eval.results.consumer import ConsumerFailure
+
+                    error_result = ConsumerFailure(
+                        run_id=state_manager.load_run_state().run_id,
+                        model_id=target.model,
+                        execution="unknown",
+                        reason="result_projection_unavailable",
+                    ).model_dump()
                 all_results.append(error_result)
-                if output_format != "json":
+                if output_format != "json" and result_format == "legacy":
                     raise click.ClickException(
                         f"Error evaluating {target.checkpoint_model}: {exc}"
                     ) from exc
@@ -456,6 +490,42 @@ def _execute_targets(
                 progress.advance(task)
 
     return all_results
+
+
+def _emit_versioned_results(
+    results: list[dict[str, Any]], output_dir: Path, output_format: str
+) -> None:
+    from matric_eval.results.consumer import (
+        ConsumerFailure,
+        ResultCollection,
+        write_consumer_result,
+    )
+    from matric_eval.results.contract import ResultEnvelope
+
+    envelopes = [
+        ResultEnvelope.model_validate(item) for item in results if "result_schema_version" in item
+    ]
+    failures = [
+        ConsumerFailure.model_validate(item)
+        for item in results
+        if "result_schema_version" not in item
+    ]
+    collection = ResultCollection(results=envelopes, failures=failures)
+    (output_dir / "summary.json").write_text(write_consumer_result(collection) + "\n")
+    if not envelopes:
+        raise click.ClickException(
+            "result_projection_unavailable; retained collection contains execution failures"
+        )
+    wire = envelopes[0] if len(envelopes) == 1 and not failures else collection
+    if output_format == "json":
+        click.echo(write_consumer_result(wire))
+    else:
+        for item in envelopes:
+            console.print(
+                f"{item.model_id}: {item.execution}; overall={item.overall_estimate.value}"
+            )
+        if failures:
+            console.print(f"{len(failures)} result projection(s) unavailable; see summary.json")
 
 
 # =============================================================================
@@ -601,6 +671,12 @@ def cli(ctx: click.Context, log_level: str, log_json: bool, log_file: Path | Non
     is_flag=True,
     help="When resuming, only fill gaps (incomplete/missing benchmarks)",
 )
+@click.option(
+    "--result-format",
+    type=click.Choice(["legacy", "v2"]),
+    default="legacy",
+    help="Result wire schema; separate from presentation format.",
+)
 def run(
     tier: str,
     model: Optional[str],
@@ -616,6 +692,7 @@ def run(
     judge_spec: Optional[str],
     resume: Optional[str],
     fill_gaps: bool,
+    result_format: str,
 ):
     """
     Run model evaluation.
@@ -653,7 +730,9 @@ def run(
         from matric_eval.providers.matrix import EvaluationMatrix
 
         matrix = EvaluationMatrix.from_yaml(matrix_file)
-        _run_matrix_evaluation(matrix, output, output_format, thinking, tier)
+        _run_matrix_evaluation(
+            matrix, output, output_format, thinking, tier, result_format=result_format
+        )
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
@@ -763,7 +842,7 @@ def run(
         previous_seed = settings.seed
         settings.seed = run_state.seed
         try:
-            _execute_targets(
+            resumed_results = _execute_targets(
                 targets_to_run,
                 benchmark_plan,
                 run_state.tier,
@@ -772,12 +851,20 @@ def run(
                 active_provider,
                 str(effective_judge) if effective_judge else None,
                 state_manager,
+                **cast(
+                    dict[str, Any],
+                    {"result_format": result_format} if result_format != "legacy" else {},
+                ),
             )
             state_manager.refresh_run_progress()
-            all_results = [
-                state_manager.build_model_result(target.checkpoint_model, target.model)
-                for target in targets
-            ]
+            all_results = (
+                resumed_results
+                if result_format == "v2"
+                else [
+                    state_manager.build_model_result(target.checkpoint_model, target.model)
+                    for target in targets
+                ]
+            )
             for target, result in zip(targets, all_results, strict=True):
                 _result_path(output_dir, target).write_text(json.dumps(result, indent=2))
         finally:
@@ -860,9 +947,17 @@ def run(
                 active_provider,
                 judge_spec,
                 state_manager,
+                **cast(
+                    dict[str, Any],
+                    {"result_format": result_format} if result_format != "legacy" else {},
+                ),
             )
         finally:
             state_manager.release_lock()
+
+    if result_format == "v2":
+        _emit_versioned_results(all_results, output_dir, output_format)
+        return
 
     # Save summary
     successful = len([r for r in all_results if r.get("status") == "success"])
@@ -895,9 +990,13 @@ def run(
     if output_format == "json":
         # For single model, output just the result; for multiple, output summary
         if len(all_results) == 1:
-            console.print(json.dumps({**all_results[0], "output_dir": str(output_dir)}, indent=2))
+            click.echo(
+                json.dumps(
+                    {**all_results[0], "output_dir": str(output_dir)}, indent=2, allow_nan=False
+                )
+            )
         else:
-            console.print(json.dumps(summary, indent=2))
+            click.echo(json.dumps(summary, indent=2, allow_nan=False))
     else:
         # Table output
         console.print("\n[bold]RESULTS SUMMARY[/bold]")
@@ -1462,14 +1561,20 @@ def run_study_offline_batch(
 @click.option(
     "--min-score",
     type=float,
-    default=0.3,
-    help="Minimum score to recommend a model (default: 0.3)",
+    default=None,
+    help="Minimum score to recommend a model (requires explicit policy)",
+)
+@click.option(
+    "--capability-policy",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Versioned comparison scope and complete capability aggregation policies.",
 )
 def recommend(
     results_dir: Path,
     output: Optional[Path],
     output_format: str,
-    min_score: float,
+    min_score: float | None,
+    capability_policy: Path | None,
 ):
     """
     Generate model recommendations from evaluation results.
@@ -1485,55 +1590,34 @@ def recommend(
         # Output to file
         matric-eval recommend --results-dir results/latest --output recommendations.json
 
-        # Generate model-categories.json format for matric-cli
-        matric-eval recommend --results-dir results/latest --output-format model-categories
+        # Rank only under an explicit complete capability/comparison policy
+        matric-eval recommend --results-dir results/latest --capability-policy policy.json
     """
-    from matric_eval.recommendation import RecommendationEngine
+    from matric_eval.results.consumer import read_consumer_result, strict_json
+    from matric_eval.results.ranking import RecommendationPolicy, recommend_consumers
 
-    logger = get_cli_logger()
-    logger.info("Generating recommendations", extra={"results_dir": str(results_dir)})
-
-    engine = RecommendationEngine(min_score_threshold=min_score)
-
-    # Check for summary.json first
-    summary_file = results_dir / "summary.json"
-    if summary_file.exists():
-        report = engine.from_summary_file(summary_file)
-    else:
-        report = engine.from_results_directory(results_dir)
-
-    if not report.model_scores:
-        error_console.print(
-            json.dumps(report.metadata.get("diagnostic_reviews", []), allow_nan=False)
+    try:
+        policy = (
+            RecommendationPolicy.model_validate(strict_json(capability_policy.read_text()))
+            if capability_policy
+            else None
         )
-        error_console.print("[red]Error:[/red] No valid evaluation results found")
-        error_console.print(f"Directory: {results_dir}")
-        sys.exit(1)
-
-    # Format output
-    if output_format == "model-categories":
-        output_data = report.to_model_categories()
-    else:
-        output_data = report.to_dict()
-
-    json_output = json.dumps(output_data, indent=2)
-
-    # Write output
-    if output:
-        output.write_text(json_output)
-        console.print(f"[green]Recommendations written to:[/green] {output}")
-    else:
-        console.print(json_output)
-
-    # Log summary
-    logger.info(
-        "Recommendations generated",
-        extra={
-            "models_analyzed": len(report.model_scores),
-            "best_overall": report.best_overall,
-            "best_balanced": report.best_balanced,
-        },
-    )
+        if min_score is not None:
+            if policy is None:
+                raise ValueError("score threshold requires a declared capability policy")
+            policy.minimum_score = min_score
+        summary = results_dir / "summary.json"
+        files = [summary] if summary.exists() else sorted(results_dir.glob("*.json"))
+        sources = [read_consumer_result(path.read_bytes().decode("utf-8")) for path in files]
+        report = recommend_consumers(sources, policy)
+        if output_format == "model-categories":
+            raise ValueError("model_categories_projection_unrepresentable")
+        payload = json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2)
+        if output:
+            output.write_text(payload + "\n")
+        click.echo(payload)
+    except (ValueError, OSError, UnicodeError):
+        raise click.ClickException("recommendation_ingress_or_projection_refused") from None
 
 
 @cli.command("list-providers")
@@ -1612,6 +1696,7 @@ def _run_matrix_evaluation(
     output_format: str,
     thinking: str,
     default_tier: str,
+    result_format: str = "legacy",
 ) -> None:
     """Run evaluation from a matrix configuration."""
     logger = get_cli_logger()
@@ -1644,7 +1729,7 @@ def _run_matrix_evaluation(
     ) as progress:
         task = progress.add_task(f"Running {len(runs)} evaluations...", total=len(runs))
 
-        for run_spec in runs:
+        for run_index, run_spec in enumerate(runs):
             model_name = run_spec["model"]
             provider_name = run_spec["provider"]
             benchmark_name = run_spec.get("benchmark")
@@ -1660,6 +1745,9 @@ def _run_matrix_evaluation(
             else:
                 thinking_mode = thinking
                 eval_kwargs = None
+
+            if output_format == "json":
+                eval_kwargs = {**(eval_kwargs or {}), "display": "none"}
 
             set_context(model=model_name)
 
@@ -1678,7 +1766,15 @@ def _run_matrix_evaluation(
                     thinking_mode=thinking_mode,
                     provider=provider,
                     eval_kwargs=eval_kwargs,
+                    **cast(
+                        dict[str, Any],
+                        {"result_format": result_format} if result_format != "legacy" else {},
+                    ),
                 )
+                if result_format == "v2":
+                    all_results.append(result)
+                    progress.advance(task)
+                    continue
                 result["provider"] = provider_name
                 if "model_id" in run_spec:
                     result["model_id"] = run_spec["model_id"]
@@ -1688,7 +1784,13 @@ def _run_matrix_evaluation(
             except Exception as e:
                 logger.error(
                     "Matrix run failed",
-                    extra={"model": model_name, "provider": provider_name, "error": str(e)},
+                    extra={
+                        "model": model_name,
+                        "provider": provider_name,
+                        "error": "result_projection_unavailable"
+                        if result_format == "v2"
+                        else str(e),
+                    },
                 )
                 failed_result = {
                     "model": model_name,
@@ -1701,9 +1803,22 @@ def _run_matrix_evaluation(
                     failed_result["model_id"] = run_spec["model_id"]
                 if "model_spec" in run_spec:
                     failed_result["model_spec"] = run_spec["model_spec"]
+                if result_format == "v2":
+                    from matric_eval.results.consumer import ConsumerFailure
+
+                    failed_result = ConsumerFailure(
+                        run_id=f"{output_dir.name}/matrix-{run_index}",
+                        model_id=model_name,
+                        execution="unknown",
+                        reason="result_projection_unavailable",
+                    ).model_dump()
                 all_results.append(failed_result)
 
             progress.advance(task)
+
+    if result_format == "v2":
+        _emit_versioned_results(all_results, output_dir, output_format)
+        return
 
     # Save summary
     summary = {
@@ -1717,7 +1832,7 @@ def _run_matrix_evaluation(
     summary_file.write_text(json.dumps(summary, indent=2))
 
     if output_format == "json":
-        console.print(json.dumps(summary, indent=2))
+        click.echo(json.dumps(summary, indent=2, allow_nan=False))
     else:
         console.print("\n[bold]MATRIX RESULTS[/bold]\n")
 
@@ -1924,6 +2039,93 @@ def record_role_use(vault_path: Path, record_file: Path, kind: str) -> None:
 def main() -> None:
     """Entry point for the CLI."""
     cli()
+
+
+@cli.command("read-result")
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def read_result_command(source: Path) -> None:
+    """Read a supported artifact through strict migration validation."""
+    from matric_eval.results.consumer import read_consumer_result, write_consumer_result
+
+    try:
+        result = read_consumer_result(source.read_bytes().decode("utf-8"))
+        click.echo(write_consumer_result(result))
+    except (ValueError, OSError, UnicodeError):
+        raise click.ClickException("consumer_result_invalid") from None
+
+
+@cli.command("convert-result")
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output", required=True, type=click.Path(path_type=Path))
+def convert_result_command(source: Path, output: Path) -> None:
+    """Preserve a legacy artifact in a new deterministic versioned import."""
+    from matric_eval.results.consumer import convert_legacy_artifact, write_consumer_result
+
+    try:
+        result = convert_legacy_artifact(source, output)
+        click.echo(write_consumer_result(result))
+    except (ValueError, OSError, UnicodeError):
+        raise click.ClickException(
+            "conversion_refused; source and output must be distinct and output new"
+        ) from None
+
+
+@cli.command("trend-import")
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--database", required=True, type=click.Path(path_type=Path))
+def trend_import_command(source: Path, database: Path) -> None:
+    """Import immutable v2 named measurements; never rewrite legacy trend rows."""
+    from matric_eval.trends.consumer_store import ConsumerTrendStore
+
+    store = ConsumerTrendStore(database)
+    try:
+        digest = store.ingest(source.read_bytes().decode("utf-8"))
+        click.echo(json.dumps({"status": "imported", "source_sha256": digest}))
+    except (ValueError, OSError, UnicodeError):
+        raise click.ClickException("trend_import_refused") from None
+    finally:
+        store.close()
+
+
+@cli.command("trend-series")
+@click.option("--database", required=True, type=click.Path(exists=True, path_type=Path))
+@click.option("--model", required=True)
+@click.option("--benchmark", required=True)
+@click.option("--metric", required=True)
+@click.option("--comparison-sha256", required=True)
+@click.option(
+    "--allow-model-change",
+    is_flag=True,
+    help="Compare declared measurement scopes without claiming unchanged model weights.",
+)
+def trend_series_command(
+    database: Path,
+    model: str,
+    benchmark: str,
+    metric: str,
+    comparison_sha256: str,
+    allow_model_change: bool,
+) -> None:
+    from matric_eval.trends.consumer_store import ConsumerTrendStore
+
+    store = ConsumerTrendStore(database)
+    try:
+        click.echo(
+            json.dumps(
+                store.comparable_series(
+                    model,
+                    benchmark,
+                    metric,
+                    comparison_sha256,
+                    require_unchanged_model=not allow_model_change,
+                ),
+                allow_nan=False,
+            )
+        )
+    except ValueError:
+        raise click.ClickException("trend_series_refused") from None
+    finally:
+        store.close()
 
 
 if __name__ == "__main__":

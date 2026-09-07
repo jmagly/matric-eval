@@ -35,6 +35,7 @@
 export { MatricEvalClient, MatricEvalError, createClient } from './client.js';
 export * from './result-contract.js';
 export * from './trials.js';
+export * from './consumer-results.js';
 
 // Type exports
 export type {

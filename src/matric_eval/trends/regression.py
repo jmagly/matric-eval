@@ -22,6 +22,7 @@ class Regression:
     delta: float  # Negative = regression
     severity: str  # "minor", "moderate", "severe"
     probable_cause: str = ""
+    qualification: str = "legacy_unverified"
 
     @property
     def pct_change(self) -> float:
@@ -47,10 +48,12 @@ class RegressionDetector:
         store: EvalStore,
         threshold: float = 0.05,
         window_size: int = 5,
+        legacy_exploratory: bool = False,
     ):
         self.store = store
         self.threshold = threshold
         self.window_size = window_size
+        self.legacy_exploratory = legacy_exploratory
 
     def check(
         self,
@@ -67,6 +70,8 @@ class RegressionDetector:
         Returns:
             List of detected regressions
         """
+        if not self.legacy_exploratory:
+            raise ValueError("legacy_trend_unverified: explicit exploratory opt-in required")
         regressions = []
 
         for benchmark, new_score in new_results.items():

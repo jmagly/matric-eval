@@ -328,3 +328,9 @@ export function writeResult(result: ResultEnvelope): string {
   validateResult(result);
   return JSON.stringify(result);
 }
+
+/** Validate a standalone declared aggregation without fabricating a result envelope. */
+export function validateSuiteAggregation(value: unknown): asserts value is SuiteAggregation {
+  aggregation(value, 'aggregation');
+  checkAggregation(value as SuiteAggregation);
+}

@@ -140,10 +140,10 @@ describe('v2 result contract', () => {
     // Exercise the existing private wire parser without spawning a provider/CLI.
     const client = new MatricEvalClient() as unknown as { parseEvalSummary(json: string): unknown };
     for (const version of ['2', '3']) {
-      assert.throws(() => client.parseEvalSummary(JSON.stringify({ result_schema_version: version, overall_score: null })), /readResult/);
-      assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ result_schema_version: version, overall_score: null }] })), /readResult/);
+      assert.throws(() => client.parseEvalSummary(JSON.stringify({ result_schema_version: version, overall_score: null })), /invalid_versioned_result|unsupported_schema|unrecognized_legacy_shape/);
+      assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ result_schema_version: version, overall_score: null }] })), /invalid_versioned_result|unsupported_schema|unrecognized_legacy_shape/);
     }
-    assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ model: 'model', status: 'success', overall_score: null }] })), /Unavailable overall scores/);
+    assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ model: 'model', status: 'success', overall_score: null }] })), /unrecognized_legacy_shape|legacy_projection_unrepresentable/);
   });
 });
 

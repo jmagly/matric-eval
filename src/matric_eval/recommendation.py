@@ -6,6 +6,7 @@ mapping capabilities to the best-performing models.
 """
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -198,6 +199,7 @@ class RecommendationEngine:
         capabilities: dict[str, Capability] | None = None,
         min_score_threshold: float = 0.3,
         top_n_alternatives: int = 3,
+        legacy_exploratory: bool = False,
     ) -> None:
         """
         Initialize recommendation engine.
@@ -207,10 +209,17 @@ class RecommendationEngine:
             min_score_threshold: Minimum score to recommend a model
             top_n_alternatives: Number of alternative models to include
         """
+        self.legacy_exploratory = legacy_exploratory
         self.capabilities = capabilities or DEFAULT_CAPABILITIES
         self.min_score_threshold = min_score_threshold
         self.top_n_alternatives = top_n_alternatives
         self.diagnostic_reviews: list[dict[str, Any]] = []
+
+    def recommend_v2(self, sources: list[Any], policy: Any = None) -> dict[str, Any]:
+        """Use validated sources and an explicit versioned comparison/aggregation policy."""
+        from matric_eval.results.ranking import recommend_consumers
+
+        return recommend_consumers(sources, policy)
 
     def process_results(
         self,
@@ -229,15 +238,54 @@ class RecommendationEngine:
         self.diagnostic_reviews = []
 
         for result in results:
+            if not self.legacy_exploratory:
+                self.diagnostic_reviews.append(
+                    {
+                        "model": result.get("model", result.get("model_id")),
+                        "status": "excluded",
+                        "reasons": [
+                            "legacy_unverified"
+                            if "result_schema_version" not in result
+                            else "declared_recommendation_policy_required"
+                        ],
+                        "source": result,
+                        **score_series_diagnostics(result),
+                    }
+                )
+                continue
             review = score_series_diagnostics(result)
             self.diagnostic_reviews.append({"model": result.get("model"), **review})
             if review["legacy_series_excluded"]:
                 continue
-            model = result.get("model", "").replace("ollama/", "")
+            model = result.get("model", "")
             if not model:
                 continue
 
             if result.get("status") != "success":
+                continue
+
+            raw_values = [
+                result.get("overall_score"),
+                *[
+                    item.get("score", item.get("accuracy"))
+                    for item in result.get("benchmarks", {}).values()
+                    if isinstance(item, dict)
+                ],
+            ]
+            if any(
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                for value in raw_values
+            ):
+                self.diagnostic_reviews.append(
+                    {
+                        "model": model,
+                        "status": "excluded",
+                        "reasons": ["legacy_projection_unrepresentable"],
+                        "source": result,
+                    }
+                )
                 continue
 
             # Extract benchmark scores
@@ -283,8 +331,15 @@ class RecommendationEngine:
         Returns:
             RecommendationReport with recommendations for each capability
         """
-        if not model_scores:
-            return RecommendationReport(metadata={"diagnostic_reviews": self.diagnostic_reviews})
+        if not model_scores or not self.legacy_exploratory:
+            return RecommendationReport(
+                metadata={
+                    "diagnostic_reviews": self.diagnostic_reviews,
+                    "status": "no_recommendation",
+                    "qualification": "unverified",
+                    "reason": "declared_recommendation_policy_required",
+                }
+            )
 
         recommendations: dict[str, Recommendation] = {}
 
@@ -358,6 +413,8 @@ class RecommendationEngine:
             best_overall=best_overall,
             best_balanced=best_balanced,
             metadata={
+                "status": "legacy_exploratory",
+                "qualification": "unverified",
                 "num_models": len(model_scores),
                 "diagnostic_reviews": self.diagnostic_reviews,
             },
@@ -378,6 +435,8 @@ class RecommendationEngine:
         Returns:
             Filtered model scores meeting all constraints
         """
+        if not self.legacy_exploratory:
+            return {}
         filtered = {}
         for model, score in model_scores.items():
             # Size constraint
@@ -416,6 +475,8 @@ class RecommendationEngine:
         Returns:
             List of Pareto-optimal model names
         """
+        if not self.legacy_exploratory:
+            return []
         models = list(model_scores.keys())
         if not models:
             return []
@@ -587,6 +648,8 @@ def generate_recommendations(
     results: list[dict[str, Any]],
     capabilities: dict[str, Capability] | None = None,
     min_score_threshold: float = 0.3,
+    *,
+    legacy_exploratory: bool = False,
 ) -> RecommendationReport:
     """
     Convenience function to generate recommendations.
@@ -600,6 +663,7 @@ def generate_recommendations(
         RecommendationReport
     """
     engine = RecommendationEngine(
+        legacy_exploratory=legacy_exploratory,
         capabilities=capabilities,
         min_score_threshold=min_score_threshold,
     )
