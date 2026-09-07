@@ -89,21 +89,46 @@ def test_all_unscored_terminal_work_is_checkpointed_without_score_imputation(
             metric_descriptors={"exact/accuracy": descriptor()},
         )
         assert evaluate.call_count == 1
-        v2 = runner.run_all(
+        with pytest.raises(ValueError, match="no verified observation manifest"):
+            runner.run_all(
+                ["synthetic"],
+                state_manager=manager,
+                result_format="v2",
+                primary_metric_id="exact/accuracy",
+                metric_descriptors={"exact/accuracy": descriptor()},
+            )
+        assert evaluate.call_count == 1
+        # Preserve truthful all-unscored v2 projection coverage through a fresh
+        # dispatch, rather than promoting an unverified coarse checkpoint.
+        fresh_runner = engine(tmp_path / "fresh")
+        v2 = fresh_runner.run_all(
             ["synthetic"],
-            state_manager=manager,
+            checkpoint=False,
+            task=task(),
             result_format="v2",
             primary_metric_id="exact/accuracy",
             metric_descriptors={"exact/accuracy": descriptor()},
         )
-    assert first["status"] == second["status"] == "success"
+        assert evaluate.call_count == 2
+    assert first["status"] == "success"
+    assert first["execution"] == "completed"
+    assert second["status"] == "error"
+    historical = second["benchmarks"]["synthetic"]
+    assert historical["status"] == "legacy_unverified"
+    assert historical["execution"] == "unknown"
+    assert historical["score"] is None
+    assert historical["historical_result"] == first["benchmarks"]["synthetic"]
     assert first["overall_score"] is second["overall_score"] is None
     assert not first["eligible"] and not second["eligible"]
     assert manager.get_benchmark_result("ollama/model:7b", "synthetic")["score"] is None
-    assert read_result(json.dumps(v2, allow_nan=False)).benchmarks[0].primary_estimate.value is None
+    measured = read_result(json.dumps(v2, allow_nan=False)).benchmarks[0]
+    assert measured.execution == "completed"
+    assert measured.primary_estimate.value is None
+    assert not measured.eligibility.eligible
+    assert [(row.outcome, row.value) for row in measured.observations] == [("grader_failed", None)]
 
 
-def test_error_log_is_retried_instead_of_checkpointed_complete(tmp_path: Path) -> None:
+def test_error_log_requires_manual_recovery_and_preserves_history(tmp_path: Path) -> None:
     runner = engine(tmp_path)
     manager = StateManager(tmp_path / "state")
     manager.initialize_run("run", "smoke", 42, ["ollama/model:7b"], ["synthetic"])
@@ -113,9 +138,24 @@ def test_error_log_is_retried_instead_of_checkpointed_complete(tmp_path: Path) -
             "matric_eval.core.engine.eval", return_value=[native_log([sample("a")], status="error")]
         ) as evaluate,
     ):
-        runner.run_all(["synthetic"], state_manager=manager)
-        runner.run_all(["synthetic"], state_manager=manager)
-    assert evaluate.call_count == 2
+        first = runner.run_all(["synthetic"], state_manager=manager)
+        original = {
+            path: path.read_bytes() for path in manager.run_dir.rglob("*") if path.is_file()
+        }
+        second = runner.run_all(["synthetic"], state_manager=manager)
+    assert evaluate.call_count == 1
+    assert first["benchmarks"]["synthetic"]["execution"] == "failed"
+    manual = second["benchmarks"]["synthetic"]
+    assert manual["status"] == "legacy_unverified"
+    assert manual["recovery_action"] == "manual"
+    assert manual["execution"] == "unknown"
+    assert manual["score"] is None
+    assert not manual["eligible"]
+    assert manual["historical_result"] == first["benchmarks"]["synthetic"]
+    assert all(path.read_bytes() == payload for path, payload in original.items())
+    for reference in second["legacy_checkpoint_artifacts"]:
+        source = Path(reference["source_uri"])
+        assert Path(reference["artifact"]["uri"]).read_bytes() == original[source]
     assert manager.get_benchmark_result("ollama/model:7b", "synthetic") is None
 
 

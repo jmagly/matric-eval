@@ -43,7 +43,15 @@ class TestStateManager:
         assert run_state.seed == 42
         assert run_state.models == ["llama3.2:3b", "codestral:22b"]
         assert run_state.benchmarks == ["humaneval", "mbpp"]
-        assert run_state.status == Status.RUNNING
+        assert run_state.status == Status.PENDING
+        assert run_state.current_model is None
+        assert run_state.current_benchmark is None
+        for model in run_state.models:
+            pending = state_manager.load_model_state(model)
+            assert pending is not None
+            assert pending.status == Status.PENDING
+            assert set(pending.benchmarks) == set(run_state.benchmarks)
+            assert all(item.status == Status.PENDING for item in pending.benchmarks.values())
 
     def test_initialize_run_creates_files(self, state_manager: StateManager) -> None:
         """Test that initialization creates required files."""
