@@ -136,8 +136,7 @@ def test_registered_hook_blocks_dispatch_and_reuse_until_removed():
 
 def test_registry_hook_cannot_be_hidden_by_stale_empty_dispatch_cache(monkeypatch):
     from inspect_ai._util import registry
-    from inspect_ai.hooks import Hooks
-    from inspect_ai.hooks import _hooks
+    from inspect_ai.hooks import Hooks, _hooks
 
     class FixtureHook(Hooks):
         pass
