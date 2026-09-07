@@ -391,12 +391,15 @@ class TestOpenRouterProvider:
         provider = OpenRouterProvider(config)
         assert not provider.is_available()
 
-    def test_format_model_id(self):
+    @pytest.mark.parametrize(
+        "model",
+        ["anthropic/claude-3.5-sonnet", "moonshotai/kimi-k3", "z-ai/glm-5.3", "openai/gpt-4o"],
+    )
+    def test_format_model_id(self, model):
         provider = OpenRouterProvider()
-        assert (
-            provider.format_model_id("anthropic/claude-3.5-sonnet")
-            == "openai/anthropic/claude-3.5-sonnet"
-        )
+        formatted = provider.format_model_id(model)
+        assert formatted == f"openai-api/openrouter/{model}"
+        assert provider.format_model_id(formatted) == formatted
 
     @patch("matric_eval.providers.openrouter.urllib.request.urlopen")
     def test_list_models(self, mock_urlopen):
@@ -429,7 +432,9 @@ class TestOpenRouterProvider:
         kwargs = provider.get_eval_kwargs("test-model")
         assert "openrouter.ai" in kwargs["model_base_url"]
         assert kwargs["model_args"]["api_key"] == "test-key"
-        assert "HTTP-Referer" in kwargs["model_args"]["extra_headers"]
+        assert "HTTP-Referer" in kwargs["model_args"]["default_headers"]
+        assert kwargs["model_args"]["responses_api"] is False
+        assert "extra_headers" not in kwargs["model_args"]
 
     def test_get_eval_kwargs_with_routing(self):
         config = ProviderConfig(
