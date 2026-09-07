@@ -1,5 +1,38 @@
 {
   "$defs": {
+    "AggregationTerm": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Benchmark Id",
+          "type": "string"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "transform": {
+          "$ref": "#/$defs/MetricTransform"
+        }
+      },
+      "required": [
+        "benchmark_id",
+        "metric_id",
+        "weight",
+        "transform"
+      ],
+      "title": "AggregationTerm",
+      "type": "object"
+    },
     "ArtifactReference": {
       "additionalProperties": false,
       "properties": {
@@ -159,6 +192,38 @@
         "artifacts"
       ],
       "title": "BenchmarkResult",
+      "type": "object"
+    },
+    "ComparisonIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "1",
+          "title": "Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "payload": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Payload",
+          "type": "string"
+        },
+        "eligibility": {
+          "$ref": "#/$defs/Eligibility"
+        }
+      },
+      "required": [
+        "version",
+        "sha256",
+        "payload",
+        "eligibility"
+      ],
+      "title": "ComparisonIdentity",
       "type": "object"
     },
     "Coverage": {
@@ -540,6 +605,32 @@
     "MetricResult": {
       "additionalProperties": false,
       "properties": {
+        "observation_metric_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observation Metric Id"
+        },
+        "native_estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Estimate"
+        },
         "descriptor": {
           "$ref": "#/$defs/MetricDescriptor"
         },
@@ -581,6 +672,80 @@
         "outcome_counts"
       ],
       "title": "MetricResult",
+      "type": "object"
+    },
+    "MetricTransform": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "1",
+          "title": "Version",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "identity",
+            "affine"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_units": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Source Units",
+          "type": "string"
+        },
+        "source_minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Minimum"
+        },
+        "source_maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Maximum"
+        },
+        "source_direction": {
+          "enum": [
+            "higher",
+            "lower"
+          ],
+          "title": "Source Direction",
+          "type": "string"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "source_units",
+        "source_minimum",
+        "source_maximum",
+        "source_direction",
+        "scale",
+        "offset"
+      ],
+      "title": "MetricTransform",
       "type": "object"
     },
     "Observation": {
@@ -799,10 +964,87 @@
       ],
       "title": "Selection",
       "type": "object"
+    },
+    "SuiteAggregation": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "1",
+          "title": "Version",
+          "type": "string"
+        },
+        "aggregation_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Aggregation Id",
+          "type": "string"
+        },
+        "target_units": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Target Units",
+          "type": "string"
+        },
+        "target_direction": {
+          "enum": [
+            "higher",
+            "lower"
+          ],
+          "title": "Target Direction",
+          "type": "string"
+        },
+        "missingness_policy": {
+          "enum": [
+            "require-complete",
+            "exclude-unavailable"
+          ],
+          "title": "Missingness Policy",
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/AggregationTerm"
+          },
+          "title": "Terms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "version",
+        "aggregation_id",
+        "target_units",
+        "target_direction",
+        "missingness_policy",
+        "terms"
+      ],
+      "title": "SuiteAggregation",
+      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
+    "aggregation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SuiteAggregation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "comparability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComparisonIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "result_schema_version": {
       "const": "2",
       "title": "Result Schema Version",

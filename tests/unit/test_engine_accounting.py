@@ -82,9 +82,20 @@ def test_all_unscored_terminal_work_is_checkpointed_without_score_imputation(
             primary_metric_id="exact/accuracy",
             metric_descriptors={"exact/accuracy": descriptor()},
         )
-        second = runner.run_all(["synthetic"], state_manager=manager)
+        second = runner.run_all(
+            ["synthetic"],
+            state_manager=manager,
+            primary_metric_id="exact/accuracy",
+            metric_descriptors={"exact/accuracy": descriptor()},
+        )
         assert evaluate.call_count == 1
-        v2 = runner.run_all(["synthetic"], state_manager=manager, result_format="v2")
+        v2 = runner.run_all(
+            ["synthetic"],
+            state_manager=manager,
+            result_format="v2",
+            primary_metric_id="exact/accuracy",
+            metric_descriptors={"exact/accuracy": descriptor()},
+        )
     assert first["status"] == second["status"] == "success"
     assert first["overall_score"] is second["overall_score"] is None
     assert not first["eligible"] and not second["eligible"]

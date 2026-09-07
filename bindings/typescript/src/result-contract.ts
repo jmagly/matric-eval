@@ -24,14 +24,25 @@ export interface ResultObservation {
 }
 export interface ResultEstimate { value: number | null; reason: string | null; numerator: number | null; denominator: number | null; method: string; eligibility: ResultEligibility }
 export interface ResultCoverage { requested: number; attempted: number; terminal: number; completed: number; failed: number; cancelled: number; not_attempted: number; unknown: number }
-export interface NamedMetricResult { descriptor: MetricDescriptor; estimate: ResultEstimate; scored: number; outcome_counts: Partial<Record<ResultOutcome, number>> }
+export interface NamedMetricResult { observation_metric_id?: string | null; native_estimate?: number | null; descriptor: MetricDescriptor; estimate: ResultEstimate; scored: number; outcome_counts: Partial<Record<ResultOutcome, number>> }
 export interface BenchmarkResultV2 {
   benchmark_id: string; protocol_sha256: string | null; manifest_sha256: string | null;
   execution: ResultExecution; eligibility: ResultEligibility; primary_metric_id: string | null;
   primary_estimate: ResultEstimate; metrics: Record<string, NamedMetricResult>; selection: ResultSelection[];
   observations: ResultObservation[]; coverage: ResultCoverage; artifacts: ArtifactReference[];
 }
+export interface MetricTransform {
+  version: '1'; kind: 'identity' | 'affine'; source_units: string; source_minimum: number | null;
+  source_maximum: number | null; source_direction: 'higher' | 'lower'; scale: number; offset: number;
+}
+export interface AggregationTerm { benchmark_id: string; metric_id: string; weight: number; transform: MetricTransform }
+export interface SuiteAggregation {
+  version: '1'; aggregation_id: string; target_units: string; target_direction: 'higher' | 'lower';
+  missingness_policy: 'require-complete' | 'exclude-unavailable'; terms: AggregationTerm[];
+}
+export interface ComparisonIdentity { version: '1'; sha256: string; payload: string; eligibility: ResultEligibility }
 export interface ResultEnvelope {
+  aggregation?: SuiteAggregation | null; comparability?: ComparisonIdentity | null;
   result_schema_version: '2'; run_id: string; model_id: string; created_at: string; provenance_schema_version: string;
   configuration_sha256: string | null; execution: ResultExecution; eligibility: ResultEligibility;
   benchmarks: BenchmarkResultV2[]; aggregation_id: string | null; overall_estimate: ResultEstimate; artifacts: ArtifactReference[];
@@ -56,13 +67,14 @@ function record(v: unknown, p: string): asserts v is Record<string, unknown> {
   requireThat(v !== null && typeof v === 'object' && !Array.isArray(v) &&
     (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null), `${p} must be an object`);
 }
-const object = (fields: Record<string, Check>): Check => (v, p) => {
+const object = (fields: Record<string, Check>, optional: Record<string, Check> = {}): Check => (v, p) => {
   record(v, p);
-  requireThat(Object.keys(v).length === Object.keys(fields).length && Object.keys(v).every(k => Object.hasOwn(fields, k)), `${p} has missing or unknown fields`);
+  requireThat(Object.keys(v).every(k => Object.hasOwn(fields, k) || Object.hasOwn(optional, k)), `${p} has missing or unknown fields`);
   for (const [key, check] of Object.entries(fields)) {
     requireThat(Object.hasOwn(v, key), `${p}.${key} is required`);
     check(v[key], `${p}.${key}`);
   }
+  for (const [key, check] of Object.entries(optional)) if (Object.hasOwn(v, key)) check(v[key], `${p}.${key}`);
 };
 const dictionary = (keyCheck: Check, valueCheck: Check): Check => (v, p) => {
   record(v, p);
@@ -80,9 +92,13 @@ const identity = object({ run_id: text, model_id: text, benchmark_id: text, allo
 const observation = object({ observation_id: digest, identity, attempt_id: text, previous_attempt_id: nullable(text), accepted: boolean, execution, outcome, value: nullable(number), reason: nullable(text), native_status: text, judge: nullable(judge), artifacts: array(artifact) });
 const estimate = object({ value: nullable(number), reason: nullable(text), numerator: nullable(number), denominator: nullable(number), method: text, eligibility });
 const coverage = object({ requested: count, attempted: count, terminal: count, completed: count, failed: count, cancelled: count, not_attempted: count, unknown: count });
-const metric = object({ descriptor, estimate, scored: count, outcome_counts: dictionary(outcome, count) });
+const metric = object({ descriptor, estimate, scored: count, outcome_counts: dictionary(outcome, count) }, { observation_metric_id: nullable(text), native_estimate: nullable(number) });
 const benchmark = object({ benchmark_id: text, protocol_sha256: nullable(digest), manifest_sha256: nullable(digest), execution, eligibility, primary_metric_id: nullable(text), primary_estimate: estimate, metrics: dictionary(text, metric), selection: array(selection), observations: array(observation), coverage, artifacts: array(artifact) });
-const envelope = object({ result_schema_version: enumeration(['2']), run_id: text, model_id: text, created_at: text, provenance_schema_version: text, configuration_sha256: nullable(digest), execution, eligibility, benchmarks: array(benchmark), aggregation_id: nullable(text), overall_estimate: estimate, artifacts: array(artifact) });
+const transform = object({ version: enumeration(['1']), kind: enumeration(['identity', 'affine']), source_units: text, source_minimum: nullable(number), source_maximum: nullable(number), source_direction: enumeration(['higher', 'lower']), scale: number, offset: number });
+const term = object({ benchmark_id: text, metric_id: text, weight: number, transform });
+const aggregation = object({ version: enumeration(['1']), aggregation_id: text, target_units: text, target_direction: enumeration(['higher', 'lower']), missingness_policy: enumeration(['require-complete', 'exclude-unavailable']), terms: array(term) });
+const comparison = object({ version: enumeration(['1']), sha256: digest, payload: text, eligibility });
+const envelope = object({ result_schema_version: enumeration(['2']), run_id: text, model_id: text, created_at: text, provenance_schema_version: text, configuration_sha256: nullable(digest), execution, eligibility, benchmarks: array(benchmark), aggregation_id: nullable(text), overall_estimate: estimate, artifacts: array(artifact) }, { aggregation: nullable(aggregation), comparability: nullable(comparison) });
 
 /** Stable logical identity excludes the execution attempt, matching Python's UTF-8 JSON array. */
 export function logicalObservationId(id: ObservationIdentity): string {
@@ -149,6 +165,7 @@ function checkBenchmark(b: BenchmarkResultV2): void {
     const mid = o.identity.metric_id;
     requireThat(selected.has(key) && o.identity.benchmark_id === b.benchmark_id, 'observation outside selected benchmark manifest');
     requireThat(Object.hasOwn(b.metrics, mid), 'observation metric is undeclared');
+    requireThat(b.metrics[mid]!.observation_metric_id == null, 'derived metric cannot have sample observations');
     const attemptKey = JSON.stringify([o.observation_id, o.attempt_id]);
     requireThat(!attempts.has(attemptKey), 'duplicate observation attempt');
     if (o.previous_attempt_id !== null) {
@@ -167,14 +184,18 @@ function checkBenchmark(b: BenchmarkResultV2): void {
       executions.set(key, o.execution);
     }
   }
-  requireThat(accepted.size === selected.size * Object.keys(b.metrics).length, 'every selected unit requires one accepted outcome per metric');
+  requireThat(accepted.size === selected.size * Object.values(b.metrics).filter(m => m.observation_metric_id == null).length, 'every selected unit requires one accepted outcome per metric');
   requireThat(selected.size === 0 || Object.keys(b.metrics).length > 0, 'selected observations require declared metrics');
   for (const status of ['completed', 'failed', 'cancelled', 'not_attempted', 'unknown'] as const) {
     requireThat(c[status] === [...executions.values()].filter(v => v === status).length, 'coverage differs from accepted observations');
   }
   for (const [mid, m] of Object.entries(b.metrics)) {
     requireThat(m.descriptor.metric_id === mid, 'metric map key differs from descriptor identity');
-    const rows = [...accepted.values()].filter(o => o.identity.metric_id === mid);
+    const sourceId = m.observation_metric_id ?? mid;
+    const source = b.metrics[sourceId];
+    requireThat(source !== undefined && source.observation_metric_id == null, 'derived metric needs a direct observation metric');
+    requireThat(source.descriptor.scorer_id === m.descriptor.scorer_id, 'derived metric source scorer differs');
+    const rows = [...accepted.values()].filter(o => o.identity.metric_id === sourceId);
     let total = 0;
     for (const [outcomeName, n] of Object.entries(m.outcome_counts)) {
       requireThat(n === rows.filter(o => o.outcome === outcomeName).length, 'metric outcome counts differ from accepted observations');
@@ -195,10 +216,89 @@ function checkBenchmark(b: BenchmarkResultV2): void {
   requireThat(!b.eligibility.eligible || (b.execution === 'completed' && c.completed === c.requested && b.primary_estimate.eligibility.eligible), 'eligible benchmark requires completed samples and eligible primary');
 }
 
+function checkAggregation(a: SuiteAggregation): void {
+  requireThat(a.terms.length > 0, 'aggregation requires at least one term');
+  requireThat(new Set(a.terms.map(t => t.benchmark_id)).size === a.terms.length, 'aggregation benchmark terms must be unique');
+  for (const term of a.terms) {
+    requireThat(term.weight > 0, 'aggregation weight must be positive');
+    const t = term.transform;
+    requireThat(t.scale !== 0, 'transform scale must be nonzero');
+    requireThat(t.source_minimum === null || t.source_maximum === null || t.source_minimum <= t.source_maximum, 'transform source minimum exceeds maximum');
+    requireThat(t.kind !== 'identity' || (t.scale === 1 && t.offset === 0), 'identity transform requires scale=1 and offset=0');
+    const direction = t.scale < 0 ? (t.source_direction === 'higher' ? 'lower' : 'higher') : t.source_direction;
+    requireThat(direction === a.target_direction, 'transform direction does not match target direction');
+    requireThat(t.kind !== 'identity' || t.source_units === a.target_units, 'identity transform cannot change units');
+  }
+}
+// Python sorts Unicode code points, whereas JavaScript's default sort uses UTF-16.
+function compareUnicode(a: string, b: string): number {
+  const left = Array.from(a, c => c.codePointAt(0)!);
+  const right = Array.from(b, c => c.codePointAt(0)!);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) return left[i]! - right[i]!;
+  }
+  return left.length - right.length;
+}
+function canonicalJudge(j: JudgeIdentity): string {
+  // Mirror Python ensure_ascii=True for ordering only; compare actual parsed objects.
+  const sorted = (v: unknown): unknown => {
+    if (v === null || typeof v !== 'object') return v;
+    return Object.fromEntries(Object.entries(v).sort(([a], [b]) => compareUnicode(a, b)).map(([k, item]) => [k, sorted(item)]));
+  };
+  return JSON.stringify(sorted(j)).replace(/[\u007f-\uffff]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+/** Scope inputs omit varied run/model identities and measured values. */
+export function comparisonInputs(r: ResultEnvelope): unknown {
+  return {
+    version: 'comparison/1', configuration_sha256: r.configuration_sha256, aggregation: r.aggregation ?? null,
+    benchmarks: r.benchmarks.map(b => {
+      const judges = new Map<string, JudgeIdentity>();
+      for (const row of b.observations) if (row.judge !== null) judges.set(canonicalJudge(row.judge), row.judge);
+      return {
+        benchmark_id: b.benchmark_id, protocol_sha256: b.protocol_sha256, manifest_sha256: b.manifest_sha256,
+        primary_metric_id: b.primary_metric_id,
+        metrics: Object.fromEntries(Object.entries(b.metrics).map(([mid, m]) => [mid, { descriptor: m.descriptor, observation_metric_id: m.observation_metric_id ?? null }])),
+        selection: b.selection, judges: [...judges.entries()].sort(([a], [b]) => compareUnicode(a, b)).map(([, j]) => j),
+      };
+    }),
+  };
+}
+function comparisonReasons(r: ResultEnvelope): string[] {
+  const reasons: string[] = [];
+  if (r.configuration_sha256 === null) reasons.push('comparison_configuration_unverified');
+  if (!r.eligibility.eligible) reasons.push('measurement_scope_ineligible');
+  if (r.aggregation != null && !r.overall_estimate.eligibility.eligible) reasons.push('aggregate_ineligible');
+  for (const b of r.benchmarks) {
+    if (b.protocol_sha256 === null || b.manifest_sha256 === null) reasons.push(`protocol_or_manifest_unverified:${b.benchmark_id}`);
+    if (b.selection.some(item => item.data.role === 'unknown')) reasons.push(`partition_role_unknown:${b.benchmark_id}`);
+  }
+  return reasons;
+}
+function checkComparison(r: ResultEnvelope): void {
+  const c = r.comparability;
+  if (c == null) return;
+  checkEligibility(c.eligibility);
+  requireThat(createHash('sha256').update(c.payload, 'utf8').digest('hex') === c.sha256, 'comparison digest differs from payload');
+  requireThat(isDeepStrictEqual(JSON.parse(c.payload), comparisonInputs(r)), 'comparison payload differs from result scope');
+  requireThat(isDeepStrictEqual(c.eligibility.reasons, comparisonReasons(r)), 'comparison eligibility differs from verified scope');
+}
+/** Require validated, eligible, identical scopes before comparing runs. */
+export function requireComparable(left: ResultEnvelope, right: ResultEnvelope): void {
+  for (const r of [left, right]) {
+    validateResult(r);
+    requireThat(r.comparability != null && r.comparability.eligibility.eligible, 'comparison scope is unverified or ineligible');
+  }
+  requireThat(left.comparability!.sha256 === right.comparability!.sha256, 'comparison identities differ');
+}
+
 /** Validate both structure and cross-record invariants; never coerce primitive values. */
 export function validateResult(value: unknown): asserts value is ResultEnvelope {
   envelope(value, 'result');
   const r = value as ResultEnvelope;
+  if (r.aggregation != null) {
+    checkAggregation(r.aggregation);
+    requireThat(r.aggregation_id === r.aggregation.aggregation_id, 'aggregation identity differs from declaration');
+  }
   checkEligibility(r.eligibility);
   checkEstimate(r.overall_estimate);
   r.artifacts.forEach(checkArtifact);
@@ -208,9 +308,16 @@ export function validateResult(value: unknown): asserts value is ResultEnvelope 
     checkBenchmark(b);
     for (const o of b.observations) requireThat(o.identity.run_id === r.run_id && o.identity.model_id === r.model_id, 'observation run/model differs from envelope');
   }
+  if (r.aggregation != null) {
+    const scope = new Set(r.aggregation.terms.map(t => t.benchmark_id));
+    const matches = scope.size === ids.length && ids.every(id => scope.has(id));
+    requireThat(matches || (r.execution !== 'completed' && !r.eligibility.eligible), 'incomplete declared suite cannot claim completed scope');
+  }
+  requireThat(!r.overall_estimate.eligibility.eligible || (r.execution === 'completed' && r.benchmarks.every(b => b.eligibility.eligible)), 'eligible aggregate requires completed eligible benchmark scope');
   requireThat(r.aggregation_id !== null || r.overall_estimate.value === null, 'overall estimate requires declared aggregation');
   requireThat(r.execution !== 'completed' || r.benchmarks.every(b => b.execution === 'completed'), 'completed envelope requires completed benchmarks');
   requireThat(!r.eligibility.eligible || (r.execution === 'completed' && r.benchmarks.length > 0 && r.benchmarks.every(b => b.eligibility.eligible)), 'eligible envelope requires completed eligible benchmarks');
+  checkComparison(r);
 }
 export function readResult(payload: string): ResultEnvelope {
   const result: unknown = JSON.parse(payload);

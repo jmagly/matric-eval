@@ -18,8 +18,11 @@ from inspect_ai.log import EvalLog
 from matric_eval.config import get_tier
 from matric_eval.provenance import benchmark_provenance, framework_provenance
 from matric_eval.results.accounting import summarize_benchmarks
-from matric_eval.results.contract import MetricDescriptor, ResultEnvelope
+from matric_eval.results.comparison import attach_comparison
+from matric_eval.results.contract import BenchmarkResult, MetricDescriptor, ResultEnvelope
 from matric_eval.results.inspect_adapter import adapt_log, envelope, native_reference, unavailable
+from matric_eval.results.policies import SuiteAggregation
+from matric_eval.results.reducers import aggregate_benchmarks, reduce_observations
 
 if TYPE_CHECKING:
     from matric_eval.state import StateManager
@@ -191,7 +194,19 @@ class EvaluationEngine:
 
         from matric_eval.tasks.registry import get_registry
 
-        result["provenance"] = benchmark_provenance(benchmark, get_registry().get(benchmark))
+        metadata = get_registry().get(benchmark)
+        result["provenance"] = benchmark_provenance(benchmark, metadata)
+        if primary_metric_id is None and metric_descriptors is None and metadata is not None:
+            primary_metric_id = metadata.primary_metric_id
+            metric_descriptors = {item.metric_id: item for item in metadata.metric_descriptors}
+
+        result["metric_policy"] = {
+            "version": "native-declarations/1",
+            "primary_metric_id": primary_metric_id,
+            "descriptors": {
+                mid: item.model_dump() for mid, item in sorted((metric_descriptors or {}).items())
+            },
+        }
 
         # Include thinking mode in result if set
         if self.thinking_mode:
@@ -233,8 +248,23 @@ class EvaluationEngine:
                 primary_metric_id=primary_metric_id,
                 descriptors=metric_descriptors,
             )
+            primary = measured.metrics.get(primary_metric_id or "")
+            if (
+                primary is not None
+                and primary.observation_metric_id is None
+                and primary.native_estimate is not None
+                and primary.descriptor.aggregation_id
+                in {
+                    "mean/1",
+                    "accuracy/1",
+                }
+            ):
+                primary.estimate = reduce_observations(measured, primary_metric_id or "")
+                measured.primary_estimate = primary.estimate
+                measured.eligibility = primary.estimate.eligibility
+                measured = BenchmarkResult.model_validate(measured.model_dump())
             if result_format == "v2":
-                return envelope(measured, self.run_id, self.model).model_dump()
+                return attach_comparison(envelope(measured, self.run_id, self.model)).model_dump()
             result.update(
                 {
                     "status": {"completed": "success", "failed": "error"}.get(
@@ -278,6 +308,8 @@ class EvaluationEngine:
         state_manager: StateManager | None = None,
         checkpoint_model: str | None = None,
         result_format: str = "legacy",
+        aggregation: SuiteAggregation | None = None,
+        comparison_configuration_sha256: str | None = None,
         **eval_kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -302,6 +334,8 @@ class EvaluationEngine:
         """
         if result_format not in {"legacy", "v2"}:
             raise ValueError("result_format must be legacy or v2")
+        if len(set(benchmarks)) != len(benchmarks):
+            raise ValueError("requested benchmark identities must be unique")
         if checkpoint and state_manager is not None:
             self.run_id = state_manager.load_run_state().run_id
         results: dict[str, Any] = {
@@ -330,7 +364,13 @@ class EvaluationEngine:
         for benchmark in benchmarks:
             if checkpoint and state_manager is not None:
                 saved_result = state_manager.get_benchmark_result(checkpoint_key, benchmark)
-                if saved_result is not None and saved_result.get("execution") == "completed":
+                if (
+                    saved_result is not None
+                    and saved_result.get("execution") == "completed"
+                    and saved_result.get("comparison_configuration_sha256")
+                    == comparison_configuration_sha256
+                    and self._checkpoint_metric_policy_matches(benchmark, saved_result, eval_kwargs)
+                ):
                     result = {**saved_result, "resumed_from_checkpoint": True}
                     results["benchmarks"][benchmark] = result
                     continue
@@ -346,6 +386,7 @@ class EvaluationEngine:
                         error=str(exc),
                     )
                 raise
+            result["comparison_configuration_sha256"] = comparison_configuration_sha256
             results["benchmarks"][benchmark] = result
 
             if result.get("execution") == "completed":
@@ -368,34 +409,79 @@ class EvaluationEngine:
 
         results.update(summarize_benchmarks(results["benchmarks"], benchmarks))
 
-        if result_format == "v2":
-            if any("observation_result" not in value for value in results["benchmarks"].values()):
-                raise ValueError(
-                    "v2 projection unavailable: benchmark has no verified observation manifest"
+        verified = [
+            BenchmarkResult.model_validate(value["observation_result"])
+            for value in results["benchmarks"].values()
+            if "observation_result" in value
+        ]
+        overall = unavailable("aggregation_undeclared")
+        if aggregation is not None:
+            report = aggregate_benchmarks(verified, benchmarks, aggregation)
+            overall = report.estimate.model_dump()
+            results["aggregation"] = aggregation.model_dump()
+            results["aggregation_report"] = report.model_dump()
+            results["overall_score"] = report.estimate.value
+            results["aggregation_reason"] = report.estimate.reason
+        results["comparability"] = None
+        if len(verified) == len(benchmarks):
+            combined = attach_comparison(
+                ResultEnvelope.model_validate(
+                    {
+                        "result_schema_version": "2",
+                        "run_id": self.run_id,
+                        "model_id": self.model,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "provenance_schema_version": "1",
+                        "configuration_sha256": comparison_configuration_sha256,
+                        "execution": results["execution"],
+                        "eligibility": {
+                            "eligible": results["eligible"],
+                            "reasons": results["eligibility_reasons"],
+                        },
+                        "benchmarks": [item.model_dump() for item in verified],
+                        "aggregation_id": aggregation.aggregation_id if aggregation else None,
+                        "aggregation": aggregation.model_dump() if aggregation else None,
+                        "overall_estimate": overall,
+                        "artifacts": [],
+                    }
                 )
-            return ResultEnvelope.model_validate(
-                {
-                    "result_schema_version": "2",
-                    "run_id": self.run_id,
-                    "model_id": self.model,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "provenance_schema_version": "1",
-                    "configuration_sha256": None,
-                    "execution": results["execution"],
-                    "eligibility": {
-                        "eligible": results["eligible"],
-                        "reasons": results["eligibility_reasons"],
-                    },
-                    "benchmarks": [
-                        value["observation_result"] for value in results["benchmarks"].values()
-                    ],
-                    "aggregation_id": None,
-                    "overall_estimate": unavailable("aggregation_undeclared"),
-                    "artifacts": [],
-                }
-            ).model_dump()
+            )
+            results["comparability"] = (
+                combined.comparability.model_dump() if combined.comparability else None
+            )
+            if result_format == "v2":
+                return combined.model_dump()
+        elif result_format == "v2":
+            raise ValueError(
+                "v2 projection unavailable: benchmark has no verified observation manifest"
+            )
 
         return results
+
+    @staticmethod
+    def _checkpoint_metric_policy_matches(
+        benchmark: str, saved: dict[str, Any], options: dict[str, Any]
+    ) -> bool:
+        from matric_eval.tasks.registry import get_registry
+
+        prior = saved.get("observation_result")
+        if not isinstance(prior, dict):
+            # Execution-only legacy checkpoints cannot supply declared metric evidence.
+            return False
+        primary = options.get("primary_metric_id")
+        descriptors = options.get("metric_descriptors")
+        metadata = get_registry().get(benchmark)
+        if primary is None and descriptors is None and metadata is not None:
+            primary = metadata.primary_metric_id
+            descriptors = {item.metric_id: item for item in metadata.metric_descriptors}
+        current = {
+            "version": "native-declarations/1",
+            "primary_metric_id": primary,
+            "descriptors": {
+                mid: item.model_dump() for mid, item in sorted((descriptors or {}).items())
+            },
+        }
+        return saved.get("metric_policy") == current
 
     def run_pass_k_benchmark(
         self,

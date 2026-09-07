@@ -12,6 +12,8 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
+from matric_eval.results.policies import SuiteAggregation
+
 Text = Annotated[str, Field(min_length=1, pattern=r".*\S.*")]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Number = Annotated[float, Field(allow_inf_nan=False, strict=True)]
@@ -244,6 +246,9 @@ class Coverage(Record):
 
 
 class MetricResult(Record):
+    # Derived estimators share source outcomes, never fabricated per-sample estimates.
+    observation_metric_id: Text | None = None
+    native_estimate: Number | None = None
     descriptor: MetricDescriptor
     estimate: Estimate
     scored: Count
@@ -279,6 +284,8 @@ class BenchmarkResult(Record):
                 raise ValueError("observation outside selected benchmark manifest")
             if metric_id not in self.metrics:
                 raise ValueError("observation metric is undeclared")
+            if self.metrics[metric_id].observation_metric_id is not None:
+                raise ValueError("derived metric cannot own sample observations")
             attempt_key = row.observation_id, row.attempt_id
             if attempt_key in attempts:
                 raise ValueError("duplicate observation attempt")
@@ -300,7 +307,8 @@ class BenchmarkResult(Record):
                 if key in executions and executions[key] != row.execution:
                     raise ValueError("metrics disagree about sample execution")
                 executions[key] = row.execution
-        if len(accepted) != len(selected) * len(self.metrics):
+        measured_metrics = sum(m.observation_metric_id is None for m in self.metrics.values())
+        if len(accepted) != len(selected) * measured_metrics:
             raise ValueError("every selected unit requires one accepted outcome per metric")
         if selected and not self.metrics:
             raise ValueError("selected observations require declared metrics")
@@ -312,7 +320,13 @@ class BenchmarkResult(Record):
         for metric_id, metric in self.metrics.items():
             if metric.descriptor.metric_id != metric_id:
                 raise ValueError("metric map key differs from descriptor identity")
-            rows = [row for (_, mid), row in accepted.items() if mid == metric_id]
+            source_id = metric.observation_metric_id or metric_id
+            source = self.metrics.get(source_id)
+            if source is None or source.observation_metric_id is not None:
+                raise ValueError("derived metric needs a direct observation metric")
+            if source.descriptor.scorer_id != metric.descriptor.scorer_id:
+                raise ValueError("derived metric source scorer differs")
+            rows = [row for (_, mid), row in accepted.items() if mid == source_id]
             counts = {
                 outcome: sum(row.outcome == outcome for row in rows)
                 for outcome in metric.outcome_counts
@@ -348,7 +362,16 @@ class BenchmarkResult(Record):
         return self
 
 
+class ComparisonIdentity(Record):
+    version: Literal["1"]
+    sha256: Digest
+    payload: Text
+    eligibility: Eligibility
+
+
 class ResultEnvelope(Record):
+    aggregation: SuiteAggregation | None = None
+    comparability: ComparisonIdentity | None = None
     result_schema_version: Literal["2"]
     run_id: Text
     model_id: Text
@@ -364,6 +387,12 @@ class ResultEnvelope(Record):
 
     @model_validator(mode="after")
     def envelope_identity(self) -> Self:
+        if self.aggregation is not None and self.aggregation_id != self.aggregation.aggregation_id:
+            raise ValueError("aggregation identity differs from declaration")
+        if self.comparability is not None:
+            from matric_eval.results.comparison import validate_comparison
+
+            validate_comparison(self)
         ids = [benchmark.benchmark_id for benchmark in self.benchmarks]
         if len(ids) != len(set(ids)):
             raise ValueError("benchmark identities must be unique")
@@ -371,6 +400,15 @@ class ResultEnvelope(Record):
             for row in benchmark.observations:
                 if row.identity.run_id != self.run_id or row.identity.model_id != self.model_id:
                     raise ValueError("observation run/model differs from envelope")
+        if self.aggregation is not None:
+            scope = {term.benchmark_id for term in self.aggregation.terms}
+            if scope != set(ids) and (self.execution == "completed" or self.eligibility.eligible):
+                raise ValueError("incomplete declared suite cannot claim completed scope")
+        if self.overall_estimate.eligibility.eligible and (
+            self.execution != "completed"
+            or any(not b.eligibility.eligible for b in self.benchmarks)
+        ):
+            raise ValueError("eligible aggregate requires completed eligible benchmark scope")
         if self.aggregation_id is None and self.overall_estimate.value is not None:
             raise ValueError("overall estimate requires a declared aggregation")
         if self.execution == "completed" and any(
@@ -398,7 +436,7 @@ def read_result(payload: str) -> ResultEnvelope:
 
 def write_result(result: ResultEnvelope) -> str:
     """Revalidate even mutated models, then serialize with strict JSON numbers."""
-    data = result.model_dump(mode="python")
+    data = result.model_dump(mode="python", exclude_unset=True)
     ResultEnvelope.model_validate(data)
     return json.dumps(
         data, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")
