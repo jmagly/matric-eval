@@ -12,10 +12,12 @@ change frozen study observations, hashes, missingness policies or analysis.
 `"legacy"`. This option selects the result contract; it is not forwarded to
 Inspect and is not a new CLI output-format option.
 
-A benchmark primary estimate requires an explicit `primary_metric_id`. Eligibility
-also requires matching `metric_descriptors` with declared units, direction, value
-range, scorer identity and missingness policy. Until #121 supplies registry-level
-metric declarations, default engine calls leave the primary score null. Native
+A benchmark primary estimate requires a declared `primary_metric_id`. The registry
+supplies reviewed defaults; callers can pass their own `metric_descriptors` with
+declared units, direction, value range, scorer identity and missingness policy.
+Unsupported benchmark protocols keep a null primary. See
+[declared metric aggregation](declared-metric-aggregation.md) for the catalog and
+explicit suite aggregation API. Native
 named estimates remain available in `observation_result.metrics` in legacy output
 and `benchmarks[].metrics` in v2. A missing primary never falls back to the first
 scorer or metric.
