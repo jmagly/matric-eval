@@ -10,6 +10,7 @@ Covers:
 """
 
 import math
+from typing import Any
 
 import pytest
 
@@ -145,9 +146,9 @@ class TestPassPowerK:
         assert abs(result - 0.0) < 1e-9
 
     def test_empty_list(self) -> None:
-        """Empty results → 1.0 (vacuously true)."""
-        result = pass_power_k([])
-        assert abs(result - 1.0) < 1e-9
+        """No trials cannot establish perfect reliability."""
+        with pytest.raises(ValueError, match="nonempty"):
+            pass_power_k([])
 
     def test_returns_float(self) -> None:
         """Return type should be float."""
@@ -228,7 +229,72 @@ class TestAggregatePassKResults:
         assert 0.0 < agg["pass_at_k"] < 1.0
 
     def test_empty_results(self) -> None:
-        """Empty all_results → total_samples=0, pass_at_k=0.0."""
-        agg = aggregate_pass_k_results([], k=3)
-        assert agg["total_samples"] == 0
-        assert agg["pass_at_k"] == 0.0
+        """No tasks cannot establish a measured aggregate."""
+        with pytest.raises(ValueError, match="at least one task"):
+            aggregate_pass_k_results([], k=3)
+
+
+@pytest.mark.parametrize(
+    "n,c,k",
+    [
+        (0, 0, 1),
+        (-1, 0, 1),
+        (2, -1, 1),
+        (2, 3, 1),
+        (2, 1, 0),
+        (2, 1, -1),
+        (2, 1, 3),
+        (True, 1, 1),
+        (2, True, 1),
+        (2, 1, True),
+        (2.0, 1, 1),
+        (2, 1.0, 1),
+        (2, 1, 1.0),
+        ("2", 1, 1),
+        (2, None, 1),
+        (2, 1, float("nan")),
+    ],
+)
+def test_invalid_trial_counts_are_rejected_before_formula(n: Any, c: Any, k: Any) -> None:
+    with pytest.raises(ValueError):
+        pass_at_k(n, c, k)
+
+
+@pytest.mark.parametrize(
+    "rows,k",
+    [
+        ([[True, False], [True]], 2),
+        ([[True]], 2),
+        ([[]], 1),
+        ([[True]], 0),
+        ([[True]], True),
+        ([[True]], 1.0),
+        ([[1, 0]], 1),
+        ([[None, True]], 1),
+        ([["false"]], 1),
+    ],
+)
+def test_aggregate_never_clips_k_or_coerces_missing_trials(rows: Any, k: Any) -> None:
+    with pytest.raises(ValueError):
+        aggregate_pass_k_results(rows, k)
+
+
+@pytest.mark.parametrize("rows", [[1], [0], [None], ["false"], [True, 0]])
+def test_reliability_rejects_nonboolean_trial_outcomes(rows: Any) -> None:
+    with pytest.raises(ValueError):
+        pass_power_k(rows)
+
+
+def test_aligned_disjoint_successes_are_not_universal_reliability() -> None:
+    rows = [[True, False], [False, True]]
+    assert aggregate_pass_k_results(rows, 1)["pass_at_k"] == 0.5
+    assert aggregate_pass_k_results(rows, 2)["pass_at_k"] == 1.0
+    assert sum(pass_power_k(row) for row in rows) / len(rows) == 0.0
+    persistent = [[True, True], [False, False]]
+    assert aggregate_pass_k_results(persistent, 1)["pass_at_k"] == 0.5
+    assert aggregate_pass_k_results(persistent, 2)["pass_at_k"] == 0.5
+    assert sum(pass_power_k(row) for row in persistent) / len(persistent) == 0.5
+
+
+def test_rare_success_does_not_disappear_through_float_subtraction() -> None:
+    assert pass_at_k(10**20, 1, 1) == 1e-20

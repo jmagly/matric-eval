@@ -476,3 +476,34 @@ class TestEngineIntegration:
             for call in mock_eval.call_args_list:
                 assert call.kwargs["log_dir"].startswith(str(tmp_path))
                 assert "llama3.2_3b" in call.kwargs["log_dir"]
+
+
+@pytest.mark.unit
+class TestRunPassKMigration:
+    """Legacy spelling requires an explicit task predicate and delegates intact."""
+
+    def test_missing_predicate_fails_before_execution(self, tmp_path: Path) -> None:
+        runner = EvaluationEngine("ollama/test", log_dir=tmp_path)
+        with (
+            patch.object(runner, "_load_task") as load,
+            patch("matric_eval.core.engine.eval") as evaluate,
+        ):
+            with pytest.warns(DeprecationWarning), pytest.raises(ValueError, match="explicit"):
+                runner.run_pass_k_benchmark("humaneval", k=2)
+        load.assert_not_called()
+        evaluate.assert_not_called()
+
+    def test_legacy_spelling_delegates_explicit_n_and_predicate(self, tmp_path: Path) -> None:
+        from matric_eval.results.trials import PassPredicate
+
+        runner = EvaluationEngine("ollama/test", log_dir=tmp_path)
+        predicate = PassPredicate(
+            version="1", kind="equals", threshold=1.0, units="all-tests-passed"
+        )
+        with patch.object(
+            runner, "run_trial_benchmark", return_value={"trial_schema_version": "1"}
+        ) as run:
+            with pytest.warns(DeprecationWarning):
+                result = runner.run_pass_k_benchmark("humaneval", k=2, n=5, predicate=predicate)
+        run.assert_called_once_with("humaneval", n=5, k=2, predicate=predicate)
+        assert result == {"trial_schema_version": "1"}

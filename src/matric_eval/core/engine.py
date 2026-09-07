@@ -240,6 +240,10 @@ class EvaluationEngine:
                 raise ValueError(
                     "Multiple evaluation logs returned; benchmark execution is ambiguous"
                 )
+            result["generation_config"] = {
+                "seed": logs[0].eval.model_generate_config.seed,
+                "temperature": logs[0].eval.model_generate_config.temperature,
+            }
             measured = adapt_log(
                 logs[0],
                 run_id=self.run_id,
@@ -288,6 +292,7 @@ class EvaluationEngine:
                 {
                     "status": "error",
                     "error": str(e),
+                    "error_type": type(e).__name__,
                     "score": None,
                     "samples": 0,
                     "execution": "failed",
@@ -483,79 +488,26 @@ class EvaluationEngine:
         }
         return saved.get("metric_policy") == current
 
-    def run_pass_k_benchmark(
-        self,
-        benchmark: str,
-        k: int = 3,
-        **kwargs: Any,
+    def run_trial_benchmark(
+        self, benchmark: str, *, n: int, k: int, **kwargs: Any
     ) -> dict[str, Any]:
-        """Run a benchmark k times and aggregate with pass^k scoring.
+        """Evaluate aligned task trials with an explicit pass predicate and seed schedule."""
+        from matric_eval.results.trial_execution import run_trials
 
-        Each of the k runs uses the same base random seed per NFR-REPRO-003,
-        ensuring reproducible sampling across runs. The final score uses
-        pass_power_k semantics: the benchmark is considered solved only if
-        all k runs succeed.
+        return run_trials(self, benchmark, n=n, k=k, **kwargs)
 
-        Args:
-            benchmark: Benchmark name (e.g., "humaneval", "mbpp")
-            k: Number of independent runs (default: 3)
-            **kwargs: Additional arguments forwarded to run_benchmark()
+    def run_pass_k_benchmark(self, benchmark: str, k: int = 3, **kwargs: Any) -> dict[str, Any]:
+        """Deprecated spelling; returns the task-aligned trial contract, never a suite pass flag."""
+        import warnings
 
-        Returns:
-            Dictionary containing:
-            - benchmark: Benchmark name
-            - model: Model identifier
-            - tier: Evaluation tier
-            - k: Number of runs performed
-            - pass_power_k: 1.0 if all k runs passed, 0.0 otherwise
-            - run_results: List of individual run result dicts
-            - pass_rate: Fraction of runs that succeeded (c/k)
-            - status: "success" if all runs completed, "partial" if some failed
-              to execute (not benchmark failure), "error" if none completed
-        """
-        from matric_eval.scorers.pass_k import pass_power_k
-
-        # Base seed for reproducibility (NFR-REPRO-003)
-        base_seed = 42
-
-        run_results: list[dict[str, Any]] = []
-        run_pass_flags: list[bool] = []
-
-        for i in range(k):
-            # Each run uses the same seed for reproducible sampling
-            run_kwargs = {"seed": base_seed, **kwargs}
-            result = self.run_benchmark(benchmark, **run_kwargs)
-            run_results.append(result)
-
-            # A run "passes" if it succeeded and scored > 0
-            passed = (
-                result.get("status") == "success"
-                and result.get("score") is not None
-                and result["score"] > 0
-            )
-            run_pass_flags.append(passed)
-
-        successful_runs = [r for r in run_results if r.get("status") == "success"]
-
-        if len(successful_runs) == k:
-            exec_status = "success"
-        elif successful_runs:
-            exec_status = "partial"
-        else:
-            exec_status = "error"
-
-        pass_rate = sum(1 for f in run_pass_flags if f) / k if k > 0 else 0.0
-
-        return {
-            "benchmark": benchmark,
-            "model": self.model,
-            "tier": self.tier,
-            "k": k,
-            "pass_power_k": pass_power_k(run_pass_flags),
-            "run_results": run_results,
-            "pass_rate": pass_rate,
-            "status": exec_status,
-        }
+        warnings.warn(
+            "Use run_trial_benchmark with n, k and an explicit predicate; legacy aggregate pass flags are removed",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if "predicate" not in kwargs:
+            raise ValueError("run_trial_benchmark requires an explicit task-level pass predicate")
+        return self.run_trial_benchmark(benchmark, n=kwargs.pop("n", k), k=k, **kwargs)
 
     def _load_task(self, benchmark: str) -> Task:
         """
