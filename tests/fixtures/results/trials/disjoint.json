@@ -1,0 +1,450 @@
+{
+  "trial_schema_version": "1",
+  "run_id": "run",
+  "model_id": "model",
+  "benchmark_id": "benchmark",
+  "protocol": {
+    "version": "1",
+    "n": 2,
+    "k": 2,
+    "metric_id": "metric",
+    "metric_version": "1",
+    "predicate": {
+      "version": "1",
+      "kind": "equals",
+      "threshold": 1.0,
+      "units": "fraction"
+    },
+    "generation_seeds": [
+      100,
+      101
+    ],
+    "root_generation_seed": 99,
+    "selection_seed": 42,
+    "task_content_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "independence": "unverified",
+    "statistical_claim": "descriptive_only"
+  },
+  "manifest": [
+    {
+      "allocation_id": "benchmark",
+      "sample_id": "0",
+      "trial_id": "selected",
+      "data": {
+        "partition_schema_version": "1",
+        "role": "final_test",
+        "row_id": "0",
+        "source_id": "benchmark",
+        "independent_unit_id": "0"
+      }
+    },
+    {
+      "allocation_id": "benchmark",
+      "sample_id": "1",
+      "trial_id": "selected",
+      "data": {
+        "partition_schema_version": "1",
+        "role": "final_test",
+        "row_id": "1",
+        "source_id": "benchmark",
+        "independent_unit_id": "1"
+      }
+    }
+  ],
+  "manifest_sha256": "2009c0320c8701f3727b816abcfd2eef80e676263a2faf6547fa5f42906ac7a2",
+  "trials": [
+    {
+      "trial_id": "trial-0",
+      "generation_seed": 100,
+      "benchmark": {
+        "benchmark_id": "benchmark",
+        "protocol_sha256": null,
+        "manifest_sha256": null,
+        "execution": "completed",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        },
+        "primary_metric_id": "metric",
+        "primary_estimate": {
+          "value": 0.5,
+          "reason": null,
+          "numerator": 1.0,
+          "denominator": 2.0,
+          "method": "fixture/1",
+          "eligibility": {
+            "eligible": true,
+            "reasons": []
+          }
+        },
+        "metrics": {
+          "metric": {
+            "observation_metric_id": null,
+            "native_estimate": null,
+            "descriptor": {
+              "metric_id": "metric",
+              "version": "1",
+              "scorer_id": "scorer",
+              "value_kind": "continuous",
+              "units": "fraction",
+              "direction": "higher",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "independent_unit": "task",
+              "missingness_policy": "exclude-unmeasured/1",
+              "aggregation_id": "mean/1",
+              "timeout_value": null
+            },
+            "estimate": {
+              "value": 0.5,
+              "reason": null,
+              "numerator": 1.0,
+              "denominator": 2.0,
+              "method": "fixture/1",
+              "eligibility": {
+                "eligible": true,
+                "reasons": []
+              }
+            },
+            "scored": 2,
+            "outcome_counts": {
+              "observed": 2,
+              "grader_failed": 0
+            }
+          }
+        },
+        "selection": [
+          {
+            "allocation_id": "benchmark",
+            "sample_id": "0",
+            "trial_id": "trial-0",
+            "data": {
+              "partition_schema_version": "1",
+              "role": "final_test",
+              "row_id": "0",
+              "source_id": "benchmark",
+              "independent_unit_id": "0"
+            }
+          },
+          {
+            "allocation_id": "benchmark",
+            "sample_id": "1",
+            "trial_id": "trial-0",
+            "data": {
+              "partition_schema_version": "1",
+              "role": "final_test",
+              "row_id": "1",
+              "source_id": "benchmark",
+              "independent_unit_id": "1"
+            }
+          }
+        ],
+        "observations": [
+          {
+            "observation_id": "f460c8298b3eb73f6babda5764d21a4a00c8053e0e9540edd17f03066a546f8c",
+            "identity": {
+              "run_id": "run",
+              "model_id": "model",
+              "benchmark_id": "benchmark",
+              "allocation_id": "benchmark",
+              "sample_id": "0",
+              "trial_id": "trial-0",
+              "metric_id": "metric"
+            },
+            "attempt_id": "a",
+            "previous_attempt_id": null,
+            "accepted": true,
+            "execution": "completed",
+            "outcome": "observed",
+            "value": 1.0,
+            "reason": null,
+            "native_status": "fixture",
+            "judge": null,
+            "artifacts": []
+          },
+          {
+            "observation_id": "70e61e38ddad5c696ef7a74804657245ad6df72a05bf32ffb30f44afa0db5abb",
+            "identity": {
+              "run_id": "run",
+              "model_id": "model",
+              "benchmark_id": "benchmark",
+              "allocation_id": "benchmark",
+              "sample_id": "1",
+              "trial_id": "trial-0",
+              "metric_id": "metric"
+            },
+            "attempt_id": "a",
+            "previous_attempt_id": null,
+            "accepted": true,
+            "execution": "completed",
+            "outcome": "observed",
+            "value": 0.0,
+            "reason": null,
+            "native_status": "fixture",
+            "judge": null,
+            "artifacts": []
+          }
+        ],
+        "coverage": {
+          "requested": 2,
+          "attempted": 2,
+          "terminal": 2,
+          "completed": 2,
+          "failed": 0,
+          "cancelled": 0,
+          "not_attempted": 0,
+          "unknown": 0
+        },
+        "artifacts": []
+      },
+      "unavailable_reason": null,
+      "native_trial_id": "epoch-1",
+      "generation_evidence": null,
+      "artifacts": [],
+      "failure_code": null
+    },
+    {
+      "trial_id": "trial-1",
+      "generation_seed": 101,
+      "benchmark": {
+        "benchmark_id": "benchmark",
+        "protocol_sha256": null,
+        "manifest_sha256": null,
+        "execution": "completed",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        },
+        "primary_metric_id": "metric",
+        "primary_estimate": {
+          "value": 0.5,
+          "reason": null,
+          "numerator": 1.0,
+          "denominator": 2.0,
+          "method": "fixture/1",
+          "eligibility": {
+            "eligible": true,
+            "reasons": []
+          }
+        },
+        "metrics": {
+          "metric": {
+            "observation_metric_id": null,
+            "native_estimate": null,
+            "descriptor": {
+              "metric_id": "metric",
+              "version": "1",
+              "scorer_id": "scorer",
+              "value_kind": "continuous",
+              "units": "fraction",
+              "direction": "higher",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "independent_unit": "task",
+              "missingness_policy": "exclude-unmeasured/1",
+              "aggregation_id": "mean/1",
+              "timeout_value": null
+            },
+            "estimate": {
+              "value": 0.5,
+              "reason": null,
+              "numerator": 1.0,
+              "denominator": 2.0,
+              "method": "fixture/1",
+              "eligibility": {
+                "eligible": true,
+                "reasons": []
+              }
+            },
+            "scored": 2,
+            "outcome_counts": {
+              "observed": 2,
+              "grader_failed": 0
+            }
+          }
+        },
+        "selection": [
+          {
+            "allocation_id": "benchmark",
+            "sample_id": "0",
+            "trial_id": "trial-1",
+            "data": {
+              "partition_schema_version": "1",
+              "role": "final_test",
+              "row_id": "0",
+              "source_id": "benchmark",
+              "independent_unit_id": "0"
+            }
+          },
+          {
+            "allocation_id": "benchmark",
+            "sample_id": "1",
+            "trial_id": "trial-1",
+            "data": {
+              "partition_schema_version": "1",
+              "role": "final_test",
+              "row_id": "1",
+              "source_id": "benchmark",
+              "independent_unit_id": "1"
+            }
+          }
+        ],
+        "observations": [
+          {
+            "observation_id": "afd2e5d1bd510dc3661a1badb1818aa0e7265366ab5dc1edd3e9469e123e9bf6",
+            "identity": {
+              "run_id": "run",
+              "model_id": "model",
+              "benchmark_id": "benchmark",
+              "allocation_id": "benchmark",
+              "sample_id": "0",
+              "trial_id": "trial-1",
+              "metric_id": "metric"
+            },
+            "attempt_id": "a",
+            "previous_attempt_id": null,
+            "accepted": true,
+            "execution": "completed",
+            "outcome": "observed",
+            "value": 0.0,
+            "reason": null,
+            "native_status": "fixture",
+            "judge": null,
+            "artifacts": []
+          },
+          {
+            "observation_id": "4f2819e1d0cfa8d42b6e3252049f7eec5216e3c197f46421b84bc3f098be28d5",
+            "identity": {
+              "run_id": "run",
+              "model_id": "model",
+              "benchmark_id": "benchmark",
+              "allocation_id": "benchmark",
+              "sample_id": "1",
+              "trial_id": "trial-1",
+              "metric_id": "metric"
+            },
+            "attempt_id": "a",
+            "previous_attempt_id": null,
+            "accepted": true,
+            "execution": "completed",
+            "outcome": "observed",
+            "value": 1.0,
+            "reason": null,
+            "native_status": "fixture",
+            "judge": null,
+            "artifacts": []
+          }
+        ],
+        "coverage": {
+          "requested": 2,
+          "attempted": 2,
+          "terminal": 2,
+          "completed": 2,
+          "failed": 0,
+          "cancelled": 0,
+          "not_attempted": 0,
+          "unknown": 0
+        },
+        "artifacts": []
+      },
+      "unavailable_reason": null,
+      "native_trial_id": "epoch-1",
+      "generation_evidence": null,
+      "artifacts": [],
+      "failure_code": null
+    }
+  ],
+  "per_task": [
+    {
+      "allocation_id": "benchmark",
+      "sample_id": "0",
+      "n_requested": 2,
+      "n_observed": 2,
+      "c": 1,
+      "pass_at_k": {
+        "value": 1.0,
+        "reason": null,
+        "numerator": null,
+        "denominator": null,
+        "method": "pass-at-2/1",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        }
+      },
+      "all_n_success": {
+        "value": 0.0,
+        "reason": null,
+        "numerator": null,
+        "denominator": null,
+        "method": "all-n-success/1",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        }
+      }
+    },
+    {
+      "allocation_id": "benchmark",
+      "sample_id": "1",
+      "n_requested": 2,
+      "n_observed": 2,
+      "c": 1,
+      "pass_at_k": {
+        "value": 1.0,
+        "reason": null,
+        "numerator": null,
+        "denominator": null,
+        "method": "pass-at-2/1",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        }
+      },
+      "all_n_success": {
+        "value": 0.0,
+        "reason": null,
+        "numerator": null,
+        "denominator": null,
+        "method": "all-n-success/1",
+        "eligibility": {
+          "eligible": true,
+          "reasons": []
+        }
+      }
+    }
+  ],
+  "macro_pass_at_k": {
+    "value": 1.0,
+    "reason": null,
+    "numerator": 2.0,
+    "denominator": 2.0,
+    "method": "task-macro-pass-at-k/1",
+    "eligibility": {
+      "eligible": true,
+      "reasons": []
+    }
+  },
+  "macro_all_n_success": {
+    "value": 0.0,
+    "reason": null,
+    "numerator": 0.0,
+    "denominator": 2.0,
+    "method": "task-macro-all-n-success/1",
+    "eligibility": {
+      "eligible": true,
+      "reasons": []
+    }
+  },
+  "execution": "completed",
+  "eligibility": {
+    "eligible": true,
+    "reasons": []
+  },
+  "limitations": [
+    "statistical_independence_unverified",
+    "descriptive_statistics_only",
+    "generation_evidence_unavailable:trial-0",
+    "generation_evidence_unavailable:trial-1"
+  ]
+}
