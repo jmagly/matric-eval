@@ -386,6 +386,9 @@ export class MatricEvalClient {
    */
   private parseEvalSummary(json: string): EvalSummary {
     const data = JSON.parse(json) as Record<string, unknown>;
+    if (Object.hasOwn(data, 'result_schema_version')) {
+      throw new Error('Versioned results require the validated readResult v2 reader');
+    }
 
     const rawResults = Array.isArray(data['results'])
       ? data['results']
@@ -394,6 +397,9 @@ export class MatricEvalClient {
         : [];
     const results: ModelResult[] = rawResults.map((r) => {
       const result = r as Record<string, unknown>;
+      if (Object.hasOwn(result, 'result_schema_version')) {
+        throw new Error('Versioned results require the validated readResult v2 reader');
+      }
       const rawStatus = String(result['status'] ?? 'failed');
       const status = rawStatus === 'error' ? 'failed' : rawStatus;
       return {

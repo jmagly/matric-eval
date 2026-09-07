@@ -1,0 +1,821 @@
+{
+  "result_schema_version": "2",
+  "run_id": "run-example",
+  "model_id": "model-example",
+  "created_at": "2026-09-06T00:00:00Z",
+  "provenance_schema_version": "1",
+  "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "execution": "partial",
+  "eligibility": {
+    "eligible": false,
+    "reasons": [
+      "incomplete_scope"
+    ]
+  },
+  "benchmarks": [
+    {
+      "benchmark_id": "benchmark-example",
+      "protocol_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "manifest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "execution": "partial",
+      "eligibility": {
+        "eligible": false,
+        "reasons": [
+          "incomplete_scope"
+        ]
+      },
+      "primary_metric_id": "exact/accuracy",
+      "primary_estimate": {
+        "value": 0.3333333333333333,
+        "reason": null,
+        "numerator": 1.0,
+        "denominator": 3.0,
+        "method": "measured-mean/1",
+        "eligibility": {
+          "eligible": false,
+          "reasons": [
+            "incomplete_scope"
+          ]
+        }
+      },
+      "metrics": {
+        "exact/accuracy": {
+          "descriptor": {
+            "metric_id": "exact/accuracy",
+            "version": "1",
+            "scorer_id": "exact",
+            "value_kind": "continuous",
+            "units": "fraction",
+            "direction": "higher",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "independent_unit": "task",
+            "missingness_policy": "fixture-timeout-zero-exclude-unmeasured/1",
+            "aggregation_id": "measured-mean/1",
+            "timeout_value": 0.0
+          },
+          "estimate": {
+            "value": 0.3333333333333333,
+            "reason": null,
+            "numerator": 1.0,
+            "denominator": 3.0,
+            "method": "measured-mean/1",
+            "eligibility": {
+              "eligible": false,
+              "reasons": [
+                "incomplete_scope"
+              ]
+            }
+          },
+          "scored": 3,
+          "outcome_counts": {
+            "observed": 2,
+            "model_timeout": 1,
+            "infrastructure_error": 1,
+            "grader_failed": 1,
+            "cancelled": 1,
+            "not_attempted": 1,
+            "legacy_unknown": 1,
+            "unavailable": 1
+          }
+        },
+        "rubric/points": {
+          "descriptor": {
+            "metric_id": "rubric/points",
+            "version": "1",
+            "scorer_id": "rubric",
+            "value_kind": "continuous",
+            "units": "points",
+            "direction": "higher",
+            "minimum": 0.0,
+            "maximum": 5.0,
+            "independent_unit": "task",
+            "missingness_policy": "fixture-timeout-zero-exclude-unmeasured/1",
+            "aggregation_id": "measured-mean/1",
+            "timeout_value": 0.0
+          },
+          "estimate": {
+            "value": 1.6666666666666667,
+            "reason": null,
+            "numerator": 5.0,
+            "denominator": 3.0,
+            "method": "measured-mean/1",
+            "eligibility": {
+              "eligible": false,
+              "reasons": [
+                "incomplete_scope"
+              ]
+            }
+          },
+          "scored": 3,
+          "outcome_counts": {
+            "observed": 2,
+            "model_timeout": 1,
+            "infrastructure_error": 1,
+            "grader_failed": 1,
+            "cancelled": 1,
+            "not_attempted": 1,
+            "legacy_unknown": 1,
+            "unavailable": 1
+          }
+        }
+      },
+      "selection": [
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-0",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-0",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-0"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-1",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-1",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-1"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-2",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-2",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-2"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-3",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-3",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-3"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-4",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-4",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-4"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-5",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-5",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-5"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-6",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-6",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-6"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-7",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-7",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-7"
+          }
+        },
+        {
+          "allocation_id": "allocation",
+          "sample_id": "sample-8",
+          "trial_id": "trial-0",
+          "data": {
+            "partition_schema_version": "1",
+            "role": "unknown",
+            "row_id": "row-8",
+            "source_id": "synthetic/1",
+            "independent_unit_id": "unit-8"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "observation_id": "55e91cf0e59488c6834e07e8cad5d3af3fee30b6fd3ddde0db0391d6380ca99e",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-0",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "observed",
+          "value": 0.0,
+          "reason": null,
+          "native_status": "observed",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "ab3d8bba8b6193a95dbbb51cb4e1b53d115b396697c66458314f4b23c042e5fe",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-1",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "observed",
+          "value": 1.0,
+          "reason": null,
+          "native_status": "observed",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "e0ade0e6360f7192d13feb46edd3b0e87a60b45cafdd74f326632c974a470dd8",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-2",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "model_timeout",
+          "value": 0.0,
+          "reason": "deadline",
+          "native_status": "model_timeout",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "8a13d06af5ebff44cb26d32420cb0bd13c1bc33151f3a4aae7f5d3740490762b",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-3",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "failed",
+          "outcome": "infrastructure_error",
+          "value": null,
+          "reason": "backend_unavailable",
+          "native_status": "infrastructure_error",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "60cb77ad16a6de000eca392c52d873f64a22c2b2bc95233310f478fee6b867f1",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-4",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "grader_failed",
+          "value": null,
+          "reason": "position_inconsistent",
+          "native_status": "grader_failed",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "e3da1d5111889d923c97672f1c2629324f07b5e50e9b0a4c8b3f4f258e7a1650",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-5",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "cancelled",
+          "outcome": "cancelled",
+          "value": null,
+          "reason": "operator_cancelled",
+          "native_status": "cancelled",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "8b4400fe33cac1fc89d5b22b5856f47d648951564772ce1a12d0c0e287323b8e",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-6",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "not_attempted",
+          "outcome": "not_attempted",
+          "value": null,
+          "reason": "not_dispatched",
+          "native_status": "not_attempted",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "487b1ccf03eebfa75a79135c042d38ea1fc23d68c0a79d47dcfbb2d6848e9efa",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-7",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "unknown",
+          "outcome": "legacy_unknown",
+          "value": null,
+          "reason": "legacy_unverified",
+          "native_status": "legacy_unknown",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "0278c9f4236d5cd6a795c4215db1e5ab6d7c084cc529242372e3d4830adf5ec1",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-8",
+            "trial_id": "trial-0",
+            "metric_id": "exact/accuracy"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "unavailable",
+          "value": null,
+          "reason": "metric_unavailable",
+          "native_status": "unavailable",
+          "judge": null,
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "9f6c66971173e2b1a92d1ac1976067baa1fcb669214c2d96681f1ca5c00390a6",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-0",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "observed",
+          "value": 0.0,
+          "reason": null,
+          "native_status": "observed",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "c0ac58d6665990d3365ad47bdfbaa53397cacc14dab57392b9ac35380d751370",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-1",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "observed",
+          "value": 5.0,
+          "reason": null,
+          "native_status": "observed",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "34dd7a72dc5a989b07bfee6186ff7a71cb1eac448f8c5257d5ffc1560d4f7c05",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-2",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "model_timeout",
+          "value": 0.0,
+          "reason": "deadline",
+          "native_status": "model_timeout",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "fe1b049cdfca97c8a096af3b9d0dd8ea11d6f930b4f7a60351a25b6fd93fcdb3",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-3",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "failed",
+          "outcome": "infrastructure_error",
+          "value": null,
+          "reason": "backend_unavailable",
+          "native_status": "infrastructure_error",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "7e534525ab7951b6e97d235b021050aaa4d1941c1660890e0afdf24174abbb23",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-4",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "grader_failed",
+          "value": null,
+          "reason": "position_inconsistent",
+          "native_status": "grader_failed",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "714d1096bf0e5353ff80a76d26abf3649758baf27119a96be6e7af2fb90704d7",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-5",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "cancelled",
+          "outcome": "cancelled",
+          "value": null,
+          "reason": "operator_cancelled",
+          "native_status": "cancelled",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "c2c7bc21918a6fa2abe9095196cec2b072526c83ec83830c80de55f2ce35c3f2",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-6",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "not_attempted",
+          "outcome": "not_attempted",
+          "value": null,
+          "reason": "not_dispatched",
+          "native_status": "not_attempted",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "f74e9041a0433fc3110fe6ebc0ceb0a3b7edd1741f102e2e81d1703a45e73ca3",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-7",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "unknown",
+          "outcome": "legacy_unknown",
+          "value": null,
+          "reason": "legacy_unverified",
+          "native_status": "legacy_unknown",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        },
+        {
+          "observation_id": "7d17a3be2195491641abe3c09dbc6356a5d94ef212e92eced6315d7918451619",
+          "identity": {
+            "run_id": "run-example",
+            "model_id": "model-example",
+            "benchmark_id": "benchmark-example",
+            "allocation_id": "allocation",
+            "sample_id": "sample-8",
+            "trial_id": "trial-0",
+            "metric_id": "rubric/points"
+          },
+          "attempt_id": "attempt-1",
+          "previous_attempt_id": null,
+          "accepted": true,
+          "execution": "completed",
+          "outcome": "unavailable",
+          "value": null,
+          "reason": "metric_unavailable",
+          "native_status": "unavailable",
+          "judge": {
+            "judge_id": "fixture-judge",
+            "configuration_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "reversal_policy": "required/1",
+            "retry_policy": "max-attempts-2/1",
+            "calibration": null
+          },
+          "artifacts": [
+            {
+              "uri": "fixture://native/log",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "unavailable_reason": null
+            }
+          ]
+        }
+      ],
+      "coverage": {
+        "requested": 9,
+        "attempted": 7,
+        "terminal": 7,
+        "completed": 5,
+        "failed": 1,
+        "cancelled": 1,
+        "not_attempted": 1,
+        "unknown": 1
+      },
+      "artifacts": []
+    }
+  ],
+  "aggregation_id": null,
+  "overall_estimate": {
+    "value": null,
+    "reason": "aggregation_undeclared",
+    "numerator": null,
+    "denominator": null,
+    "method": "none",
+    "eligibility": {
+      "eligible": false,
+      "reasons": [
+        "aggregation_undeclared"
+      ]
+    }
+  },
+  "artifacts": []
+}

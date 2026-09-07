@@ -57,6 +57,8 @@ Thumbs.db
 # Logs and results (user-generated)
 logs/
 results/
+!/src/matric_eval/results/
+!/tests/fixtures/results/
 
 # Local development
 *.local
