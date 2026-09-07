@@ -120,7 +120,12 @@ class StateManager:
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
         run_state = RunState(
-            run_id=run_id, tier=tier, seed=seed, models=models, benchmarks=benchmarks
+            run_id=run_id,
+            tier=tier,
+            seed=seed,
+            models=models,
+            benchmarks=benchmarks,
+            status=Status.PENDING,
         )
         self.acquire_lock()
 
@@ -138,7 +143,19 @@ class StateManager:
             }
             self._write_atomic(self.meta_file, meta)
 
-            # Write initial state.json
+            # Explicit never-dispatched scopes distinguish a new run from missing
+            # historical state. Publish the pending run only after all scopes exist.
+            for model in models:
+                self.update_model_state(
+                    model,
+                    ModelState(
+                        model=model,
+                        status=Status.PENDING,
+                        benchmarks={name: BenchmarkState(benchmark=name) for name in benchmarks},
+                    ),
+                )
+            # Write initial state.json last; interrupted initialization cannot
+            # present a valid pristine run with missing scopes.
             self._write_state(run_state)
         except BaseException:
             self.release_lock(force=True)
@@ -322,7 +339,9 @@ class StateManager:
                         if model not in gaps:
                             gaps[model] = {}
                         gaps[model][benchmark] = {
-                            "status": "incomplete",
+                            "status": "not_started"
+                            if bench_state.status == Status.PENDING
+                            else "incomplete",
                             "completed": bench_state.completed_problems,
                             "total": bench_state.total_problems,
                         }
@@ -559,6 +578,8 @@ class StateManager:
             return None
 
         bench_state = model_state.benchmarks[benchmark]
+        if bench_state.status == Status.PENDING:
+            return None
         return {
             "total": bench_state.total_problems,
             "completed": bench_state.completed_problems,

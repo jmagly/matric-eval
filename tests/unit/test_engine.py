@@ -266,7 +266,7 @@ class TestRunAll:
         tmp_path: Path,
         mock_eval_log: EvalLog,
     ) -> None:
-        """A resumed run should hydrate completed work without evaluating it again."""
+        """Historical results remain diagnostic and cannot become accepted observations."""
         manager = StateManager(tmp_path / "run")
         manager.initialize_run(
             run_id="run",
@@ -289,6 +289,8 @@ class TestRunAll:
             ),
         )
 
+        original_state = (manager.get_model_dir("test") / "state.json").read_bytes()
+        original_run_state = manager.state_file.read_bytes()
         engine = EvaluationEngine(model="ollama/test", log_dir=tmp_path / "logs")
         with patch.object(engine, "run_benchmark") as run_benchmark:
             run_benchmark.return_value = completed_metric_checkpoint(
@@ -305,7 +307,15 @@ class TestRunAll:
             )
 
         run_benchmark.assert_called_once_with("mbpp")
-        assert result["benchmarks"]["humaneval"]["resumed_from_checkpoint"] is True
+        retained = [
+            Path(item["artifact"]["uri"]).read_bytes()
+            for item in result["legacy_checkpoint_artifacts"]
+        ]
+        assert original_state in retained
+        assert original_run_state in retained
+        assert result["benchmarks"]["humaneval"]["status"] == "legacy_unverified"
+        assert result["benchmarks"]["humaneval"]["score"] is None
+        assert result["benchmarks"]["humaneval"]["eligible"] is False
         assert result["overall_score"] is None
         assert result["aggregation_reason"] == "aggregation_undeclared"
         assert manager.load_run_state().status == Status.COMPLETED
@@ -315,7 +325,7 @@ class TestRunAll:
         tmp_path: Path,
         mock_eval_log: EvalLog,
     ) -> None:
-        """Restart should preserve completed work and rerun the interrupted benchmark."""
+        """An interrupted coarse checkpoint requires manual recovery without replay."""
         manager = StateManager(tmp_path / "run")
         manager.initialize_run(
             run_id="run",
@@ -363,10 +373,11 @@ class TestRunAll:
                 checkpoint_model="test",
             )
 
-        run_benchmark.assert_called_once_with("mbpp")
+        run_benchmark.assert_not_called()
         assert result["overall_score"] is None
         assert result["aggregation_reason"] == "aggregation_undeclared"
-        assert manager.load_run_state().status == Status.COMPLETED
+        assert manager.load_run_state().status != Status.COMPLETED
+        assert all(item["status"] == "legacy_unverified" for item in result["benchmarks"].values())
 
 
 @pytest.mark.unit
@@ -507,3 +518,28 @@ class TestRunPassKMigration:
                 result = runner.run_pass_k_benchmark("humaneval", k=2, n=5, predicate=predicate)
         run.assert_called_once_with("humaneval", n=5, k=2, predicate=predicate)
         assert result == {"trial_schema_version": "1"}
+
+
+def test_direct_engine_missing_attempted_model_state_is_manual(tmp_path: Path) -> None:
+    manager = StateManager(tmp_path / "missing-model")
+    manager.initialize_run("missing-model", "smoke", 42, ["m"], ["b"])
+    manager.mark_running("m", "b")
+    (manager.get_model_dir("m") / "state.json").unlink()
+    manager.release_lock()
+    before = {
+        path.relative_to(manager.run_dir): path.read_bytes()
+        for path in manager.run_dir.rglob("*")
+        if path.is_file()
+    }
+    engine = EvaluationEngine("m", log_dir=tmp_path / "logs")
+    with patch.object(engine, "run_benchmark") as dispatch:
+        result = engine.run_all(["b"], state_manager=manager)
+    dispatch.assert_not_called()
+    assert result["benchmarks"]["b"]["status"] == "legacy_unverified"
+    assert result["benchmarks"]["b"]["score"] is None
+    assert result["eligible"] is False
+    assert {
+        path.relative_to(manager.run_dir): path.read_bytes()
+        for path in manager.run_dir.rglob("*")
+        if path.is_file()
+    } == before

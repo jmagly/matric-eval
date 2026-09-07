@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
+from inspect_ai.model import GenerateConfig
 
 from matric_eval.config import get_tier
 from matric_eval.provenance import benchmark_provenance, framework_provenance
@@ -306,6 +307,47 @@ class EvaluationEngine:
 
         return result
 
+    def run_recoverable_benchmark(
+        self,
+        benchmark: str,
+        *,
+        task: Task,
+        recovery_dir: Path,
+        run_id: str,
+        primary_metric_id: str,
+        metric_descriptors: dict[str, MetricDescriptor],
+        generation_seeds: list[int],
+        selection_seed: int = 42,
+        generation_config: GenerateConfig | None = None,
+        model_base_url: str | None = None,
+        model_args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Opt into durable sample/trial recovery for the supported text profile.
+
+        Configuration is explicit; provider adapter and thinking overrides are
+        rejected rather than omitted from the effective execution identity.
+        """
+        from matric_eval.core.recovery_execution import run_recoverable
+
+        if self.provider is not None or self.thinking_mode or self.judge_spec:
+            raise ValueError(
+                "recovery requires explicit model/configuration without adapter overrides"
+            )
+        return run_recoverable(
+            task=task,
+            benchmark=benchmark,
+            model=self.model,
+            recovery_dir=recovery_dir,
+            run_id=run_id,
+            primary_metric_id=primary_metric_id,
+            metric_descriptors=metric_descriptors,
+            generation_seeds=generation_seeds,
+            selection_seed=selection_seed,
+            generation_config=generation_config,
+            model_base_url=model_base_url,
+            model_args=model_args,
+        )
+
     def run_all(
         self,
         benchmarks: list[str],
@@ -366,18 +408,66 @@ class EvaluationEngine:
         checkpoint_key = checkpoint_model or self._raw_model
         results["checkpoint_model"] = checkpoint_key
 
+        if checkpoint and state_manager is not None:
+            current = state_manager.load_model_state(checkpoint_key)
+            if current and any(
+                item.status.value != "pending" for item in current.benchmarks.values()
+            ):
+                from matric_eval.core.recovery_execution import retain_legacy_state
+
+                results["legacy_checkpoint_artifacts"] = retain_legacy_state(
+                    [
+                        state_manager.state_file,
+                        state_manager.meta_file,
+                        state_manager.get_model_dir(checkpoint_key) / "state.json",
+                    ],
+                    state_manager.run_dir / "legacy-history",
+                )
+
         for benchmark in benchmarks:
             if checkpoint and state_manager is not None:
                 saved_result = state_manager.get_benchmark_result(checkpoint_key, benchmark)
+                prior_model = state_manager.load_model_state(checkpoint_key)
+                prior = prior_model.benchmarks.get(benchmark) if prior_model else None
+                live_run = state_manager.load_run_state()
+                uncertain_scope = (
+                    prior_model is None
+                    or prior is None
+                    or (
+                        live_run.current_model == checkpoint_key
+                        and live_run.current_benchmark == benchmark
+                    )
+                )
                 if (
                     saved_result is not None
-                    and saved_result.get("execution") == "completed"
-                    and saved_result.get("comparison_configuration_sha256")
-                    == comparison_configuration_sha256
-                    and self._checkpoint_metric_policy_matches(benchmark, saved_result, eval_kwargs)
+                    or uncertain_scope
+                    or (
+                        prior is not None
+                        and (
+                            prior.status.value != "pending"
+                            or prior.result is not None
+                            or prior.problems
+                        )
+                    )
                 ):
-                    result = {**saved_result, "resumed_from_checkpoint": True}
-                    results["benchmarks"][benchmark] = result
+                    results["benchmarks"][benchmark] = {
+                        "status": "legacy_unverified",
+                        "execution": "unknown",
+                        "score": None,
+                        "eligible": False,
+                        "samples": 0,
+                        "counts": None,
+                        "eligibility_reasons": ["legacy_checkpoint_identity_unverified"],
+                        "recovery_action": "manual",
+                        "error": "Historical checkpoint has no effective observation identity. "
+                        "Preserve this run and start a new run, or use "
+                        "run_recoverable_benchmark with a new recovery directory.",
+                        "historical_result": saved_result
+                        if saved_result is not None
+                        else prior.result
+                        if prior
+                        else None,
+                    }
                     continue
                 state_manager.mark_running(checkpoint_key, benchmark)
 

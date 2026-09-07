@@ -679,6 +679,34 @@ def run(
                 "Use 'matric-eval validate <run> --force-unlock' only for a stale lock."
             )
 
+        attempted = []
+        if (
+            run_state.status != Status.PENDING
+            or run_state.current_model is not None
+            or run_state.current_benchmark is not None
+            or run_state.completed_models
+        ):
+            attempted.append("run_state_not_pristine")
+        for checkpoint_model in run_state.models:
+            historical = state_manager.load_model_state(checkpoint_model)
+            if historical is None or set(historical.benchmarks) != set(run_state.benchmarks):
+                attempted.append("model_state_missing_or_incomplete")
+            elif historical.status != Status.PENDING:
+                attempted.append("model_state_not_pristine")
+            if historical is not None:
+                attempted.extend(
+                    f"{checkpoint_model}/{name}"
+                    for name, item in historical.benchmarks.items()
+                    if item.status != Status.PENDING or item.result is not None or item.problems
+                )
+        if attempted:
+            raise click.ClickException(
+                "legacy_unverified: benchmark checkpoints cannot authorize automatic reuse or replay. "
+                "Existing files are preserved. Start a new run without --resume, or use "
+                "EvaluationEngine.run_recoverable_benchmark with a new recovery directory. "
+                "Interrupted external requests require manual reconciliation."
+            )
+
         configuration = metadata.get("configuration", {})
         if not isinstance(configuration, dict):
             raise click.ClickException("Invalid checkpoint configuration")

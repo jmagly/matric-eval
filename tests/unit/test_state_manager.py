@@ -257,6 +257,13 @@ class TestStateManager:
         )
 
         assert run_state.run_id == "run_001"
+        assert run_state.status == Status.PENDING
+        for name in run_state.models:
+            model_state = manager.load_model_state(name)
+            assert model_state is not None
+            assert model_state.status == Status.PENDING
+            assert set(model_state.benchmarks) == set(run_state.benchmarks)
+            assert all(item.status == Status.PENDING for item in model_state.benchmarks.values())
         assert run_state.tier == "smoke"
         assert run_state.seed == 42
         assert len(run_state.models) == 2
@@ -346,8 +353,11 @@ class TestStateManager:
             benchmarks=["b1"],
         )
 
-        # Initially no model state
-        assert manager.load_model_state("m1") is None
+        # Initialization records explicit never-dispatched model state.
+        pending = manager.load_model_state("m1")
+        assert pending is not None
+        assert pending.status == Status.PENDING
+        assert pending.benchmarks["b1"].status == Status.PENDING
 
         # Create and save model state
         model_state = ModelState(model="m1", status=Status.RUNNING)

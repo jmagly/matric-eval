@@ -3,9 +3,9 @@
 The observation journal implements the persistence core of
 [#124](https://git.integrolabs.net/roctinam/matric-eval/issues/124), following the
 [reviewed recovery design](./observation-recovery-design.md). It is an opt-in API
-in `matric_eval.state.journal`. It is not connected to engine dispatch, benchmark
-checkpoints, Inspect callbacks, or provider identity capture. This delivery alone
-does not complete engine-level recovery or all of #124.
+in `matric_eval.state.journal`. The separate [explicit recovery executor](./recoverable-execution.md)
+connects it to bounded sample/trial dispatch and effective identity capture.
+The core itself does not install Inspect callbacks or migrate historical checkpoints.
 
 Existing benchmark checkpoints, study journals, native logs, and historical
 reports are unchanged. The SQLite database is a separate authoritative journal;

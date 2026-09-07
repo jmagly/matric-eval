@@ -217,15 +217,21 @@ def test_removed_metric_declaration_and_changed_configuration_invalidate_checkpo
         updated = runner.run_all(
             ["synthetic"], metric_descriptors={"exact/accuracy": descriptor()}, **common
         )
-        assert evaluate.call_count == 2
-        stderr = updated["benchmarks"]["synthetic"]["observation_result"]["metrics"]["exact/stderr"]
-        assert stderr["descriptor"]["units"] == "undeclared"
+        assert evaluate.call_count == 1
+        assert updated["benchmarks"]["synthetic"]["status"] == "legacy_unverified"
+        assert updated["benchmarks"]["synthetic"]["score"] is None
+        assert (
+            updated["benchmarks"]["synthetic"]["historical_result"]["observation_result"][
+                "metrics"
+            ]["exact/stderr"]["descriptor"]["units"]
+            == auxiliary.units
+        )
         runner.run_all(["synthetic"], metric_descriptors={"exact/accuracy": descriptor()}, **common)
-        assert evaluate.call_count == 2
+        assert evaluate.call_count == 1
         runner.run_all(
             ["synthetic"],
             metric_descriptors={"exact/accuracy": descriptor()},
             comparison_configuration_sha256="a" * 64,
             **common,
         )
-        assert evaluate.call_count == 3
+        assert evaluate.call_count == 1
