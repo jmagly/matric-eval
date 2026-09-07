@@ -1475,6 +1475,9 @@ def recommend(
         report = engine.from_results_directory(results_dir)
 
     if not report.model_scores:
+        error_console.print(
+            json.dumps(report.metadata.get("diagnostic_reviews", []), allow_nan=False)
+        )
         error_console.print("[red]Error:[/red] No valid evaluation results found")
         error_console.print(f"Directory: {results_dir}")
         sys.exit(1)
@@ -1715,6 +1718,43 @@ def _run_matrix_evaluation(
 
         console.print(table)
         console.print(f"\n[dim]Results saved to: {output_dir}[/dim]")
+
+
+@cli.command("overlap-diagnostics")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--artifact",
+    is_flag=True,
+    help="Read a current or legacy diagnostic artifact instead of text pairs.",
+)
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path))
+def overlap_diagnostics(input_file: Path, artifact: bool, output: Path | None) -> None:
+    """Report local text overlap with unknown training exposure and unchanged raw scores.
+
+    INPUT_FILE contains JSON outputs/references arrays and optional method/data
+    parameters. --artifact preserves legacy evidence in an explicitly excluded series.
+    """
+    from matric_eval.contamination import check_overlap, read_diagnostic, write_diagnostic
+    from matric_eval.contamination.diagnostics import strict_json
+
+    try:
+        payload = input_file.read_text(encoding="utf-8")
+        if artifact:
+            report = read_diagnostic(payload)
+        else:
+            values = strict_json(payload)
+            if not isinstance(values, dict):
+                raise ValueError("input must be a JSON object")
+            report = check_overlap(**values)
+        rendered = write_diagnostic(report)
+        if output is not None:
+            if output.resolve() == input_file.resolve():
+                raise ValueError("output must not overwrite source evidence")
+            output.write_text(rendered + "\n", encoding="utf-8")
+        else:
+            click.echo(rendered)
+    except (ValueError, TypeError, OSError) as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def main() -> None:

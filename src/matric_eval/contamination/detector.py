@@ -1,252 +1,209 @@
-"""
-Contamination detection via n-gram overlap analysis.
+"""Word n-gram and normalized exact overlap diagnostics, not training detection."""
 
-Compares model outputs against known benchmark solutions to detect
-potential memorization of evaluation data.
-"""
+from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+import warnings
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
+
+from matric_eval.contamination.diagnostics import (
+    Method,
+    OverlapReport,
+    SampleDiagnostic,
+    normalize,
+    read_diagnostic,
+    text_identity,
+)
 
 
 @dataclass
 class ContaminationEvidence:
-    """Evidence of contamination for a single sample."""
+    """Legacy evidence container; severity is historical and has no validity meaning."""
 
-    type: str  # "ngram_match", "exact_match", "high_overlap"
+    type: str
     details: str
-    severity: float  # 0.0 - 1.0
-    sample_id: Optional[str] = None
+    severity: float
+    sample_id: str | None = None
     overlap_ratio: float = 0.0
 
 
 @dataclass
 class ContaminationReport:
-    """Contamination analysis report for a model/benchmark pair."""
+    """Deprecated constructor for historical heuristic artifacts, never ranking input."""
 
     model: str
     benchmark: str
-    contamination_score: float = 0.0  # 0.0 (clean) to 1.0 (contaminated)
+    contamination_score: float = 0.0
     confidence: float = 0.0
     evidence: list[ContaminationEvidence] = field(default_factory=list)
     samples_checked: int = 0
     samples_flagged: int = 0
 
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "ContaminationReport is legacy; use OverlapReport diagnostics",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     @property
     def recommendation(self) -> str:
-        """Get recommendation based on contamination score."""
-        if self.contamination_score < 0.2:
-            return "trustworthy"
-        elif self.contamination_score < 0.5:
-            return "suspicious"
-        else:
-            return "likely_contaminated"
+        warnings.warn(
+            "Overlap cannot establish trustworthiness or training exposure",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return "unknown_training_exposure"
 
     def adjusted_score(self, raw_score: float) -> float:
-        """
-        Adjust a benchmark score based on contamination likelihood.
+        return OverlapReport.adjusted_score(self, raw_score)  # type: ignore[arg-type]
 
-        Args:
-            raw_score: The raw benchmark score
+    def to_dict(self) -> dict[str, Any]:
+        import json
 
-        Returns:
-            Adjusted score accounting for potential contamination
-        """
-        if self.contamination_score < 0.2:
-            return raw_score
-        elif self.contamination_score < 0.5:
-            return raw_score * 0.9
-        elif self.contamination_score < 0.8:
-            return raw_score * 0.7
-        else:
-            return raw_score * 0.5
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary for serialization."""
-        return {
-            "model": self.model,
-            "benchmark": self.benchmark,
-            "contamination_score": self.contamination_score,
-            "confidence": self.confidence,
-            "recommendation": self.recommendation,
-            "samples_checked": self.samples_checked,
-            "samples_flagged": self.samples_flagged,
-            "evidence": [
-                {
-                    "type": e.type,
-                    "details": e.details,
-                    "severity": e.severity,
-                    "sample_id": e.sample_id,
-                    "overlap_ratio": e.overlap_ratio,
-                }
-                for e in self.evidence
-            ],
-        }
+        return read_diagnostic(json.dumps(asdict(self), allow_nan=False)).model_dump()
 
 
 def _extract_ngrams(text: str, n: int) -> list[tuple[str, ...]]:
-    """
-    Extract character-level n-grams from text.
-
-    Args:
-        text: Input text
-        n: N-gram size
-
-    Returns:
-        List of n-gram tuples
-    """
-    # Normalize: lowercase, collapse whitespace
-    normalized = " ".join(text.lower().split())
-    words = normalized.split()
-    if len(words) < n:
-        return []
-    return [tuple(words[i : i + n]) for i in range(len(words) - n + 1)]
+    """Extract overlapping word n-gram occurrences after lower/whitespace normalization."""
+    if isinstance(n, bool) or not isinstance(n, int) or n <= 0:
+        raise ValueError("n must be a positive integer")
+    words = normalize(text).split()
+    return [tuple(words[index : index + n]) for index in range(len(words) - n + 1)]
 
 
 class NgramDetector:
-    """
-    Detects contamination via n-gram overlap between model outputs
-    and known benchmark solutions.
+    """Measure overlap only within supplied text pairs; threshold selects similarity.
 
-    A high n-gram overlap suggests the model may have memorized the
-    benchmark data rather than genuinely solving the problem.
-
-    Args:
-        n: N-gram size (default: 10). Larger values reduce false positives.
-        threshold: Overlap threshold to flag as contaminated (default: 0.3).
-            Fraction of output n-grams found in reference solutions.
+    Exact independently solved answers can overlap. Low-overlap paraphrases do
+    not exclude training exposure. Neither event changes a benchmark score.
     """
 
     def __init__(self, n: int = 10, threshold: float = 0.3):
-        self.n = n
-        self.threshold = threshold
+        self.method = Method(n=n, threshold=threshold)
+        self.n = self.method.n
+        self.threshold = self.method.threshold
 
-    def compute_overlap(self, output: str, reference: str) -> float:
-        """
-        Compute n-gram overlap ratio between output and reference.
-
-        Args:
-            output: Model output text
-            reference: Known reference/solution text
-
-        Returns:
-            Overlap ratio (0.0 - 1.0). Fraction of output n-grams
-            found in the reference.
-        """
+    def compute_overlap(self, output: str, reference: str) -> float | None:
+        """Output-occurrence overlap ratio, or None when either text has no n-grams."""
         output_ngrams = _extract_ngrams(output, self.n)
-        if not output_ngrams:
-            return 0.0
-
         reference_ngrams = set(_extract_ngrams(reference, self.n))
-        if not reference_ngrams:
-            return 0.0
-
-        matches = sum(1 for ng in output_ngrams if ng in reference_ngrams)
-        return matches / len(output_ngrams)
+        if not output_ngrams or not reference_ngrams:
+            return None
+        return sum(item in reference_ngrams for item in output_ngrams) / len(output_ngrams)
 
     def check_sample(
         self,
         output: str,
         reference: str,
-        sample_id: Optional[str] = None,
-    ) -> Optional[ContaminationEvidence]:
-        """
-        Check a single sample for contamination.
-
-        Args:
-            output: Model's output for this sample
-            reference: Known correct solution/answer
-            sample_id: Optional identifier for the sample
-
-        Returns:
-            ContaminationEvidence if contamination detected, None otherwise
-        """
-        # Check for exact match first
-        norm_output = " ".join(output.lower().split())
-        norm_ref = " ".join(reference.lower().split())
-
-        if norm_output == norm_ref and len(norm_output) > 50:
-            return ContaminationEvidence(
-                type="exact_match",
-                details="Output exactly matches reference solution",
-                severity=1.0,
-                sample_id=sample_id,
-                overlap_ratio=1.0,
-            )
-
-        # Check n-gram overlap
-        overlap = self.compute_overlap(output, reference)
-
-        if overlap >= self.threshold:
-            severity = min(1.0, overlap / 0.8)  # Scale: threshold->0.8 maps to mild->severe
-            return ContaminationEvidence(
-                type="ngram_match" if overlap < 0.7 else "high_overlap",
-                details=f"{self.n}-gram overlap: {overlap:.1%} (threshold: {self.threshold:.1%})",
-                severity=severity,
-                sample_id=sample_id,
-                overlap_ratio=overlap,
-            )
-
-        return None
+        sample_id: str | None = None,
+        *,
+        output_source_id: str = "provided-output",
+        reference_source_id: str = "provided-reference",
+    ) -> SampleDiagnostic:
+        """Return evidence for every pair, including low overlap and insufficient text."""
+        output_id = text_identity(output, output_source_id)
+        reference_id = text_identity(reference, reference_source_id)
+        output_ngrams = _extract_ngrams(output, self.n)
+        reference_ngrams = _extract_ngrams(reference, self.n)
+        ratio = self.compute_overlap(output, reference)
+        empty = not output_id.words or not reference_id.words
+        limits = ["local_overlap_does_not_establish_training_exposure"]
+        if empty:
+            limits.append("empty_normalized_text")
+        if ratio is None:
+            limits.append("insufficient_words_for_ngram_method")
+        return SampleDiagnostic(
+            sample_id=sample_id if sample_id is not None else "0",
+            output=output_id,
+            reference=reference_id,
+            status="insufficient_text" if empty else "tested_with_method",
+            normalized_exact_match=None if empty else normalize(output) == normalize(reference),
+            output_ngrams=len(output_ngrams),
+            reference_ngrams=len(reference_ngrams),
+            matching_output_ngrams=sum(item in set(reference_ngrams) for item in output_ngrams),
+            overlap_ratio=ratio,
+            exceeds_similarity_threshold=ratio >= self.threshold if ratio is not None else None,
+            limits=limits,
+        )
 
     def check_batch(
         self,
         outputs: list[str],
         references: list[str],
-        sample_ids: Optional[list[str]] = None,
+        sample_ids: list[str] | None = None,
         model: str = "unknown",
         benchmark: str = "unknown",
-    ) -> ContaminationReport:
-        """
-        Check a batch of samples for contamination.
-
-        Args:
-            outputs: List of model outputs
-            references: List of reference solutions (same order)
-            sample_ids: Optional list of sample identifiers
-            model: Model name for the report
-            benchmark: Benchmark name for the report
-
-        Returns:
-            ContaminationReport with aggregate contamination assessment
-        """
+        *,
+        raw_score: float | None = None,
+        output_source_id: str = "provided-output",
+        reference_source_id: str = "provided-reference",
+        scope: Literal[
+            "provided_output_reference_pairs", "provided_train_eval_datasets"
+        ] = "provided_output_reference_pairs",
+    ) -> OverlapReport:
+        if (
+            not isinstance(outputs, list)
+            or not isinstance(references, list)
+            or any(not isinstance(item, str) for item in [*outputs, *references])
+        ):
+            raise ValueError("outputs and references must be arrays of strings")
         if len(outputs) != len(references):
-            raise ValueError(
-                f"Outputs ({len(outputs)}) and references ({len(references)}) must have same length"
-            )
-
+            raise ValueError("outputs and references must have the same length")
         if sample_ids is None:
-            sample_ids = [str(i) for i in range(len(outputs))]
-
-        evidence = []
-        for output, reference, sid in zip(outputs, references, sample_ids):
-            result = self.check_sample(output, reference, sid)
-            if result is not None:
-                evidence.append(result)
-
-        # Compute aggregate contamination score
-        samples_checked = len(outputs)
-        samples_flagged = len(evidence)
-
-        if samples_checked == 0:
-            contamination_score = 0.0
-        else:
-            # Weight by severity
-            total_severity = sum(e.severity for e in evidence)
-            contamination_score = min(1.0, total_severity / max(1, samples_checked))
-
-        # Confidence based on sample size
-        confidence = min(1.0, samples_checked / 50)  # Full confidence at 50+ samples
-
-        return ContaminationReport(
+            sample_ids = [str(index) for index in range(len(outputs))]
+        if not isinstance(sample_ids, list) or any(not isinstance(sid, str) for sid in sample_ids):
+            raise ValueError("sample identities must be an array of strings")
+        if len(sample_ids) != len(outputs) or len(set(sample_ids)) != len(sample_ids):
+            raise ValueError("sample identities must be unique and cover every pair")
+        if scope == "provided_train_eval_datasets" and (
+            output_source_id == "provided-output" or reference_source_id == "provided-reference"
+        ):
+            raise ValueError(
+                "dataset overlap requires explicit train and evaluation source identities"
+            )
+        samples = [
+            self.check_sample(
+                output,
+                reference,
+                sid,
+                output_source_id=output_source_id,
+                reference_source_id=reference_source_id,
+            )
+            for output, reference, sid in zip(outputs, references, sample_ids, strict=True)
+        ]
+        tested = sum(sample.status == "tested_with_method" for sample in samples)
+        status: Literal["empty_batch", "tested_with_method", "partial", "insufficient_text"] = (
+            "empty_batch"
+            if not samples
+            else "tested_with_method"
+            if tested == len(samples)
+            else "partial"
+            if tested
+            else "insufficient_text"
+        )
+        return OverlapReport(
             model=model,
             benchmark=benchmark,
-            contamination_score=contamination_score,
-            confidence=confidence,
-            evidence=evidence,
-            samples_checked=samples_checked,
-            samples_flagged=samples_flagged,
+            scope=scope,
+            method=self.method,
+            status=status,
+            raw_score=raw_score,
+            samples=samples,
+            limits=[
+                "paired_local_text_only",
+                "foundation_model_training_history_unknown",
+                "similarity_threshold_is_not_a_contamination_test",
+                "no_score_adjustment",
+            ],
         )
+
+
+def check_overlap(
+    outputs: list[str], references: list[str], *, n: int = 10, threshold: float = 0.3, **kwargs: Any
+) -> OverlapReport:
+    """Measure supplied text pairs without training-exposure or trustworthiness claims."""
+    return NgramDetector(n=n, threshold=threshold).check_batch(outputs, references, **kwargs)
 
 
 def check_contamination(
@@ -256,20 +213,11 @@ def check_contamination(
     benchmark: str = "unknown",
     n: int = 10,
     threshold: float = 0.3,
-) -> ContaminationReport:
-    """
-    Convenience function to check for contamination.
-
-    Args:
-        outputs: List of model outputs
-        references: List of reference solutions
-        model: Model name
-        benchmark: Benchmark name
-        n: N-gram size
-        threshold: Overlap threshold
-
-    Returns:
-        ContaminationReport
-    """
-    detector = NgramDetector(n=n, threshold=threshold)
-    return detector.check_batch(outputs, references, model=model, benchmark=benchmark)
+) -> OverlapReport:
+    """Deprecated name: returns versioned overlap diagnostics, never a trust verdict."""
+    warnings.warn(
+        "check_contamination is deprecated; use check_overlap", DeprecationWarning, stacklevel=2
+    )
+    return check_overlap(
+        outputs, references, model=model, benchmark=benchmark, n=n, threshold=threshold
+    )
