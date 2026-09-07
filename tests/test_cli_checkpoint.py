@@ -280,8 +280,9 @@ class TestResumeFlag:
                 ],
             )
 
-        assert result.exit_code == 0
-        assert "RESUMING RUN" in result.output
+        assert result.exit_code != 0
+        assert "legacy_unverified" in result.output
+        run_benchmark.assert_not_called()
 
     def test_resume_with_fill_gaps(
         self, runner: CliRunner, incomplete_run_dir: Path, temp_results_dir: Path
@@ -306,9 +307,9 @@ class TestResumeFlag:
                 ],
             )
 
-        assert result.exit_code == 0
-        assert "FILLING GAPS" in result.output
-        assert "mbpp" in result.output
+        assert result.exit_code != 0
+        assert "legacy_unverified" in result.output
+        run_benchmark.assert_not_called()
 
     def test_resume_nonexistent_run(self, runner: CliRunner, temp_results_dir: Path) -> None:
         """Test resuming nonexistent run fails."""
@@ -440,7 +441,7 @@ class TestResumeExecution:
     def test_resume_executes_only_missing_benchmarks(
         self, runner: CliRunner, tmp_path: Path, mock_eval_log: EvalLog
     ) -> None:
-        """Resume should execute gaps and retain completed benchmark results."""
+        """Coarse resume cannot revive scores or overwrite historical result bytes."""
         results_dir = tmp_path / "results"
         results_dir.mkdir()
 
@@ -470,6 +471,14 @@ class TestResumeExecution:
         )
         state_manager.release_lock()
 
+        public_result = run_dir / "historical-result.json"
+        public_result.write_text('{"score":0.8,"source":"historical"}\n')
+        before = {
+            path.relative_to(run_dir): path.read_bytes()
+            for path in run_dir.rglob("*")
+            if path.is_file()
+        }
+
         settings = get_settings()
         previous_seed = settings.seed
         settings.seed = 999
@@ -496,16 +505,50 @@ class TestResumeExecution:
                 restored_seed = settings.seed
                 settings.seed = previous_seed
 
-        assert result.exit_code == 0
+        assert result.exit_code != 0
         assert restored_seed == 999
-        assert "RESUMING RUN" in result.output
-        run_benchmark.assert_called_once_with("mbpp")
-        final_state = state_manager.load_run_state()
-        assert final_state.status == Status.COMPLETED
-        assert final_state.completed_models == ["llama3.2:3b"]
+        assert "legacy_unverified" in result.output
+        assert "without --resume" in result.output
+        run_benchmark.assert_not_called()
+        after = {
+            path.relative_to(run_dir): path.read_bytes()
+            for path in run_dir.rglob("*")
+            if path.is_file()
+        }
+        assert after == before
         assert not state_manager.is_locked()
 
-        summary = json.loads((run_dir / "summary.json").read_text())
-        resumed = summary["results"][0]
-        assert resumed["benchmarks"]["humaneval"]["resumed_from_checkpoint"] is True
-        assert resumed["benchmarks"]["mbpp"]["score"] == 0.6
+
+@pytest.mark.parametrize("status", [Status.PENDING, Status.RUNNING, Status.FAILED])
+def test_resume_missing_attempted_model_state_preserves_all_bytes(
+    tmp_path: Path, status: Status
+) -> None:
+    run_dir = tmp_path / "missing-model-state"
+    manager = StateManager(run_dir)
+    manager.initialize_run("missing-state", "smoke", 42, ["m"], ["b"])
+    state = manager.load_run_state()
+    state.status = status
+    state.current_model = "m"
+    state.current_benchmark = "b"
+    manager.update_run_state(state)
+    (manager.get_model_dir("m") / "state.json").unlink()
+    manager.release_lock()
+    before = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    }
+    with (
+        patch("matric_eval.cli._create_provider") as provider,
+        patch("matric_eval.core.engine.EvaluationEngine.run_benchmark") as dispatch,
+    ):
+        result = CliRunner().invoke(cli, ["run", "--resume", str(run_dir)])
+    assert result.exit_code != 0
+    assert "legacy_unverified" in result.output
+    provider.assert_not_called()
+    dispatch.assert_not_called()
+    assert {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    } == before
