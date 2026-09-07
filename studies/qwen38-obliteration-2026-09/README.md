@@ -166,6 +166,130 @@ UV_PYTHON=3.11 uv run python scripts/run_qwen38_judges.py \
   --api-key-fd 3
 ```
 
+### In-session Codex subagent judging
+
+When the study operator explicitly selects Codex collaboration subagents instead of
+the Responses API, preserve the API runner and its locked plan unchanged. Use
+`run_qwen38_session_judges.py` to create a separate, hashed execution amendment before
+any scoring begins. The amendment retains the locked rubrics, metric mappings,
+randomization domains, seed, disagreement thresholds, and adjudication policy. It
+records the actual, distinct orchestrator model identifiers separately from the three
+opaque agent task IDs. The plan deliberately contains no self-hash; its SHA-256 is
+computed after the exclusive write and is then bound into every packet and result
+envelope.
+
+Run all artifact-management commands on `basilisk` from the clean merged checkout.
+First create three isolated subagent tasks, record their canonical task IDs, and seal
+the execution plan before giving any judge a packet. The model identifiers below are
+examples; use the exact identifiers selected by the orchestrator for the live tasks:
+
+```bash
+ROOT=/srv/matric-eval/results/qwen38-obliteration-2026-09
+PRIVATE="$ROOT/private/session-judges-v1"
+PROTOCOL=studies/qwen38-obliteration-2026-09/protocol.yaml
+BASE_PLAN=studies/qwen38-obliteration-2026-09/judge-plan.yaml
+MANIFEST="$ROOT/pilot-manifest.json"
+
+PYTHONPATH=src .venv/bin/python scripts/run_qwen38_session_judges.py create-plan \
+  --protocol "$PROTOCOL" --base-plan "$BASE_PLAN" --cohort pilot \
+  --primary-model gpt-6-astra \
+  --primary-agent-task-id /root/qwen38_judge_primary \
+  --secondary-model gpt-5.6-sol \
+  --secondary-agent-task-id /root/qwen38_judge_secondary \
+  --adjudicator-model gpt-5.6-terra \
+  --adjudicator-agent-task-id /root/qwen38_judge_adjudicator \
+  --output "$PRIVATE/session-judge-plan.json"
+```
+
+Create deterministic, model-blinded packets. Shards contain whole items and may not
+exceed the declared byte limit. The index is content-free; the packet files contain
+private prompts and completions and remain mode `0600` below mode-`0700` directories:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_qwen38_session_judges.py prepare \
+  --protocol "$PROTOCOL" --base-plan "$BASE_PLAN" \
+  --session-plan "$PRIVATE/session-judge-plan.json" \
+  --manifest "$MANIFEST" --cohort pilot --result-root "$ROOT" \
+  --packet-dir "$PRIVATE/first-pass-packets" \
+  --index "$PRIVATE/first-pass-index.json" --max-shard-bytes 100000
+```
+
+Give each primary or secondary agent only one assigned first-pass shard at a time.
+Agents must not inspect source result files, manifests, linkage data, another role's
+scores, or prior model-level results. Each agent independently applies the embedded
+instruction and returns only this strict JSON shape, in packet order:
+
+```json
+{
+  "labels": [
+    {
+      "blind_id": "B...",
+      "result": {
+        "behavior": "full_refusal",
+        "rationale": "Brief evidence-based rationale without private-text repetition."
+      }
+    }
+  ]
+}
+```
+
+The permitted `result` object is exactly the packet's `result_schema`; additional
+fields, missing rationales, booleans used as integers, reordered IDs, and partial
+shards are rejected. Import each submission from standard input, using the measured
+wall time and logical attempt count for that shard:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_qwen38_session_judges.py import-results \
+  --protocol "$PROTOCOL" --base-plan "$BASE_PLAN" \
+  --session-plan "$PRIVATE/session-judge-plan.json" \
+  --manifest "$MANIFEST" --cohort pilot --result-root "$ROOT" \
+  --phase first-pass --role primary \
+  --packet-index "$PRIVATE/first-pass-index.json" --packet batch-001.jsonl \
+  --input - --elapsed-seconds 60 --attempts 1 \
+  --output "$PRIVATE/results/primary/batch-001.json"
+```
+
+After both independent first passes cover every shard, derive the disagreement-only
+adjudication packets. The two first-pass assessments are anonymous and deterministically
+ordered with the locked adjudication domain:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_qwen38_session_judges.py prepare-adjudication \
+  --protocol "$PROTOCOL" --base-plan "$BASE_PLAN" \
+  --session-plan "$PRIVATE/session-judge-plan.json" \
+  --manifest "$MANIFEST" --cohort pilot --result-root "$ROOT" \
+  --packet-index "$PRIVATE/first-pass-index.json" \
+  --primary-dir "$PRIVATE/results/primary" \
+  --secondary-dir "$PRIVATE/results/secondary" \
+  --packet-dir "$PRIVATE/adjudication-packets" \
+  --index "$PRIVATE/adjudication-index.json" --max-shard-bytes 100000
+```
+
+Import adjudicator shards with `import-results --phase adjudication --role
+adjudicator`, the adjudication index, and a distinct output below
+`$PRIVATE/results/adjudicator`. Once all declared disagreements are covered, seal the
+content-free outcome bundle:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_qwen38_session_judges.py seal \
+  --protocol "$PROTOCOL" --base-plan "$BASE_PLAN" \
+  --session-plan "$PRIVATE/session-judge-plan.json" \
+  --manifest "$MANIFEST" --cohort pilot --result-root "$ROOT" \
+  --packet-index "$PRIVATE/first-pass-index.json" \
+  --adjudication-index "$PRIVATE/adjudication-index.json" \
+  --primary-dir "$PRIVATE/results/primary" \
+  --secondary-dir "$PRIVATE/results/secondary" \
+  --adjudicator-dir "$PRIVATE/results/adjudicator" \
+  --output "$ROOT/private/pilot-judge-outcomes.json"
+```
+
+Sealing reloads the locked generation artifacts, regenerates both packet sets, checks
+all plan/index/shard/role/judge/agent bindings, derives the clean checkout revision,
+and rejects incomplete or extra outcomes. The final bundle contains normalized values,
+components, runtime totals, identities, and artifact hashes only; prompts, completions,
+judge rationales, and anonymous assessments remain private. The resulting schema-v2
+bundle is accepted by `build_qwen38_complete_pilot_summary.py`.
+
 The full cohort also requires a preregistered, human double-label calibration over 100
 refusal-classification outcomes. After all full direct outputs and MT-Bench second turns
 exist, create the deterministic model-blinded packet and two independent label forms on
