@@ -374,6 +374,7 @@ class TestGapDetection:
         model_state.benchmarks["humaneval"] = BenchmarkState(
             benchmark="humaneval",
             status=Status.COMPLETED,
+            result={"execution": "completed"},
             total_problems=5,
             completed_problems=5,
             score=0.8,
@@ -382,6 +383,7 @@ class TestGapDetection:
         model_state.benchmarks["mbpp"] = BenchmarkState(
             benchmark="mbpp",
             status=Status.COMPLETED,
+            result={"execution": "completed"},
             total_problems=10,
             completed_problems=10,
             score=0.75,
@@ -444,6 +446,7 @@ class TestResumeFunctionality:
         model_state.benchmarks["humaneval"] = BenchmarkState(
             benchmark="humaneval",
             status=Status.COMPLETED,
+            result={"execution": "completed"},
             total_problems=5,
             completed_problems=5,
             score=0.8,
@@ -611,6 +614,7 @@ class TestIdempotentExecution:
             model="llama3.2:3b",
             benchmark="humaneval",
             score=0.8,
+            result={"execution": "completed", "score": 0.8},
         )
 
         # Check if should skip

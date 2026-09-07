@@ -883,13 +883,15 @@ def run(
         # Sort by overall score
         ranked = sorted(
             [r for r in all_results if r.get("status") == "success"],
-            key=lambda x: x.get("overall_score", 0),
+            key=lambda x: (
+                float(x["overall_score"]) if x.get("overall_score") is not None else float("-inf")
+            ),
             reverse=True,
         )
 
         for i, result in enumerate(ranked[:10], 1):
-            score = result.get("overall_score", 0)
-            score_str = f"{score:.1%}"
+            score = result.get("overall_score")
+            score_str = f"{score:.1%}" if score is not None else "unavailable"
             status = "[green]✓[/green]" if result.get("status") == "success" else "[red]✗[/red]"
 
             # Extract model name (remove ollama/ prefix if present)
@@ -1694,11 +1696,22 @@ def _run_matrix_evaluation(
         table.add_column("Score", justify="right")
         table.add_column("Status", justify="center")
 
-        for result in sorted(all_results, key=lambda x: x.get("overall_score", 0), reverse=True):
-            score = result.get("overall_score", 0)
+        for result in sorted(
+            all_results,
+            key=lambda x: (
+                float(x["overall_score"]) if x.get("overall_score") is not None else float("-inf")
+            ),
+            reverse=True,
+        ):
+            score = result.get("overall_score")
             status = "[green]OK[/green]" if result.get("status") == "success" else "[red]ERR[/red]"
             model_display = result["model"].replace("ollama/", "").replace("openai/", "")
-            table.add_row(model_display, result.get("provider", "?"), f"{score:.1%}", status)
+            table.add_row(
+                model_display,
+                result.get("provider", "?"),
+                f"{score:.1%}" if score is not None else "unavailable",
+                status,
+            )
 
         console.print(table)
         console.print(f"\n[dim]Results saved to: {output_dir}[/dim]")

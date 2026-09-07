@@ -318,7 +318,7 @@ class StateManager:
                 else:
                     # Check if benchmark is incomplete
                     bench_state = model_state.benchmarks[benchmark]
-                    if bench_state.status != Status.COMPLETED:
+                    if not self._has_completed_execution(bench_state):
                         if model not in gaps:
                             gaps[model] = {}
                         gaps[model][benchmark] = {
@@ -370,7 +370,7 @@ class StateManager:
         self,
         model: str,
         benchmark: str,
-        score: float,
+        score: float | None,
         total_problems: int = 0,
         result: dict[str, Any] | None = None,
     ) -> None:
@@ -384,6 +384,8 @@ class StateManager:
             total_problems: Total number of problems evaluated
             result: Full serializable benchmark result for idempotent resume
         """
+        if result is not None and result.get("execution") != "completed":
+            raise ValueError("checkpoint completion requires completed execution evidence")
         # Load or create model state
         model_state = self.load_model_state(model)
         if model_state is None:
@@ -406,17 +408,11 @@ class StateManager:
             run_state = self.load_run_state()
             if all(
                 bench in model_state.benchmarks
-                and model_state.benchmarks[bench].status == Status.COMPLETED
+                and self._has_completed_execution(model_state.benchmarks[bench])
                 for bench in run_state.benchmarks
             ):
-                # Calculate overall score
-                scores: list[float] = []
-                for bench in run_state.benchmarks:
-                    benchmark_score = model_state.benchmarks[bench].score
-                    if benchmark_score is not None:
-                        scores.append(benchmark_score)
-                if scores:
-                    model_state.overall_score = sum(scores) / len(scores)
+                # Cross-benchmark scores require a declared aggregation protocol.
+                model_state.overall_score = None
                 model_state.status = Status.COMPLETED
         except FileNotFoundError:
             pass
@@ -461,13 +457,24 @@ class StateManager:
         if benchmark_state is None or benchmark_state.status != Status.COMPLETED:
             return None
         if benchmark_state.result is not None:
-            return benchmark_state.result
+            if benchmark_state.result.get("execution") is not None:
+                return benchmark_state.result
+            return {
+                **benchmark_state.result,
+                "status": "legacy_unverified",
+                "execution": "unknown",
+                "eligible": False,
+                "eligibility_reasons": ["legacy_execution_unverified"],
+            }
 
         return {
             "benchmark": benchmark,
             "model": model,
-            "status": "success",
-            "score": benchmark_state.score or 0.0,
+            "status": "legacy_unverified",
+            "execution": "unknown",
+            "score": benchmark_state.score,
+            "eligible": False,
+            "eligibility_reasons": ["legacy_execution_unverified"],
             "samples": benchmark_state.completed_problems,
             "resumed_from_checkpoint": True,
         }
@@ -476,24 +483,31 @@ class StateManager:
         """Build a complete model result from persisted benchmark checkpoints."""
         run_state = self.load_run_state()
         benchmark_results: dict[str, dict[str, Any]] = {}
-        scores: list[float] = []
+        model_state = self.load_model_state(model)
 
         for benchmark in run_state.benchmarks:
-            result = self.get_benchmark_result(model, benchmark)
+            benchmark_state = model_state.benchmarks.get(benchmark) if model_state else None
+            # Reporting includes retained failed/cancelled/partial results. Cache
+            # reuse remains restricted by get_benchmark_result and should_skip.
+            result = (
+                benchmark_state.result
+                if benchmark_state is not None
+                and benchmark_state.status != Status.COMPLETED
+                and benchmark_state.result is not None
+                else self.get_benchmark_result(model, benchmark)
+            )
             if result is None:
                 continue
             checkpoint_result = {**result, "resumed_from_checkpoint": True}
             benchmark_results[benchmark] = checkpoint_result
-            scores.append(float(checkpoint_result.get("score", 0.0) or 0.0))
+        from matric_eval.results.accounting import summarize_benchmarks
 
-        complete = len(benchmark_results) == len(run_state.benchmarks)
         return {
             "model": display_model or model,
             "checkpoint_model": model,
             "tier": run_state.tier,
             "benchmarks": benchmark_results,
-            "overall_score": sum(scores) / len(scores) if scores else 0.0,
-            "status": "success" if complete else "error",
+            **summarize_benchmarks(benchmark_results, run_state.benchmarks),
             "resumed_from_checkpoint": True,
         }
 
@@ -515,7 +529,16 @@ class StateManager:
         if benchmark not in model_state.benchmarks:
             return False
 
-        return model_state.benchmarks[benchmark].status == Status.COMPLETED
+        return self._has_completed_execution(model_state.benchmarks[benchmark])
+
+    @staticmethod
+    def _has_completed_execution(benchmark_state: BenchmarkState) -> bool:
+        """Stored lifecycle status alone cannot verify historical execution."""
+        return (
+            benchmark_state.status == Status.COMPLETED
+            and benchmark_state.result is not None
+            and benchmark_state.result.get("execution") == "completed"
+        )
 
     def get_remaining_problems(self, model: str, benchmark: str) -> dict[str, int] | None:
         """
@@ -560,7 +583,7 @@ class StateManager:
                 continue
             if all(
                 benchmark in model_state.benchmarks
-                and model_state.benchmarks[benchmark].status == Status.COMPLETED
+                and self._has_completed_execution(model_state.benchmarks[benchmark])
                 for benchmark in run_state.benchmarks
             ):
                 completed_models.append(model)

@@ -54,12 +54,14 @@ class TestValidateCommand:
             benchmark="humaneval",
             score=0.8,
             total_problems=5,
+            result={"execution": "completed", "score": 0.8},
         )
         state_manager.mark_complete(
             model="llama3.2:3b",
             benchmark="mbpp",
             score=0.7,
             total_problems=10,
+            result={"execution": "completed", "score": 0.7},
         )
 
         # Release lock
@@ -361,7 +363,13 @@ class TestResumeFlag:
         run_dir = temp_results_dir / "run-complete"
         manager = StateManager(run_dir)
         manager.initialize_run("run-complete", "smoke", 42, ["model"], ["humaneval"])
-        manager.mark_complete("model", "humaneval", score=1.0, total_problems=5)
+        manager.mark_complete(
+            "model",
+            "humaneval",
+            score=1.0,
+            total_problems=5,
+            result={"execution": "completed", "score": 1.0},
+        )
         manager.release_lock()
 
         result = runner.invoke(cli, ["run", "--resume", str(run_dir)])
@@ -402,6 +410,7 @@ class TestResumeExecution:
             run_benchmark.return_value = {
                 "benchmark": "humaneval",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.75,
                 "samples": 5,
             }
@@ -454,6 +463,7 @@ class TestResumeExecution:
                 "benchmark": "humaneval",
                 "model": "ollama/llama3.2:3b",
                 "status": "success",
+                "execution": "completed",
                 "score": 0.8,
                 "samples": 5,
             },
@@ -472,6 +482,7 @@ class TestResumeExecution:
                     "benchmark": benchmark,
                     "model": "ollama/llama3.2:3b",
                     "status": "success",
+                    "execution": "completed",
                     "score": 0.6,
                     "samples": 5,
                 }

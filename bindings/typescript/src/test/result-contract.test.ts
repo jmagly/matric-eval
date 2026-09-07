@@ -142,5 +142,6 @@ describe('v2 result contract', () => {
       assert.throws(() => client.parseEvalSummary(JSON.stringify({ result_schema_version: version, overall_score: null })), /readResult/);
       assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ result_schema_version: version, overall_score: null }] })), /readResult/);
     }
+    assert.throws(() => client.parseEvalSummary(JSON.stringify({ results: [{ model: 'model', status: 'success', overall_score: null }] })), /Unavailable overall scores/);
   });
 });
