@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from matric_eval.contamination.diagnostics import score_series_diagnostics, strict_json
+
 
 @dataclass
 class Capability:
@@ -156,7 +158,7 @@ class RecommendationReport:
 
     def to_json(self, indent: int = 2) -> str:
         """Convert to JSON string."""
-        return json.dumps(self.to_dict(), indent=indent)
+        return json.dumps(self.to_dict(), indent=indent, allow_nan=False)
 
     def to_model_categories(self) -> dict[str, Any]:
         """
@@ -179,6 +181,7 @@ class RecommendationReport:
             "generated_by": "matric-eval",
             "best_overall": self.best_overall,
             "categories": categories,
+            "diagnostic_reviews": self.metadata.get("diagnostic_reviews", []),
         }
 
 
@@ -207,6 +210,7 @@ class RecommendationEngine:
         self.capabilities = capabilities or DEFAULT_CAPABILITIES
         self.min_score_threshold = min_score_threshold
         self.top_n_alternatives = top_n_alternatives
+        self.diagnostic_reviews: list[dict[str, Any]] = []
 
     def process_results(
         self,
@@ -222,8 +226,13 @@ class RecommendationEngine:
             Dictionary mapping model names to ModelScore objects
         """
         model_scores: dict[str, ModelScore] = {}
+        self.diagnostic_reviews = []
 
         for result in results:
+            review = score_series_diagnostics(result)
+            self.diagnostic_reviews.append({"model": result.get("model"), **review})
+            if review["legacy_series_excluded"]:
+                continue
             model = result.get("model", "").replace("ollama/", "")
             if not model:
                 continue
@@ -253,7 +262,10 @@ class RecommendationEngine:
                 capability_scores=capability_scores,
                 overall_score=float(overall),
                 size_gb=result.get("size_gb", 0.0),
-                metadata={"tier": result.get("tier")},
+                metadata={
+                    "tier": result.get("tier"),
+                    "overlap_diagnostics": review["overlap_diagnostics"],
+                },
             )
 
         return model_scores
@@ -272,7 +284,7 @@ class RecommendationEngine:
             RecommendationReport with recommendations for each capability
         """
         if not model_scores:
-            return RecommendationReport()
+            return RecommendationReport(metadata={"diagnostic_reviews": self.diagnostic_reviews})
 
         recommendations: dict[str, Recommendation] = {}
 
@@ -345,7 +357,10 @@ class RecommendationEngine:
             model_scores=model_scores,
             best_overall=best_overall,
             best_balanced=best_balanced,
-            metadata={"num_models": len(model_scores)},
+            metadata={
+                "num_models": len(model_scores),
+                "diagnostic_reviews": self.diagnostic_reviews,
+            },
         )
 
     def filter_by_constraints(
@@ -533,7 +548,7 @@ class RecommendationEngine:
         """
         path = Path(path)
         with path.open() as f:
-            summary = json.load(f)
+            summary = strict_json(f.read())
 
         results = summary.get("results", [])
         model_scores = self.process_results(results)
@@ -559,7 +574,7 @@ class RecommendationEngine:
                 continue
             try:
                 with json_file.open() as f:
-                    result = json.load(f)
+                    result = strict_json(f.read())
                     results.append(result)
             except (json.JSONDecodeError, OSError):
                 continue

@@ -1,15 +1,20 @@
-"""
-Benchmark contamination detection for matric-eval.
-
-Detects when models may have been trained on evaluation data,
-providing confidence in score validity.
-"""
+"""Local overlap diagnostics. Foundation-model training exposure remains unknown."""
 
 from matric_eval.contamination.detector import (
     ContaminationEvidence,
     ContaminationReport,
     NgramDetector,
     check_contamination,
+    check_overlap,
+)
+from matric_eval.contamination.diagnostics import (
+    LegacyDiagnostic,
+    Method,
+    OverlapReport,
+    SampleDiagnostic,
+    read_diagnostic,
+    score_series_diagnostics,
+    write_diagnostic,
 )
 
 __all__ = [
@@ -17,4 +22,12 @@ __all__ = [
     "ContaminationReport",
     "NgramDetector",
     "check_contamination",
+    "check_overlap",
+    "LegacyDiagnostic",
+    "Method",
+    "OverlapReport",
+    "SampleDiagnostic",
+    "read_diagnostic",
+    "score_series_diagnostics",
+    "write_diagnostic",
 ]
