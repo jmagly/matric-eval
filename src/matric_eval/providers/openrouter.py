@@ -102,17 +102,20 @@ class OpenRouterProvider:
         raise ProviderModelNotFoundError(f"Model '{model}' not found on OpenRouter.")
 
     def format_model_id(self, model: str) -> str:
-        # OpenRouter uses OpenAI-compatible API
-        if model.startswith("openai/"):
+        # Select the generic transport, not OpenAI's model-family heuristics.
+        # Vendor slugs (including openai/) belong to the wire model identifier.
+        prefix = "openai-api/openrouter/"
+        if model.startswith(prefix):
             return model
-        return f"openai/{model}"
+        return f"{prefix}{model}"
 
     def get_eval_kwargs(self, model: str, **overrides: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model_base_url": f"{self._config.base_url}/v1",
             "model_args": {
                 "api_key": self._config.api_key,
-                "extra_headers": {
+                "responses_api": False,
+                "default_headers": {
                     "HTTP-Referer": "https://github.com/jmagly/matric-eval",
                     "X-Title": "matric-eval",
                 },
