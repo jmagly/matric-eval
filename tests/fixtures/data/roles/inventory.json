@@ -1,0 +1,18 @@
+{
+  "fixture_version": "1",
+  "source_id": "synthetic-role-fixture/1",
+  "owner": "synthetic-fixture-custodian",
+  "license_id": "synthetic-fixture-only",
+  "complete_inventory": true,
+  "rows": [
+    {"row_id":"train-a","role":"training","independent_unit_id":"unit-a","input_file":"inputs/training.txt","target":"amber","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"dev-b","role":"development","independent_unit_id":"unit-b","input_file":"inputs/development.txt","target":"birch","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"final-c","role":"final_test","independent_unit_id":"unit-c","input_file":"inputs/final.txt","target":"cedar","access":"permitted","permitted_uses":["final_assessment"]},
+    {"row_id":"restricted-d","role":"training","independent_unit_id":"unit-d","input_file":"inputs/restricted.txt","target":"dune","access":"restricted","permitted_uses":["sft_export"]},
+    {"row_id":"calibration-e","role":"calibration","independent_unit_id":"unit-e","input_file":"inputs/calibration.txt","target":"elm","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"validation-f","role":"validation","independent_unit_id":"unit-f","input_file":"inputs/validation.txt","target":"fern","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"unknown-g","role":"unknown","independent_unit_id":"unit-g","input_file":"inputs/unknown.txt","target":"grove","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"renamed-target-c","role":"training","independent_unit_id":"laundered-unit","input_file":"inputs/final.txt","target":"different answer","access":"permitted","permitted_uses":["sft_export"]},
+    {"row_id":"cluster-peer-c","role":"development","independent_unit_id":"unit-c","input_file":"inputs/cluster-peer.txt","target":"cedar tree","access":"permitted","permitted_uses":["sft_export"]}
+  ]
+}
