@@ -420,7 +420,9 @@ class TestStateManager:
         )
 
         # Complete one benchmark
-        manager.mark_complete("m1", "b1", score=0.8, total_problems=10)
+        manager.mark_complete(
+            "m1", "b1", score=0.8, total_problems=10, result={"execution": "completed"}
+        )
 
         gaps = manager.find_gaps()
 
@@ -439,7 +441,9 @@ class TestStateManager:
         )
 
         # Complete some work
-        manager.mark_complete("m1", "b1", score=0.8, total_problems=10)
+        manager.mark_complete(
+            "m1", "b1", score=0.8, total_problems=10, result={"execution": "completed"}
+        )
 
         work = manager.get_resume_work()
 
@@ -459,7 +463,9 @@ class TestStateManager:
             benchmarks=["b1"],
         )
 
-        manager.mark_complete("m1", "b1", score=0.85, total_problems=100)
+        manager.mark_complete(
+            "m1", "b1", score=0.85, total_problems=100, result={"execution": "completed"}
+        )
 
         model_state = manager.load_model_state("m1")
         assert model_state is not None
@@ -477,8 +483,12 @@ class TestStateManager:
             benchmarks=["b1", "b2"],
         )
 
-        manager.mark_complete("m1", "b1", score=0.8, total_problems=10)
-        manager.mark_complete("m1", "b2", score=0.6, total_problems=10)
+        manager.mark_complete(
+            "m1", "b1", score=0.8, total_problems=10, result={"execution": "completed"}
+        )
+        manager.mark_complete(
+            "m1", "b2", score=0.6, total_problems=10, result={"execution": "completed"}
+        )
 
         model_state = manager.load_model_state("m1")
         assert model_state is not None
@@ -623,7 +633,13 @@ class TestStateManagerIntegration:
 
                 # Simulate evaluation
                 score = 0.8 if model == "llama3.2:3b" else 0.7
-                manager.mark_complete(model, benchmark, score=score, total_problems=50)
+                manager.mark_complete(
+                    model,
+                    benchmark,
+                    score=score,
+                    total_problems=50,
+                    result={"execution": "completed"},
+                )
 
             run_state.completed_models.append(model)
 
@@ -658,7 +674,9 @@ class TestStateManagerIntegration:
         )
 
         # Complete some work
-        manager.mark_complete("m1", "b1", score=0.9, total_problems=10)
+        manager.mark_complete(
+            "m1", "b1", score=0.9, total_problems=10, result={"execution": "completed"}
+        )
         manager.release_lock()
 
         # "Resume" - verify we can detect remaining work
@@ -670,3 +688,65 @@ class TestStateManagerIntegration:
         assert "b1" not in work["m1"]  # Already done
         assert "m2" in work
         assert len(work["m2"]) == 2  # All benchmarks for m2
+
+
+def test_legacy_completion_is_resume_work_and_not_verified_progress(tmp_path: Path) -> None:
+    manager = StateManager(tmp_path / "legacy")
+    manager.initialize_run(run_id="legacy", tier="smoke", seed=42, models=["m"], benchmarks=["b"])
+    # Historical lifecycle metadata exists without a native execution result.
+    manager.mark_complete("m", "b", score=0.75, total_problems=3)
+    assert not manager.should_skip("m", "b")
+    assert manager.get_resume_work() == {"m": ["b"]}
+    manager.refresh_run_progress()
+    assert manager.load_run_state().completed_models == []
+    assert manager.load_run_state().status == Status.RUNNING
+    result = manager.build_model_result("m")
+    assert result["benchmarks"]["b"]["score"] == 0.75
+    assert result["benchmarks"]["b"]["execution"] == "unknown"
+    assert not result["eligible"]
+
+
+@pytest.mark.parametrize("execution", ["failed", "cancelled", "partial"])
+def test_reporting_retains_failed_results_without_enabling_reuse(
+    tmp_path: Path, execution: str
+) -> None:
+    manager = StateManager(tmp_path / execution)
+    manager.initialize_run(
+        run_id="run", tier="smoke", seed=42, models=["m"], benchmarks=["good", "bad"]
+    )
+    manager.mark_complete(
+        "m",
+        "good",
+        score=None,
+        total_problems=2,
+        result={
+            "execution": "completed",
+            "status": "success",
+            "score": None,
+            "eligible": False,
+            "eligibility_reasons": ["grader_failed"],
+        },
+    )
+    failed = {
+        "execution": execution,
+        "status": "error" if execution == "failed" else execution,
+        "score": None,
+        "samples": 1,
+        "error": "retained native failure",
+        "eligible": False,
+        "eligibility_reasons": ["native_failure"],
+        "counts": {"requested": 2, "completed": 1, "unknown": 1},
+        "native_logs": [{"uri": "fixture://native-log", "sha256": "a" * 64}],
+    }
+    manager.mark_failed("m", "bad", error="retained native failure", result=failed)
+    result = manager.build_model_result("m")
+    assert result["benchmarks"]["bad"] == {**failed, "resumed_from_checkpoint": True}
+    assert result["status"] == "partial"
+    assert result["suite_scope"] == {"requested": 2, "completed": 1, "scored": 0}
+    assert result["overall_score"] is None
+    assert not result["eligible"]
+    assert manager.get_benchmark_result("m", "bad") is None
+    assert not manager.should_skip("m", "bad")
+    assert manager.should_skip("m", "good")
+    assert manager.get_resume_work() == {"m": ["bad"]}
+    assert manager.load_run_state().completed_models == []

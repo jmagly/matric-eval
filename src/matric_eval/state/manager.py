@@ -318,7 +318,7 @@ class StateManager:
                 else:
                     # Check if benchmark is incomplete
                     bench_state = model_state.benchmarks[benchmark]
-                    if bench_state.status != Status.COMPLETED:
+                    if not self._has_completed_execution(bench_state):
                         if model not in gaps:
                             gaps[model] = {}
                         gaps[model][benchmark] = {
@@ -408,7 +408,7 @@ class StateManager:
             run_state = self.load_run_state()
             if all(
                 bench in model_state.benchmarks
-                and model_state.benchmarks[bench].status == Status.COMPLETED
+                and self._has_completed_execution(model_state.benchmarks[bench])
                 for bench in run_state.benchmarks
             ):
                 # Cross-benchmark scores require a declared aggregation protocol.
@@ -457,7 +457,15 @@ class StateManager:
         if benchmark_state is None or benchmark_state.status != Status.COMPLETED:
             return None
         if benchmark_state.result is not None:
-            return benchmark_state.result
+            if benchmark_state.result.get("execution") is not None:
+                return benchmark_state.result
+            return {
+                **benchmark_state.result,
+                "status": "legacy_unverified",
+                "execution": "unknown",
+                "eligible": False,
+                "eligibility_reasons": ["legacy_execution_unverified"],
+            }
 
         return {
             "benchmark": benchmark,
@@ -475,9 +483,19 @@ class StateManager:
         """Build a complete model result from persisted benchmark checkpoints."""
         run_state = self.load_run_state()
         benchmark_results: dict[str, dict[str, Any]] = {}
+        model_state = self.load_model_state(model)
 
         for benchmark in run_state.benchmarks:
-            result = self.get_benchmark_result(model, benchmark)
+            benchmark_state = model_state.benchmarks.get(benchmark) if model_state else None
+            # Reporting includes retained failed/cancelled/partial results. Cache
+            # reuse remains restricted by get_benchmark_result and should_skip.
+            result = (
+                benchmark_state.result
+                if benchmark_state is not None
+                and benchmark_state.status != Status.COMPLETED
+                and benchmark_state.result is not None
+                else self.get_benchmark_result(model, benchmark)
+            )
             if result is None:
                 continue
             checkpoint_result = {**result, "resumed_from_checkpoint": True}
@@ -511,8 +529,16 @@ class StateManager:
         if benchmark not in model_state.benchmarks:
             return False
 
-        result = self.get_benchmark_result(model, benchmark)
-        return result is not None and result.get("execution") == "completed"
+        return self._has_completed_execution(model_state.benchmarks[benchmark])
+
+    @staticmethod
+    def _has_completed_execution(benchmark_state: BenchmarkState) -> bool:
+        """Stored lifecycle status alone cannot verify historical execution."""
+        return (
+            benchmark_state.status == Status.COMPLETED
+            and benchmark_state.result is not None
+            and benchmark_state.result.get("execution") == "completed"
+        )
 
     def get_remaining_problems(self, model: str, benchmark: str) -> dict[str, int] | None:
         """
@@ -557,7 +583,7 @@ class StateManager:
                 continue
             if all(
                 benchmark in model_state.benchmarks
-                and model_state.benchmarks[benchmark].status == Status.COMPLETED
+                and self._has_completed_execution(model_state.benchmarks[benchmark])
                 for benchmark in run_state.benchmarks
             ):
                 completed_models.append(model)
