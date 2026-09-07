@@ -1785,6 +1785,59 @@ def overlap_diagnostics(input_file: Path, artifact: bool, output: Path | None) -
         raise click.ClickException(str(exc)) from exc
 
 
+@cli.command("assess-judge-calibration")
+@click.argument("calibration_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("policy_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("assessment_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--current-snapshot",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option("--human-review", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output", type=click.Path(dir_okay=False, path_type=Path))
+def assess_judge_calibration(
+    calibration_file: Path,
+    policy_file: Path,
+    assessment_file: Path,
+    current_snapshot: Path,
+    human_review: Path | None,
+    output: Path | None,
+) -> None:
+    """Assess frozen judge evidence; qualification requires a domain review receipt."""
+    from pydantic import ValidationError
+
+    from matric_eval.contamination.diagnostics import strict_json
+    from matric_eval.scorers.calibration import (
+        Assessment,
+        CalibrationSet,
+        JudgeSnapshot,
+        QualificationPolicy,
+        assess_calibration,
+    )
+
+    try:
+        report = assess_calibration(
+            CalibrationSet.model_validate(strict_json(calibration_file.read_text())),
+            QualificationPolicy.model_validate(strict_json(policy_file.read_text())),
+            Assessment.model_validate(strict_json(assessment_file.read_text())),
+            current_snapshot=JudgeSnapshot.model_validate(
+                strict_json(current_snapshot.read_text())
+            ),
+            review_path=human_review,
+        )
+        rendered = json.dumps(report, allow_nan=False, sort_keys=True)
+        if output is None:
+            click.echo(rendered)
+        else:
+            with output.open("x", encoding="utf-8") as stream:
+                stream.write(rendered + "\n")
+    except ValidationError as exc:
+        raise click.ClickException("Calibration schema validation failed") from exc
+    except (ValueError, TypeError, OSError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 def main() -> None:
     """Entry point for the CLI."""
     cli()
