@@ -131,7 +131,8 @@ class Provider(Protocol):
 
         Each provider uses a different prefix for Inspect AI:
         - Ollama: 'ollama/llama3.2:3b'
-        - vLLM/OpenRouter/Chutes: 'openai/model-name' (OpenAI-compatible)
+        - OpenRouter: 'openai-api/openrouter/vendor/model-name' (OpenAI-compatible)
+        - vLLM/Chutes: 'openai/model-name' (OpenAI-compatible)
         - llama.cpp: 'openai/model-name' (OpenAI-compatible endpoint)
 
         Args:
