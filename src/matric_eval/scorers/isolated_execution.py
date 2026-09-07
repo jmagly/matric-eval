@@ -18,6 +18,7 @@ import tempfile
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 PROFILE = "python-restricted/1"
@@ -351,6 +352,18 @@ def _verify_container(items: Any, *, name: str, image_id: str) -> dict[str, Any]
     return item
 
 
+def _started(state: dict[str, Any]) -> bool:
+    """Require native start evidence, not merely an attempted attach command."""
+    timestamp = state.get("StartedAt")
+    if not isinstance(timestamp, str) or state.get("Status") not in {"running", "exited"}:
+        return False
+    try:
+        started = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return started.year > 1970 and started.tzinfo is not None
+
+
 def _cleanup(command: list[str], name: str) -> bool:
     """Remove only our unique name, then verify absence via a successful list query."""
     try:
@@ -454,6 +467,7 @@ def _execute_python(
     provenance.update(image_reference=image, platform=platform)
     name = f"matric-eval-{uuid.uuid4().hex}"
     created = False
+    execution_attempted = False
     cleanup_identifier = name
     with tempfile.TemporaryDirectory(prefix="matric-docker-config-") as config_dir:
         command = [*launcher, "--config", config_dir, "--host", f"unix://{socket}"]
@@ -500,6 +514,7 @@ def _execute_python(
                 provenance["container_id"] = container["Id"]
                 cleanup_identifier = container["Id"]
                 provenance["restrictions_verified"] = True
+                execution_attempted = True
                 execution = _command(
                     [*command, "container", "start", "--attach", "--interactive", name],
                     payload=payload,
@@ -513,39 +528,60 @@ def _execute_python(
                 execution_limit = execution.limit or (
                     "output_limit" if output_evidence["text_truncated"] else None
                 )
-                if execution_limit is not None:
+                final_items = _json(
+                    _command([*command, "container", "inspect", cleanup_identifier])
+                )
+                if (
+                    not isinstance(final_items, list)
+                    or len(final_items) != 1
+                    or not isinstance(final_items[0], dict)
+                    or final_items[0].get("Id") != cleanup_identifier
+                    or not isinstance(final_items[0].get("State"), dict)
+                ):
+                    raise PolicyError("native_state_unverified")
+                state = final_items[0]["State"]
+                provenance["native_state"] = state.get("Status")
+                provenance["native_started_at"] = state.get("StartedAt")
+                provenance["native_exit_code"] = (
+                    state.get("ExitCode") if state.get("Status") == "exited" else None
+                )
+                provenance["oom_killed"] = state.get("OOMKilled")
+                if not _started(state) or state.get("Error") or state.get("OOMKilled"):
+                    result.update(
+                        status="infrastructure_error", error="native_execution_unavailable"
+                    )
+                elif execution_limit is not None:
                     result.update(status=execution_limit, error=execution_limit)
+                elif (
+                    state.get("Status") != "exited"
+                    or not isinstance(state.get("ExitCode"), int)
+                    or isinstance(state.get("ExitCode"), bool)
+                ):
+                    result.update(
+                        status="infrastructure_error", error="native_execution_unavailable"
+                    )
+                elif state["ExitCode"] == 0 and execution.returncode == 0:
+                    result.update(status="passed", error=None)
+                elif state["ExitCode"] >= 126 or state["ExitCode"] < 0:
+                    result.update(status="infrastructure_error", error="abnormal_process_exit")
+                elif state["ExitCode"] != 0:
+                    result.update(status="incorrect", error="generated_process_failed")
                 else:
-                    final = _json(_command([*command, "container", "inspect", name]))[0]
-                    state = final.get("State", {})
-                    provenance["native_exit_code"] = state.get("ExitCode")
-                    provenance["oom_killed"] = state.get("OOMKilled")
-                    if (
-                        state.get("Status") != "exited"
-                        or state.get("Error")
-                        or state.get("OOMKilled")
-                        or not isinstance(state.get("ExitCode"), int)
-                    ):
-                        result.update(
-                            status="infrastructure_error", error="native_execution_unavailable"
-                        )
-                    elif state["ExitCode"] == 0 and execution.returncode == 0:
-                        result.update(status="passed", error=None)
-                    elif state["ExitCode"] >= 126 or state["ExitCode"] < 0:
-                        result.update(status="infrastructure_error", error="abnormal_process_exit")
-                    elif state["ExitCode"] != 0:
-                        result.update(status="incorrect", error="generated_process_failed")
-                    else:
-                        result.update(status="infrastructure_error", error="runtime_client_failed")
+                    result.update(status="infrastructure_error", error="runtime_client_failed")
         except PolicyError as exc:
             result.update(
-                status="unavailable"
+                status="infrastructure_error"
+                if execution_attempted
+                else "unavailable"
                 if str(exc) in {"runtime_unavailable", "image_unavailable"}
                 else "policy_denied",
                 error=str(exc),
             )
         except FileNotFoundError:
-            result.update(status="unavailable", error="runtime_unavailable")
+            result.update(
+                status="infrastructure_error" if execution_attempted else "unavailable",
+                error="runtime_unavailable",
+            )
         except (
             OSError,
             subprocess.SubprocessError,

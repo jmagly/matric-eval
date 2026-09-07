@@ -84,6 +84,8 @@ class Docker:
         self.mutation: Any = None
         self.cancel = False
         self.oom = False
+        self.final_state: dict[str, Any] | None = None
+        self.final_query_failure = False
 
     def __call__(self, args: list[str], **kwargs: Any) -> runner.CommandResult:
         self.calls.append((args, kwargs))
@@ -112,12 +114,17 @@ class Docker:
             if self.inspections == 1 and self.mutation is not None:
                 self.mutation(data)
             if self.inspections > 1:
+                if self.final_query_failure:
+                    return runner.CommandResult(1, b"", b"query unavailable")
                 data["State"] = {
                     "Status": "exited",
+                    "StartedAt": "2026-09-07T12:00:00.123456789Z",
                     "ExitCode": self.exit_code,
                     "Error": "",
                     "OOMKilled": self.oom,
                 }
+                if self.final_state is not None:
+                    data["State"] = self.final_state
             return self.json([data])
         if "start" in args:
             if self.cancel:
@@ -359,3 +366,57 @@ def test_abnormal_native_exit_is_not_a_measured_failure(docker: Docker, exit_cod
     assert result["error"] == "abnormal_process_exit"
     assert result["provenance"]["native_exit_code"] == exit_code
     assert result["provenance"]["cleanup"] == "verified_absent"
+
+
+@pytest.mark.parametrize("limit", ["timeout", "output_limit"])
+def test_client_limit_without_native_start_is_unscored(docker: Docker, limit: str) -> None:
+    docker.execution_limit = limit
+    docker.final_state = {
+        "Status": "created",
+        "StartedAt": "0001-01-01T00:00:00Z",
+        "Running": False,
+    }
+    result = runner.execute_python("pass")
+    assert result["status"] == "infrastructure_error"
+    assert result["error"] == "native_execution_unavailable"
+    assert result["provenance"]["native_state"] == "created"
+    assert result["provenance"]["native_exit_code"] is None
+    assert result["provenance"]["cleanup"] == "verified_absent"
+
+
+def test_started_running_timeout_retains_native_evidence(docker: Docker) -> None:
+    docker.execution_limit = "timeout"
+    docker.final_state = {
+        "Status": "running",
+        "StartedAt": "2026-09-07T12:00:00.123456789Z",
+        "Running": True,
+    }
+    result = runner.execute_python("pass")
+    assert result["status"] == "timeout"
+    assert result["provenance"]["native_state"] == "running"
+    assert result["provenance"]["native_started_at"] == docker.final_state["StartedAt"]
+    assert result["provenance"]["native_exit_code"] is None
+    assert result["provenance"]["cleanup"] == "verified_absent"
+
+
+@pytest.mark.parametrize("limit", [None, "timeout", "output_limit"])
+def test_post_start_query_failure_is_infrastructure_error(
+    docker: Docker, limit: str | None
+) -> None:
+    docker.execution_limit = limit
+    docker.final_query_failure = True
+    result = runner.execute_python("pass")
+    assert result["status"] == "infrastructure_error"
+    assert result["error"] == "runtime_query_failed"
+    assert result["provenance"]["cleanup"] == "verified_absent"
+
+
+@pytest.mark.parametrize(
+    "timestamp", [None, "", "not-a-date", "0001-01-01T00:00:00Z", "2026-09-07T12:00:00"]
+)
+def test_started_evidence_requires_valid_nonzero_zoned_timestamp(
+    docker: Docker, timestamp: str | None
+) -> None:
+    docker.execution_limit = "timeout"
+    docker.final_state = {"Status": "running", "StartedAt": timestamp, "Running": True}
+    assert runner.execute_python("pass")["status"] == "infrastructure_error"
