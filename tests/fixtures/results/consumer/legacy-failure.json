@@ -1,0 +1,6 @@
+{
+  "model": "openai/fixture:failed",
+  "provider": "openai",
+  "status": "error",
+  "error": "historical provider failure"
+}

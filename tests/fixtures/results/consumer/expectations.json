@@ -1,0 +1,270 @@
+{
+  "fixture_schema_version": "1",
+  "profile": "consumer-migration/1",
+  "status": "hand_authored_expectations_not_executed",
+  "cases": [
+    {
+      "id": "legacy_zero",
+      "source": "legacy-zero.json",
+      "kind": "legacy_unverified",
+      "raw_assertions": [
+        {
+          "pointer": "/overall_score",
+          "equals": 0.0
+        },
+        {
+          "pointer": "/model",
+          "equals": "ollama/fixture:zero"
+        }
+      ],
+      "comparable_ranking": "excluded",
+      "source_mutation": "forbidden",
+      "source_sha256": "b756660222035647253111c20972af20804ef6f0c67fd986f5a518bb76614f7f"
+    },
+    {
+      "id": "legacy_null",
+      "source": "legacy-null.json",
+      "kind": "legacy_unverified",
+      "raw_assertions": [
+        {
+          "pointer": "/overall_score",
+          "equals": null
+        },
+        {
+          "pointer": "/benchmarks/synthetic/score",
+          "equals": null
+        }
+      ],
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "comparable_ranking": "excluded",
+      "source_mutation": "forbidden",
+      "source_sha256": "f77d6b51958201adc79424837fda0eb51207d320f3ff5bda3c2013169d06ee0c"
+    },
+    {
+      "id": "legacy_summary",
+      "source": "legacy-summary.json",
+      "kind": "legacy_unverified",
+      "raw_assertions": [
+        {
+          "pointer": "/results/0/model",
+          "equals": "ollama/fixture:zero"
+        },
+        {
+          "pointer": "/results/1/model",
+          "equals": "openai/fixture:zero"
+        },
+        {
+          "pointer": "/results/0/overall_score",
+          "equals": 0.0
+        },
+        {
+          "pointer": "/results/1/overall_score",
+          "equals": null
+        }
+      ],
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "comparable_ranking": "excluded",
+      "source_mutation": "forbidden",
+      "source_sha256": "90d9680d944c24e4ce7236997ec12b5fa79725fae49340534208ee9518a02ca7"
+    },
+    {
+      "id": "named_metrics_null_suite",
+      "source": "../v2/named-metrics.json",
+      "kind": "result_v2",
+      "raw_assertions": [
+        {
+          "pointer": "/overall_estimate/value",
+          "equals": null
+        },
+        {
+          "pointer": "/overall_estimate/reason",
+          "equals": "aggregation_undeclared"
+        },
+        {
+          "pointer": "/benchmarks/0/primary_estimate/value",
+          "equals": 0.5
+        },
+        {
+          "pointer": "/benchmarks/0/metrics/exact~1accuracy/estimate/value",
+          "equals": 0.5
+        },
+        {
+          "pointer": "/benchmarks/0/metrics/exact~1stderr/estimate/value",
+          "equals": 0.5
+        },
+        {
+          "pointer": "/benchmarks/0/metrics/exact~1stderr/observation_metric_id",
+          "equals": "exact/accuracy"
+        },
+        {
+          "pointer": "/benchmarks/0/metrics/exact~1stderr/estimate/denominator",
+          "equals": null
+        },
+        {
+          "pointer": "/benchmarks/0/observations/1/value",
+          "equals": 0.0
+        },
+        {
+          "pointer": "/comparability/eligibility/eligible",
+          "equals": false
+        }
+      ],
+      "metric_ids": [
+        "exact/accuracy",
+        "exact/stderr"
+      ],
+      "sample_observation_count": 2,
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "comparable_ranking": "excluded",
+      "source_mutation": "forbidden",
+      "source_sha256": "bb2ed907cd87cb98c46b659c0b34672c5a7d4d5e6fae442330f69bafa82ef993"
+    },
+    {
+      "id": "mixed_outcomes",
+      "source": "../v2/mixed.json",
+      "kind": "result_v2",
+      "raw_assertions": [
+        {
+          "pointer": "/execution",
+          "equals": "partial"
+        },
+        {
+          "pointer": "/eligibility/eligible",
+          "equals": false
+        },
+        {
+          "pointer": "/overall_estimate/value",
+          "equals": null
+        }
+      ],
+      "metric_ids": [
+        "exact/accuracy",
+        "rubric/points"
+      ],
+      "per_metric_outcome_counts": {
+        "observed": 2,
+        "model_timeout": 1,
+        "infrastructure_error": 1,
+        "grader_failed": 1,
+        "cancelled": 1,
+        "not_attempted": 1,
+        "legacy_unknown": 1,
+        "unavailable": 1
+      },
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "comparable_ranking": "excluded",
+      "source_mutation": "forbidden",
+      "source_sha256": "a88e6c30d7f7dcbdca3c5f47a8947ba5bdb86bb030266005acd966a790e7987d"
+    },
+    {
+      "id": "aligned_trials",
+      "source": "../trials/disjoint.json",
+      "kind": "trial_v1",
+      "raw_assertions": [
+        {
+          "pointer": "/protocol/n",
+          "equals": 2
+        },
+        {
+          "pointer": "/protocol/k",
+          "equals": 2
+        },
+        {
+          "pointer": "/macro_pass_at_k/value",
+          "equals": 1.0
+        },
+        {
+          "pointer": "/macro_all_n_success/value",
+          "equals": 0.0
+        }
+      ],
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "implicit_suite_score": "forbidden",
+      "source_mutation": "forbidden",
+      "source_sha256": "afb4d9f382b1fb05505993be4cc0fd1df1cbcdebe68c2d732a50ffa106f09fb1"
+    },
+    {
+      "id": "strict_json",
+      "source": "strict-json-cases.json",
+      "kind": "parser_cases",
+      "source_sha256": "060fd804cf32088dce71dc372974860032f9c3ff746b2f7ac7085513d5cd2f34"
+    },
+    {
+      "id": "legacy-failure",
+      "source": "legacy-failure.json",
+      "kind": "legacy_unverified",
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "source_sha256": "e2bdff19913ec7f5412401e386bdc5dbed1a0731ceb8b439d880c8a9903f5990"
+    },
+    {
+      "id": "legacy-mixed-summary",
+      "source": "legacy-mixed-summary.json",
+      "kind": "legacy_unverified",
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "source_sha256": "2e9520358ef4f1000624e6a513a5418df751253f5322094877999d4c5d42962d"
+    },
+    {
+      "id": "legacy-matrix-v1",
+      "source": "legacy-matrix-v1.json",
+      "kind": "legacy_unverified",
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "source_sha256": "6fd5ec14a9a813c0bdc5e8d04876c179bc000b066df323231125b67b510bea89"
+    },
+    {
+      "id": "legacy-matrix-v2",
+      "source": "legacy-matrix-v2.json",
+      "kind": "legacy_unverified",
+      "legacy_numeric_projection": "legacy_projection_unrepresentable",
+      "source_sha256": "24d233511da7bf0009f5e312466836d30aca4077768fd44e4a989dade71d4864"
+    }
+  ],
+  "operation_expectations": [
+    {
+      "id": "deterministic_conversion",
+      "source": "legacy-null.json",
+      "fresh_output_count": 2,
+      "expect": "byte_identical_outputs_and_unchanged_source_hash"
+    },
+    {
+      "id": "exclusive_conversion",
+      "source": "legacy-null.json",
+      "targets": [
+        "source_path",
+        "existing_regular_file",
+        "symlink_to_source"
+      ],
+      "expect": "refused_without_byte_changes"
+    },
+    {
+      "id": "trend_idempotence",
+      "source": "../v2/named-metrics.json",
+      "imports": 2,
+      "expect": "one_source_and_no_duplicate_metric_rows"
+    },
+    {
+      "id": "trend_logical_identity_conflict",
+      "source": "../v2/named-metrics.json",
+      "second_source_change": {
+        "pointer": "/created_at",
+        "value": "2026-09-08T00:00:00Z"
+      },
+      "expect": "conflicting_source_identity_refused_even_with_new_digest"
+    },
+    {
+      "id": "no_eligible_recommendation",
+      "sources": [
+        "legacy-zero.json",
+        "legacy-null.json",
+        "../v2/named-metrics.json"
+      ],
+      "expect": "explicit_exclusions_and_no_recommendation_not_zero_or_empty_success"
+    },
+    {
+      "id": "public_typescript_run_boundary",
+      "client_method": "evaluate",
+      "result_format": "v2",
+      "transport": "actual_python_cli_run_with_test_registered_fixed_task",
+      "expect": "preserved_null_named_metrics_and_full_model_id"
+    }
+  ]
+}

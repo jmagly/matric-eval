@@ -99,7 +99,7 @@ console.log(JSON.stringify({ model: 'ollama/fixture', tier: 'smoke', status: 'su
       assert.strictEqual(summary.totalModels, 1);
       assert.strictEqual(summary.successful, 1);
       assert.strictEqual(summary.outputDir, '/tmp/run-fixture');
-      assert.strictEqual(summary.results[0]?.model, 'fixture');
+      assert.strictEqual(summary.results[0]?.model, 'ollama/fixture');
     });
 
     it('retains stderr and exit status for command errors', async () => {
@@ -117,32 +117,14 @@ process.exit(7);
       );
     });
 
-    it('passes current recommendation arguments and normalizes score fields', async () => {
+    it('preserves explicit no-recommendation reports from the current CLI', async () => {
+      const report = {recommendation_schema_version: '2', status: 'no_recommendation',
+        recommendations: {}, model_scores: {}, best_overall: null, best_balanced: null,
+        exclusions: [], sources: [], policy: null, judge_controls: [], limitations: ['no_policy']};
       const executable = await createFakeExecutable(`
-const args = process.argv.slice(2);
-const expected = ['recommend', '--results-dir', '/tmp/results', '--output-format', 'json',
-  '--min-score', '0.5'];
-if (JSON.stringify(args) !== JSON.stringify(expected)) {
-  process.stderr.write(JSON.stringify(args));
-  process.exit(2);
-}
-console.log(JSON.stringify({
-  recommendations: { reasoning: { capability: 'reasoning', recommended: 'fixture',
-    score: 0.8, alternatives: [], rationale: 'highest score' } },
-  model_scores: { fixture: { model: 'fixture', benchmark_scores: { arc: 0.8 },
-    capability_scores: { reasoning: 0.8 }, overall_score: 0.8, size_gb: 3 } },
-  best_overall: 'fixture', best_balanced: 'fixture', metadata: { model_count: 1 }
-}));
-`);
-
-      const report = await createClient(executable).recommend({
-        input: '/tmp/results',
-        minScore: 0.5,
-      });
-
-      assert.strictEqual(report.bestOverall, 'fixture');
-      assert.strictEqual(report.modelScores['fixture']?.overallScore, 0.8);
-      assert.deepStrictEqual(report.modelScores['fixture']?.benchmarkScores, { arc: 0.8 });
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['recommend', '--results-dir', '/tmp/results', '--output-format', 'json'])) process.exit(2);
+console.log(${JSON.stringify(JSON.stringify(report))});`);
+      assert.deepStrictEqual(await createClient(executable).recommend({input: '/tmp/results'}), report);
     });
 
     it('rejects options that the 0.2 CLI cannot represent', async () => {
@@ -188,6 +170,7 @@ describe('MatricEvalError', () => {
 describe('Type exports', () => {
   it('should export EvalSummary type', () => {
     const summary: EvalSummary = {
+      qualification: 'legacy_unverified',
       totalModels: 2,
       successful: 2,
       failed: 0,

@@ -281,7 +281,7 @@ class TestRecommendationEngine:
     @pytest.fixture
     def engine(self) -> RecommendationEngine:
         """Create engine with defaults."""
-        return RecommendationEngine()
+        return RecommendationEngine(legacy_exploratory=True)
 
     @pytest.fixture
     def sample_results(self) -> list[dict]:
@@ -335,6 +335,7 @@ class TestRecommendationEngine:
             )
         }
         engine = RecommendationEngine(
+            legacy_exploratory=True,
             capabilities=custom_caps,
             min_score_threshold=0.5,
             top_n_alternatives=2,
@@ -349,12 +350,12 @@ class TestRecommendationEngine:
         """Should process results into model scores."""
         model_scores = engine.process_results(sample_results)
         assert len(model_scores) == 3
-        assert "llama3.2:3b" in model_scores
-        assert "mistral:7b" in model_scores
-        assert "codestral:22b" in model_scores
+        assert "ollama/llama3.2:3b" in model_scores
+        assert "ollama/mistral:7b" in model_scores
+        assert "ollama/codestral:22b" in model_scores
 
         # Check benchmark scores extracted
-        llama_scores = model_scores["llama3.2:3b"]
+        llama_scores = model_scores["ollama/llama3.2:3b"]
         assert llama_scores.benchmark_scores["humaneval"] == 0.8
         assert llama_scores.overall_score == 0.75
 
@@ -368,8 +369,8 @@ class TestRecommendationEngine:
         assert "good" in model_scores
         assert "bad" not in model_scores
 
-    def test_process_results_strips_ollama_prefix(self, engine: RecommendationEngine) -> None:
-        """Should strip ollama/ prefix from model names."""
+    def test_process_results_preserves_ollama_prefix(self, engine: RecommendationEngine) -> None:
+        """Should preserve exact provider-qualified model names."""
         results = [
             {
                 "model": "ollama/llama3.2:3b",
@@ -379,8 +380,8 @@ class TestRecommendationEngine:
             }
         ]
         model_scores = engine.process_results(results)
-        assert "llama3.2:3b" in model_scores
-        assert "ollama/llama3.2:3b" not in model_scores
+        assert "ollama/llama3.2:3b" in model_scores
+        assert "llama3.2:3b" not in model_scores
 
     def test_generate_recommendations(
         self, engine: RecommendationEngine, sample_results: list[dict]
@@ -391,7 +392,7 @@ class TestRecommendationEngine:
 
         assert isinstance(report, RecommendationReport)
         assert len(report.model_scores) == 3
-        assert report.best_overall == "codestral:22b"  # Highest overall score
+        assert report.best_overall == "ollama/codestral:22b"  # Highest overall score
 
     def test_recommendations_by_capability(
         self, engine: RecommendationEngine, sample_results: list[dict]
@@ -403,7 +404,7 @@ class TestRecommendationEngine:
         # Code generation should recommend codestral (best at humaneval/mbpp)
         code_rec = report.recommendations.get("code_generation")
         assert code_rec is not None
-        assert code_rec.recommended_model == "codestral:22b"
+        assert code_rec.recommended_model == "ollama/codestral:22b"
 
     def test_recommendations_include_alternatives(
         self, engine: RecommendationEngine, sample_results: list[dict]
@@ -438,7 +439,7 @@ class TestRecommendationFileLoading:
 
     def test_from_summary_file(self) -> None:
         """Should load recommendations from summary.json."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
 
         with TemporaryDirectory() as tmpdir:
             summary = {
@@ -459,7 +460,7 @@ class TestRecommendationFileLoading:
 
     def test_from_results_directory(self) -> None:
         """Should load recommendations from results directory."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
 
         with TemporaryDirectory() as tmpdir:
             # Create individual result files
@@ -502,7 +503,7 @@ class TestGenerateRecommendations:
                 "benchmarks": {"humaneval": {"score": 0.8}},
             }
         ]
-        report = generate_recommendations(results)
+        report = generate_recommendations(results, legacy_exploratory=True)
         assert isinstance(report, RecommendationReport)
         assert "llama3.2:3b" in report.model_scores
 
@@ -559,12 +560,12 @@ class TestRecommendationIntegration:
             },
         ]
 
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         model_scores = engine.process_results(results)
         report = engine.generate_recommendations(model_scores)
 
         # Verify report structure
-        assert report.best_overall == "codestral:22b"
+        assert report.best_overall == "ollama/codestral:22b"
         assert len(report.model_scores) == 2
 
         # Verify serialization
@@ -605,7 +606,7 @@ class TestRecommendationIntegration:
             },
         ]
 
-        report = generate_recommendations(results)
+        report = generate_recommendations(results, legacy_exploratory=True)
 
         # Specialist should be best overall (higher average)
         # Generalist should be best balanced (more consistent)
@@ -650,7 +651,7 @@ class TestConstraintFiltering:
 
     def test_filter_by_max_size(self) -> None:
         """Should filter out models exceeding max size."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = self._make_scores()
         constraints = ModelConstraints(max_size_gb=10.0)
 
@@ -661,7 +662,7 @@ class TestConstraintFiltering:
 
     def test_filter_by_min_score(self) -> None:
         """Should filter out models below min score."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = self._make_scores()
         constraints = ModelConstraints(min_score=0.7)
 
@@ -672,7 +673,7 @@ class TestConstraintFiltering:
 
     def test_filter_by_required_benchmarks(self) -> None:
         """Should filter out models missing required benchmarks."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = self._make_scores()
         constraints = ModelConstraints(required_benchmarks=["gsm8k"])
 
@@ -683,7 +684,7 @@ class TestConstraintFiltering:
 
     def test_filter_combined_constraints(self) -> None:
         """Should apply all constraints simultaneously."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = self._make_scores()
         constraints = ModelConstraints(max_size_gb=10.0, min_score=0.7)
 
@@ -693,7 +694,7 @@ class TestConstraintFiltering:
 
     def test_filter_no_constraints_returns_all(self) -> None:
         """Should return all models with empty constraints."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = self._make_scores()
         constraints = ModelConstraints()
 
@@ -712,7 +713,7 @@ class TestParetoFrontier:
 
     def test_single_model_is_pareto_optimal(self) -> None:
         """A single model should be on the Pareto frontier."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = {
             "only_model": ModelScore(
                 model="only_model",
@@ -725,7 +726,7 @@ class TestParetoFrontier:
 
     def test_dominated_model_excluded(self) -> None:
         """Dominated models should not be on the frontier."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = {
             "good": ModelScore(
                 model="good",
@@ -744,7 +745,7 @@ class TestParetoFrontier:
 
     def test_tradeoff_models_both_pareto(self) -> None:
         """Models with tradeoffs should both be on the frontier."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = {
             "code_specialist": ModelScore(
                 model="code_specialist",
@@ -763,7 +764,7 @@ class TestParetoFrontier:
 
     def test_empty_returns_empty(self) -> None:
         """Empty model set should return empty frontier."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         pareto = engine.pareto_frontier({}, ["humaneval"])
         assert pareto == []
 
@@ -779,7 +780,7 @@ class TestStrengthsWeaknesses:
 
     def test_strengths_detected_above_average(self) -> None:
         """Should identify strengths above 20% of average."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         all_scores = {
             "model_a": ModelScore(
                 model="model_a",
@@ -797,7 +798,7 @@ class TestStrengthsWeaknesses:
 
     def test_weaknesses_detected_below_average(self) -> None:
         """Should identify weaknesses below 20% of average."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         all_scores = {
             "model_a": ModelScore(
                 model="model_a",
@@ -815,7 +816,7 @@ class TestStrengthsWeaknesses:
 
     def test_single_model_no_strengths_weaknesses(self) -> None:
         """Single model should have no comparative strengths/weaknesses."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         scores = {
             "only": ModelScore(
                 model="only",
@@ -838,7 +839,7 @@ class TestConfidenceScores:
 
     def test_full_coverage_high_confidence(self) -> None:
         """Should have high confidence with many benchmarks evaluated."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         score = ModelScore(
             model="well_tested",
             benchmark_scores={
@@ -855,14 +856,14 @@ class TestConfidenceScores:
 
     def test_no_benchmarks_zero_confidence(self) -> None:
         """Should have zero confidence with no benchmarks."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         score = ModelScore(model="untested", benchmark_scores={})
         confidence = engine._compute_confidence(score)
         assert confidence == 0.0
 
     def test_few_benchmarks_lower_confidence(self) -> None:
         """Should have lower confidence with fewer benchmarks."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         score_few = ModelScore(model="few", benchmark_scores={"humaneval": 0.8})
         score_many = ModelScore(
             model="many",
@@ -888,7 +889,7 @@ class TestRecommendMethod:
 
     def test_recommend_with_constraints(self) -> None:
         """Should apply constraints in recommend()."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         results = [
             {
                 "model": "ollama/small",
@@ -910,7 +911,7 @@ class TestRecommendMethod:
 
     def test_recommend_without_constraints(self) -> None:
         """Should work without constraints."""
-        engine = RecommendationEngine()
+        engine = RecommendationEngine(legacy_exploratory=True)
         results = [
             {
                 "model": "ollama/model",
@@ -920,7 +921,7 @@ class TestRecommendMethod:
             },
         ]
         report = engine.recommend(results)
-        assert "model" in report.model_scores
+        assert "ollama/model" in report.model_scores
 
 
 # =============================================================================

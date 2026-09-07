@@ -1,0 +1,19 @@
+{
+  "model": "ollama/fixture:null",
+  "tier": "smoke",
+  "status": "success",
+  "execution": "completed",
+  "overall_score": null,
+  "eligible": false,
+  "eligibility_reasons": ["aggregation_undeclared"],
+  "benchmarks": {
+    "synthetic": {
+      "score": null,
+      "samples": 2,
+      "status": "success",
+      "execution": "completed",
+      "eligible": false,
+      "eligibility_reasons": ["grader_failed"]
+    }
+  }
+}

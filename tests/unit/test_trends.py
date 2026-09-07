@@ -173,7 +173,7 @@ class TestRegressionDetector:
 
     def test_detects_regression(self, populated_store: EvalStore) -> None:
         """Should detect significant score drops."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         # llama3.2:3b humaneval baseline is ~0.69 avg
         # A drop to 0.50 should be detected
@@ -184,14 +184,14 @@ class TestRegressionDetector:
 
     def test_no_regression_for_improvement(self, populated_store: EvalStore) -> None:
         """Should not flag improvements as regressions."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         regressions = detector.check("llama3.2:3b", {"humaneval": 0.90})
         assert len(regressions) == 0
 
     def test_no_regression_within_threshold(self, populated_store: EvalStore) -> None:
         """Should not flag minor drops within threshold."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         # Baseline ~0.69, threshold 0.05 → 0.64 is edge
         regressions = detector.check("llama3.2:3b", {"humaneval": 0.66})
@@ -199,14 +199,14 @@ class TestRegressionDetector:
 
     def test_no_baseline_no_regression(self, populated_store: EvalStore) -> None:
         """Should not flag regression for new benchmarks."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         regressions = detector.check("llama3.2:3b", {"new_benchmark": 0.30})
         assert len(regressions) == 0
 
     def test_severity_classification(self, populated_store: EvalStore) -> None:
         """Should classify regression severity."""
-        detector = RegressionDetector(populated_store, threshold=0.01)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.01)
 
         # Severe drop: 0.69 → 0.20
         regressions = detector.check("llama3.2:3b", {"humaneval": 0.20})
@@ -214,7 +214,7 @@ class TestRegressionDetector:
 
     def test_check_point(self, populated_store: EvalStore) -> None:
         """Should check a single EvaluationPoint."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         point = EvaluationPoint(
             model="llama3.2:3b",
@@ -227,7 +227,7 @@ class TestRegressionDetector:
 
     def test_check_point_no_regression(self, populated_store: EvalStore) -> None:
         """Should return None when no regression."""
-        detector = RegressionDetector(populated_store, threshold=0.05)
+        detector = RegressionDetector(populated_store, legacy_exploratory=True, threshold=0.05)
 
         point = EvaluationPoint(
             model="llama3.2:3b",
@@ -248,7 +248,7 @@ class TestTrendAnalyzer:
 
     def test_detects_improving_trend(self, populated_store: EvalStore) -> None:
         """Should detect improving trend for llama humaneval."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         trend = analyzer.analyze("llama3.2:3b", "humaneval")
 
         assert trend is not None
@@ -257,7 +257,7 @@ class TestTrendAnalyzer:
 
     def test_detects_declining_trend(self, populated_store: EvalStore) -> None:
         """Should detect declining trend for llama gsm8k."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         trend = analyzer.analyze("llama3.2:3b", "gsm8k")
 
         assert trend is not None
@@ -266,7 +266,7 @@ class TestTrendAnalyzer:
 
     def test_detects_stable_trend(self, populated_store: EvalStore) -> None:
         """Should detect stable trend for qwen humaneval."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         trend = analyzer.analyze("qwen3:8b", "humaneval")
 
         assert trend is not None
@@ -274,19 +274,19 @@ class TestTrendAnalyzer:
 
     def test_insufficient_data(self, populated_store: EvalStore) -> None:
         """Should return None with insufficient data points."""
-        analyzer = TrendAnalyzer(populated_store, min_points=10)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=10)
         trend = analyzer.analyze("llama3.2:3b", "humaneval")
         assert trend is None
 
     def test_no_data(self, populated_store: EvalStore) -> None:
         """Should return None for unknown model."""
-        analyzer = TrendAnalyzer(populated_store)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True)
         trend = analyzer.analyze("nonexistent", "humaneval")
         assert trend is None
 
     def test_trend_projection(self, populated_store: EvalStore) -> None:
         """Should project future scores."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         trend = analyzer.analyze("llama3.2:3b", "humaneval")
 
         assert trend is not None
@@ -297,7 +297,7 @@ class TestTrendAnalyzer:
 
     def test_trend_data_points(self, populated_store: EvalStore) -> None:
         """Should report correct data point count."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         trend = analyzer.analyze("llama3.2:3b", "humaneval")
 
         assert trend is not None
@@ -305,7 +305,7 @@ class TestTrendAnalyzer:
 
     def test_compare_trajectories(self, populated_store: EvalStore) -> None:
         """Should compare multiple model trajectories."""
-        analyzer = TrendAnalyzer(populated_store, min_points=3)
+        analyzer = TrendAnalyzer(populated_store, legacy_exploratory=True, min_points=3)
         comparison = analyzer.compare_trajectories(
             ["llama3.2:3b", "qwen3:8b"],
             "humaneval",

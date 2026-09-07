@@ -217,7 +217,7 @@ def test_recommendation_excludes_legacy_series_and_exposes_diagnostic_method():
     current["overlap_diagnostics"] = check_overlap(["same"], ["same"], raw_score=0.8).to_dict()
     legacy = result("old")
     legacy["benchmarks"]["humaneval"]["adjusted_score"] = 0.4
-    report = RecommendationEngine().recommend([current, legacy])
+    report = RecommendationEngine(legacy_exploratory=True).recommend([current, legacy])
     assert set(report.model_scores) == {"m"}
     assert report.model_scores["m"].benchmark_scores["humaneval"] == 0.8
     reviews = report.to_dict()["metadata"]["diagnostic_reviews"]
@@ -234,7 +234,7 @@ def test_recommendation_excludes_legacy_series_and_exposes_diagnostic_method():
 def test_all_legacy_series_are_explicitly_excluded_even_if_raw_score_present():
     legacy = result()
     legacy["contamination"] = {"recommendation": "trustworthy", "raw_score": 0.8}
-    report = RecommendationEngine().recommend([legacy])
+    report = RecommendationEngine(legacy_exploratory=True).recommend([legacy])
     assert not report.model_scores
     assert report.metadata["diagnostic_reviews"][0]["legacy_series_excluded"] is True
     assert score_series_diagnostics(legacy)["legacy_series_excluded"]

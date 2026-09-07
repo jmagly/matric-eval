@@ -23,6 +23,7 @@ class Trend:
     data_points: int
     first_score: float
     latest_score: float
+    qualification: str = "legacy_unverified"
 
     def project(self, runs_ahead: int = 5) -> float:
         """
@@ -47,9 +48,10 @@ class TrendAnalyzer:
         min_points: Minimum data points needed for trend analysis (default: 3)
     """
 
-    def __init__(self, store: EvalStore, min_points: int = 3):
+    def __init__(self, store: EvalStore, min_points: int = 3, legacy_exploratory: bool = False):
         self.store = store
         self.min_points = min_points
+        self.legacy_exploratory = legacy_exploratory
 
     def analyze(
         self,
@@ -70,6 +72,8 @@ class TrendAnalyzer:
         Returns:
             Trend analysis or None if insufficient data
         """
+        if not self.legacy_exploratory:
+            raise ValueError("legacy_trend_unverified: explicit exploratory opt-in required")
         history = self.store.get_history(model, benchmark, limit=limit)
 
         if len(history) < self.min_points:

@@ -1,0 +1,24 @@
+{
+  "fixture_schema_version": "1",
+  "profile": "consumer-strict-json/1",
+  "cases": [
+    {"id": "zero", "source": "{\"score\":0}", "strict_json": "accept"},
+    {"id": "null", "source": "{\"score\":null}", "strict_json": "accept"},
+    {"id": "finite_exponent", "source": "{\"score\":1e2}", "strict_json": "accept"},
+    {"id": "same_key_different_objects", "source": "[{\"score\":0},{\"score\":null}]", "strict_json": "accept"},
+    {"id": "literal_duplicate", "source": "{\"score\":0,\"score\":1}", "strict_json": "reject", "reason": "duplicate_object_key"},
+    {"id": "escaped_duplicate", "source": "{\"score\":0,\"\\u0073core\":1}", "strict_json": "reject", "reason": "duplicate_object_key"},
+    {"id": "nested_duplicate", "source": "{\"benchmarks\":{\"synthetic\":{\"score\":null,\"score\":0}}}", "strict_json": "reject", "reason": "duplicate_object_key"},
+    {"id": "nan", "source": "{\"score\":NaN}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "infinity", "source": "{\"score\":Infinity}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "negative_infinity", "source": "{\"score\":-Infinity}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "finite_token_overflow", "source": "{\"score\":1e309}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "negative_finite_token_overflow", "source": "{\"score\":-1e309}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "trailing_document", "source": "{\"score\":0} {\"score\":1}", "strict_json": "reject", "reason": "nonfinite_or_invalid_json"},
+    {"id": "unknown_result_major", "source": "{\"result_schema_version\":\"99\",\"model\":\"fixture\",\"overall_score\":0,\"benchmarks\":{}}", "strict_json": "accept", "consumer": "reject", "reason": "unsupported_schema"},
+    {"id": "wrong_discriminator_type", "source": "{\"result_schema_version\":2,\"model\":\"fixture\",\"overall_score\":0,\"benchmarks\":{}}", "strict_json": "accept", "consumer": "reject", "reason": "unsupported_schema"},
+    {"id": "ambiguous_discriminators", "source": "{\"result_schema_version\":\"2\",\"trial_schema_version\":\"1\"}", "strict_json": "accept", "consumer": "reject", "reason": "ambiguous_schema"},
+    {"id": "unknown_collection_major", "source": "{\"result_collection_schema_version\":\"99\",\"results\":[]}", "strict_json": "accept", "consumer": "reject", "reason": "unsupported_schema"},
+    {"id": "unknown_historical_shape", "source": "{\"score\":0}", "strict_json": "accept", "consumer": "reject", "reason": "unrecognized_legacy_shape"}
+  ]
+}

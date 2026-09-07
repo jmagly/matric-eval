@@ -1,0 +1,43 @@
+{
+  "profile": "consumer-projection-rejections/1",
+  "changes": [
+    {
+      "successful": "1"
+    },
+    {
+      "models_evaluated": -1
+    },
+    {
+      "status": "partial"
+    },
+    {
+      "status": [
+        "success"
+      ]
+    },
+    {
+      "tier": [
+        "smoke"
+      ]
+    },
+    {
+      "size_gb": "3"
+    },
+    {
+      "duration_seconds": -1
+    },
+    {
+      "timestamp": [
+        "now"
+      ]
+    },
+    {
+      "eligibility": {
+        "eligible": false,
+        "reasons": [
+          "unknown"
+        ]
+      }
+    }
+  ]
+}

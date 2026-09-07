@@ -8,6 +8,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { readConsumerResult, projectLegacy, readRecommendationReport, type RecommendationReportV2, type ConsumerResult, type VersionedEvaluation } from './consumer-results.js';
 
 import type {
   BenchmarkId,
@@ -65,8 +66,8 @@ interface CommandResult {
  *   input: summary.outputDir,
  * });
  *
- * // Export for matric-cli
- * await client.exportModelCategories(report, 'model-categories.json');
+ * // Reports without an explicit capability policy retain exclusions.
+ * console.log(report.status);
  * ```
  */
 export class MatricEvalClient {
@@ -229,10 +230,13 @@ export class MatricEvalClient {
    * @param options - Evaluation options
    * @returns Evaluation summary
    */
+  async run(options: EvalOptions & { resultFormat: 'v2' }, execution?: ExecutionOptions): Promise<VersionedEvaluation>;
+  async run(options?: EvalOptions & { resultFormat?: 'legacy' }, execution?: ExecutionOptions): Promise<EvalSummary>;
+  async run(options: EvalOptions, execution?: ExecutionOptions): Promise<EvalSummary | VersionedEvaluation>;
   async run(
     options: EvalOptions = {},
     execution: ExecutionOptions = {},
-  ): Promise<EvalSummary> {
+  ): Promise<EvalSummary | VersionedEvaluation> {
     if ((options.models?.length ?? 0) > 1) {
       throw new MatricEvalError('The matric-eval 0.2 CLI accepts one explicit model', null, '');
     }
@@ -252,6 +256,7 @@ export class MatricEvalClient {
       args.push('--log-level', options.logLevel.toLowerCase());
     }
     args.push('run', '--output-format', 'json');
+    if (options.resultFormat) args.push('--result-format', options.resultFormat);
 
     if (options.tier) {
       args.push('--tier', options.tier);
@@ -304,7 +309,24 @@ export class MatricEvalClient {
       throw new MatricEvalError('Evaluation failed', result.exitCode, result.stderr);
     }
 
+    if (options.resultFormat === 'v2') {
+      const parsed = readConsumerResult(result.stdout);
+      if (!('result_schema_version' in parsed) && !('result_collection_schema_version' in parsed)) throw new MatricEvalError('Expected versioned evaluation result', null, '');
+      return parsed;
+    }
     return this.parseEvalSummary(result.stdout);
+  }
+
+  async evaluate(options: EvalOptions & { resultFormat: 'v2' }, execution?: ExecutionOptions): Promise<VersionedEvaluation>;
+  async evaluate(options?: EvalOptions & { resultFormat?: 'legacy' }, execution?: ExecutionOptions): Promise<EvalSummary>;
+  async evaluate(options: EvalOptions, execution?: ExecutionOptions): Promise<EvalSummary | VersionedEvaluation>;
+  async evaluate(options: EvalOptions = {}, execution: ExecutionOptions = {}): Promise<EvalSummary | VersionedEvaluation> {
+    return options.resultFormat === 'v2' ? this.run({...options, resultFormat: 'v2'}, execution) : this.run({...options, resultFormat: 'legacy'}, execution);
+  }
+
+  async loadResult(sourcePath: string): Promise<ConsumerResult> {
+    const bytes = await fs.readFile(sourcePath);
+    return readConsumerResult(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
   }
 
   /**
@@ -316,9 +338,10 @@ export class MatricEvalClient {
   async recommend(
     options: RecommendOptions,
     execution: ExecutionOptions = {},
-  ): Promise<RecommendationReport> {
+  ): Promise<RecommendationReportV2> {
     const args = ['recommend', '--results-dir', options.input, '--output-format', 'json'];
 
+    if (options.capabilityPolicy) args.push('--capability-policy', options.capabilityPolicy);
     if (options.minScore !== undefined) {
       args.push('--min-score', options.minScore.toString());
     }
@@ -328,7 +351,7 @@ export class MatricEvalClient {
       throw new MatricEvalError('Failed to generate recommendations', result.exitCode, result.stderr);
     }
 
-    const report = this.parseRecommendationReport(result.stdout);
+    const report = readRecommendationReport(result.stdout);
     if (options.output) {
       const outputDir = path.dirname(options.output);
       await fs.mkdir(outputDir, { recursive: true });
@@ -346,9 +369,10 @@ export class MatricEvalClient {
    * @param outputPath - Output file path
    */
   async exportModelCategories(
-    report: RecommendationReport,
+    report: RecommendationReport | RecommendationReportV2,
     outputPath: string,
   ): Promise<void> {
+    if ('recommendation_schema_version' in report) throw new MatricEvalError('legacy_projection_unrepresentable:model_categories', null, '');
     const config: ModelCategoriesConfig = {
       version: '1.0',
       generatedBy: 'matric-eval',
@@ -385,11 +409,7 @@ export class MatricEvalClient {
    * Parse evaluation summary from JSON string.
    */
   private parseEvalSummary(json: string): EvalSummary {
-    const data = JSON.parse(json) as Record<string, unknown>;
-    if (Object.hasOwn(data, 'result_schema_version')) {
-      throw new Error('Versioned results require the validated readResult v2 reader');
-    }
-
+    const data = projectLegacy(readConsumerResult(json));
     const rawResults = Array.isArray(data['results'])
       ? data['results']
       : 'model' in data
@@ -406,73 +426,31 @@ export class MatricEvalClient {
       const rawStatus = String(result['status'] ?? 'failed');
       const status = rawStatus === 'error' ? 'failed' : rawStatus;
       return {
-        model: String(result['model'] ?? '').replace('ollama/', ''),
+        qualification: 'legacy_unverified',
+        model: String(result['model']),
         tier: (result['tier'] as EvalTier) ?? 'smoke',
         status: status as 'success' | 'failed' | 'skipped',
-        overallScore: Number(result['overall_score'] ?? 0),
-        sizeGb: Number(result['size_gb'] ?? 0),
+        overallScore: result['overall_score'] as number,
+        sizeGb: typeof result['size_gb'] === 'number' ? result['size_gb'] : null,
         benchmarks: (result['benchmarks'] as Record<BenchmarkId, unknown>) ?? {},
         error: result['error'] as string | undefined,
-        timestamp: String(result['timestamp'] ?? new Date().toISOString()),
+        timestamp: typeof result['timestamp'] === 'string' ? result['timestamp'] : null,
       } as ModelResult;
     });
 
     return {
+      qualification: 'legacy_unverified',
       totalModels: Number(data['total_models'] ?? data['models_evaluated'] ?? results.length),
       successful: Number(data['successful'] ?? results.filter((r) => r.status === 'success').length),
       failed: Number(data['failed'] ?? results.filter((r) => r.status === 'failed').length),
       skipped: Number(data['skipped'] ?? results.filter((r) => r.status === 'skipped').length),
-      durationSeconds: Number(data['duration_seconds'] ?? 0),
+      durationSeconds: typeof data['duration_seconds'] === 'number' ? data['duration_seconds'] : null,
       results,
-      outputDir: String(data['output_dir'] ?? ''),
+      outputDir: typeof data['output_dir'] === 'string' ? data['output_dir'] : null,
     };
   }
 
-  private parseRecommendationReport(json: string): RecommendationReport {
-    const data = JSON.parse(json) as Record<string, unknown>;
-    const rawScores = (data['model_scores'] ?? {}) as Record<
-      string,
-      Record<string, unknown>
-    >;
-    const modelScores = Object.fromEntries(
-      Object.entries(rawScores).map(([name, score]) => [
-        name,
-        {
-          model: String(score['model'] ?? name),
-          benchmarkScores: (score['benchmark_scores'] ?? {}) as Record<string, number>,
-          capabilityScores: (score['capability_scores'] ?? {}) as Record<string, number>,
-          overallScore: Number(score['overall_score'] ?? 0),
-          sizeGb: Number(score['size_gb'] ?? 0),
-        },
-      ]),
-    );
-    const rawRecommendations = (data['recommendations'] ?? {}) as Record<
-      string,
-      Record<string, unknown>
-    >;
-    const recommendations = Object.fromEntries(
-      Object.entries(rawRecommendations).map(([capability, recommendation]) => [
-        capability,
-        {
-          capability,
-          recommended: String(recommendation['recommended'] ?? ''),
-          score: Number(recommendation['score'] ?? 0),
-          alternatives: (recommendation['alternatives'] ?? []) as Array<{
-            model: string;
-            score: number;
-          }>,
-          rationale: String(recommendation['rationale'] ?? ''),
-        },
-      ]),
-    ) as RecommendationReport['recommendations'];
-    return {
-      recommendations,
-      modelScores,
-      bestOverall: String(data['best_overall'] ?? ''),
-      bestBalanced: String(data['best_balanced'] ?? ''),
-      metadata: (data['metadata'] ?? {}) as Record<string, unknown>,
-    };
-  }
+
 }
 
 /**

@@ -9,6 +9,7 @@ Preregistered research studies with frozen sampling and reporting contracts are 
 ## Quick Links
 
 - [CLI Reference](cli.md) - Current commands, arguments, and options
+- [Consumer Migration](development/consumer-migration.md) - Strict result readers, nullable rankings, immutable history and rollback
 
 - [Architecture Overview](architecture/overview.md) - System design and component structure
 - [Roadmap](development/roadmap.md) - Current support, release gates, and live milestones
