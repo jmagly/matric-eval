@@ -7,8 +7,6 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -16,6 +14,7 @@ from typing import Any
 
 from matric_eval.parallel import ParallelConfig, ParallelExecutor, ParallelStrategy
 from matric_eval.scorers.code_execution import prepare_code, prepare_test_code, safe_execute
+from matric_eval.scorers.isolated_execution import execute_python
 from matric_eval.state.manager import StateManager
 from matric_eval.tasks.matric_memory import (
     score_legacy_semantic,
@@ -46,7 +45,8 @@ def legacy_extract_code(response: str) -> str:
     return (match.group(1) if match else cleaned).strip()
 
 
-def legacy_code_pass(case: dict[str, Any]) -> bool:
+def legacy_code_pass(case: dict[str, Any]) -> dict[str, Any]:
+    """Build the pinned legacy harness independently, then use the isolated runner."""
     code = legacy_extract_code(str(case["response"]))
     if (
         case["benchmark"] == "humaneval"
@@ -58,14 +58,14 @@ def legacy_code_pass(case: dict[str, Any]) -> bool:
     test = str(case["test"])
     if case["benchmark"] == "humaneval":
         test = f"{test.rstrip()}\n\ncheck({case['entry_point']})"
-    result = subprocess.run(
-        [sys.executable, "-c", f"{code}\n{test}"],
-        capture_output=True,
-        text=True,
-        timeout=5,
-        check=False,
-    )
-    return result.returncode == 0
+    return execute_python(f"{code}\n{test}", timeout=5)
+
+
+def execution_measurement(result: dict[str, Any]) -> bool | None:
+    """Infrastructure absence cannot be interpreted as an incorrect solution."""
+    if result["status"] in {"passed", "incorrect", "timeout", "output_limit"}:
+        return result["status"] == "passed"
+    return None
 
 
 def validate_code_parity(matrix: dict[str, Any]) -> dict[str, Any]:
@@ -80,16 +80,30 @@ def validate_code_parity(matrix: dict[str, Any]) -> dict[str, Any]:
             prepare_code(str(case["response"]), metadata),
             prepare_test_code(metadata),
             timeout=5,
-        )["passed"]
+        )
         reference = legacy_code_pass(case)
+        current_pass = execution_measurement(current)
+        reference_pass = execution_measurement(reference)
         rows.append(
             {
                 "id": case["id"],
                 "benchmark": case["benchmark"],
                 "expected_pass": case["expected_pass"],
-                "matric_eval_pass": current,
-                "reference_pass": reference,
-                "agreement": current == reference == case["expected_pass"],
+                "matric_eval_pass": current_pass,
+                "reference_pass": reference_pass,
+                "matric_eval_execution": {
+                    "status": current["status"],
+                    "error": current["error"],
+                    "provenance": current["provenance"],
+                },
+                "reference_execution": {
+                    "status": reference["status"],
+                    "error": reference["error"],
+                    "provenance": reference["provenance"],
+                },
+                "agreement": current_pass is not None
+                and reference_pass is not None
+                and current_pass == reference_pass == case["expected_pass"],
             }
         )
 
@@ -97,16 +111,35 @@ def validate_code_parity(matrix: dict[str, Any]) -> dict[str, Any]:
     tolerance = matrix["tolerances"]["public_score_variance_percentage_points"]
     for benchmark in ("humaneval", "mbpp"):
         selected = [row for row in rows if row["benchmark"] == benchmark]
-        current_rate = 100 * sum(row["matric_eval_pass"] for row in selected) / len(selected)
-        reference_rate = 100 * sum(row["reference_pass"] for row in selected) / len(selected)
-        variance = abs(current_rate - reference_rate)
+        current_observed = sum(row["matric_eval_pass"] is not None for row in selected)
+        reference_observed = sum(row["reference_pass"] is not None for row in selected)
+        current_rate = (
+            100 * sum(row["matric_eval_pass"] is True for row in selected) / len(selected)
+            if selected and current_observed == len(selected)
+            else None
+        )
+        reference_rate = (
+            100 * sum(row["reference_pass"] is True for row in selected) / len(selected)
+            if selected and reference_observed == len(selected)
+            else None
+        )
+        variance = (
+            abs(current_rate - reference_rate)
+            if current_rate is not None and reference_rate is not None
+            else None
+        )
         benchmarks[benchmark] = {
             "cases": len(selected),
+            "matric_eval_observed": current_observed,
+            "reference_observed": reference_observed,
+            "availability": "complete" if variance is not None else "unavailable",
             "matric_eval_pass_rate": current_rate,
             "reference_pass_rate": reference_rate,
             "variance_percentage_points": variance,
             "tolerance_percentage_points": tolerance,
-            "passed": variance <= tolerance and all(row["agreement"] for row in selected),
+            "passed": variance is not None
+            and variance <= tolerance
+            and all(row["agreement"] for row in selected),
         }
 
     return {
@@ -305,6 +338,18 @@ def markdown_report(report: dict[str, Any]) -> str:
     resume = report["checkpoint_resume"]
     tiers = report["tier_durations"]
     status = "PASS" if report["status"] == "passed" else "FAIL"
+
+    def gate(section: dict[str, Any]) -> str:
+        return "PASS" if section["passed"] else "FAIL"
+
+    def parity_evidence(section: dict[str, Any]) -> str:
+        variance = section["variance_percentage_points"]
+        if variance is None:
+            return "Unavailable execution; no pass-rate or variance measurement"
+        return (
+            f"{variance:.1f} pp variance; tolerance {section['tolerance_percentage_points']:.1f} pp"
+        )
+
     return f"""# Operational Validation v1
 
 **Status:** {status}
@@ -326,11 +371,11 @@ The raw machine-readable evidence is in
 
 | Contract | Result | Evidence |
 | --- | --- | --- |
-| HumanEval scorer parity | PASS | {public["humaneval"]["variance_percentage_points"]:.1f} pp variance; tolerance {public["humaneval"]["tolerance_percentage_points"]:.1f} pp |
-| MBPP scorer parity | PASS | {public["mbpp"]["variance_percentage_points"]:.1f} pp variance; tolerance {public["mbpp"]["tolerance_percentage_points"]:.1f} pp |
-| matric-memory custom scorers | PASS | {memory["agreement_rate"]:.0%} agreement across {len(memory["cases"])} title/semantic cases |
-| Checkpoint resume | PASS | {resume["duplicate_count"]} duplicate completed benchmarks; checkpoint result preserved |
-| Parallel equivalence | PASS | {parallel["result_set_difference"]} result-set differences across {parallel["task_count"]} tasks |
+| HumanEval scorer parity | {gate(public["humaneval"])} | {parity_evidence(public["humaneval"])} |
+| MBPP scorer parity | {gate(public["mbpp"])} | {parity_evidence(public["mbpp"])} |
+| matric-memory custom scorers | {gate(memory)} | {memory["agreement_rate"]:.0%} agreement across {len(memory["cases"])} title/semantic cases |
+| Checkpoint resume | {gate(resume)} | {resume["duplicate_count"]} duplicate completed benchmarks; checkpoint result preserved |
+| Parallel equivalence | {gate(parallel)} | {parallel["result_set_difference"]} result-set differences across {parallel["task_count"]} tasks |
 
 Measured execution durations on this validation host:
 

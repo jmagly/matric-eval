@@ -6,12 +6,12 @@ Extracts code from markdown fences and validates against test cases.
 """
 
 import re
-import subprocess
-import sys
 from typing import Any
 
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
+
+from matric_eval.scorers.isolated_execution import execute_python
 
 
 def extract_code(response: str) -> str:
@@ -63,73 +63,18 @@ def extract_code(response: str) -> str:
 
 
 def safe_execute(code: str, test_code: str, timeout: int = 30) -> dict[str, Any]:
+    """Execute the combined harness through the configured bounded Python runner.
+
+    The compatibility ``passed`` flag never distinguishes incorrect code from
+    unavailable execution; consumers must use ``status`` before assigning grades.
+    There is no host-process fallback when isolation is unavailable.
     """
-    Execute code with tests in a subprocess with timeout.
-
-    Combines user code with test code and executes in isolated subprocess.
-    Captures stdout, stderr, and execution results.
-
-    Security measures:
-    - Subprocess isolation (no shared memory)
-    - Timeout enforcement
-    - Output capture to prevent DoS
-
-    Args:
-        code: User-generated code to execute
-        test_code: Test assertions to validate code
-        timeout: Maximum execution time in seconds (default: 30)
-
-    Returns:
-        Dictionary with keys:
-        - passed: bool indicating if all tests passed
-        - error: str or None with error message if failed
-        - output: str with captured stdout/stderr
-    """
-    # Combine code and tests into single script
-    full_code = code + "\n" + test_code
-
-    try:
-        # Execute in subprocess with timeout
-        result = subprocess.run(
-            [sys.executable, "-c", full_code],
-            capture_output=True,
-            timeout=timeout,
-            text=True,
-        )
-
-        # Combine stdout and stderr for output
-        output = result.stdout + result.stderr
-
-        if result.returncode == 0:
-            # Tests passed
-            return {
-                "passed": True,
-                "error": None,
-                "output": output,
-            }
-        else:
-            # Tests failed or error occurred
-            error_msg = result.stderr if result.stderr else "Test execution failed"
-            return {
-                "passed": False,
-                "error": error_msg,
-                "output": output,
-            }
-
-    except subprocess.TimeoutExpired:
-        # Code exceeded timeout
-        return {
-            "passed": False,
-            "error": f"Execution timeout after {timeout} seconds",
-            "output": "",
-        }
-    except Exception as e:
-        # Unexpected error
-        return {
-            "passed": False,
-            "error": f"Execution error: {str(e)}",
-            "output": "",
-        }
+    result = execute_python(code + "\n" + test_code, stdin_input="", timeout=timeout)
+    return {
+        **result,
+        "passed": result["status"] == "passed",
+        "output": result["stdout"] + result["stderr"],
+    }
 
 
 def prepare_test_code(metadata: dict[str, Any] | None) -> str:
@@ -172,7 +117,7 @@ def code_execution_scorer(timeout: int = 30) -> Scorer:
     and returns score based on test results.
 
     Args:
-        timeout: Maximum execution time per test in seconds (default: 30)
+        timeout: Maximum execution time per test in seconds (0 < timeout <= 30)
 
     Returns:
         Scorer function compatible with Inspect AI
@@ -181,7 +126,7 @@ def code_execution_scorer(timeout: int = 30) -> Scorer:
         >>> task = Task(
         ...     dataset=samples,
         ...     solver=[generate()],
-        ...     scorer=code_execution_scorer(timeout=60)
+        ...     scorer=code_execution_scorer(timeout=30)
         ... )
     """
 
@@ -203,20 +148,32 @@ def code_execution_scorer(timeout: int = 30) -> Scorer:
         # Get test code from state metadata (comes from Sample)
         test_code = prepare_test_code(state.metadata)
 
-        # Execute code with tests
-        result = safe_execute(code, test_code, timeout=timeout)
+        if not test_code.strip():
+            return Score.unscored(
+                reason="grader_failed",
+                explanation="Test harness unavailable",
+                metadata={"runner_status": "test_harness_unavailable"},
+            )
+        if not code.strip():
+            return Score(value=0.0, explanation="No code found in response")
 
-        if result["passed"]:
-            # All tests passed
-            return Score(
-                value=1.0,
-                explanation="",
+        result = safe_execute(code, test_code, timeout=timeout)
+        metadata = {
+            "runner_status": result["status"],
+            "runner_error": result["error"],
+            "execution_provenance": result["provenance"],
+            "resource_outcome_policy": "confirmed-timeout-or-output-limit-is-incorrect/1",
+        }
+        if result["status"] not in {"passed", "incorrect", "timeout", "output_limit"}:
+            return Score.unscored(
+                reason="grader_failed",
+                explanation=result["error"] or "Execution unavailable",
+                metadata=metadata,
             )
-        else:
-            # Tests failed or error occurred
-            return Score(
-                value=0.0,
-                explanation=result["error"] or "Test execution failed",
-            )
+        return Score(
+            value=1.0 if result["passed"] else 0.0,
+            explanation="" if result["passed"] else result["error"] or "Test execution failed",
+            metadata=metadata,
+        )
 
     return score
