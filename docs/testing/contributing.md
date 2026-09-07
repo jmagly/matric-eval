@@ -1,538 +1,69 @@
-# matric-eval Testing Infrastructure
+# Contributing verification
 
-Complete pytest testing infrastructure for the matric-eval framework.
+For the current model-comparison program, execute pytest, lint, formatting,
+type checks, builds and runtime fixtures only on the owned A100 checkout under
+[the execution policy](a100-execution.md). Local work is editing and static diff
+review. Keep the active study checkout and its dependencies unchanged.
 
-## Quick Start
+Read the [verification strategy](strategy.md), [profiles and skips](profiles.md),
+[unit plan](plans/unit.md) and [integration plan](plans/integration.md) before
+claiming a capability is covered. These documents supersede the January testing
+examples and unsupported numerical thresholds.
 
-```bash
-# Install dependencies
-uv sync --extra dev --extra study
+## Selecting checks
 
-# Run all tests
-make test
-
-# Run with coverage
-make test-coverage
-
-# Run only unit tests (fast)
-make test-unit
-```
-
-## Authoritative Quality Gates
-
-Run the same blocking gates used by both hosted CI providers:
+From a prepared A100 checkout with the documented cache paths:
 
 ```bash
-make lint                # ruff check src/ tests/ scripts/
-make format-check        # ruff format --check src/ tests/ scripts/
-make type-check          # strict mypy baseline ratchet
-make test-coverage-fail  # full pytest suite and 80% coverage floor
-make ci                  # all four gates above
+uv sync --locked --python 3.11 --extra dev --extra study
+uv run pytest tests/unit/test_result_contract.py -ra --junitxml=<evidence>/focused.xml
+make ci
 ```
 
-The committed `mypy-baseline.json` records existing strict findings by file,
-error code, message, and count. `make type-check` permits reductions but fails
-on a new finding or an increased count. Use `make type-check-strict` to view all
-findings and `make type-check-update` only after reviewed debt reduction.
-
-Protected mainline changes require these job contexts on both CI providers:
-`Quality Gates`, `Test and Coverage`, and `Build Package`. A missing, skipped,
-pending, or failed required context is not approval to merge.
-
-## Test Infrastructure Summary
-
-### Statistics
-
-- **Total Tests**: 1,500+
-- **Test Files**: 25+ Python files
-- **Fixtures**: 24+ reusable fixtures
-- **Factories**: 3 factory classes
-- **Coverage Target**: 80% minimum
-
-### File Structure
-
-```
-tests/
-├── __init__.py                      # Test package
-├── conftest.py                      # Shared fixtures (268 lines)
-├── factories.py                     # Test data factories (305 lines)
-├── README.md                        # Comprehensive documentation
-├── TEST_SUMMARY.md                  # Test results summary
-├── test_cli.py                      # CLI tests (19 tests)
-├── test_config.py                   # Config tests (29 tests)
-├── test_config_compatibility.py     # Legacy API tests
-├── test_package_structure.py        # Package import tests
-├── test_recovery.py                 # Recovery engine tests
-├── test_state_manager.py            # State management tests
-├── unit/
-│   ├── __init__.py
-│   ├── test_datasets.py            # Dataset tests (26 tests)
-│   └── test_tasks.py               # Task tests (62 tests)
-└── integration/
-    ├── __init__.py
-    └── test_ollama.py              # Ollama integration (8 tests)
-```
-
-## Running Tests
-
-### Using Make (Recommended)
-
-```bash
-make help                # Show all available commands
-make test                # Run all tests
-make test-unit           # Run unit tests only
-make test-integration    # Run integration tests
-make test-coverage       # Run with HTML coverage report
-make test-fast           # Skip slow tests
-make lint                # Run linters
-make format              # Format code
-make ci                  # Run full CI suite
-```
-
-### Using pytest Directly
-
-```bash
-# All tests
-uv run pytest
-
-# By marker
-uv run pytest -m unit
-uv run pytest -m integration
-uv run pytest -m "not slow"
-
-# Specific module
-uv run pytest tests/test_config.py -v
-
-# Specific test
-uv run pytest tests/test_config.py::TestTierConfig::test_tier_config_creation
-
-# With coverage
-uv run pytest --cov=matric_eval --cov-report=html
-
-# Stop on first failure
-uv run pytest -x
-
-# Verbose with output
-uv run pytest -vv -s
-```
-
-## Test Organization
-
-### Test Markers
-
-Tests are organized using pytest markers:
-
-```python
-@pytest.mark.unit          # Fast, isolated unit tests
-@pytest.mark.integration   # Requires external services
-@pytest.mark.slow          # Tests taking >1 second
-@pytest.mark.smoke         # Smoke test validation
-```
-
-### Test Categories
-
-| Category | Count | Description |
-|----------|-------|-------------|
-| Unit Tests | 1,500+ | Fast, isolated component tests |
-| Integration Tests | 8 | Tests with Ollama/external services |
-| Smoke Tests | Subset | Quick validation tests |
-
-## Fixtures Reference
-
-### Directory Fixtures
-
-```python
-tmp_results_dir    # Temporary directory for results (auto-cleanup)
-tmp_logs_dir       # Temporary logs directory
-```
-
-### Mock Fixtures
-
-```python
-# Ollama Mocks
-mock_ollama_list_output          # Mock 'ollama list' output
-mock_ollama_models               # Expected parsed model list
-mock_ollama_response             # Mock API response
-mock_subprocess_success          # Successful subprocess
-mock_subprocess_ollama_not_found # Ollama not found
-mock_subprocess_ollama_error     # Ollama error
-
-# Eval Mocks
-mock_eval_log                    # Mock EvalLog object
-mock_eval_log_with_error        # Failed evaluation log
-```
-
-### Sample Data Fixtures
-
-```python
-sample_humaneval_problem  # HumanEval test sample
-sample_mbpp_problem      # MBPP test sample
-sample_gsm8k_problem     # GSM8K test sample
-sample_problems_list     # Combined list of all samples
-```
-
-### Configuration Fixtures
-
-```python
-env_no_overrides     # Clear all EVAL_* env vars
-env_custom_seed      # Set custom seed
-env_custom_samples   # Set custom sample counts
-```
-
-### File Fixtures
-
-```python
-sample_result_json   # Sample result JSON file
-sample_summary_json  # Sample summary JSON file
-create_mock_dataset  # Factory for mock datasets
-```
-
-## Test Data Factories
-
-### Usage Examples
-
-```python
-from tests.factories import SampleFactory, ResultFactory, OllamaFactory
-
-# Create individual samples
-humaneval = SampleFactory.create_humaneval_sample(
-    problem_id=1,
-    difficulty="medium"
-)
-
-mbpp = SampleFactory.create_mbpp_sample(
-    problem_id=2,
-    function_name="custom_func"
-)
-
-# Create batches
-batch = SampleFactory.create_batch(
-    count=10,
-    factory_type="humaneval",
-    difficulty="easy"
-)
-
-# Create results
-result = ResultFactory.create_model_result(
-    model="llama3.2:3b",
-    benchmarks={
-        "humaneval": {"score": 0.8, "samples": 5, "status": "success"}
-    }
-)
-
-summary = ResultFactory.create_summary(
-    results=[result],
-    tier="smoke"
-)
-
-# Create Ollama data
-models = OllamaFactory.create_model_list(count=5)
-output = OllamaFactory.create_ollama_list_output(models)
-```
-
-## Coverage Configuration
-
-### pyproject.toml Settings
-
-```toml
-[tool.coverage.run]
-source = ["src/matric_eval"]
-branch = true
-
-[tool.coverage.report]
-show_missing = true
-fail_under = 80
-precision = 2
-```
-
-### Coverage Targets
-
-| Metric | Minimum | Critical Paths |
-|--------|---------|----------------|
-| Line Coverage | 80% | 100% |
-| Branch Coverage | 75% | 100% |
-| Function Coverage | 90% | 100% |
-
-### Critical Paths (100% Coverage Required)
-
-- Model discovery and filtering
-- Evaluation execution
-- Result generation and saving
-- Configuration loading
-- Error handling
-
-### Running Coverage
-
-```bash
-# Generate HTML report
-make test-coverage
-open htmlcov/index.html
-
-# Terminal report with missing lines
-uv run pytest --cov=matric_eval --cov-report=term-missing
-
-# Fail if coverage below threshold
-make test-coverage-fail
-```
-
-## Writing New Tests
-
-### Unit Test Template
-
-```python
-import pytest
-from matric_eval.module import function_to_test
-
-@pytest.mark.unit
-class TestFeatureName:
-    """Tests for specific feature."""
-
-    def test_normal_case(self) -> None:
-        """Should handle normal input correctly."""
-        # Arrange
-        input_data = "test"
-        expected = "result"
-
-        # Act
-        result = function_to_test(input_data)
-
-        # Assert
-        assert result == expected
-
-    def test_edge_case_empty(self) -> None:
-        """Should handle empty input."""
-        result = function_to_test("")
-        assert result == ""
-
-    def test_error_case(self) -> None:
-        """Should raise error for invalid input."""
-        with pytest.raises(ValueError):
-            function_to_test(None)
-```
-
-### Integration Test Template
-
-```python
-import pytest
-
-@pytest.mark.integration
-class TestIntegrationFeature:
-    """Integration tests requiring external services."""
-
-    def test_with_real_service(
-        self,
-        skip_if_no_ollama: None
-    ) -> None:
-        """Should interact with real Ollama."""
-        # Test implementation
-        pass
-```
-
-## Test Best Practices
-
-### 1. Test Naming
-
-Use descriptive names that explain what is being tested:
-
-```python
-def test_parse_models_success()  # Good
-def test_parse()                 # Bad
-```
-
-### 2. Arrange-Act-Assert Pattern
-
-```python
-def test_feature():
-    # Arrange - Set up test data
-    input_data = create_test_data()
-
-    # Act - Execute the code under test
-    result = function_under_test(input_data)
-
-    # Assert - Verify the result
-    assert result == expected_value
-```
-
-### 3. One Assertion Per Test
-
-Each test should verify one specific behavior:
-
-```python
-def test_returns_correct_value():
-    assert function() == expected
-
-def test_raises_error_on_invalid_input():
-    with pytest.raises(ValueError):
-        function(invalid_input)
-```
-
-### 4. Use Fixtures for Common Setup
-
-```python
-@pytest.fixture
-def test_data():
-    return {"key": "value"}
-
-def test_with_fixture(test_data):
-    assert test_data["key"] == "value"
-```
-
-### 5. Mock External Dependencies
-
-```python
-def test_function_with_external_call(mocker):
-    mock_api = mocker.patch("module.external_api_call")
-    mock_api.return_value = "mocked"
-
-    result = function_that_calls_api()
-
-    assert result == "mocked"
-    mock_api.assert_called_once()
-```
-
-## Continuous Integration
-
-### CI Test Commands
-
-```bash
-make ci  # Runs full CI suite:
-  - ruff check (linting)
-  - ruff format --check (formatting)
-  - mypy (type checking)
-  - pytest with coverage (>80%)
-```
-
-### Pre-commit Checklist
-
-- [ ] Run `make test-unit` (fast tests pass)
-- [ ] Run `make lint` (no linting errors)
-- [ ] Run `make format` (code formatted)
-- [ ] Run `make test-coverage` (coverage >80%)
-
-## Troubleshooting
-
-### Import Errors
-
-```bash
-# Install package in editable mode
-uv pip install -e .
-```
-
-### Ollama Integration Tests Failing
-
-```bash
-# Check Ollama is running
-ollama list
-
-# Skip integration tests
-pytest -m "not integration"
-```
-
-### Coverage Report Not Generated
-
-```bash
-# Install coverage plugin
-uv pip install pytest-cov
-
-# Clean old reports
-rm -rf htmlcov .coverage
-```
-
-### Tests Running Slow
-
-```bash
-# Skip slow tests during development
-make test-fast
-
-# Run specific test file
-make test-specific TEST=tests/test_config.py
-```
-
-### Environment Variable Tests
-
-Some tests in `test_config.py` demonstrate module-level import behavior:
-- These tests document expected behavior
-- They may fail due to Python import caching
-- This is intentional and documented
-
-## Test Coverage by Module
-
-| Module | Tests | Coverage Goal |
-|--------|-------|--------------|
-| cli.py | 50+ | 85% |
-| config.py | 50+ | 90% |
-| datasets.py | 30+ | 85% |
-| tasks/ (all benchmarks) | 800+ | 90% |
-| discovery.py | 58 | 90% |
-| scorers/ | 100+ | 85% |
-| providers/ | 80+ | 85% |
-| Integration | 8 | N/A |
-
-## Dependencies
-
-### Required for Testing
-
-```toml
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",           # Test framework
-    "pytest-asyncio>=0.23.0",  # Async test support
-    "pytest-cov>=4.1.0",       # Coverage reporting
-    "pytest-mock>=3.12.0",     # Enhanced mocking
-    "mypy>=1.8.0",             # Type checking
-    "ruff>=0.3.0",             # Linting and formatting
-]
-```
-
-### Installation
-
-```bash
-# Install all dev dependencies
-uv sync --extra dev --extra study
-
-# Or with pip
-pip install -e ".[dev]"
-```
-
-## References
-
-### Testing Frameworks
-- [pytest Documentation](https://docs.pytest.org/)
-- [pytest-cov Documentation](https://pytest-cov.readthedocs.io/)
-- [pytest-mock Documentation](https://pytest-mock.readthedocs.io/)
-
-### Best Practices
-- [Test-Driven Development by Example](https://www.oreilly.com/library/view/test-driven-development/0321146530/) - Kent Beck
-- [xUnit Test Patterns](http://xunitpatterns.com/) - Gerard Meszaros
-- [Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html) - Martin Fowler
-
-### Code Quality
-- [Google Testing Blog](https://testing.googleblog.com/)
-- [ThoughtBot Testing Guide](https://thoughtbot.com/blog/tags/testing)
-
-## Support
-
-For questions or issues:
-1. Check this documentation
-2. Review tests/README.md
-3. Examine test examples in tests/
-4. Check fixture definitions in conftest.py
-
-## Quick Command Reference
-
-```bash
-# Common commands
-make test              # Run all tests
-make test-unit         # Fast unit tests
-make test-coverage     # With coverage report
-make lint              # Lint code
-make format            # Format code
-make ci                # Full CI suite
-
-# Pytest commands
-uv run pytest -v       # Verbose output
-uv run pytest -x       # Stop on first failure
-uv run pytest -k name  # Run tests matching name
-uv run pytest -m unit  # Run by marker
-uv run pytest --lf     # Run last failed
-```
+Use tests relevant to the change; `<evidence>` is a prepared run directory.
+`make ci` runs Ruff lint and format checks, the mypy baseline ratchet and aggregate
+branch-enabled coverage with an 80% floor. It does not run all Gitea build,
+TypeScript, release or live-provider jobs. TypeScript changes additionally use
+`npm ci`, `npm run build` and `npm test` from `bindings/typescript` on A100.
+
+`make test-unit` selects `-m unit`; Gitea smoke selects the `tests/unit/` directory;
+full coverage uses all collected tests. Record the exact selection. Do not replace
+a required full gate with a convenient subset or count skipped tests as passes.
+Strict mypy's existing findings are handled by the reviewed baseline; do not
+update it to suppress newly introduced errors.
+
+## Writing useful fixtures
+
+Use named fixtures, explicit assumptions and independently justified expected
+values. Add negative cases where they test the promised invariant, including
+missing grades, partial/cancelled execution, incompatible identities and cleanup
+uncertainty. Test the actual native record or subprocess boundary when that is
+the claim; a mock only establishes the mocked interaction's behavior.
+
+Keep generated code out of host subprocesses, including test examples. Unit
+controller tests mock the isolation API; real probes run only through the
+explicit pinned container profile. Judge fixtures test parsing/accounting;
+qualification requires separately reviewed human/domain evidence.
+
+Preserve immutable legacy goldens and add new versioned fixtures. Shared
+Python/TypeScript examples should round-trip nulls, all metrics, identities and
+reasons. Literal hand-calculated expectations are useful; production reducers
+must not serve as their own oracle. Multiple assertions can establish one
+cross-record invariant.
+
+## Reviewing evidence
+
+Retain exact source/lock/profile and fixture hashes, installed inventory, command
+and exit, JUnit/skip records, initial failures and rerun linkage. Diagnose flaky
+failures; import caching or external service variation is not a reason to call a
+known failure intentional. A skip record needs its reason, affected capability,
+owner role and promotion condition from the profile guide.
+
+No per-module 100%, function-coverage, separate 75% branch, mutation or performance
+floor is implemented here. New gates require a reviewed profile, bounded fixture
+and executable failure condition. Test-count tables and historical pass totals
+are not current qualification evidence.
+
+#92–94 retain publication, clean installation and real-consumer ownership.
+#95–97 remain deferred under their existing promotion conditions. No new live
+credentials or platform pipelines belong in PR CI; #109 owns that separate work.

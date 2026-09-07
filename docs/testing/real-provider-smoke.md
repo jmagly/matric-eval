@@ -49,7 +49,10 @@ after two consecutive failures with the run URLs and retained reports attached
 to an infrastructure issue. Provider outages may be rerun manually after
 recovery; code or benchmark regressions require a normal pull request.
 
-Run the same fixture locally against an existing Ollama service:
+For the current model-comparison program, run this fixture only on the owned
+A100 checkout against an attested Ollama service, following the
+[A100 policy](a100-execution.md). The command is not permission to launch a
+workstation model server:
 
 ```bash
 uv run python scripts/run_real_provider_smoke.py \

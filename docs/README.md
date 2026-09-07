@@ -49,7 +49,8 @@ Current traceability plus the archived v0.1 requirements baseline.
 
 Test strategy, plans, and contribution guidelines.
 
-- [**Strategy**](testing/strategy.md) - Overall testing approach
+- [**Strategy**](testing/strategy.md) - Implemented verification gates and semantic traceability
+- [**Profiles and Skips**](testing/profiles.md) - Finite Python/runtime support and accountable evidence gaps
 - [**Contributing**](testing/contributing.md) - How to write and run tests
 - [**A100 Execution**](testing/a100-execution.md) - Required host, storage, preflight, and matched-run policy
 - [**Qwen3.8 27B Intervention Study**](../studies/qwen38-obliteration-2026-09/README.md) - Preregistered source/E03/Pliny comparison
