@@ -18,6 +18,7 @@ from inspect_ai.log import EvalLog
 from matric_eval.core import EvaluationEngine
 from matric_eval.state import StateManager
 from matric_eval.state.manager import Status
+from tests.metric_checkpoint import completed_metric_checkpoint
 
 
 @pytest.mark.unit
@@ -263,6 +264,7 @@ class TestRunAll:
     def test_run_all_persists_and_reuses_completed_benchmarks(
         self,
         tmp_path: Path,
+        mock_eval_log: EvalLog,
     ) -> None:
         """A resumed run should hydrate completed work without evaluating it again."""
         manager = StateManager(tmp_path / "run")
@@ -278,26 +280,24 @@ class TestRunAll:
             "humaneval",
             score=0.8,
             total_problems=5,
-            result={
-                "benchmark": "humaneval",
-                "model": "ollama/test",
-                "status": "success",
-                "execution": "completed",
-                "score": 0.8,
-                "samples": 5,
-            },
+            result=completed_metric_checkpoint(
+                mock_eval_log,
+                benchmark="humaneval",
+                run_id="run",
+                model="ollama/test",
+                correct=4,
+            ),
         )
 
         engine = EvaluationEngine(model="ollama/test", log_dir=tmp_path / "logs")
         with patch.object(engine, "run_benchmark") as run_benchmark:
-            run_benchmark.return_value = {
-                "benchmark": "mbpp",
-                "model": "ollama/test",
-                "status": "success",
-                "execution": "completed",
-                "score": 0.6,
-                "samples": 5,
-            }
+            run_benchmark.return_value = completed_metric_checkpoint(
+                mock_eval_log,
+                benchmark="mbpp",
+                run_id="run",
+                model="ollama/test",
+                correct=3,
+            )
             result = engine.run_all(
                 ["humaneval", "mbpp"],
                 state_manager=manager,
@@ -313,6 +313,7 @@ class TestRunAll:
     def test_interrupted_run_retries_only_interrupted_benchmark(
         self,
         tmp_path: Path,
+        mock_eval_log: EvalLog,
     ) -> None:
         """Restart should preserve completed work and rerun the interrupted benchmark."""
         manager = StateManager(tmp_path / "run")
@@ -325,14 +326,13 @@ class TestRunAll:
         )
         engine = EvaluationEngine(model="ollama/test", log_dir=tmp_path / "logs")
 
-        completed = {
-            "benchmark": "humaneval",
-            "model": "ollama/test",
-            "status": "success",
-            "execution": "completed",
-            "score": 0.8,
-            "samples": 5,
-        }
+        completed = completed_metric_checkpoint(
+            mock_eval_log,
+            benchmark="humaneval",
+            run_id="run",
+            model="ollama/test",
+            correct=4,
+        )
         with patch.object(
             engine,
             "run_benchmark",
@@ -349,14 +349,13 @@ class TestRunAll:
         assert manager.should_skip("test", "mbpp") is False
         assert manager.get_resume_work() == {"test": ["mbpp"]}
 
-        resumed = {
-            "benchmark": "mbpp",
-            "model": "ollama/test",
-            "status": "success",
-            "execution": "completed",
-            "score": 0.6,
-            "samples": 5,
-        }
+        resumed = completed_metric_checkpoint(
+            mock_eval_log,
+            benchmark="mbpp",
+            run_id="run",
+            model="ollama/test",
+            correct=3,
+        )
         with patch.object(engine, "run_benchmark", return_value=resumed) as run_benchmark:
             result = engine.run_all(
                 ["humaneval", "mbpp"],

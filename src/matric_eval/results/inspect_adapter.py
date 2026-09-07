@@ -143,6 +143,27 @@ def adapt_log(
             # A failed/drained log may have per-sample grades but no summary.
             # Keep those grades without inventing a headline estimate.
             native_metrics[f"{scorer_id}/raw"] = (scorer_id, "raw", None)
+    # A summary estimator is not a per-sample measurement. Anchor each scorer
+    # to one measurement metric; auxiliaries reference its outcomes and counts.
+    source_metrics: dict[str, str] = {}
+    effective_scorers = {
+        mid: declared[mid].scorer_id if mid in declared else item[0]
+        for mid, item in native_metrics.items()
+    }
+    for scorer_id in sorted(
+        set(effective_scorers.values()) | {d.scorer_id for d in declared.values()}
+    ):
+        candidates = sorted(mid for mid, source in effective_scorers.items() if source == scorer_id)
+        if primary_metric_id in candidates and primary_metric_id in declared:
+            source_metrics[scorer_id] = primary_metric_id
+        else:
+            source_metrics[scorer_id] = next(
+                (mid for mid in candidates if mid.endswith(("/mean", "/accuracy", "/raw"))),
+                f"{scorer_id}/raw",
+            )
+        source_id = source_metrics[scorer_id]
+        if source_id not in native_metrics and source_id not in declared:
+            native_metrics[source_id] = (scorer_id, "raw", None)
     metric_ids = sorted(set(native_metrics) | set(declared))
     if not metric_ids:
         # Retain execution accounting even if Inspect produced no summary metrics.
@@ -206,6 +227,8 @@ def adapt_log(
                 timeout_value=None,
             )
         scorer_id = descriptor.scorer_id
+        source_id = source_metrics.get(scorer_id, metric_id)
+        derived = source_id != metric_id
         counts: Counter[str] = Counter()
         scored = 0
         for sid, epoch in selected:
@@ -222,6 +245,8 @@ def adapt_log(
                 trial_id=f"epoch-{epoch}",
                 metric_id=metric_id,
             )
+            if derived:
+                continue
             retries = list(sample.error_retries or []) if sample else []
             native_score = (sample.scores or {}).get(scorer_id) if sample else None
             metadata = native_score.metadata or {} if native_score else {}
@@ -293,12 +318,14 @@ def adapt_log(
                 "value": estimate_value,
                 "reason": None,
                 "numerator": None,
-                "denominator": float(scored),
+                "denominator": None,
                 "method": "inspect-native",
                 "eligibility": {"eligible": not reasons, "reasons": reasons},
             }
         )
         metric_results[metric_id] = {
+            "observation_metric_id": source_id if derived else None,
+            "native_estimate": _numeric(native_value),
             "descriptor": descriptor.model_dump(),
             "estimate": estimate,
             "scored": scored,

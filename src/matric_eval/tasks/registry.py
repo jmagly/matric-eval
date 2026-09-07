@@ -19,9 +19,12 @@ Usage:
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Callable, Optional
+
+from matric_eval.results.contract import MetricDescriptor
+from matric_eval.results.metric_catalog import benchmark_metric_declarations
 
 
 class BenchmarkCategory(str, Enum):
@@ -118,6 +121,8 @@ class BenchmarkMetadata:
         dataset_splits: Expected dataset splits
         latest_protocol_version: Latest verified protocol, for freshness comparisons
         successor: Separately named successor benchmark, when one exists
+        primary_metric_id: Exact native scorer/metric key, when declared
+        metric_descriptors: Versioned per-sample metric semantics
     """
 
     name: str
@@ -149,6 +154,8 @@ class BenchmarkMetadata:
     dataset_splits: tuple[str, ...] = ()
     latest_protocol_version: Optional[str] = None
     successor: Optional[str] = None
+    primary_metric_id: str | None = None
+    metric_descriptors: tuple[MetricDescriptor, ...] = ()
 
 
 class TaskRegistry:
@@ -184,6 +191,17 @@ class TaskRegistry:
                 f"Benchmark '{metadata.name}' is already registered. "
                 f"Existing: {self._benchmarks[metadata.name].module_path}"
             )
+        if metadata.primary_metric_id is None and not metadata.metric_descriptors:
+            primary, descriptors = benchmark_metric_declarations(metadata.name)
+            if primary is not None or descriptors:
+                metadata = replace(
+                    metadata, primary_metric_id=primary, metric_descriptors=descriptors
+                )
+        metric_ids = [descriptor.metric_id for descriptor in metadata.metric_descriptors]
+        if len(set(metric_ids)) != len(metric_ids):
+            raise ValueError(f"Benchmark '{metadata.name}' has duplicate metric IDs")
+        if metadata.primary_metric_id is not None and metadata.primary_metric_id not in metric_ids:
+            raise ValueError(f"Benchmark '{metadata.name}' primary metric is not declared")
         self._benchmarks[metadata.name] = metadata
 
     def get(self, name: str) -> Optional[BenchmarkMetadata]:
@@ -339,6 +357,8 @@ def register_benchmark(
     dataset_splits: tuple[str, ...] = (),
     latest_protocol_version: str | None = None,
     successor: str | None = None,
+    primary_metric_id: str | None = None,
+    metric_descriptors: tuple[MetricDescriptor, ...] = (),
 ) -> Callable:
     """Decorator to register a benchmark task function.
 
@@ -401,10 +421,12 @@ def register_benchmark(
             dataset_splits=dataset_splits,
             latest_protocol_version=latest_protocol_version,
             successor=successor,
+            primary_metric_id=primary_metric_id,
+            metric_descriptors=metric_descriptors,
         )
         _registry.register(metadata)
         # Attach metadata to function for introspection
-        func._benchmark_metadata = metadata  # type: ignore[attr-defined]
+        func._benchmark_metadata = _registry.get_or_raise(name)  # type: ignore[attr-defined]
         return func
 
     return decorator

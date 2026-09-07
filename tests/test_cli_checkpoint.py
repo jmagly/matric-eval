@@ -10,11 +10,13 @@ from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
+from inspect_ai.log import EvalLog
 
 from matric_eval.cli import cli
 from matric_eval.config import get_seed, get_settings
 from matric_eval.state import StateManager
 from matric_eval.state.manager import BenchmarkState, Status
+from tests.metric_checkpoint import completed_metric_checkpoint
 
 
 class TestValidateCommand:
@@ -436,7 +438,7 @@ class TestResumeExecution:
         assert manager.is_locked() is False
 
     def test_resume_executes_only_missing_benchmarks(
-        self, runner: CliRunner, tmp_path: Path
+        self, runner: CliRunner, tmp_path: Path, mock_eval_log: EvalLog
     ) -> None:
         """Resume should execute gaps and retain completed benchmark results."""
         results_dir = tmp_path / "results"
@@ -459,14 +461,12 @@ class TestResumeExecution:
             "humaneval",
             score=0.8,
             total_problems=5,
-            result={
-                "benchmark": "humaneval",
-                "model": "ollama/llama3.2:3b",
-                "status": "success",
-                "execution": "completed",
-                "score": 0.8,
-                "samples": 5,
-            },
+            result=completed_metric_checkpoint(
+                mock_eval_log,
+                benchmark="humaneval",
+                run_id="run-test",
+                model="ollama/llama3.2:3b",
+            ),
         )
         state_manager.release_lock()
 
@@ -478,14 +478,13 @@ class TestResumeExecution:
 
             def complete_mbpp(benchmark: str) -> dict[str, object]:
                 assert get_seed() == 123
-                return {
-                    "benchmark": benchmark,
-                    "model": "ollama/llama3.2:3b",
-                    "status": "success",
-                    "execution": "completed",
-                    "score": 0.6,
-                    "samples": 5,
-                }
+                return completed_metric_checkpoint(
+                    mock_eval_log,
+                    benchmark=benchmark,
+                    run_id="run-test",
+                    model="ollama/llama3.2:3b",
+                    correct=3,
+                )
 
             run_benchmark.side_effect = complete_mbpp
             try:
