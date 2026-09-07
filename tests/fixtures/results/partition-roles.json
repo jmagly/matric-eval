@@ -1,0 +1,90 @@
+{
+  "calibration_input": [
+    {
+      "partition_schema_version": "1",
+      "role": "development",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "validation",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "calibration",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "final_test",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "training",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "unknown",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    }
+  ],
+  "export_input": [
+    {
+      "partition_schema_version": "1",
+      "role": "development",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "validation",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "calibration",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "final_test",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "training",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    },
+    {
+      "partition_schema_version": "1",
+      "role": "unknown",
+      "row_id": "synthetic-row",
+      "source_id": "synthetic/1",
+      "independent_unit_id": "synthetic-unit"
+    }
+  ]
+}

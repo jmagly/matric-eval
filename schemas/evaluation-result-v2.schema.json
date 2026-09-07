@@ -1,0 +1,911 @@
+{
+  "$defs": {
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Uri",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sha256"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unavailable Reason"
+        }
+      },
+      "required": [
+        "uri",
+        "sha256",
+        "unavailable_reason"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "BenchmarkResult": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Benchmark Id",
+          "type": "string"
+        },
+        "protocol_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Protocol Sha256"
+        },
+        "manifest_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Manifest Sha256"
+        },
+        "execution": {
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "cancelled",
+            "not_attempted",
+            "unknown"
+          ],
+          "title": "Execution",
+          "type": "string"
+        },
+        "eligibility": {
+          "$ref": "#/$defs/Eligibility"
+        },
+        "primary_metric_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Primary Metric Id"
+        },
+        "primary_estimate": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "metrics": {
+          "patternProperties": {
+            ".*\\S.*": {
+              "$ref": "#/$defs/MetricResult"
+            }
+          },
+          "propertyNames": {
+            "minLength": 1
+          },
+          "title": "Metrics",
+          "type": "object"
+        },
+        "selection": {
+          "items": {
+            "$ref": "#/$defs/Selection"
+          },
+          "title": "Selection",
+          "type": "array"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "title": "Observations",
+          "type": "array"
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ArtifactReference"
+          },
+          "title": "Artifacts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "benchmark_id",
+        "protocol_sha256",
+        "manifest_sha256",
+        "execution",
+        "eligibility",
+        "primary_metric_id",
+        "primary_estimate",
+        "metrics",
+        "selection",
+        "observations",
+        "coverage",
+        "artifacts"
+      ],
+      "title": "BenchmarkResult",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "requested": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Requested",
+          "type": "integer"
+        },
+        "attempted": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Attempted",
+          "type": "integer"
+        },
+        "terminal": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Terminal",
+          "type": "integer"
+        },
+        "completed": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Completed",
+          "type": "integer"
+        },
+        "failed": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "cancelled": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cancelled",
+          "type": "integer"
+        },
+        "not_attempted": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Not Attempted",
+          "type": "integer"
+        },
+        "unknown": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Unknown",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requested",
+        "attempted",
+        "terminal",
+        "completed",
+        "failed",
+        "cancelled",
+        "not_attempted",
+        "unknown"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "DataReference": {
+      "additionalProperties": false,
+      "properties": {
+        "partition_schema_version": {
+          "const": "1",
+          "title": "Partition Schema Version",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "development",
+            "validation",
+            "calibration",
+            "final_test",
+            "training",
+            "unknown"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "row_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Row Id",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "independent_unit_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Independent Unit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "partition_schema_version",
+        "role",
+        "row_id",
+        "source_id",
+        "independent_unit_id"
+      ],
+      "title": "DataReference",
+      "type": "object"
+    },
+    "Eligibility": {
+      "additionalProperties": false,
+      "properties": {
+        "eligible": {
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "eligible",
+        "reasons"
+      ],
+      "title": "Eligibility",
+      "type": "object"
+    },
+    "Estimate": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Numerator"
+        },
+        "denominator": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Denominator"
+        },
+        "method": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Method",
+          "type": "string"
+        },
+        "eligibility": {
+          "$ref": "#/$defs/Eligibility"
+        }
+      },
+      "required": [
+        "value",
+        "reason",
+        "numerator",
+        "denominator",
+        "method",
+        "eligibility"
+      ],
+      "title": "Estimate",
+      "type": "object"
+    },
+    "JudgeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "judge_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Judge Id",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "reversal_policy": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Reversal Policy",
+          "type": "string"
+        },
+        "retry_policy": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Retry Policy",
+          "type": "string"
+        },
+        "calibration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "judge_id",
+        "configuration_sha256",
+        "reversal_policy",
+        "retry_policy",
+        "calibration"
+      ],
+      "title": "JudgeIdentity",
+      "type": "object"
+    },
+    "MetricDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "metric_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Version",
+          "type": "string"
+        },
+        "scorer_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Scorer Id",
+          "type": "string"
+        },
+        "value_kind": {
+          "enum": [
+            "binary",
+            "continuous",
+            "count"
+          ],
+          "title": "Value Kind",
+          "type": "string"
+        },
+        "units": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Units",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "higher",
+            "lower",
+            "neutral"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Maximum"
+        },
+        "independent_unit": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Independent Unit",
+          "type": "string"
+        },
+        "missingness_policy": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Missingness Policy",
+          "type": "string"
+        },
+        "aggregation_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Aggregation Id"
+        },
+        "timeout_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Timeout Value"
+        }
+      },
+      "required": [
+        "metric_id",
+        "version",
+        "scorer_id",
+        "value_kind",
+        "units",
+        "direction",
+        "minimum",
+        "maximum",
+        "independent_unit",
+        "missingness_policy",
+        "aggregation_id",
+        "timeout_value"
+      ],
+      "title": "MetricDescriptor",
+      "type": "object"
+    },
+    "MetricResult": {
+      "additionalProperties": false,
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/MetricDescriptor"
+        },
+        "estimate": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "scored": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Scored",
+          "type": "integer"
+        },
+        "outcome_counts": {
+          "additionalProperties": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "observed",
+              "model_timeout",
+              "infrastructure_error",
+              "grader_failed",
+              "cancelled",
+              "not_attempted",
+              "unavailable",
+              "legacy_unknown"
+            ]
+          },
+          "title": "Outcome Counts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "descriptor",
+        "estimate",
+        "scored",
+        "outcome_counts"
+      ],
+      "title": "MetricResult",
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "properties": {
+        "observation_id": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/ObservationIdentity"
+        },
+        "attempt_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "previous_attempt_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previous Attempt Id"
+        },
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "execution": {
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "cancelled",
+            "not_attempted",
+            "unknown"
+          ],
+          "title": "Execution",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "observed",
+            "model_timeout",
+            "infrastructure_error",
+            "grader_failed",
+            "cancelled",
+            "not_attempted",
+            "unavailable",
+            "legacy_unknown"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "native_status": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Native Status",
+          "type": "string"
+        },
+        "judge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JudgeIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ArtifactReference"
+          },
+          "title": "Artifacts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "observation_id",
+        "identity",
+        "attempt_id",
+        "previous_attempt_id",
+        "accepted",
+        "execution",
+        "outcome",
+        "value",
+        "reason",
+        "native_status",
+        "judge",
+        "artifacts"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "ObservationIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "benchmark_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Benchmark Id",
+          "type": "string"
+        },
+        "allocation_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Allocation Id",
+          "type": "string"
+        },
+        "sample_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "trial_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Metric Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "model_id",
+        "benchmark_id",
+        "allocation_id",
+        "sample_id",
+        "trial_id",
+        "metric_id"
+      ],
+      "title": "ObservationIdentity",
+      "type": "object"
+    },
+    "Selection": {
+      "additionalProperties": false,
+      "properties": {
+        "allocation_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Allocation Id",
+          "type": "string"
+        },
+        "sample_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "trial_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DataReference"
+        }
+      },
+      "required": [
+        "allocation_id",
+        "sample_id",
+        "trial_id",
+        "data"
+      ],
+      "title": "Selection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "result_schema_version": {
+      "const": "2",
+      "title": "Result Schema Version",
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "model_id": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "title": "Model Id",
+      "type": "string"
+    },
+    "created_at": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "title": "Created At",
+      "type": "string"
+    },
+    "provenance_schema_version": {
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "title": "Provenance Schema Version",
+      "type": "string"
+    },
+    "configuration_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Configuration Sha256"
+    },
+    "execution": {
+      "enum": [
+        "completed",
+        "partial",
+        "failed",
+        "cancelled",
+        "not_attempted",
+        "unknown"
+      ],
+      "title": "Execution",
+      "type": "string"
+    },
+    "eligibility": {
+      "$ref": "#/$defs/Eligibility"
+    },
+    "benchmarks": {
+      "items": {
+        "$ref": "#/$defs/BenchmarkResult"
+      },
+      "title": "Benchmarks",
+      "type": "array"
+    },
+    "aggregation_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Aggregation Id"
+    },
+    "overall_estimate": {
+      "$ref": "#/$defs/Estimate"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "result_schema_version",
+    "run_id",
+    "model_id",
+    "created_at",
+    "provenance_schema_version",
+    "configuration_sha256",
+    "execution",
+    "eligibility",
+    "benchmarks",
+    "aggregation_id",
+    "overall_estimate",
+    "artifacts"
+  ],
+  "title": "ResultEnvelope",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://matric.dev/schemas/evaluation-result-v2.schema.json"
+}
