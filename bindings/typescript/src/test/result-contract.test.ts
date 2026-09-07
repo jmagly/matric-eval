@@ -82,6 +82,7 @@ describe('v2 result contract', () => {
       (r: ResultEnvelope) => { r.benchmarks[0]!.coverage.attempted++; },
       (r: ResultEnvelope) => { r.benchmarks[0]!.primary_metric_id = 'missing'; },
       (r: ResultEnvelope) => { r.benchmarks[0]!.metrics['exact/accuracy']!.scored++; },
+      (r: ResultEnvelope) => { r.benchmarks[0]!.metrics['rubric/points']!.estimate.value = 6; },
       (r: ResultEnvelope) => { r.benchmarks[0]!.metrics['exact/accuracy']!.outcome_counts.observed = 3; },
       (r: ResultEnvelope) => { r.benchmarks[0]!.observations.find(o => o.outcome === 'grader_failed')!.value = 0; },
       (r: ResultEnvelope) => { r.benchmarks[0]!.observations.find(o => o.outcome === 'model_timeout')!.value = null; },

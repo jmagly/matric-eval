@@ -71,6 +71,22 @@ def test_counts_reconcile_to_manifest_and_observations(field: str) -> None:
         read_result(json.dumps(data))
 
 
+def test_json_integer_spelling_agrees_with_javascript() -> None:
+    data = payload()
+    data["benchmarks"][0]["coverage"]["requested"] = 9.0
+    assert read_result(json.dumps(data)).benchmarks[0].coverage.requested == 9
+    data["benchmarks"][0]["coverage"]["requested"] = 9.5
+    with pytest.raises(ValueError):
+        read_result(json.dumps(data))
+
+
+def test_estimate_obeys_declared_metric_range() -> None:
+    data = payload()
+    data["benchmarks"][0]["metrics"]["rubric/points"]["estimate"]["value"] = 6.0
+    with pytest.raises(ValueError, match="maximum"):
+        read_result(json.dumps(data))
+
+
 def test_retry_keeps_one_logical_observation_and_scored_denominator() -> None:
     data = payload()
     rows = data["benchmarks"][0]["observations"]

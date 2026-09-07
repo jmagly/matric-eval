@@ -10,12 +10,24 @@ import hashlib
 import json
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 Text = Annotated[str, Field(min_length=1, pattern=r".*\S.*")]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Number = Annotated[float, Field(allow_inf_nan=False, strict=True)]
-Count = Annotated[int, Field(ge=0, le=9007199254740991, strict=True)]
+
+
+def _json_integer(value: object) -> object:
+    # JSON Schema integers include 9.0; JavaScript cannot distinguish its spelling
+    # from 9 after parsing. Preserve numeric agreement without coercing bool/text.
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+Count = Annotated[
+    int, Field(ge=0, le=9007199254740991, strict=True), BeforeValidator(_json_integer)
+]
 Execution = Literal["completed", "partial", "failed", "cancelled", "not_attempted", "unknown"]
 Outcome = Literal[
     "observed",
@@ -311,6 +323,12 @@ class BenchmarkResult(Record):
                 raise ValueError("metric scored count differs from measured observations")
             if metric.scored == 0 and metric.estimate.value is not None:
                 raise ValueError("all-unscored metric cannot have an estimate")
+            value = metric.estimate.value
+            if value is not None:
+                if metric.descriptor.minimum is not None and value < metric.descriptor.minimum:
+                    raise ValueError("estimate below metric minimum")
+                if metric.descriptor.maximum is not None and value > metric.descriptor.maximum:
+                    raise ValueError("estimate above metric maximum")
         primary = self.metrics.get(self.primary_metric_id or "")
         if primary is None:
             if self.primary_estimate.value is not None or self.eligibility.eligible:

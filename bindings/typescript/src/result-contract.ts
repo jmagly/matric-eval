@@ -183,6 +183,10 @@ function checkBenchmark(b: BenchmarkResultV2): void {
     requireThat(total === rows.length, 'metric outcome counts must account for every accepted observation');
     requireThat(m.scored === rows.filter(o => o.value !== null).length, 'metric scored count differs from measured observations');
     requireThat(m.scored !== 0 || m.estimate.value === null, 'all-unscored metric cannot have an estimate');
+    if (m.estimate.value !== null) {
+      requireThat(m.descriptor.minimum === null || m.estimate.value >= m.descriptor.minimum, 'estimate below metric minimum');
+      requireThat(m.descriptor.maximum === null || m.estimate.value <= m.descriptor.maximum, 'estimate above metric maximum');
+    }
   }
   const primary = b.primary_metric_id !== null && Object.hasOwn(b.metrics, b.primary_metric_id) ? b.metrics[b.primary_metric_id] : undefined;
   if (primary === undefined) requireThat(b.primary_estimate.value === null && !b.eligibility.eligible, 'missing primary metric cannot yield eligible estimate');
