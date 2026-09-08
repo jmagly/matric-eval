@@ -1,0 +1,99 @@
+{
+  "schema": "matric-eval.preflight-qualification/1",
+  "host": "basilisk",
+  "scope": "official Tau controlled adapter and deliberate admission failure; no scored tasks",
+  "receipt_path": "/srv/matric-eval/workspaces/matric-eval-155-preflight/official-staged-failure-receipt.json",
+  "receipt_sha256": "f11e75a917a95c651d593f802207d6f68e877c56d393a372b433cc28f3ecc9ce",
+  "source_sha256": {
+    "src/matric_eval/studies/preflight.py": "4d81f7068bfc04072ae480eaad9903b82c258342ad035fd1b6afd678b50eb8ca",
+    "scripts/preflight_qwen38_tau.py": "ce611280ffe99fc6ad9c4047a0bfa9d7d41d4a2c71dfbc51f860f19cbd6b6826",
+    "scripts/run_qwen38_tau.py": "b5e72bb29ad859722feba02074f14a1d3488e2b5192b7e22d14eb8c4fd3cbd10"
+  },
+  "admitted": false,
+  "target_launches": 0,
+  "target_loads_avoided": 1,
+  "elapsed_seconds": 19.97893878398463,
+  "checks_reexecuted": 10,
+  "checks_reused": 0,
+  "checks": [
+    {
+      "id": "tau-inputs",
+      "repetition": 0,
+      "evidence_id": "71e7b33eacd743279836dc314c78d7b2",
+      "status": "completed",
+      "completed_at": 1788898316.5453258,
+      "receipt_sha256": "c4893e51aa30ad0d58d47c12c263e1f45b9b4ceb7e413ed2ca10b5adb94367f5"
+    },
+    {
+      "id": "tau-patch",
+      "repetition": 0,
+      "evidence_id": "7628b628b3054ff0b39de9db5c5f7429",
+      "status": "failed"
+    },
+    {
+      "id": "tau-dependencies",
+      "repetition": 0,
+      "evidence_id": "dee93ee4fcb74b98ac6b6447cdcef102",
+      "status": "completed",
+      "completed_at": 1788898319.4296286,
+      "receipt_sha256": "dfb6c10c9a3a41838dd1e9f2b150e251ac46d9665130f130f1f01ee6a4e76e2f"
+    },
+    {
+      "id": "tau-tasks",
+      "repetition": 0,
+      "evidence_id": "6a27864f631241b1af9bf79308e7969e",
+      "status": "completed",
+      "completed_at": 1788898322.2241101,
+      "receipt_sha256": "b92e73e6110fecfb018ee545c6708627ca5dcd542d2bd5e7baf2b5022a5986f5"
+    },
+    {
+      "id": "tau-sandbox",
+      "repetition": 0,
+      "evidence_id": "513d7697b9274ada94e1984bdb4f40b4",
+      "status": "completed",
+      "completed_at": 1788898325.8213158,
+      "receipt_sha256": "cc50c1768502ba0cd0e5ec6f75e05d103ac4ec63dc04ffa58473d93ee3a559c4"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 0,
+      "evidence_id": "b8c84d20f9364a7ca10db8dd414a4cf9",
+      "status": "completed",
+      "completed_at": 1788898329.3194978,
+      "receipt_sha256": "e92bc061f88179abb619af7228f8056765e532519b83fd5f6ff2ff0dba691dfb"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 1,
+      "evidence_id": "4ee9b928da374d87b97072fa0b33e2e1",
+      "status": "completed",
+      "completed_at": 1788898332.820354,
+      "receipt_sha256": "6ba325e42f44c47ae06e3da9a41b9d234b03bedc5892e572b6c0d7badef1e3f8"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 2,
+      "evidence_id": "c9c0d6d4beb748bbb7b3464efda170d1",
+      "status": "completed",
+      "completed_at": 1788898336.1680765,
+      "receipt_sha256": "16246a4370e4bf13bb8b275f42c76d5f981085d1be3b338da3805e12d7d11377"
+    },
+    {
+      "id": "auxiliary-simulator",
+      "repetition": 0,
+      "evidence_id": "177c07f048b24d97a8ec23b5f32c862e",
+      "status": "failed"
+    },
+    {
+      "id": "auxiliary-embedder",
+      "repetition": 0,
+      "evidence_id": "3156c7d5e8c9432c80ab9625f6734bdf",
+      "status": "failed"
+    }
+  ],
+  "expected_failures": [
+    "Actual v3 checkout changed paths differ from pinned patch contract",
+    "Both auxiliary checks deliberately import a nonexistent dependency"
+  ],
+  "scored_tasks_executed": 0
+}
