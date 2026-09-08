@@ -42,12 +42,12 @@ it is not a live qualification. No command here searches unrelated traffic.
 
 Admission rejections and response timeouts are different failure codes. A client
 response timeout without broker phase evidence is explicitly **phase unknown**;
-we cannot infer admission wait, warmup, or inference. Wait/yield/resume and
-exactly-once broker guarantees remain unsupported. Lost acknowledgments never
+we cannot infer admission wait, warmup, or inference. The default profile rejects wait/yield/resume; the opt-in native resume profile
+is described below. Durable exactly-once guarantees remain unsupported. Lost acknowledgments never
 trigger application replay. No timeout increase substitutes for measuring phase.
 
 Outstanding qualification gates: authorized live broker correlation, measured
-phase durations, broker wait/yield/resume contract, live embedding digest attestation,
+phase durations, live embedding digest attestation,
 and integration of an approved local amendment into scored execution. Transport
 correctness does not establish simulator semantics or grader calibration (#126).
 
@@ -108,3 +108,33 @@ lockfile, live GPU broker evidence, or scored-run qualification.
 The CI change adds shell steps to the existing Python 3.11 test job and reuses
 its existing pinned artifact action. It introduces no new action, installer or
 container reference; existing container/tool pin migration is outside this diff.
+
+The optional `admission_protocol: "ollama-unify-body-free-resume/1"` now
+implements the deployed public broker's native admission contract. Profiles bind
+`admission_wait_ms` (100–300000), `admission_total_seconds` (0.1–300), and
+`admission_max_attempts` (1–10). The initial inference remains one actual LiteLLM
+call with zero library retries. Its HTTP transport may resume an acknowledged
+retained admission, or poll an acknowledged in-progress request, using the same
+method/path/logical ID and an **empty body**. It never resubmits the inference
+body. Expired, cancelled, missing, conflicting or unsupported records fail
+closed. Socket failures remain ambiguous and do not trigger replay.
+
+The client sends `X-Ollama-Unify-Logical-Request-Id`; incoming `X-Request-ID`
+is not the broker's correlation key. Own responses bind logical ID, broker ID,
+queue ticket and lane. `queue_ms_including_warmup` includes model preparation;
+it cannot separate warmup from admission wait. The bounded in-memory broker
+response cache is not a durable exactly-once guarantee. Execution digest binding
+remains unverified, and transport qualification remains pending broker evidence.
+
+For public inference, use `--public-broker-admission` instead of an external
+`--lease-receipt`. This requires the resume profile and verifies that the returned
+lane currently maps to the requested model on a selected GPU in public discovery.
+It records only that own lane, never unrelated queue/traffic data. This is a
+current public mapping observation, not a historical execution attestation.
+External lease artifact hashes are explicitly marked unverified allocation
+bindings; arbitrary files cannot prove public broker allocation.
+
+This contract was audited against A100
+`/usr/local/libexec/ollama-unify-gpu-negotiator`, SHA256
+`c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e`.
+Live discovery is authoritative; the on-disk discovery snapshot was stale.

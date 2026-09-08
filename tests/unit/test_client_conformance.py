@@ -371,3 +371,166 @@ def test_public_metadata_digest_is_not_execution_attestation():
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+@pytest.mark.parametrize(
+    "scenario", ["replay", "expired", "changed_ticket", "budget", "hidden_replay"]
+)
+def test_actual_client_body_free_broker_resume(scenario):
+    pytest.importorskip("litellm")
+    calls = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            calls.append((self.path, body, dict(self.headers)))
+            first = len(calls) == 1
+            success = not first and scenario in ("replay", "hidden_replay")
+            reason = "queue_admission_timeout" if first else "logical_request_expired"
+            if scenario == "budget":
+                reason = "logical_request_in_progress"
+            payload = {
+                "reason_code": reason,
+                "retryable": first or scenario == "budget",
+                "request_id": "broker-1",
+                "logical_request_id": "resume-fixture",
+                "queue_ticket": 7,
+                "retry_after_ms": 0,
+                "admission_retained": first,
+                "resume_ttl_ms": 30000,
+                "queue": {"unrelated": "must-not-retain"},
+                "error": "private text",
+            }
+            if success:
+                payload = {
+                    "model": "fixture",
+                    "message": {"role": "assistant", "content": "OK"},
+                    "done": True,
+                    "done_reason": "stop",
+                    "eval_count": 1,
+                    "prompt_eval_count": 1,
+                    "created_at": "2026-09-08T00:00:00Z",
+                }
+            encoded = json.dumps(payload).encode()
+            self.send_response(200 if success else 503 if first else 409)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("X-Ollama-Unify-Logical-Request-Id", "resume-fixture")
+            self.send_header("X-Ollama-Unify-Request-Id", "broker-1")
+            self.send_header(
+                "X-Ollama-Unify-Queue-Ticket",
+                "8" if scenario == "changed_ticket" and not first else "7",
+            )
+            self.send_header("X-Ollama-Unify-Lane", "lane-1")
+            self.send_header("X-Ollama-Unify-Queue-Ms", "12")
+            if success:
+                self.send_header("X-Ollama-Unify-Response-Replayed", "true")
+            self.end_headers()
+            self.wfile.write(encoded)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    p = replace(
+        profile(f"http://127.0.0.1:{server.server_port}"),
+        client_version=importlib.metadata.version("litellm"),
+        admission_protocol="ollama-unify-body-free-resume/1",
+    )
+    try:
+        if scenario == "hidden_replay":
+            import litellm
+
+            def duplicate_client(**kwargs):
+                litellm.completion(**kwargs)
+                return litellm.completion(**kwargs)
+
+            with pytest.raises(ConformanceError, match="unexpected_library_replay_blocked"):
+                qualify_completion(
+                    p,
+                    "resume-fixture",
+                    [{"role": "user", "content": "OK"}],
+                    completion=duplicate_client,
+                )
+        elif scenario == "replay":
+            receipt = qualify_completion(p, "resume-fixture", [{"role": "user", "content": "OK"}])
+            assert receipt["broker_admission"]["http_attempts"] == 2
+            assert receipt["broker_admission"]["response_replayed"] is True
+            assert receipt["broker_admission"]["queue_ms_including_warmup"] == 12
+            assert "private text" not in json.dumps(receipt)
+            assert "must-not-retain" not in json.dumps(receipt)
+        else:
+            expected = {
+                "expired": "broker_resume_rejected_logical_request_expired",
+                "changed_ticket": "broker_correlation_changed",
+                "budget": "broker_resume_budget_exhausted",
+            }[scenario]
+            with pytest.raises(ConformanceError, match=expected):
+                qualify_completion(p, "resume-fixture", [{"role": "user", "content": "OK"}])
+        assert len(calls) == (3 if scenario == "budget" else 2)
+        validate_wire(p, calls[0][0], calls[0][2], json.loads(calls[0][1]))
+        for path, body, headers in calls[1:]:
+            lowered = {key.lower(): value for key, value in headers.items()}
+            assert path == "/api/chat"
+            assert body == b""
+            assert lowered["x-ollama-unify-resume-request"] == "true"
+            assert lowered["x-ollama-unify-logical-request-id"] == "resume-fixture"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+@pytest.mark.parametrize("selected", [True, False])
+def test_public_admitted_lane_mapping(selected):
+    from matric_eval.studies.broker_admission import verify_public_lane
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            assert self.path == "/.well-known/ollama-unify-gpu-negotiator"
+            payload = json.dumps(
+                {
+                    "selected_gpu_ids": ["GPU-own"] if selected else ["GPU-other"],
+                    "parallel_pool": {
+                        "lanes": [
+                            {
+                                "id": "own",
+                                "gpu_uuid": "GPU-own",
+                                "kind": "managed",
+                                "state": "ready",
+                                "model": "fixture",
+                            },
+                            {"id": "unrelated", "model": "private unrelated model"},
+                        ]
+                    },
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    p = profile(f"http://127.0.0.1:{server.server_port}")
+    evidence = {"lane": "own", "logical_request_id": "logical", "broker_request_id": "broker"}
+    try:
+        if selected:
+            result = verify_public_lane(p, evidence)
+            assert result["gpu_uuid"] == "GPU-own"
+            assert "unrelated" not in json.dumps(result)
+            assert result["execution_digest_binding"] == "unverified"
+        else:
+            with pytest.raises(ConformanceError, match="public_broker_lane_unverified"):
+                verify_public_lane(p, evidence)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()

@@ -21,6 +21,10 @@ SCHEMA = "matric-eval.client-conformance/1"
 class ConformanceError(RuntimeError):
     """Stable, content-free failure classification."""
 
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.broker_evidence: dict[str, Any] = {}
+
 
 def normalize_model(model: str) -> str:
     for prefix in ("ollama_chat/", "ollama/", "openai/", "hosted_vllm/"):
@@ -97,14 +101,34 @@ class ClientProfile:
     tools: bool = False
     phase_timing: str = "unavailable"
     admission_protocol: str = "reject_wait_yield_resume"
+    admission_wait_ms: int = 1000
+    admission_total_seconds: float = 30.0
+    admission_max_attempts: int = 3
     schema: str = SCHEMA
 
     def validate(self) -> None:
-        if (
-            self.phase_timing != "unavailable"
-            or self.admission_protocol != "reject_wait_yield_resume"
+        if self.phase_timing != "unavailable" or self.admission_protocol not in (
+            "reject_wait_yield_resume",
+            "ollama-unify-body-free-resume/1",
         ):
             raise ConformanceError("unsupported_broker_phase_or_resume_guarantee")
+        for value, lower, upper in (
+            (self.admission_wait_ms, 100, 300000),
+            (self.admission_total_seconds, 0.1, 300),
+            (self.admission_max_attempts, 1, 10),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not lower <= value <= upper
+            ):
+                raise ConformanceError("invalid_admission_budget")
+        if not isinstance(self.admission_wait_ms, int) or not isinstance(
+            self.admission_max_attempts, int
+        ):
+            raise ConformanceError("invalid_admission_budget")
+        if self.admission_protocol != "reject_wait_yield_resume" and self.route != "native":
+            raise ConformanceError("unsupported_openai_broker_resume")
         url = urlsplit(self.api_base)
         if (
             url.scheme not in ("http", "https")
@@ -142,6 +166,9 @@ class ClientProfile:
                 versions[package] = "absent"
         identity["installed_dependencies"] = versions
         identity["adapter_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        identity["broker_adapter_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("broker_admission.py").read_bytes()
+        ).hexdigest()
         return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
     def arguments(self, request_id: str) -> dict[str, Any]:
@@ -149,7 +176,7 @@ class ClientProfile:
         if (
             not request_id
             or len(request_id) > 80
-            or any(not (c.isalnum() or c in "-_") for c in request_id)
+            or any(not (c.isascii() and (c.isalnum() or c in "-_")) for c in request_id)
         ):
             raise ConformanceError("invalid_request_id")
         result = bounded_external_arguments(
@@ -162,6 +189,15 @@ class ClientProfile:
                 "headers": {"Content-Type": "application/json", "X-Request-ID": request_id},
             }
         )
+        result["headers"]["X-Ollama-Unify-Logical-Request-Id"] = request_id
+        if self.admission_protocol == "ollama-unify-body-free-resume/1":
+            result["headers"].update(
+                {
+                    "X-Ollama-Unify-Queue-Policy": "wait",
+                    "X-Ollama-Unify-Admission-Wait-Ms": str(self.admission_wait_ms),
+                    "X-Ollama-Unify-Workload-Class": "background",
+                }
+            )
         if self.route == "native":
             result["think"] = self.thinking
         return result
@@ -190,6 +226,7 @@ def qualify_completion(
     wire_models: list[str] = []
     wire_failures: list[str] = []
     http_client = None
+    broker_evidence: dict[str, Any] = {}
     if profile.route == "native":
         import httpx
 
@@ -208,7 +245,15 @@ def qualify_completion(
                 except Exception:
                     wire_failures.append("wire_response_or_request_invalid")
 
+        from matric_eval.studies.broker_admission import admission_transport
+
+        transport = (
+            admission_transport(profile, request_id, broker_evidence)
+            if profile.admission_protocol == "ollama-unify-body-free-resume/1"
+            else None
+        )
         http_client = httpx.Client(
+            transport=transport,
             timeout=profile.timeout,
             follow_redirects=False,
             event_hooks={"response": [inspect_response]},
@@ -218,6 +263,9 @@ def qualify_completion(
     try:
         response = completion(model=profile.model, messages=messages, tools=tools, **arguments)
     except Exception as exc:
+        if isinstance(exc, ConformanceError):
+            exc.broker_evidence = dict(broker_evidence)
+            raise
         status = getattr(exc, "status_code", None)
         timed_out = "timeout" in type(exc).__name__.lower()
         # LiteLLM 1.81.11 wraps native Ollama 429 as APIConnectionError(500).
@@ -226,6 +274,9 @@ def qualify_completion(
         seen = {id(exc)}
         while nested is not None and id(nested) not in seen:
             seen.add(id(nested))
+            if isinstance(nested, ConformanceError):
+                nested.broker_evidence = dict(broker_evidence)
+                raise nested from None
             timed_out = timed_out or "timeout" in type(nested).__name__.lower()
             nested_status = getattr(nested, "status_code", None)
             if nested_status in (202, 409, 429, 503):
@@ -238,7 +289,9 @@ def qualify_completion(
             reason = "response_timeout_phase_unknown_no_replay"
         else:
             reason = "transport_failure_no_replay"
-        raise ConformanceError(reason) from None
+        failure = ConformanceError(reason)
+        failure.broker_evidence = dict(broker_evidence)
+        raise failure from None
     finally:
         if http_client is not None:
             http_client.close()
@@ -296,7 +349,8 @@ def qualify_completion(
         "request_id": request_id,
         "client_response": "passed",
         "live_qualification": "pending_broker_evidence",
-        "retry_policy": "one_client_call_no_replay",
+        "retry_policy": "one_client_call_no_body_replay",
+        "broker_admission": broker_evidence,
         "reasoning_present": bool(reasoning),
         "tool_calls_present": bool(tool_calls),
         "response_model_check": "client_reported_identity_only",
