@@ -351,3 +351,91 @@ def test_new_boot_still_checks_current_owned_cuda(lifecycle):
     assert not lifecycle.reconcile()
     assert lifecycle.record["reason"] == "owned CUDA allocation remains"
     assert not lifecycle.broker.released
+
+
+@pytest.mark.parametrize("owned", [True, False])
+def test_orphan_launcher_session_is_extinct_before_release(lifecycle, tmp_path, owned):
+    import os
+    import signal
+    import subprocess
+    import sys
+
+    from matric_eval.studies.resource_lifecycle import process_identity
+
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    path = tmp_path / "orphan.pid"
+    environment = {
+        **os.environ,
+        "MATRIC_RESOURCE_ID": lifecycle.record["resource_id"] if owned else "another-attempt",
+    }
+    command = f'import subprocess,sys,pathlib,time; p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(60)"]); pathlib.Path({str(path)!r}).write_text(str(p.pid)); time.sleep(0.2)'
+    leader = subprocess.Popen(
+        [sys.executable, "-c", command], start_new_session=True, env=environment
+    )
+    identity = process_identity(leader.pid)
+    leader.wait(timeout=5)
+    orphan = int(path.read_text())
+    lifecycle.save(launcher=identity, state_before_launch="launched")
+    lifecycle.docker.cuda = lambda: [("GPU-owned", orphan)] if process_identity(orphan) else []
+    try:
+        result = lifecycle.reconcile()
+        if owned:
+            assert result
+            assert process_identity(orphan) is None
+            assert lifecycle.broker.released == ["private-token"]
+            assert (
+                lifecycle.record["launcher_extinct_at"]
+                <= lifecycle.record["lease_release_acknowledged_at"]
+            )
+        else:
+            assert not result
+            assert process_identity(orphan) is not None
+            assert not lifecycle.broker.released
+            assert lifecycle.record["cleanup"] == "pending"
+    finally:
+        try:
+            os.killpg(leader.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+@pytest.mark.parametrize("operation", ["inspect", "stop", "remove", "cuda"])
+def test_docker_and_cuda_tools_have_real_subprocess_deadlines(tmp_path, monkeypatch, operation):
+    import os
+    import subprocess
+    import sys
+    import time
+
+    from matric_eval.studies.resource_lifecycle import Docker
+
+    executable = tmp_path / ("nvidia-smi" if operation == "cuda" else "docker")
+    executable.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(60)\n")
+    executable.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    docker = Docker("unix:///fixture", timeout=0.1)
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        if operation == "cuda":
+            docker.cuda()
+        else:
+            getattr(docker, operation)("fixture-owned")
+    assert time.monotonic() - started < 3
+
+
+def test_tool_timeout_retains_lease_obligation(lifecycle, tmp_path, monkeypatch):
+    import os
+    import sys
+
+    from matric_eval.studies.resource_lifecycle import Docker
+
+    executable = tmp_path / "docker"
+    executable.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(60)\n")
+    executable.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    lifecycle.acquire()
+    lifecycle.docker = Docker("unix:///fixture", timeout=0.1)
+    assert not lifecycle.reconcile()
+    assert lifecycle.record["reason"] == "TimeoutExpired"
+    assert not lifecycle.broker.released
+    assert lifecycle.private.exists()

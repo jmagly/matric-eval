@@ -84,8 +84,9 @@ class Broker:
 
 
 class Docker:
-    def __init__(self, host: str) -> None:
+    def __init__(self, host: str, timeout: float = 30) -> None:
         self.host = host
+        self.timeout = timeout
 
     def command(self, *args: str) -> list[str]:
         return ["docker", "--host", self.host, *args]
@@ -96,20 +97,27 @@ class Docker:
             check=True,
             capture_output=True,
             text=True,
+            timeout=self.timeout,
         )
         if name not in result.stdout.splitlines():
             return None
-        return json.loads(subprocess.check_output(self.command("inspect", name)))[0]  # type: ignore[no-any-return]
+        payload: list[dict[str, Any]] = json.loads(
+            subprocess.check_output(self.command("inspect", name), timeout=self.timeout)
+        )
+        return payload[0]
 
     def stop(self, identifier: str) -> None:
         subprocess.run(
             self.command("stop", "--time", "10", identifier),
             check=True,
             capture_output=True,
+            timeout=self.timeout,
         )
 
     def remove(self, identifier: str) -> None:
-        subprocess.run(self.command("rm", identifier), check=True, capture_output=True)
+        subprocess.run(
+            self.command("rm", identifier), check=True, capture_output=True, timeout=self.timeout
+        )
 
     def cuda(self) -> list[tuple[str, int]]:
         output = subprocess.check_output(
@@ -119,6 +127,7 @@ class Docker:
                 "--format=csv,noheader,nounits",
             ],
             text=True,
+            timeout=self.timeout,
         )
         return [
             (row.split(",")[0].strip(), int(row.split(",")[1]))
@@ -254,6 +263,74 @@ class ResourceLifecycle:
             raise RuntimeError("lease token changed")
         return lease  # type: ignore[no-any-return]
 
+    def launcher_members(self) -> list[dict[str, Any]]:
+        """Identify live members even after the session leader exits.
+
+        Inherited attempt identity is required even for a surviving leader;
+        unknown or reused groups fail closed before any signal is delivered.
+        """
+        launcher = self.record.get("launcher")
+        if not launcher or launcher["boot_id"] != boot():
+            return []
+        if launcher["host"] != socket.gethostname():
+            raise RuntimeError("launcher belongs to another host")
+        members = []
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+                if fields[0] == "Z" or launcher["pid"] not in (int(fields[2]), int(fields[3])):
+                    continue
+                identity = process_identity(int(entry.name))
+                if identity is None:
+                    continue
+                marker = ("MATRIC_RESOURCE_ID=" + self.record["resource_id"]).encode()
+                if marker not in (entry / "environ").read_bytes().split(b"\0"):
+                    raise RuntimeError("orphan launcher ownership cannot be established")
+                members.append(identity)
+            except FileNotFoundError:
+                continue
+        return members
+
+    def stop_launcher(self) -> None:
+        """Signal pinned process identities and prove the entire session extinct."""
+        for signum, grace in ((signal.SIGTERM, 10), (signal.SIGKILL, 5)):
+            deadline = time.monotonic() + grace
+            signaled: set[tuple[int, str]] = set()
+            while members := self.launcher_members():
+                self.save(
+                    cuda_pids=sorted(
+                        set(self.record["cuda_pids"]) | {member["pid"] for member in members}
+                    )
+                )
+                for member in members:
+                    identity_key = (member["pid"], member["start_ticks"])
+                    if identity_key in signaled:
+                        continue
+                    try:
+                        descriptor = os.pidfd_open(member["pid"])
+                    except ProcessLookupError:
+                        continue
+                    try:
+                        # pidfd pins signal delivery; the recheck rejects PID reuse
+                        # between enumeration and opening the descriptor.
+                        if process_identity(member["pid"]) != member:
+                            continue
+                        signal.pidfd_send_signal(descriptor, signum)
+                        signaled.add(identity_key)
+                    except ProcessLookupError:
+                        pass
+                    finally:
+                        os.close(descriptor)
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.05)
+            if not self.launcher_members():
+                self.save(launcher_extinct_at=time.time())
+                return
+        raise RuntimeError("owned launcher descendants remain alive")
+
     def reconcile(self) -> bool:
         if not self.record:
             return True
@@ -263,14 +340,7 @@ class ResourceLifecycle:
             if self.record.get("cleanup") == "complete":
                 return True
             self.save(state="cleanup-pending", cleanup="pending")
-            launcher = self.record.get("launcher")
-            if launcher and alive(launcher):
-                os.killpg(launcher["pid"], signal.SIGTERM)
-                deadline = time.monotonic() + 10
-                while alive(launcher) and time.monotonic() < deadline:
-                    time.sleep(0.1)
-                if alive(launcher):
-                    os.killpg(launcher["pid"], signal.SIGKILL)
+            self.stop_launcher()
             info = self.docker.inspect(self.record["container"])
             owned_pids = (
                 set(self.record["cuda_pids"]) if self.record["boot_id"] == boot() else set()
@@ -495,15 +565,6 @@ class ResourceLifecycle:
             heartbeat_stop.set()
             if heartbeat_worker is not None:
                 heartbeat_worker.join(timeout=11)
-            # Stop the docker client group before container cleanup. Docker stop
-            # remains required because a daemon-owned container outlives its client.
-            if child is not None and child.poll() is None:
-                os.killpg(child.pid, signal.SIGTERM)
-                try:
-                    child.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid, signal.SIGKILL)
-                    child.wait()
             for original_signum, handler in handlers.items():
                 signal.signal(original_signum, handler)
             if storage:
@@ -513,6 +574,8 @@ class ResourceLifecycle:
                 storage.finish(resource_cleanup)
             if not resource_cleanup:
                 raise RuntimeError("resource cleanup pending; run reconcile before new allocation")
+            if child is not None:
+                child.wait(timeout=1)
 
 
 def main() -> int:

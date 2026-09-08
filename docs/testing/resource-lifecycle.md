@@ -13,3 +13,17 @@ After a controller crash, run `python -m matric_eval.studies.resource_lifecycle 
 Do not copy `lease.private.json` or token-bearing readiness filenames to public artifacts. `record.json` is the sanitized resource receipt. This is a resource registry, not an observation journal. Frozen benchmark inputs and evaluation acceptance remain in the existing journal/protocol contracts.
 
 Qualification uses A100 infrastructure. Unit fixtures cover lost acquire acknowledgment, broker outage/reconnect, exact ownership, CUDA release ordering, unrelated resources, pending allocation and repeated attempts; real Unix-socket transport verifies errors do not expose tokens. The retained on-host receipt separately records the bounded real CUDA qualification. Full pipeline qualification additionally needs the staged preflight and scheduler integrations.
+
+Reconciliation enumerates the launcher's entire process session, including members
+left behind after its leader exits. Every member must retain the attempt's
+`MATRIC_RESOURCE_ID`; an unknown/reused group remains cleanup-pending without being
+signaled. Signals use Linux pidfds plus process-start identity checks, so PID reuse
+cannot redirect a signal. TERM/KILL escalation is bounded, all observed launcher
+PIDs join the CUDA-release predicate, and the session must be extinct before the
+owned container is stopped and the lease released. The same path handles normal
+controller shutdown and restart reconciliation.
+
+Docker list/inspect/stop/remove and NVIDIA process queries each have a 30-second
+subprocess deadline. Timeout preserves the cleanup record and private token;
+reconciliation can resume after the service recovers. Real orphan-process and
+hung-tool fixtures verify these boundaries on A100 without allocating a GPU.
