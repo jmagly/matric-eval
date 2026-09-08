@@ -84,6 +84,15 @@ def test_release_audits_use_runtime_inventory_and_producer_status() -> None:
     )
 
 
+def test_canonical_build_provisions_python_for_actual_typescript_cli_test() -> None:
+    steps = workflow(".gitea/workflows/ci.yml")["jobs"]["build"]["steps"]
+    command = next(
+        step["run"] for step in steps if step["name"] == "Build and test TypeScript package"
+    )
+    assert command.index("uv sync --locked --project ../..") < command.index("npm test")
+    assert 'export MATRIC_EVAL_TEST_PYTHON="$(cd ../.. && pwd)/.venv/bin/python"' in command
+
+
 def test_tag_wrapper_checks_clean_main_and_never_pushes(tmp_path: Path) -> None:
     import subprocess
 

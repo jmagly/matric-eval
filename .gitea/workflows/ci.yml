@@ -190,6 +190,8 @@ jobs:
       - name: Build and test TypeScript package
         working-directory: bindings/typescript
         run: |
+          uv sync --locked --project ../..
+          export MATRIC_EVAL_TEST_PYTHON="$(cd ../.. && pwd)/.venv/bin/python"
           npm ci
           npm run build
           npm test
