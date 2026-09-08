@@ -1,0 +1,2623 @@
+{
+  "schema_version": 1,
+  "catalog_id": "matric/public-sources/1",
+  "reviewed_at": "2026-09-07",
+  "scope_notes": [
+    "Publicly discoverable domain datasets; public in this catalog does not mean public domain, unrestricted, acquired, qualified, or eligible for training/final assessment.",
+    "Immutable upstream revisions and selected file metadata were resolved from official HTTP metadata, Git refs, repository documentation/tree listings and HTTP HEAD. No dataset payload was downloaded or executed to author this catalog.",
+    "Files are an explicit selected text/tabular acquisition mapping, not an exhaustive upstream repository inventory. Scripts, notebooks, weights, images, linked PDFs and redundant representations are excluded as documented per source.",
+    "Native configurations/splits preserve source organization only. Non-HF configuration names denote native subsets; empty arrays mean not established/not applicable. No local PartitionRole is assigned.",
+    "Publisher sizes count different units and may describe larger releases than selected files. Label provenance and group hints require adapter review; never infer human gold from machine scores or prompt references.",
+    "Acquisition mapped means selected bytes are addressable, not a license clearance or runtime qualification. Gated/restricted/unclear candidates remain present with explicit blockers.",
+    "File expected_sha256 is supplied only when official HF LFS metadata exposes a valid SHA256. Null means content hash must be computed and retained on acquisition; HTTP ETags are not treated as cryptographic content hashes.",
+    "Keep public exposure, original corpus provenance, license notices, nullable labels, rater disagreement and original row identifiers through every downstream flow."
+  ],
+  "sources": [
+    {
+      "id": "agentprocessbench",
+      "title": "AgentProcessBench",
+      "domains": [
+        "tool_use",
+        "agent_process"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "LulaCola/AgentProcessBench",
+        "revision": "cd81f326aece8b0a3f6359e20df370690d3a98bf",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/LulaCola/AgentProcessBench",
+        "files_metadata_url": "https://huggingface.co/api/datasets/LulaCola/AgentProcessBench/tree/cd81f326aece8b0a3f6359e20df370690d3a98bf?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench",
+      "source_docs": [
+        "https://huggingface.co/datasets/LulaCola/AgentProcessBench/blob/cd81f326aece8b0a3f6359e20df370690d3a98bf/README.md",
+        "https://github.com/RUCBM/AgentProcessBench",
+        "https://arxiv.org/abs/2603.14465"
+      ],
+      "configurations": [
+        "bfcl",
+        "gaia_dev",
+        "hotpotqa",
+        "tau2"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Four native JSONL configurations; upstream source benchmark terms remain relevant.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "step_process_label",
+          "reference_output"
+        ],
+        "notes": "Neutral/recoverable process labels must not silently become binary failure. Tool traces are inert data."
+      },
+      "license": {
+        "data": "mit",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Original task identity within source benchmark across trajectories and steps."
+      ],
+      "reported_size": {
+        "description": "1000 trajectories and 8509 human-labeled steps",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 915,
+          "url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench/resolve/cd81f326aece8b0a3f6359e20df370690d3a98bf/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "bfcl/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 15010475,
+          "url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench/resolve/cd81f326aece8b0a3f6359e20df370690d3a98bf/bfcl/test.jsonl",
+          "expected_sha256": "6aee0b71eff7feb872c6b54d962f8831b56f7bebf770cba9cb657f219afb6fe5"
+        },
+        {
+          "path": "gaia_dev/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 11957593,
+          "url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench/resolve/cd81f326aece8b0a3f6359e20df370690d3a98bf/gaia_dev/test.jsonl",
+          "expected_sha256": "f7b75c668fc1e6ad943e8f6d93a21a9a8f5f076841e1230e1ed2fc6d05ce8192"
+        },
+        {
+          "path": "hotpotqa/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 3174572,
+          "url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench/resolve/cd81f326aece8b0a3f6359e20df370690d3a98bf/hotpotqa/test.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "tau2/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 9960563,
+          "url": "https://huggingface.co/datasets/LulaCola/AgentProcessBench/resolve/cd81f326aece8b0a3f6359e20df370690d3a98bf/tau2/test.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "flask",
+      "title": "FLASK",
+      "domains": [
+        "general",
+        "response_quality",
+        "rubric_taxonomy"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "kaistAI/FLASK",
+        "revision": "3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/kaistAI/FLASK/tree/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5",
+        "files_metadata_url": "https://github.com/kaistAI/FLASK/tree/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5"
+      },
+      "source_url": "https://github.com/kaistAI/FLASK",
+      "source_docs": [
+        "https://raw.githubusercontent.com/kaistAI/FLASK/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5/README.md"
+      ],
+      "configurations": [],
+      "splits": [],
+      "native_layout_notes": "Only evaluation_set JSONL files mapped; model output/review acquisition requires further provenance and license review.",
+      "native_labels": {
+        "origin": "machine",
+        "types": [
+          "skill_metadata",
+          "domain_metadata",
+          "difficulty_metadata",
+          "gpt4_review"
+        ],
+        "notes": "Official implementation supplies GPT-4 reviews/automatic metadata. Released human response-label artifacts and data/code license remain unverified."
+      },
+      "license": {
+        "data": "unverified",
+        "code": "unverified",
+        "status": "unclear",
+        "notes": "Repository metadata reports no license; a code or data license was not established."
+      },
+      "access": {
+        "status": "review_required",
+        "notes": "Metadata retained; license/intended-use or source-document review required before acquisition/release."
+      },
+      "acquisition": {
+        "status": "blocked_license",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Original prompt across model outputs, skills and FLASK-Hard variants."
+      ],
+      "reported_size": {
+        "description": null,
+        "basis": "not_verified"
+      },
+      "files": [
+        {
+          "path": "evaluation_set/flask_evaluation.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 2301319,
+          "url": "https://raw.githubusercontent.com/kaistAI/FLASK/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5/evaluation_set/flask_evaluation.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 6386,
+          "url": "https://raw.githubusercontent.com/kaistAI/FLASK/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "evaluation_set/flask_hard_evaluation.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 119459,
+          "url": "https://raw.githubusercontent.com/kaistAI/FLASK/3b4e22bc34aa9dc15ea0c51be3cbf5f3c8b1b5e5/evaluation_set/flask_hard_evaluation.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "halueval",
+      "title": "HaluEval",
+      "domains": [
+        "factuality",
+        "summarization",
+        "dialogue",
+        "question_answering"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "RUCAIBox/HaluEval",
+        "revision": "b7253db3cdaa0ab2c382f92b26b390109174f77e",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/RUCAIBox/HaluEval/tree/b7253db3cdaa0ab2c382f92b26b390109174f77e",
+        "files_metadata_url": "https://github.com/RUCAIBox/HaluEval/tree/b7253db3cdaa0ab2c382f92b26b390109174f77e"
+      },
+      "source_url": "https://github.com/RUCAIBox/HaluEval",
+      "source_docs": [
+        "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/README.md",
+        "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/evaluation/evaluate.py",
+        "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/analysis/analyze.py"
+      ],
+      "configurations": [
+        "general",
+        "qa",
+        "dialogue",
+        "summarization"
+      ],
+      "splits": [],
+      "native_layout_notes": "Repository subset filenames are not HF configs or local role grants. Files named .json are line-delimited JSON according to pinned evaluation/evaluate.py and analysis/analyze.py; mapped as jsonl.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "human_hallucination_yes_no",
+          "generated_hallucinated_answer",
+          "reference_answer"
+        ],
+        "notes": "Only general subset is human-labeled; task-specific hallucinations are generated/filtered. Preserve Alpaca, HotpotQA, OpenDialKG and CNN/DailyMail source terms."
+      },
+      "license": {
+        "data": "MIT (repository; upstream terms also apply)",
+        "code": "MIT",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Original query/source document across generated examples and subsets."
+      ],
+      "reported_size": {
+        "description": "5000 human-labeled general responses plus 30000 generated task-specific examples",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 6722,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1065,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/dialogue_data.json",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 6984266,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/dialogue_data.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/general_data.json",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 3307122,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/general_data.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/qa_data.json",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 6164420,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/qa_data.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/summarization_data.json",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 46992527,
+          "url": "https://raw.githubusercontent.com/RUCAIBox/HaluEval/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/summarization_data.json",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "harmbench",
+      "title": "HarmBench",
+      "domains": [
+        "safety",
+        "agent_risk"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "centerforaisafety/HarmBench",
+        "revision": "8e1604d1171fe8a48d8febecd22f600e462bdcdd",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/centerforaisafety/HarmBench/tree/8e1604d1171fe8a48d8febecd22f600e462bdcdd",
+        "files_metadata_url": "https://github.com/centerforaisafety/HarmBench/tree/8e1604d1171fe8a48d8febecd22f600e462bdcdd"
+      },
+      "source_url": "https://github.com/centerforaisafety/HarmBench",
+      "source_docs": [
+        "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/README.md"
+      ],
+      "configurations": [],
+      "splits": [
+        "text_val",
+        "text_test"
+      ],
+      "native_layout_notes": "Text behavior CSVs and text classifier validation JSON selected. Multimodal assets and classifier/model weights excluded.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "behavior_category",
+          "behavior_id",
+          "classifier_validation_annotations"
+        ],
+        "notes": "Behavior prompts, human validation and GPT-4-distilled classifier training are distinct. Classifier validation labels require per-artifact provenance review."
+      },
+      "license": {
+        "data": "MIT (repository; incorporated content terms remain)",
+        "code": "MIT",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "BehaviorID across validation/test, attack variants and completions."
+      ],
+      "reported_size": {
+        "description": "510 behaviors: 400 text and 110 multimodal",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 10480,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1074,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/behavior_datasets/harmbench_behaviors_text_all.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 198850,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/behavior_datasets/harmbench_behaviors_text_all.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/classifier_val_sets/text_behaviors_val_set.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 1875939,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/classifier_val_sets/text_behaviors_val_set.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/behavior_datasets/harmbench_behaviors_text_val.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 38024,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/behavior_datasets/harmbench_behaviors_text_val.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/behavior_datasets/harmbench_behaviors_text_test.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 160828,
+          "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/behavior_datasets/harmbench_behaviors_text_test.csv",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "helpsteer2",
+      "title": "HelpSteer2",
+      "domains": [
+        "general",
+        "response_quality"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "nvidia/HelpSteer2",
+        "revision": "990b2711a36180dd19d9c94b8627844866f8982a",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer2",
+        "files_metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer2/tree/990b2711a36180dd19d9c94b8627844866f8982a?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/nvidia/HelpSteer2",
+      "source_docs": [
+        "https://huggingface.co/datasets/nvidia/HelpSteer2/blob/990b2711a36180dd19d9c94b8627844866f8982a/README.md"
+      ],
+      "configurations": [],
+      "splits": [
+        "train",
+        "validation"
+      ],
+      "native_layout_notes": "Native root JSONL gzip files; disagreements release also retained. No explicit HF config declaration.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "helpfulness",
+          "correctness",
+          "coherence",
+          "complexity",
+          "verbosity",
+          "individual_rater_attributes"
+        ],
+        "notes": "Preserve five separate 0-4 attributes, averaged ratings and released individual disagreements."
+      },
+      "license": {
+        "data": "cc-by-4.0",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Adjacent response rows share prompts; joins with preference release are dependent."
+      ],
+      "reported_size": {
+        "description": "21362 responses; 20324 train, 1038 validation",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 24960,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "disagreements/disagreements.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 13368757,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/disagreements/disagreements.jsonl.gz",
+          "expected_sha256": "53435e0e2926620bf08ce91f278d7368ee6903f416a47764fe8839f3b71b3ab4"
+        },
+        {
+          "path": "train.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 11315813,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/train.jsonl.gz",
+          "expected_sha256": "c0d7e91d738d42e8a08070db26c4c09a9c7631308e1f0fd380ff43d130c9f713"
+        },
+        {
+          "path": "validation.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 581833,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/validation.jsonl.gz",
+          "expected_sha256": "610eeb5289494d613c4c0f70aade2df8df0b499f3a24e76d232f74e6909d010a"
+        }
+      ]
+    },
+    {
+      "id": "helpsteer2-preference",
+      "title": "HelpSteer2-Preference",
+      "domains": [
+        "general",
+        "response_quality"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "nvidia/HelpSteer2",
+        "revision": "990b2711a36180dd19d9c94b8627844866f8982a",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer2",
+        "files_metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer2/tree/990b2711a36180dd19d9c94b8627844866f8982a?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/nvidia/HelpSteer2",
+      "source_docs": [
+        "https://huggingface.co/datasets/nvidia/HelpSteer2/blob/990b2711a36180dd19d9c94b8627844866f8982a/README.md"
+      ],
+      "configurations": [],
+      "splits": [
+        "train",
+        "validation"
+      ],
+      "native_layout_notes": "preference/preference.jsonl.gz contains row-level split=train/validation; HF data_dir loading may expose a single train container.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "preference_strength",
+          "preference_statement",
+          "preference_elaboration",
+          "individual_rater_preferences"
+        ],
+        "notes": "Dedicated human preferences differ from preferences inferred from helpfulness; preserve all_preferences_unprocessed."
+      },
+      "license": {
+        "data": "cc-by-4.0",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Same prompt/response identities as HelpSteer2; never split the two releases independently."
+      ],
+      "reported_size": {
+        "description": null,
+        "basis": "not_verified"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 24960,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "preference/preference.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 15339272,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer2/resolve/990b2711a36180dd19d9c94b8627844866f8982a/preference/preference.jsonl.gz",
+          "expected_sha256": "a5cd48600fb7a330cf0ccc8f59051e24e8f236907c379f42eff1ba18da55204b"
+        }
+      ]
+    },
+    {
+      "id": "helpsteer3-preference",
+      "title": "HelpSteer3-Preference",
+      "domains": [
+        "general",
+        "stem",
+        "code",
+        "multilingual"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "nvidia/HelpSteer3",
+        "revision": "f6d145777bcbde96137596340fab89793acd1031",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer3",
+        "files_metadata_url": "https://huggingface.co/api/datasets/nvidia/HelpSteer3/tree/f6d145777bcbde96137596340fab89793acd1031?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/nvidia/HelpSteer3",
+      "source_docs": [
+        "https://huggingface.co/datasets/nvidia/HelpSteer3/blob/f6d145777bcbde96137596340fab89793acd1031/README.md"
+      ],
+      "configurations": [
+        "preference"
+      ],
+      "splits": [
+        "train",
+        "validation"
+      ],
+      "native_layout_notes": "Only preference files selected; feedback, edit, edit_quality and principle configs are outside this candidate.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "pairwise_preference_strength",
+          "individual_rater_preference",
+          "preference_reason"
+        ],
+        "notes": "Preference is relative, not absolute correctness; preserve ties and individual rater judgments."
+      },
+      "license": {
+        "data": "cc-by-4.0",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Context/prompt identity across response pairs; retain language and domain."
+      ],
+      "reported_size": {
+        "description": "40476 preference pairs; 38459 train, 2017 validation",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 70617,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer3/resolve/f6d145777bcbde96137596340fab89793acd1031/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "preference/train.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 106484475,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer3/resolve/f6d145777bcbde96137596340fab89793acd1031/preference/train.jsonl.gz",
+          "expected_sha256": "32b52e1d378f8dab1e4c9ae549da49a5d6fc0875aeafe3f9139e6053beb906bb"
+        },
+        {
+          "path": "preference/validation.jsonl.gz",
+          "format": "jsonl.gz",
+          "purpose": "data",
+          "size_bytes": 5487516,
+          "url": "https://huggingface.co/datasets/nvidia/HelpSteer3/resolve/f6d145777bcbde96137596340fab89793acd1031/preference/validation.jsonl.gz",
+          "expected_sha256": "cd0d8b6efd7869a44c1b5ff91701232062555829b3c838abfd770d7dab6c7861"
+        }
+      ]
+    },
+    {
+      "id": "humanevalplus",
+      "title": "HumanEval+",
+      "domains": [
+        "code"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "evalplus/humanevalplus",
+        "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/evalplus/humanevalplus",
+        "files_metadata_url": "https://huggingface.co/api/datasets/evalplus/humanevalplus/tree/d32357cf319e50e9c8d8dab5ea876c72b0fd321b?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/evalplus/humanevalplus",
+      "source_docs": [
+        "https://huggingface.co/datasets/evalplus/humanevalplus/blob/d32357cf319e50e9c8d8dab5ea876c72b0fd321b/README.md",
+        "https://github.com/evalplus/evalplus/blob/master/LICENSE"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Select configured parquet representation; duplicate test.jsonl representation excluded.",
+      "native_labels": {
+        "origin": "executable",
+        "types": [
+          "canonical_solution",
+          "test_oracle"
+        ],
+        "notes": "Prompt/reference/tests, not human-rated model responses. Execution requires a separately qualified harness."
+      },
+      "license": {
+        "data": "apache-2.0",
+        "code": "Apache-2.0",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "task_id and original HumanEval problem across related releases."
+      ],
+      "reported_size": {
+        "description": "164 problems",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 551,
+          "url": "https://huggingface.co/datasets/evalplus/humanevalplus/resolve/d32357cf319e50e9c8d8dab5ea876c72b0fd321b/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/test-00000-of-00001-5973903632b82d40.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 2902210,
+          "url": "https://huggingface.co/datasets/evalplus/humanevalplus/resolve/d32357cf319e50e9c8d8dab5ea876c72b0fd321b/data/test-00000-of-00001-5973903632b82d40.parquet",
+          "expected_sha256": "4436f5c03d77c17e0cbc57543b90665b5c1266f55a43992a5ed7922cd34a7558"
+        }
+      ]
+    },
+    {
+      "id": "ifeval",
+      "title": "IFEval",
+      "domains": [
+        "instruction_following"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "google/IFEval",
+        "revision": "966cd89545d6b6acfd7638bc708b98261ca58e84",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/google/IFEval",
+        "files_metadata_url": "https://huggingface.co/api/datasets/google/IFEval/tree/966cd89545d6b6acfd7638bc708b98261ca58e84?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/google/IFEval",
+      "source_docs": [
+        "https://huggingface.co/datasets/google/IFEval/blob/966cd89545d6b6acfd7638bc708b98261ca58e84/README.md",
+        "https://github.com/google-research/google-research/tree/master/instruction_following_eval"
+      ],
+      "configurations": [],
+      "splits": [
+        "train"
+      ],
+      "native_layout_notes": "One native JSONL input file. train is HF container naming, not an authorized local training role.",
+      "native_labels": {
+        "origin": "executable",
+        "types": [
+          "instruction_id_list",
+          "verification_kwargs"
+        ],
+        "notes": "No human response judgments. Strict/loose compliance needs explicit later protocol; not factuality."
+      },
+      "license": {
+        "data": "apache-2.0",
+        "code": "Apache-2.0",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Prompt key and constraint family; instruction checks within a prompt are dependent."
+      ],
+      "reported_size": {
+        "description": "541 prompts",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 5523,
+          "url": "https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "ifeval_input_data.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 207111,
+          "url": "https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/ifeval_input_data.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "judgmentbench",
+      "title": "JudgmentBench",
+      "domains": [
+        "legal",
+        "response_quality"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "judgmentbench/JudgmentBench",
+        "revision": "945ff52f4c63c17006dc30ec35fefbddf3ccf58d",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/judgmentbench/JudgmentBench",
+        "files_metadata_url": "https://huggingface.co/api/datasets/judgmentbench/JudgmentBench/tree/945ff52f4c63c17006dc30ec35fefbddf3ccf58d?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench",
+      "source_docs": [
+        "https://huggingface.co/datasets/judgmentbench/JudgmentBench/blob/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/README.md"
+      ],
+      "configurations": [
+        "outputs",
+        "tasks",
+        "documents",
+        "rubric_items",
+        "annotators",
+        "annotator_experience_summary",
+        "assignment_records",
+        "rubric_annotations",
+        "comparative_judgment_annotations",
+        "rubric_item_scores",
+        "autograder_gpt_5_4_rubric_annotations",
+        "autograder_gpt_5_4_comparative_judgment_annotations",
+        "autograder_gpt_5_4_rubric_item_scores",
+        "autograder_gpt_5_4_mini_rubric_annotations",
+        "autograder_gpt_5_4_mini_comparative_judgment_annotations",
+        "autograder_gpt_5_4_mini_rubric_item_scores"
+      ],
+      "splits": [],
+      "native_layout_notes": "CSV relational tables selected; linked source PDFs excluded from first text-only acquisition. Full legal evidence requires those documents and source-rights handling.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "human_rubric_annotations",
+          "human_pairwise_judgment",
+          "autograder_rubric_annotations",
+          "constructed_quality_level"
+        ],
+        "notes": "Practicing-lawyer labels in human/ are distinct from autograders/ and constructed output quality. Card states BigLaw tasks included with rights-holder permission."
+      },
+      "license": {
+        "data": "mit",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Task and source documents across outputs, rubric items and annotators."
+      ],
+      "reported_size": {
+        "description": "30 tasks, 1539 human rubric annotations, 1530 human pairwise judgments",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 19350,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4/annotations_comparative_judgment.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1930912,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4/annotations_comparative_judgment.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4/annotations_rubric.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1127626,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4/annotations_rubric.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4/rubric_item_scores.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1341759,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4/rubric_item_scores.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4_mini/annotations_comparative_judgment.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1241699,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4_mini/annotations_comparative_judgment.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4_mini/annotations_rubric.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 239059,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4_mini/annotations_rubric.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "autograders/gpt_5_4_mini/rubric_item_scores.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1347014,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/autograders/gpt_5_4_mini/rubric_item_scores.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "base/documents.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 4414,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/base/documents.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "base/rubric_items.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 75258,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/base/rubric_items.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "base/tasks.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 88094,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/base/tasks.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/annotations_comparative_judgment.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 217276,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/annotations_comparative_judgment.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/annotations_rubric.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 165792,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/annotations_rubric.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/annotator_experience_summary.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 244,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/annotator_experience_summary.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/annotators.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 4775,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/annotators.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/assignment_records.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 409720,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/assignment_records.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "human/rubric_item_scores.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 1045437,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/human/rubric_item_scores.csv",
+          "expected_sha256": null
+        },
+        {
+          "path": "outputs/outputs.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 23357096,
+          "url": "https://huggingface.co/datasets/judgmentbench/JudgmentBench/resolve/945ff52f4c63c17006dc30ec35fefbddf3ccf58d/outputs/outputs.csv",
+          "expected_sha256": "05c6b5219e12790c453b77d95fa86ed01c713323721bab2ff147febc943d49e5"
+        }
+      ]
+    },
+    {
+      "id": "livecodebench",
+      "title": "LiveCodeBench code generation lite",
+      "domains": [
+        "code"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "livecodebench/code_generation_lite",
+        "revision": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/livecodebench/code_generation_lite",
+        "files_metadata_url": "https://huggingface.co/api/datasets/livecodebench/code_generation_lite/tree/0fe84c3912ea0c4d4a78037083943e8f0c4dd505?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/livecodebench/code_generation_lite",
+      "source_docs": [
+        "https://huggingface.co/datasets/livecodebench/code_generation_lite/blob/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/README.md",
+        "https://github.com/LiveCodeBench/LiveCodeBench/blob/main/LICENSE"
+      ],
+      "configurations": [],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Six JSONL files listed at pinned revision. Version assembly is script-defined and unverified here; do not execute loader or sum cumulative rows.",
+      "native_labels": {
+        "origin": "executable",
+        "types": [
+          "public_test_cases",
+          "private_test_cases",
+          "difficulty",
+          "release_date"
+        ],
+        "notes": "Competition-source rights unresolved; temporal releases do not prove model non-exposure."
+      },
+      "license": {
+        "data": "cc",
+        "code": "MIT",
+        "status": "unclear",
+        "notes": "Card states only cc, without a Creative Commons variant; incorporated contest-source rights unresolved."
+      },
+      "access": {
+        "status": "review_required",
+        "notes": "Public metadata but acquisition blocked pending license clarification."
+      },
+      "acquisition": {
+        "status": "blocked_license",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Platform plus question_id and contest/release identity across cumulative versions."
+      ],
+      "reported_size": {
+        "description": "Publisher card: release_v1 400, v2 511, v3 612, v4 713, v5 880 problems",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 3390,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 1252609773,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test.jsonl",
+          "expected_sha256": "2bd02b38beb48e8c46b5b9987095d999ff38cd8efc255ea5d58974317c48f63f"
+        },
+        {
+          "path": "test2.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 713377060,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test2.jsonl",
+          "expected_sha256": "095df7c5daf15f882c51a9deb84085cff1e073495a5dbcf95015a564d485f3a3"
+        },
+        {
+          "path": "test3.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 623360766,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test3.jsonl",
+          "expected_sha256": "28ed26cc83363ce3f1fe2d5fad9f8393077beb1907b167a31bd3b32f80801b79"
+        },
+        {
+          "path": "test4.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 1204644685,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test4.jsonl",
+          "expected_sha256": "d711138ddaebfcf5f8ec6a4283ee677298c0f5c5d374a235af92aaf0584510da"
+        },
+        {
+          "path": "test5.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 557699297,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test5.jsonl",
+          "expected_sha256": "7f77571c2a6df0c2a72a3277650309f67e01e0008e18117e624633df53f81214"
+        },
+        {
+          "path": "test6.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 134303240,
+          "url": "https://huggingface.co/datasets/livecodebench/code_generation_lite/resolve/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/test6.jsonl",
+          "expected_sha256": "bb4c364f71921c4495a6ad15abe1a927350b720009f4933e2e71f8af0f6fd1f5"
+        }
+      ]
+    },
+    {
+      "id": "llmbar",
+      "title": "LLMBar",
+      "domains": [
+        "instruction_following",
+        "judge_order_bias"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "princeton-nlp/LLMBar",
+        "revision": "900616bff90b6c6c8e1681f7d079250637c55992",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/princeton-nlp/LLMBar/tree/900616bff90b6c6c8e1681f7d079250637c55992",
+        "files_metadata_url": "https://github.com/princeton-nlp/LLMBar/tree/900616bff90b6c6c8e1681f7d079250637c55992"
+      },
+      "source_url": "https://github.com/princeton-nlp/LLMBar",
+      "source_docs": [
+        "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/README.md"
+      ],
+      "configurations": [
+        "Natural",
+        "Adversarial/Neighbor",
+        "Adversarial/GPTInst",
+        "Adversarial/GPTOut",
+        "Adversarial/Manual"
+      ],
+      "splits": [],
+      "native_layout_notes": "Native Dataset/LLMBar subsets only; auxiliary CaseStudy and Processed benchmarks excluded.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "preferred_output_1_or_2"
+        ],
+        "notes": "Gold labels reflect instruction adherence; adversarial constructions include GPT assistance. Do not infer absolute pass/fail from pair preference."
+      },
+      "license": {
+        "data": "MIT (repository; source notices retained)",
+        "code": "MIT",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Original instruction across natural/adversarial variants and source corpora."
+      ],
+      "reported_size": {
+        "description": "419 paired-output instances",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "Dataset/LLMBar/Adversarial/GPTInst/dataset.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 211768,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/Dataset/LLMBar/Adversarial/GPTInst/dataset.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "Dataset/LLMBar/Natural/dataset.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 91269,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/Dataset/LLMBar/Natural/dataset.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 7157,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1094,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "Dataset/LLMBar/Adversarial/GPTOut/dataset.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 32640,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/Dataset/LLMBar/Adversarial/GPTOut/dataset.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "Dataset/LLMBar/Adversarial/Manual/dataset.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 79050,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/Dataset/LLMBar/Adversarial/Manual/dataset.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "Dataset/LLMBar/Adversarial/Neighbor/dataset.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 131988,
+          "url": "https://raw.githubusercontent.com/princeton-nlp/LLMBar/900616bff90b6c6c8e1681f7d079250637c55992/Dataset/LLMBar/Adversarial/Neighbor/dataset.json",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "mbppplus",
+      "title": "MBPP+",
+      "domains": [
+        "code"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "evalplus/mbppplus",
+        "revision": "b2d74c91837c3f2a20c1299ae98133cbe7cfa077",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/evalplus/mbppplus",
+        "files_metadata_url": "https://huggingface.co/api/datasets/evalplus/mbppplus/tree/b2d74c91837c3f2a20c1299ae98133cbe7cfa077?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/evalplus/mbppplus",
+      "source_docs": [
+        "https://huggingface.co/datasets/evalplus/mbppplus/blob/b2d74c91837c3f2a20c1299ae98133cbe7cfa077/README.md",
+        "https://github.com/evalplus/evalplus/blob/master/LICENSE"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Select configured parquet representation; current count differs from older 399-problem release.",
+      "native_labels": {
+        "origin": "executable",
+        "types": [
+          "reference_code",
+          "test_oracle"
+        ],
+        "notes": "Executable tests do not constitute human critique or exhaustive correctness proof; retain upstream notices."
+      },
+      "license": {
+        "data": "apache-2.0",
+        "code": "Apache-2.0",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "task_id and original MBPP problem; preserve source_file."
+      ],
+      "reported_size": {
+        "description": "378 problems",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 518,
+          "url": "https://huggingface.co/datasets/evalplus/mbppplus/resolve/b2d74c91837c3f2a20c1299ae98133cbe7cfa077/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/test-00000-of-00001-d5781c9c51e02795.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 1129135,
+          "url": "https://huggingface.co/datasets/evalplus/mbppplus/resolve/b2d74c91837c3f2a20c1299ae98133cbe7cfa077/data/test-00000-of-00001-d5781c9c51e02795.parquet",
+          "expected_sha256": "dc20030b3788fccf617444edcb34138ef13d7e4fafd17bfcb8c1279dbb12399b"
+        }
+      ]
+    },
+    {
+      "id": "mcjudgebench",
+      "title": "MCJudgeBench",
+      "domains": [
+        "instruction_following"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "jaelly/MCJudgeBench",
+        "revision": "c64832efae480d3f1ed97ac3e877bc2162d9490d",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/jaelly/MCJudgeBench",
+        "files_metadata_url": "https://huggingface.co/api/datasets/jaelly/MCJudgeBench/tree/c64832efae480d3f1ed97ac3e877bc2162d9490d?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/jaelly/MCJudgeBench",
+      "source_docs": [
+        "https://huggingface.co/datasets/jaelly/MCJudgeBench/blob/c64832efae480d3f1ed97ac3e877bc2162d9490d/README.md"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Expanded release in data/test.jsonl; do not assume paper-only subset.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "constraint_gold_label_yes_no_partial",
+          "human_reviewed_perturbation"
+        ],
+        "notes": "Preserve partial labels and release subset; perturbations are not independent tasks."
+      },
+      "license": {
+        "data": "apache-2.0",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Base instance and instruction across constraints and perturbations."
+      ],
+      "reported_size": {
+        "description": "219 instances, 1022 constraints, 307 perturbations; paper subset 141 instances",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 4517,
+          "url": "https://huggingface.co/datasets/jaelly/MCJudgeBench/resolve/c64832efae480d3f1ed97ac3e877bc2162d9490d/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 1301772,
+          "url": "https://huggingface.co/datasets/jaelly/MCJudgeBench/resolve/c64832efae480d3f1ed97ac3e877bc2162d9490d/data/test.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "prm800k",
+      "title": "PRM800K",
+      "domains": [
+        "math",
+        "reasoning"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "openai/prm800k",
+        "revision": "7ecc794703b2877f63226f2477a49b34f9b25163",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/openai/prm800k/tree/7ecc794703b2877f63226f2477a49b34f9b25163",
+        "files_metadata_url": "https://github.com/openai/prm800k/tree/7ecc794703b2877f63226f2477a49b34f9b25163"
+      },
+      "source_url": "https://github.com/openai/prm800k",
+      "source_docs": [
+        "https://raw.githubusercontent.com/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/README.md"
+      ],
+      "configurations": [
+        "phase1",
+        "phase2"
+      ],
+      "splits": [
+        "train",
+        "test"
+      ],
+      "native_layout_notes": "Four native JSONL label files via GitHub LFS media endpoint; math_splits files are additional source partition references, not labels.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "step_rating_minus1_0_plus1",
+          "human_completion",
+          "finish_reason",
+          "flagged_uncertainty"
+        ],
+        "notes": "Neutral/uncertain ratings retained. pre_generated_verifier_score is machine output. Training allocation includes 4500 original MATH test problems, leaving 500 held out."
+      },
+      "license": {
+        "data": "MIT (repository; MATH source terms retained)",
+        "code": "MIT",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Git LFS media URLs selected to retrieve data, not pointer text; do not clone or execute repository."
+      },
+      "group_identity_hints": [
+        "MATH problem across phases, model solutions, steps and alternative completions."
+      ],
+      "reported_size": {
+        "description": "Approximately 800000 filtered step labels over 75000 solutions; raw release larger",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 11718,
+          "url": "https://raw.githubusercontent.com/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/data/phase1_train.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 7900236,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/data/phase1_train.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/data/phase2_test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 12240719,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/data/phase2_test.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1062,
+          "url": "https://raw.githubusercontent.com/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/data/phase1_test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 829105,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/data/phase1_test.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/math_splits/train.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 10896985,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/math_splits/train.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/data/phase2_train.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 456135365,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/data/phase2_train.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "prm800k/math_splits/test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 446564,
+          "url": "https://media.githubusercontent.com/media/openai/prm800k/7ecc794703b2877f63226f2477a49b34f9b25163/prm800k/math_splits/test.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "processbench",
+      "title": "ProcessBench",
+      "domains": [
+        "math",
+        "reasoning"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "Qwen/ProcessBench",
+        "revision": "3bdcd5371ed567559a78f559c01c13a6deee7604",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/Qwen/ProcessBench",
+        "files_metadata_url": "https://huggingface.co/api/datasets/Qwen/ProcessBench/tree/3bdcd5371ed567559a78f559c01c13a6deee7604?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/Qwen/ProcessBench",
+      "source_docs": [
+        "https://huggingface.co/datasets/Qwen/ProcessBench/blob/3bdcd5371ed567559a78f559c01c13a6deee7604/README.md",
+        "https://github.com/QwenLM/ProcessBench",
+        "https://arxiv.org/abs/2412.06559"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "gsm8k",
+        "math",
+        "olympiadbench",
+        "omnimath"
+      ],
+      "native_layout_notes": "Four JSON split files.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "earliest_error_step",
+          "final_answer_correct"
+        ],
+        "notes": "Expert earliest-error/all-correct process labels must remain distinct from final-answer correctness."
+      },
+      "license": {
+        "data": "apache-2.0",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Underlying problem across generated solutions and steps; cross-check MATH/GSM8K overlap."
+      ],
+      "reported_size": {
+        "description": "3400 model solutions across four subsets",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 1554,
+          "url": "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/3bdcd5371ed567559a78f559c01c13a6deee7604/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "gsm8k.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 574343,
+          "url": "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/3bdcd5371ed567559a78f559c01c13a6deee7604/gsm8k.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "math.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 1938778,
+          "url": "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/3bdcd5371ed567559a78f559c01c13a6deee7604/math.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "olympiadbench.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 2808955,
+          "url": "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/3bdcd5371ed567559a78f559c01c13a6deee7604/olympiadbench.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "omnimath.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 2842872,
+          "url": "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/3bdcd5371ed567559a78f559c01c13a6deee7604/omnimath.json",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "ragtruth",
+      "title": "RAGTruth",
+      "domains": [
+        "grounded_factuality",
+        "summarization",
+        "question_answering",
+        "data_to_text"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "ParticleMedia/RAGTruth",
+        "revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/ParticleMedia/RAGTruth/tree/c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+        "files_metadata_url": "https://github.com/ParticleMedia/RAGTruth/tree/c103204b9ce28d6bbad859304bf30de72b8ed8fe"
+      },
+      "source_url": "https://github.com/ParticleMedia/RAGTruth",
+      "source_docs": [
+        "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/README.md"
+      ],
+      "configurations": [],
+      "splits": [
+        "train",
+        "test"
+      ],
+      "native_layout_notes": "dataset/response.jsonl joins dataset/source_info.jsonl; row-level source split, not separate files.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "hallucination_span",
+          "hallucination_type",
+          "intensity",
+          "annotator_comment"
+        ],
+        "notes": "Preserve span offsets, implicit_true, incorrect-refusal and truncation metadata; unsupported-by-context differs from false-in-world. Upstream source-corpus terms remain."
+      },
+      "license": {
+        "data": "MIT (repository; source-corpus terms also apply)",
+        "code": "MIT",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "source_id/source document shared across six response-generating models."
+      ],
+      "reported_size": {
+        "description": "Nearly 18000 responses",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1071,
+          "url": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 21234,
+          "url": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "dataset/response.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 21458735,
+          "url": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/dataset/response.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "dataset/source_info.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 15117971,
+          "url": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/c103204b9ce28d6bbad859304bf30de72b8ed8fe/dataset/source_info.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "rewardbench",
+      "title": "RewardBench",
+      "domains": [
+        "general",
+        "reasoning",
+        "safety",
+        "code"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "allenai/reward-bench",
+        "revision": "168d848cdbbea9764fae4a544dc9ca1e6cca4931",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/allenai/reward-bench",
+        "files_metadata_url": "https://huggingface.co/api/datasets/allenai/reward-bench/tree/168d848cdbbea9764fae4a544dc9ca1e6cca4931?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/allenai/reward-bench",
+      "source_docs": [
+        "https://huggingface.co/datasets/allenai/reward-bench/blob/168d848cdbbea9764fae4a544dc9ca1e6cca4931/README.md"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "raw",
+        "filtered"
+      ],
+      "native_layout_notes": "Only configured raw/filtered parquet files; train/raw intermediates and notebooks excluded.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "chosen_rejected_pair",
+          "source_subset",
+          "source_model"
+        ],
+        "notes": "Human, model and source-derived labels vary by subset. Preserve subset and original terms."
+      },
+      "license": {
+        "data": "odc-by",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Original source prompt identity across imported component datasets; XSTest overlap."
+      ],
+      "reported_size": {
+        "description": "5123 raw pairs; 2985 filtered pairs (overlapping views)",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "LICENSE.md",
+          "format": "markdown",
+          "purpose": "license",
+          "size_bytes": 19792,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench/resolve/168d848cdbbea9764fae4a544dc9ca1e6cca4931/LICENSE.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 21113,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench/resolve/168d848cdbbea9764fae4a544dc9ca1e6cca4931/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/filtered-00000-of-00001.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 2354751,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench/resolve/168d848cdbbea9764fae4a544dc9ca1e6cca4931/data/filtered-00000-of-00001.parquet",
+          "expected_sha256": "65473c20ed0627e02503557ae102c25c6b0e66b5ed69ee327e224bb95e70ca29"
+        },
+        {
+          "path": "data/raw-00000-of-00001.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 5589200,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench/resolve/168d848cdbbea9764fae4a544dc9ca1e6cca4931/data/raw-00000-of-00001.parquet",
+          "expected_sha256": "aab495b3e9e117248db562ff26b81272cedfbb03f018a29d3dd6395108f59bb2"
+        }
+      ]
+    },
+    {
+      "id": "rewardbench2",
+      "title": "RewardBench 2",
+      "domains": [
+        "general",
+        "math",
+        "code",
+        "instruction_following",
+        "safety"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "allenai/reward-bench-2",
+        "revision": "7ff08853b0d5686e79b13fda8677024f566a104a",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/allenai/reward-bench-2",
+        "files_metadata_url": "https://huggingface.co/api/datasets/allenai/reward-bench-2/tree/7ff08853b0d5686e79b13fda8677024f566a104a?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/allenai/reward-bench-2",
+      "source_docs": [
+        "https://huggingface.co/datasets/allenai/reward-bench-2/blob/7ff08853b0d5686e79b13fda8677024f566a104a/README.md"
+      ],
+      "configurations": [
+        "default"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Configured test parquet preserves additional_metadata and verification methods.",
+      "native_labels": {
+        "origin": "mixed",
+        "types": [
+          "chosen_rejected_groups",
+          "num_correct",
+          "num_incorrect",
+          "verification_method"
+        ],
+        "notes": "Uses functions, LLM judges, voting and manual verification; human prompts are not necessarily human response labels."
+      },
+      "license": {
+        "data": "odc-by",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public source metadata; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Prompt id, component source and response group; cross-check independently imported datasets."
+      ],
+      "reported_size": {
+        "description": "1865 prompt groups",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 8661,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench-2/resolve/7ff08853b0d5686e79b13fda8677024f566a104a/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/test-00000-of-00001.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 6973189,
+          "url": "https://huggingface.co/datasets/allenai/reward-bench-2/resolve/7ff08853b0d5686e79b13fda8677024f566a104a/data/test-00000-of-00001.parquet",
+          "expected_sha256": "c8ec60efbd75d2f9dcba4121e6101f7a6015abc38a34e034ae2c7ae886265958"
+        }
+      ]
+    },
+    {
+      "id": "rjudge",
+      "title": "R-Judge",
+      "domains": [
+        "agent_risk",
+        "safety"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "Lordog/R-Judge",
+        "revision": "83ce301da3ad50dd8b397e772863f5411c3d3dc2",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/Lordog/R-Judge/tree/83ce301da3ad50dd8b397e772863f5411c3d3dc2",
+        "files_metadata_url": "https://github.com/Lordog/R-Judge/tree/83ce301da3ad50dd8b397e772863f5411c3d3dc2"
+      },
+      "source_url": "https://github.com/Lordog/R-Judge",
+      "source_docs": [
+        "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/README.md",
+        "https://rjudgebench.github.io/",
+        "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+      ],
+      "configurations": [
+        "Application",
+        "Finance",
+        "IoT",
+        "Program",
+        "Web"
+      ],
+      "splits": [],
+      "native_layout_notes": "Native category/scenario JSON files; eval/results and images excluded.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "consensus_binary_safety",
+          "human_risk_description"
+        ],
+        "notes": "Published GPT-4 risk-explanation evaluation scores are not additional human labels. Noncommercial and share-alike restrictions require intended-use review."
+      },
+      "license": {
+        "data": "CC-BY-NC-SA-4.0 (project site)",
+        "code": "unverified",
+        "status": "restricted",
+        "notes": "Project license link specifies CC-BY-NC-SA-4.0; intended commercial compatibility unresolved."
+      },
+      "access": {
+        "status": "restricted",
+        "notes": "Metadata retained; license/intended-use or source-document review required before acquisition/release."
+      },
+      "acquisition": {
+        "status": "blocked_license",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Record and source scenario across turns/variants; preserve source lineage."
+      ],
+      "reported_size": {
+        "description": "569 multi-turn records across 27 scenarios",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "data/Application/dh_app.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 166157,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/dh_app.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/chatbot.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 14465,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/chatbot.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/phone.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 29837,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/phone.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 8296,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/ds_app.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 484570,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/ds_app.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/medical.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 15438,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/medical.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/productivity.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 25358,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/productivity.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/mail.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 15778,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/mail.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Application/socialapp.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 20402,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Application/socialapp.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Finance/dh_finance.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 117019,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Finance/dh_finance.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Finance/bitcoin.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 23264,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Finance/bitcoin.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Finance/webshop.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 16628,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Finance/webshop.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Finance/ds_finance.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 217693,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Finance/ds_finance.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/IoT/phone_iot.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 10879,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/IoT/phone_iot.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/IoT/household.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 73643,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/IoT/household.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Finance/moneymanagement.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 12957,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Finance/moneymanagement.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/IoT/trafficdispatch.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 45531,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/IoT/trafficdispatch.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/code_agentmonitor.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 26846,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/code_agentmonitor.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/ds_program.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 218080,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/ds_program.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/software.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 20130,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/software.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/security.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 13839,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/security.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/dh_program.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 31023,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/dh_program.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/terminal.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 50669,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/terminal.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Program/phone_program.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 6806,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Program/phone_program.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Web/dh_web.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 9094,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Web/dh_web.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Web/ds_web.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 23453,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Web/ds_web.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Web/webbrowser.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 35515,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Web/webbrowser.json",
+          "expected_sha256": null
+        },
+        {
+          "path": "data/Web/websearch.json",
+          "format": "json",
+          "purpose": "data",
+          "size_bytes": 36683,
+          "url": "https://raw.githubusercontent.com/Lordog/R-Judge/83ce301da3ad50dd8b397e772863f5411c3d3dc2/data/Web/websearch.json",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "sorry-bench-human-judgment-202503",
+      "title": "SORRY-Bench human judgments 202503",
+      "domains": [
+        "safety",
+        "refusal"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "sorry-bench/sorry-bench-human-judgment-202503",
+        "revision": "b7e15f574ce0d30c1d13ded75e0437e66b61983e",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/sorry-bench/sorry-bench-human-judgment-202503",
+        "files_metadata_url": "https://huggingface.co/api/datasets/sorry-bench/sorry-bench-human-judgment-202503/tree/b7e15f574ce0d30c1d13ded75e0437e66b61983e?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503",
+      "source_docs": [
+        "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/blob/b7e15f574ce0d30c1d13ded75e0437e66b61983e/README.md"
+      ],
+      "configurations": [],
+      "splits": [
+        "train",
+        "test"
+      ],
+      "native_layout_notes": "human_rating.jsonl retained alongside publisher train/test files; do not count overlapping representations twice.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "fulfillment_refusal",
+          "human_rating"
+        ],
+        "notes": "Custom agreement applies to data; code MIT does not authorize data redistribution."
+      },
+      "license": {
+        "data": "sorry-bench-human-judgment",
+        "code": "MIT (separate code repository)",
+        "status": "publisher_stated",
+        "notes": "Custom data agreement includes transfer restrictions and deletion-on-request; explicit acceptance/access must precede acquisition."
+      },
+      "access": {
+        "status": "gated",
+        "notes": "HF auto gate requires identity/purpose fields and custom agreement; cataloging metadata does not accept it."
+      },
+      "acquisition": {
+        "status": "blocked_access",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Instruction identity across models and train/test artifacts."
+      ],
+      "reported_size": {
+        "description": "7040 responses from 440 instructions and 16 models",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 3487,
+          "url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/resolve/b7e15f574ce0d30c1d13ded75e0437e66b61983e/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 8029,
+          "url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/resolve/b7e15f574ce0d30c1d13ded75e0437e66b61983e/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "human_rating.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 10151100,
+          "url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/resolve/b7e15f574ce0d30c1d13ded75e0437e66b61983e/human_rating.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "test.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 6256636,
+          "url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/resolve/b7e15f574ce0d30c1d13ded75e0437e66b61983e/test.jsonl",
+          "expected_sha256": null
+        },
+        {
+          "path": "train.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 3894477,
+          "url": "https://huggingface.co/datasets/sorry-bench/sorry-bench-human-judgment-202503/resolve/b7e15f574ce0d30c1d13ded75e0437e66b61983e/train.jsonl",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "summeval",
+      "title": "SummEval",
+      "domains": [
+        "summarization",
+        "grounded_factuality"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "Yale-LILY/SummEval",
+        "revision": "81b59ad53d63cb6009764240853c91235a44e238",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/Yale-LILY/SummEval/tree/81b59ad53d63cb6009764240853c91235a44e238",
+        "files_metadata_url": "https://github.com/Yale-LILY/SummEval/tree/81b59ad53d63cb6009764240853c91235a44e238"
+      },
+      "source_url": "https://github.com/Yale-LILY/SummEval",
+      "source_docs": [
+        "https://raw.githubusercontent.com/Yale-LILY/SummEval/81b59ad53d63cb6009764240853c91235a44e238/README.md",
+        "https://storage.googleapis.com/sfr-summarization-repo-research/model_annotations.aligned.jsonl?generation=1594844934458543"
+      ],
+      "configurations": [],
+      "splits": [],
+      "native_layout_notes": "External GCS annotation file can be pinned by object generation. Repository revision pins documentation only; original articles require separate acquisition.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "expert_coherence",
+          "expert_consistency",
+          "expert_fluency",
+          "expert_relevance",
+          "crowd_ratings"
+        ],
+        "notes": "Expert and crowd ratings remain separate. Source articles are not included in annotation release; repository MIT does not license CNN/DailyMail."
+      },
+      "license": {
+        "data": "MIT (repository; underlying source rights unresolved)",
+        "code": "MIT",
+        "status": "review_required",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "review_required",
+        "notes": "Metadata retained; license/intended-use or source-document review required before acquisition/release."
+      },
+      "acquisition": {
+        "status": "blocked_license",
+        "notes": "External annotation payload generation pinned via GCS HEAD, size 5839062; source articles absent and rights unresolved."
+      },
+      "group_identity_hints": [
+        "Source article identity across models, references and annotators."
+      ],
+      "reported_size": {
+        "description": "1600 summaries from 16 systems over 100 articles",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 15134,
+          "url": "https://raw.githubusercontent.com/Yale-LILY/SummEval/81b59ad53d63cb6009764240853c91235a44e238/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 1156,
+          "url": "https://raw.githubusercontent.com/Yale-LILY/SummEval/81b59ad53d63cb6009764240853c91235a44e238/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "model_annotations.aligned.jsonl",
+          "format": "jsonl",
+          "purpose": "data",
+          "size_bytes": 5839062,
+          "url": "https://storage.googleapis.com/sfr-summarization-repo-research/model_annotations.aligned.jsonl?generation=1594844934458543",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "truthfulqa",
+      "title": "TruthfulQA",
+      "domains": [
+        "factuality",
+        "general"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "sylinrl/TruthfulQA",
+        "revision": "d71c110897f5d31c5d7f309e7bc316c152f6f031",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/sylinrl/TruthfulQA/tree/d71c110897f5d31c5d7f309e7bc316c152f6f031",
+        "files_metadata_url": "https://github.com/sylinrl/TruthfulQA/tree/d71c110897f5d31c5d7f309e7bc316c152f6f031"
+      },
+      "source_url": "https://github.com/sylinrl/TruthfulQA",
+      "source_docs": [
+        "https://raw.githubusercontent.com/sylinrl/TruthfulQA/d71c110897f5d31c5d7f309e7bc316c152f6f031/README.md"
+      ],
+      "configurations": [],
+      "splits": [],
+      "native_layout_notes": "TruthfulQA.csv at January-2025 revised two-option format; original v0 and alternative representations excluded.",
+      "native_labels": {
+        "origin": "reference",
+        "types": [
+          "true_reference_answers",
+          "false_reference_answers",
+          "best_answer",
+          "best_incorrect_answer"
+        ],
+        "notes": "Current questions/reference answers do not supply judgments of newly generated responses. Separate historical judge fine-tuning annotations are not selected."
+      },
+      "license": {
+        "data": "Apache-2.0",
+        "code": "Apache-2.0",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Question identity across original/current generation and multiple-choice versions."
+      ],
+      "reported_size": {
+        "description": "817 questions across 38 categories",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 11954,
+          "url": "https://raw.githubusercontent.com/sylinrl/TruthfulQA/d71c110897f5d31c5d7f309e7bc316c152f6f031/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 11357,
+          "url": "https://raw.githubusercontent.com/sylinrl/TruthfulQA/d71c110897f5d31c5d7f309e7bc316c152f6f031/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "TruthfulQA.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 503550,
+          "url": "https://raw.githubusercontent.com/sylinrl/TruthfulQA/d71c110897f5d31c5d7f309e7bc316c152f6f031/TruthfulQA.csv",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "wildguardtest",
+      "title": "WildGuardTest",
+      "domains": [
+        "safety",
+        "harmfulness",
+        "refusal"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "huggingface",
+        "repo": "allenai/wildguardmix",
+        "revision": "d29c47f41c8b51348b5c8e8c81c039b3132b66d1",
+        "revision_status": "resolved",
+        "metadata_url": "https://huggingface.co/api/datasets/allenai/wildguardmix",
+        "files_metadata_url": "https://huggingface.co/api/datasets/allenai/wildguardmix/tree/d29c47f41c8b51348b5c8e8c81c039b3132b66d1?recursive=true&limit=1000"
+      },
+      "source_url": "https://huggingface.co/datasets/allenai/wildguardmix",
+      "source_docs": [
+        "https://huggingface.co/datasets/allenai/wildguardmix/blob/d29c47f41c8b51348b5c8e8c81c039b3132b66d1/README.md"
+      ],
+      "configurations": [
+        "wildguardtest"
+      ],
+      "splits": [
+        "test"
+      ],
+      "native_layout_notes": "Select test/wildguard_test.parquet only; native train config excluded.",
+      "native_labels": {
+        "origin": "human",
+        "types": [
+          "prompt_harmfulness",
+          "response_harmfulness",
+          "response_refusal"
+        ],
+        "notes": "Three distinct human-annotated tasks; unresolved labels stay null. Excludes chiefly GPT-4-labeled wildguardtrain."
+      },
+      "license": {
+        "data": "odc-by",
+        "code": "unverified (not inferred from dataset card)",
+        "status": "publisher_stated",
+        "notes": "Publisher-stated license; retain attribution, upstream source and response-provider terms where applicable. No blanket qualification or role grant."
+      },
+      "access": {
+        "status": "gated",
+        "notes": "HF auto gate requires responsible-use agreement and identifying fields; cataloging metadata does not accept it."
+      },
+      "acquisition": {
+        "status": "blocked_access",
+        "notes": "Exact selected file URLs only; no loader scripts, model calls, automatic role assignment or payload verification performed."
+      },
+      "group_identity_hints": [
+        "Source prompt and attack variants; preserve source identifiers."
+      ],
+      "reported_size": {
+        "description": "1725 prompt-response examples",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 6158,
+          "url": "https://huggingface.co/datasets/allenai/wildguardmix/resolve/d29c47f41c8b51348b5c8e8c81c039b3132b66d1/README.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "test/wildguard_test.parquet",
+          "format": "parquet",
+          "purpose": "data",
+          "size_bytes": 2258878,
+          "url": "https://huggingface.co/datasets/allenai/wildguardmix/resolve/d29c47f41c8b51348b5c8e8c81c039b3132b66d1/test/wildguard_test.parquet",
+          "expected_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "xstest",
+      "title": "XSTest",
+      "domains": [
+        "safety",
+        "over_refusal"
+      ],
+      "status": "candidate",
+      "upstream": {
+        "kind": "github",
+        "repo": "paul-rottger/xstest",
+        "revision": "d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d",
+        "revision_status": "resolved",
+        "metadata_url": "https://github.com/paul-rottger/xstest/tree/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d",
+        "files_metadata_url": "https://github.com/paul-rottger/xstest/tree/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d"
+      },
+      "source_url": "https://github.com/paul-rottger/xstest",
+      "source_docs": [
+        "https://raw.githubusercontent.com/paul-rottger/xstest/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d/readme.md"
+      ],
+      "configurations": [],
+      "splits": [],
+      "native_layout_notes": "xstest_prompts.csv only; model_completions excluded.",
+      "native_labels": {
+        "origin": "reference",
+        "types": [
+          "prompt_safety_type",
+          "contrast_type"
+        ],
+        "notes": "Prompt safety labels are not human judgments of new responses. Published model completions are excluded pending their provider-specific terms."
+      },
+      "license": {
+        "data": "CC-BY-4.0 (prompts only)",
+        "code": "unverified (repository license scope specifies prompts)",
+        "status": "publisher_stated",
+        "notes": "Repository/publisher statement does not supersede incorporated source-corpus or model-response terms."
+      },
+      "access": {
+        "status": "public",
+        "notes": "Public files; downstream purpose/access eligibility remains separate."
+      },
+      "acquisition": {
+        "status": "mapped",
+        "notes": "File paths confirmed from pinned repository documentation/tree and HTTP HEAD. No payload acquisition or code execution."
+      },
+      "group_identity_hints": [
+        "Prompt and safe/unsafe contrast family across completions."
+      ],
+      "reported_size": {
+        "description": "250 safe prompts and 200 unsafe contrasts",
+        "basis": "publisher_reported_not_locally_counted"
+      },
+      "files": [
+        {
+          "path": "LICENSE",
+          "format": "text",
+          "purpose": "license",
+          "size_bytes": 18656,
+          "url": "https://raw.githubusercontent.com/paul-rottger/xstest/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d/LICENSE",
+          "expected_sha256": null
+        },
+        {
+          "path": "readme.md",
+          "format": "markdown",
+          "purpose": "documentation",
+          "size_bytes": 2772,
+          "url": "https://raw.githubusercontent.com/paul-rottger/xstest/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d/readme.md",
+          "expected_sha256": null
+        },
+        {
+          "path": "xstest_prompts.csv",
+          "format": "csv",
+          "purpose": "data",
+          "size_bytes": 38719,
+          "url": "https://raw.githubusercontent.com/paul-rottger/xstest/d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d/xstest_prompts.csv",
+          "expected_sha256": null
+        }
+      ]
+    }
+  ]
+}

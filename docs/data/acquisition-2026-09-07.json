@@ -1,0 +1,224 @@
+{
+  "version": "1",
+  "catalog_id": "matric/public-sources/1",
+  "date": "2026-09-07",
+  "host": "a100",
+  "raw_storage": "/srv/matric-eval/datasets/public-sources-2026-09-07",
+  "user_scope": "All researched candidates approved for reusable multi-flow dataset integration.",
+  "sources": [
+    {
+      "source_id": "agentprocessbench",
+      "status": "complete",
+      "bytes": 40104118,
+      "files": 5,
+      "receipt_sha256": "cbcf38ac8c7fd53d5caa22a956a6b7dfaafeaf8f8c0f653978204532e41af0d6",
+      "imported_artifacts": 4,
+      "evidence_records": 1000
+    },
+    {
+      "source_id": "flask",
+      "status": "blocked_license",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "halueval",
+      "status": "complete",
+      "bytes": 63456122,
+      "files": 6,
+      "receipt_sha256": "d2999dfc725e00d681dcf61e892bd617f47bcfefdcb6f00db45eefc8857a10ee",
+      "imported_artifacts": 4,
+      "evidence_records": 34507
+    },
+    {
+      "source_id": "harmbench",
+      "status": "complete",
+      "bytes": 2285195,
+      "files": 6,
+      "receipt_sha256": "3d0ebaa7ca41bcfd075ba38a5b04db74b734a290ded06e06087f42b197de38ee",
+      "imported_artifacts": 4,
+      "evidence_records": 801
+    },
+    {
+      "source_id": "helpsteer2",
+      "status": "complete",
+      "bytes": 25291363,
+      "files": 4,
+      "receipt_sha256": "ed6d1166795cae6e475eb40bb5bb6945964bea22197aa2dcabd7eb5145af6f19",
+      "imported_artifacts": 3,
+      "evidence_records": 45014
+    },
+    {
+      "source_id": "helpsteer2-preference",
+      "status": "complete",
+      "bytes": 15364232,
+      "files": 2,
+      "receipt_sha256": "b4cc0f0d63a4a2909e0433765da6ebcd24458e72865cb02245f634a77bfa55cd",
+      "imported_artifacts": 1,
+      "evidence_records": 9125
+    },
+    {
+      "source_id": "helpsteer3-preference",
+      "status": "complete",
+      "bytes": 112042608,
+      "files": 3,
+      "receipt_sha256": "8515390b16ad423c736cc379349fef1ca01af039cd5d902d9ace6959fe4db897",
+      "imported_artifacts": 2,
+      "evidence_records": 40476
+    },
+    {
+      "source_id": "humanevalplus",
+      "status": "complete",
+      "bytes": 2902761,
+      "files": 2,
+      "receipt_sha256": "935cb54466e1ebeba7b204d85306cc94bbb89066978f54d03bd5692637075785",
+      "imported_artifacts": 1,
+      "evidence_records": 164
+    },
+    {
+      "source_id": "ifeval",
+      "status": "complete",
+      "bytes": 212634,
+      "files": 2,
+      "receipt_sha256": "f25a8cdcc964fdcb9df2fca8db818241d3b3d803a7d71023d3c993996600efea",
+      "imported_artifacts": 1,
+      "evidence_records": 541
+    },
+    {
+      "source_id": "judgmentbench",
+      "status": "complete",
+      "bytes": 32615525,
+      "files": 17,
+      "receipt_sha256": "44121ae43047e046b7bba8f61e3109a10e79c7145f4405f00a3c4225ccf52ff3",
+      "imported_artifacts": 16,
+      "evidence_records": 85907
+    },
+    {
+      "source_id": "livecodebench",
+      "status": "blocked_license",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "llmbar",
+      "status": "complete",
+      "bytes": 554966,
+      "files": 7,
+      "receipt_sha256": "8ca93f1b9233adcb6104764c5bb4e11bd8fbd6f688cf3337d08dafad596d95ec",
+      "imported_artifacts": 5,
+      "evidence_records": 419
+    },
+    {
+      "source_id": "mbppplus",
+      "status": "complete",
+      "bytes": 1129653,
+      "files": 2,
+      "receipt_sha256": "a35929f0d6147a9ea9ea02d7f754b3badc43d4b532c53e15cd9188da62c19b60",
+      "imported_artifacts": 1,
+      "evidence_records": 378
+    },
+    {
+      "source_id": "mcjudgebench",
+      "status": "complete",
+      "bytes": 1306289,
+      "files": 2,
+      "receipt_sha256": "9d339916ef3ad0b351db0fa75cc166c2515bf51b291a1281d3a8130e04cc0b6a",
+      "imported_artifacts": 1,
+      "evidence_records": 219
+    },
+    {
+      "source_id": "prm800k",
+      "status": "complete",
+      "bytes": 488461754,
+      "files": 8,
+      "receipt_sha256": "2993a26c7788cfef6060d278acf6a97b2979d955e36d7b423a09d2028bba6854",
+      "imported_artifacts": 6,
+      "evidence_records": 114099
+    },
+    {
+      "source_id": "processbench",
+      "status": "complete",
+      "bytes": 8166502,
+      "files": 5,
+      "receipt_sha256": "c06f2e0f3c837a9c5f80963344688b0c1066636fb71a3ffc93d4c65720f23727",
+      "imported_artifacts": 4,
+      "evidence_records": 3400
+    },
+    {
+      "source_id": "ragtruth",
+      "status": "complete",
+      "bytes": 36599011,
+      "files": 4,
+      "receipt_sha256": "6345eec952625276d7e26919a9e483830ddcdc53315d1ffa3c8a60c0a6d3d1b4",
+      "imported_artifacts": 2,
+      "evidence_records": 20755
+    },
+    {
+      "source_id": "rewardbench",
+      "status": "complete",
+      "bytes": 7984856,
+      "files": 4,
+      "receipt_sha256": "4909fa5051efa74232aa23810bfeb6d946dc86994f22ddd6c620a32c4b068569",
+      "imported_artifacts": 2,
+      "evidence_records": 8108
+    },
+    {
+      "source_id": "rewardbench2",
+      "status": "complete",
+      "bytes": 6981850,
+      "files": 2,
+      "receipt_sha256": "ac8eaa51fa07cd986f835ac930f2d580f028e1875376609011182357070f20bc",
+      "imported_artifacts": 1,
+      "evidence_records": 1865
+    },
+    {
+      "source_id": "rjudge",
+      "status": "blocked_license",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "sorry-bench-human-judgment-202503",
+      "status": "blocked_access",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "summeval",
+      "status": "blocked_license",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "truthfulqa",
+      "status": "complete",
+      "bytes": 526861,
+      "files": 3,
+      "receipt_sha256": "70ecf6bc9c13f2357ddc33b90e71d156dc0107107de7ba15450d36c87179efab",
+      "imported_artifacts": 1,
+      "evidence_records": 790
+    },
+    {
+      "source_id": "wildguardtest",
+      "status": "blocked_access",
+      "imported_artifacts": 0,
+      "evidence_records": 0
+    },
+    {
+      "source_id": "xstest",
+      "status": "complete",
+      "bytes": 60147,
+      "files": 3,
+      "receipt_sha256": "91bcf4dfc48137866b1a58f0aa2348d5d6dbba38e315917a027f1714fc9639d3",
+      "imported_artifacts": 1,
+      "evidence_records": 450
+    }
+  ],
+  "limitations": [
+    "Selected text/tabular files only; excluded source media and PDFs remain upstream.",
+    "Native configurations and splits remain upstream organization, not local role authorization.",
+    "Records may contain nested annotations or keyed collections; record count is not independent-unit count.",
+    "Unknown group identities require explicit downstream grouping before statistical qualification.",
+    "No calibration qualification, protected training export or model inference occurred."
+  ]
+}
