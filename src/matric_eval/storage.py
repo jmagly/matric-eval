@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import os
 import signal
 import subprocess
@@ -19,6 +20,8 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterator
+
+from matric_eval.studies.run_status import RunStatus, diagnostic
 
 CLASSES = {"models", "download_cache", "docker", "scratch", "temporary", "logs", "evidence"}
 DIAGNOSTIC_BYTES = 1024 * 1024
@@ -465,6 +468,52 @@ class StorageSession:
         return path
 
 
+def publish_run_status(
+    session: StorageSession | None,
+    stage: str,
+    *,
+    error: BaseException | None = None,
+    receipt_path: Path | None = None,
+) -> None:
+    """Project storage ownership into the same supervisor status, never task progress."""
+    directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
+    if not directory:
+        return
+    status = RunStatus(Path(directory))
+    try:
+        with status.update() as data:
+            previous = data.get("storage", {})
+            data["storage"] = {
+                "owner": session.token if session else None,
+                "reservation_active": session.active if session else False,
+                "stage": stage,
+                "updated_at": time.time(),
+                "diagnostic_receipt": str(receipt_path)
+                if receipt_path
+                else previous.get("diagnostic_receipt"),
+                "last_sample": session.samples[-1] if session and session.samples else None,
+                "peak_scratch_bytes": session.peak_scratch_bytes if session else 0,
+            }
+            if error is not None:
+                reason = (
+                    error.code if isinstance(error, StorageBlocker) else "storage_configuration"
+                )
+                item = diagnostic(error, actor="storage", stage=stage, reason=reason)
+                item["cleanup_disposition"] = (
+                    "pending" if session and session.active else "not-required"
+                )
+                data["diagnostics"] = (data["diagnostics"] + [item])[-16:]
+                if data["terminal_event"] is None:
+                    data["phase"] = (
+                        "preflight-blocked" if stage in {"configuration", "admission"} else "failed"
+                    )
+                    data["phase_timestamps"][data["phase"]] = time.time()
+    except (OSError, ValueError, KeyError) as exc:
+        raise StorageBlocker(
+            "storage_status_io", "cannot persist correlated storage state"
+        ) from exc
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("plan", type=Path)
@@ -472,6 +521,8 @@ def main() -> int:
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
+        if not math.isfinite(args.interval) or args.interval <= 0:
+            raise ValueError("storage monitor interval must be finite and positive")
         config = json.loads(args.plan.read_text())
         session = StorageSession(
             [Allocation(**item) for item in config["allocations"]],
@@ -483,6 +534,7 @@ def main() -> int:
     except (StorageBlocker, OSError, ValueError, KeyError, TypeError) as exc:
         code = exc.code if isinstance(exc, StorageBlocker) else "storage_configuration"
         print(json.dumps({"failure_class": code, "detail": str(exc)}), flush=True)
+        publish_run_status(None, "configuration", error=exc)
         return 75
     command = args.command
     if command[:1] == ["--"]:
@@ -490,11 +542,14 @@ def main() -> int:
     process = None
     failure = None
     cleanup_errors: list[str] = []
+    stage = "admission"
+    receipt_path = None
     try:
         plan = session.admit(reserve=bool(command))
         if not command:
             print(json.dumps(plan, indent=2))
             return 0
+        publish_run_status(session, stage)
         session.claim_empty_scratch()
         reader, writer = os.pipe()
         try:
@@ -509,17 +564,24 @@ def main() -> int:
                 start_new_session=True,
             )
             session.attach_process_group(process.pid)
+            stage = "execution"
+            publish_run_status(session, stage)
             os.write(writer, b"1")
         finally:
             os.close(reader)
             os.close(writer)
         while process.poll() is None:
             session.check("running", process.pid)
+            publish_run_status(session, stage)
             time.sleep(max(0.01, args.interval))
         session.check("finished")
         return int(process.returncode)
     except StorageBlocker as exc:
         failure = {"failure_class": exc.code, "detail": str(exc)}
+        try:
+            publish_run_status(session, stage, error=exc)
+        except StorageBlocker as status_error:
+            cleanup_errors.append(str(status_error))
         print(json.dumps({"failure_class": exc.code, "detail": str(exc)}), flush=True)
         return 75
     finally:
@@ -541,12 +603,16 @@ def main() -> int:
         receipt = {**session.receipt(), "failure": failure, "cleanup_errors": cleanup_errors}
         if process is not None or failure:
             try:
-                session.write_diagnostics(receipt)
+                receipt_path = session.write_diagnostics(receipt)
             except (StorageBlocker, OSError) as exc:
                 cleanup_errors.append(str(exc))
         try:
             session.release()
         except (StorageBlocker, OSError) as exc:
+            cleanup_errors.append(str(exc))
+        try:
+            publish_run_status(session, "cleanup", receipt_path=receipt_path)
+        except StorageBlocker as exc:
             cleanup_errors.append(str(exc))
         receipt["reservation_active"] = session.active
         print(json.dumps({"storage_receipt": receipt}), flush=True)

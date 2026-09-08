@@ -328,3 +328,40 @@ def test_evidence_growth_also_requires_kernel_bounds(tmp_path):
     run.require_enforced_bounds = True
     with pytest.raises(StorageBlocker, match="evidence: require"):
         run.admit(reserve=True)
+
+
+def test_storage_admission_failure_projects_without_task_progress(tmp_path, monkeypatch):
+    from matric_eval.storage import publish_run_status
+    from matric_eval.studies.run_status import RunStatus
+
+    status = RunStatus.create(
+        tmp_path / "status",
+        run_id="r",
+        attempt_id="a",
+        tasks=[{"model_id": "m", "suite_id": "s", "task_id": "t"}],
+    )
+    monkeypatch.setenv("MATRIC_RUN_STATUS_DIR", str(status.directory))
+    run = session(tmp_path)
+    error = StorageBlocker("storage_enforcement_required", "scratch is not bounded")
+    publish_run_status(run, "admission", error=error)
+    data = status.read()
+    assert data["phase"] == "preflight-blocked"
+    assert data["counts"]["attempted"] == data["counts"]["valid"] == 0
+    assert data["diagnostics"][-1]["reason"] == "storage_enforcement_required"
+    assert data["diagnostics"][-1]["actor"] == "storage"
+
+
+def test_storage_cleanup_projection_retains_recoverable_obligation(tmp_path, monkeypatch):
+    from matric_eval.storage import publish_run_status
+    from matric_eval.studies.run_status import RunStatus
+
+    status = RunStatus.create(tmp_path / "status", run_id="r", attempt_id="a", tasks=[])
+    monkeypatch.setenv("MATRIC_RUN_STATUS_DIR", str(status.directory))
+    run = session(tmp_path)
+    run.admit(reserve=True)
+    publish_run_status(run, "execution")
+    assert status.read()["storage"]["reservation_active"]
+    run.release()
+    publish_run_status(run, "cleanup", receipt_path=tmp_path / "receipt.json")
+    assert not status.read()["storage"]["reservation_active"]
+    assert status.read()["storage"]["diagnostic_receipt"].endswith("receipt.json")

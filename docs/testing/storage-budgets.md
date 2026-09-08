@@ -93,3 +93,19 @@ tests, Ruff, and strict mypy also passed on Python 3.11.15 on A100.
 
 These are bounded no-model qualifications. Actual model-load I/O and paired
 placement measurements remain unqualified; no performance improvement is claimed.
+
+## Correlated run status
+
+The storage wrapper can run inside `matric-eval study-run supervise`. It inherits
+`MATRIC_RUN_STATUS_DIR` and records admission, current usage, reservation ownership,
+and the emergency receipt path in that run's atomic status document. Storage
+failures retain their typed reason and actor/stage without changing task counts.
+The outer supervisor reports cleanup pending while a storage reservation remains
+active, including after an interrupted wrapper leaves a separately supervised
+writer group. A successful process exit alone cannot discharge that obligation.
+
+The status directory must remain writable on the separately reserved emergency
+filesystem. A failure to publish storage ownership before starting the child
+prevents child dispatch. A status write failure during cleanup is retained in the
+storage receipt and produces a nonzero exit. This integration does not authorize
+new task scheduling or certify GPU lease cleanup.
