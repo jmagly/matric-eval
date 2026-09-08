@@ -728,11 +728,37 @@ instead of being replaced by the batch runner's trial-seed generator:
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-tau-receipt.json
 ```
 
-Terminal-Bench uses Harbor 0.22.0, its Terminus 2 agent, the pinned local task
-checkout, and each task's official container verifier. As with tau, the bridge creates
-one concurrency-one job per selected task so the full protocol seed is supplied to
-every model call. Harbor's complete job directories are private; the separate receipt
-contains only hashes, official rewards, exception classes, timing, and version data:
+Terminal-Bench uses Harbor 0.22.0 at Git revision
+`4407eb5227a2ff4f0d3f16b2eb48849382fdf276`, its Terminus 2 agent, the pinned local
+task checkout, and each task's official container verifier. Apply the study's
+content-addressed runtime patch to a clean clone at that exact revision, then create
+the locked environment. The preflight rejects any other revision, changed-path set,
+or patch/diff hash. From the matric-eval repository root, set
+`QWEN38_HARBOR_CHECKOUT` to a new absolute checkout path and
+`QWEN38_TERMINAL_CANARY_OUTPUT` to a new absolute receipt path outside Git:
+
+```bash
+git clone https://github.com/laude-institute/harbor.git "$QWEN38_HARBOR_CHECKOUT"
+git -C "$QWEN38_HARBOR_CHECKOUT" checkout --detach 4407eb5227a2ff4f0d3f16b2eb48849382fdf276
+python scripts/prepare_qwen38_harbor_runtime.py \
+  --harbor-checkout "$QWEN38_HARBOR_CHECKOUT" \
+  --apply \
+  --sync-locked
+```
+
+As with tau, the bridge creates one concurrency-one job per selected task so the full
+protocol seed is supplied to every model call. A bounded parent watchdog terminates
+the Harbor process group, waits the declared teardown grace, and escalates to a group
+kill if needed. The patched agent permits at most one total context/output/parser
+recovery and disables transport retries. Harbor's complete job directories are
+private. The separate receipt preserves official verifier output independently from
+the analytic-validity classification; a trial exception or absent official reward is
+analytic-invalid and is never converted to capability reward zero.
+Each fresh attempt exclusively retains its parent exit/watchdog status and measured
+duration, bound to the config and all official result hashes. Resume preserves that
+status and timing; missing, malformed, or hash-mismatched attempt metadata makes the
+retained task analytic-invalid with unknown timing while keeping official output
+separate. Historical results without this metadata are not silently upgraded.
 
 Harbor must use the isolated daemon on `/run/matric-eval-docker.sock`, whose data root
 is on the model filesystem. Install `host/matric-eval-docker-daemon.json` as that
@@ -744,7 +770,7 @@ that dedicated socket (for this host, `sudo setfacl -m u:roctinam:rw
 daemon configuration, socket access, and data root before creating any study output.
 
 ```bash
-/srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/python \
+"$QWEN38_HARBOR_CHECKOUT/.venv/bin/python" \
   scripts/run_qwen38_terminal.py \
   studies/qwen38-obliteration-2026-09/protocol.yaml \
   /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
@@ -752,13 +778,36 @@ daemon configuration, socket access, and data root before creating any study out
   --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
   --terminal-checkout /srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1 \
-  --harbor-python /srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/python \
-  --harbor-executable /srv/matric-eval/benchmarks/harbor-0.22.0/.venv/bin/harbor \
+  --harbor-checkout "$QWEN38_HARBOR_CHECKOUT" \
+  --harbor-python "$QWEN38_HARBOR_CHECKOUT/.venv/bin/python" \
+  --harbor-executable "$QWEN38_HARBOR_CHECKOUT/.venv/bin/harbor" \
   --inputs-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/agentic-inputs-summary.json \
   --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/terminal-bench-scored-ids.json \
+  --watchdog-seconds 960 \
+  --teardown-grace-seconds 30 \
+  --llm-response-timeout-seconds 120 \
+  --max-turns 100 \
   --result-dir /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-raw \
   --receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-pilot-terminal-receipt.json
 ```
+
+Before a scored rerun, execute the model-independent scripted canary against the
+isolated Docker daemon. It uses only a loopback OpenAI-compatible server and tiny
+ephemeral tasks; it never contacts a target-model endpoint. The output path is
+exclusive-create, private, content-free evidence:
+
+```bash
+"$QWEN38_HARBOR_CHECKOUT/.venv/bin/python" \
+  scripts/canary_qwen38_terminal_runtime.py \
+  --harbor-checkout "$QWEN38_HARBOR_CHECKOUT" \
+  --docker-host unix:///run/matric-eval-docker.sock \
+  --output "$QWEN38_TERMINAL_CANARY_OUTPUT"
+```
+
+The cleanup fixture verifies the parent watchdog's process-group TERM/KILL behavior,
+not a timeout of a shell command inside Harbor. The scripted recovery and submission
+fixtures do not certify effective model thinking mode, all task-side idempotency,
+or the complete calibration-v2 release gate.
 
 After both timed score passes match and all three MT-Bench second-turn batches finish,
 build the content-free direct pilot summary. It reports only pipeline-validation

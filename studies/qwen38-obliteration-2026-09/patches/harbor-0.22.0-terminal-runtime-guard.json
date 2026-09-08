@@ -1,0 +1,13 @@
+{
+  "changed_paths": [
+    "src/harbor/agents/terminus_2/terminus_2.py",
+    "src/harbor/llms/base.py",
+    "src/harbor/llms/lite_llm.py"
+  ],
+  "package_version": "0.22.0",
+  "patch_file": "harbor-0.22.0-terminal-runtime-guard.patch",
+  "patch_sha256": "17c5aa122140a05794486a4135d0001b78cc54cf8bf863e8010bf1c59b0b5758",
+  "patched_diff_sha256": "17c5aa122140a05794486a4135d0001b78cc54cf8bf863e8010bf1c59b0b5758",
+  "schema_version": "1",
+  "upstream_revision": "4407eb5227a2ff4f0d3f16b2eb48849382fdf276"
+}

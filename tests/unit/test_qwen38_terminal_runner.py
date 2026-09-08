@@ -17,6 +17,8 @@ from matric_eval.studies import StudyProtocol
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
 SCRIPT = ROOT / "scripts/run_qwen38_terminal.py"
+if str(SCRIPT.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("qwen38_terminal_runner", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 terminal_runner = importlib.util.module_from_spec(SPEC)
@@ -80,7 +82,14 @@ def test_agent_and_job_config_carry_full_sampler() -> None:
         "repetition_penalty": 1.0,
         "max_tokens": 8192,
     }
-    kwargs = terminal_runner._agent_kwargs("http://127.0.0.1:18080/v1", sampler, 123, 32768)
+    kwargs = terminal_runner._agent_kwargs(
+        "http://127.0.0.1:18080/v1",
+        sampler,
+        123,
+        32768,
+        llm_response_timeout_seconds=30.0,
+        max_turns=20,
+    )
     calls = kwargs["llm_call_kwargs"]
     assert kwargs["temperature"] == 1.0
     assert kwargs["model_info"]["max_input_tokens"] == 24544
@@ -103,6 +112,14 @@ def test_agent_and_job_config_carry_full_sampler() -> None:
             "chat_template_kwargs": {"enable_thinking": False},
         },
     }
+    assert kwargs["llm_kwargs"] == {
+        "api_key": "EMPTY",
+        "timeout": 30.0,
+        "num_retries": 0,
+    }
+    assert kwargs["max_recovery_attempts"] == 1
+    assert kwargs["proactive_summarization_threshold"] == 0
+    assert kwargs["max_turns"] == 20
     config = terminal_runner._job_config(
         jobs_dir=Path("/private/jobs"),
         job_name="one",
@@ -134,7 +151,14 @@ def test_context_budget_accepts_32768_and_rejects_32769() -> None:
     with pytest.raises(ValueError, match="positive integer"):
         terminal_runner._context_budget(8224, 8192)
     with pytest.raises(ValueError, match="positive integer"):
-        terminal_runner._agent_kwargs("http://127.0.0.1:18080/v1", {"max_tokens": 8192}, 123, 8224)
+        terminal_runner._agent_kwargs(
+            "http://127.0.0.1:18080/v1",
+            {"max_tokens": 8192},
+            123,
+            8224,
+            llm_response_timeout_seconds=30.0,
+            max_turns=20,
+        )
     with pytest.raises(ValueError, match="positive integer"):
         terminal_runner._context_budget(32768, True)
     with pytest.raises(ValueError, match="at least 32 tokens"):
@@ -150,6 +174,14 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
     task_dir = checkout / "tasks" / "fixture-task"
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text("# fixture", encoding="utf-8")
+    harbor_checkout = tmp_path / "harbor"
+    (harbor_checkout / "src/harbor").mkdir(parents=True)
+    harbor_init = harbor_checkout / "src/harbor/__init__.py"
+    harbor_init.write_text("", encoding="utf-8")
+    harbor_executable = harbor_checkout / ".venv/bin/harbor"
+    harbor_executable.parent.mkdir(parents=True)
+    harbor_executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    harbor_executable.chmod(0o755)
     scored_ids = tmp_path / "ids.json"
     scored_ids.write_text('["fixture-task"]', encoding="utf-8")
     args = SimpleNamespace(
@@ -158,8 +190,10 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
         model_id=model_id,
         model_path=Path("/fixture/model"),
         terminal_checkout=checkout,
+        harbor_checkout=harbor_checkout,
+        harbor_patch_manifest=tmp_path / "harbor-patch.json",
         harbor_python=Path(sys.executable),
-        harbor_executable=Path("/fixture/harbor"),
+        harbor_executable=harbor_executable,
         docker_daemon_config=tmp_path / "docker",
         expected_docker_daemon_config=tmp_path / "expected",
         inputs_summary=tmp_path / "summary",
@@ -169,6 +203,10 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
         result_dir=tmp_path / "results",
         receipt=tmp_path / "receipt.json",
         resume_existing=False,
+        watchdog_seconds=60.0,
+        teardown_grace_seconds=5.0,
+        llm_response_timeout_seconds=10.0,
+        max_turns=20,
     )
     objects = {
         args.inputs_summary: {
@@ -194,11 +232,39 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
     )
     monkeypatch.setattr(terminal_runner, "_require_clean_checkout", lambda _: None)
     monkeypatch.setattr(terminal_runner, "_docker_evidence", lambda *args: {})
-    monkeypatch.setattr(terminal_runner, "_load_object", lambda path, _: objects[path])
-    monkeypatch.setattr(terminal_runner, "_sha256_file", lambda _: digest)
+
+    def load_object(path: Path, _: str) -> dict[str, Any]:
+        if path in objects:
+            return objects[path]
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert isinstance(payload, dict)
+        return payload
+
+    monkeypatch.setattr(terminal_runner, "_load_object", load_object)
+    actual_sha256 = terminal_runner._sha256_file
+    monkeypatch.setattr(
+        terminal_runner,
+        "_sha256_file",
+        lambda path: actual_sha256(path) if path.is_relative_to(args.result_dir) else digest,
+    )
     monkeypatch.setattr(terminal_runner, "_verify_manifest", lambda *args: digest)
     monkeypatch.setattr(terminal_runner, "_validate_endpoint", lambda *args: None)
-    monkeypatch.setattr(terminal_runner, "_parse_job_result", lambda _: ({}, {"reward": 1}, None))
+    monkeypatch.setattr(
+        terminal_runner,
+        "load_patch_contract",
+        lambda _: SimpleNamespace(package_version=terminal_runner.HARBOR_PACKAGE_VERSION),
+    )
+    monkeypatch.setattr(terminal_runner, "verify_harbor_checkout", lambda *args: {"verified": True})
+    monkeypatch.setattr(
+        terminal_runner.importlib,
+        "import_module",
+        lambda _: SimpleNamespace(__file__=str(harbor_init)),
+    )
+    monkeypatch.setattr(
+        terminal_runner,
+        "_parse_job_result",
+        lambda _: ({}, {"agent_result": {}}, {"rewards": {"reward": 1}}, None),
+    )
     captured = []
 
     def job_config(config: Any) -> SimpleNamespace:
@@ -209,7 +275,13 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
         job_dir = args.result_dir / terminal_runner._result_name("fixture-task")
         job_dir.mkdir()
         (job_dir / "result.json").write_text("{}", encoding="utf-8")
-        return SimpleNamespace(returncode=0)
+        return SimpleNamespace(
+            returncode=0,
+            timed_out=False,
+            sent_sigterm=False,
+            sent_sigkill=False,
+            wall_seconds=1.0,
+        )
 
     modules = {
         name: ModuleType(name)
@@ -226,7 +298,7 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
             parent, child = name.rsplit(".", 1)
             setattr(modules[parent], child, module)
     modules["harbor.models.job.config"].JobConfig = SimpleNamespace(model_validate=job_config)
-    monkeypatch.setattr(terminal_runner.subprocess, "run", fake_harbor)
+    monkeypatch.setattr(terminal_runner, "run_with_watchdog", fake_harbor)
 
     receipt = terminal_runner.run_terminal(args)
 
@@ -237,14 +309,160 @@ def test_receipt_records_requested_budget_and_thinking_without_effective_claim(
         "enable_thinking": False
     }
     execution = receipt["execution"]
+    assert receipt["schema"] == "matric-eval.qwen38-terminal-runtime-receipt/2"
+    assert receipt["schema_version"] == "2"
+    assert receipt["primary_reward_count"] == 1
+    assert receipt["analytic_invalid_count"] == 0
+    assert receipt["scored_results"][0]["official_verifier"]["reward"] == 1
+    assert receipt["scored_results"][0]["analytic"]["status"] == "valid"
+    execution_path = (
+        args.result_dir
+        / "control"
+        / f"{terminal_runner._result_name('fixture-task')}.execution.json"
+    )
+    execution_outcome = json.loads(execution_path.read_text(encoding="utf-8"))
+    assert execution_outcome == {
+        "schema_version": "1",
+        "config_sha256": actual_sha256(
+            execution_path.with_name(execution_path.name.replace(".execution", ""))
+        ),
+        "runtime_controls": {
+            "watchdog_seconds": 60.0,
+            "teardown_grace_seconds": 5.0,
+        },
+        "result_sha256": {"result.json": hashlib.sha256(b"{}").hexdigest()},
+        "harbor_exit_code": 0,
+        "watchdog": {
+            "timed_out": False,
+            "sent_sigterm": False,
+            "sent_sigkill": False,
+        },
+        "task_wall_seconds": 1.0,
+    }
+    assert receipt["scored_results"][0]["execution_outcome_sha256"] == actual_sha256(execution_path)
+    assert execution_path.stat().st_mode & 0o777 == 0o600
     assert execution["context_budget"] == terminal_runner._context_budget(32768, 8192)
     assert (
         execution["context_budget_enforcement"]
         == "harbor-model-info-input-limit-requested-unverified"
     )
     assert execution["target_thinking_mode_requested"] == "disabled"
+    assert execution["llm_transport_retries"] == 0
+    assert execution["terminal_recovery_max_attempts"] == 1
     assert "target_thinking_mode" not in execution
     assert json.loads(args.receipt.read_text())["execution"] == execution
+
+    def no_fresh_run(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("resume must not invoke Harbor")
+
+    monkeypatch.setattr(terminal_runner, "run_with_watchdog", no_fresh_run)
+    args.resume_existing = True
+    args.receipt = tmp_path / "resume-success.json"
+    resumed_success = terminal_runner.run_terminal(args)
+    assert resumed_success["primary_reward_count"] == 1
+    assert resumed_success["timing"]["fresh_attempt_count"] == 0
+    assert resumed_success["timing"]["recovered_attempt_count"] == 1
+    assert resumed_success["timing"]["recovered_wall_seconds"] == 1.0
+
+    execution_outcome["harbor_exit_code"] = -15
+    execution_outcome["watchdog"] = {
+        "timed_out": True,
+        "sent_sigterm": True,
+        "sent_sigkill": False,
+    }
+    execution_path.write_text(json.dumps(execution_outcome), encoding="utf-8")
+    args.receipt = tmp_path / "resume-timeout.json"
+    resumed_timeout = terminal_runner.run_terminal(args)
+    timeout_record = resumed_timeout["scored_results"][0]
+    assert timeout_record["official_verifier"]["reward"] == 1
+    assert timeout_record["analytic"]["reason"] == "parent_watchdog_timeout"
+    assert resumed_timeout["primary_reward_count"] == 0
+    assert resumed_timeout["timing"]["recovered_wall_seconds"] == 1.0
+
+    execution_outcome["harbor_exit_code"] = 3
+    execution_outcome["watchdog"] = {
+        "timed_out": False,
+        "sent_sigterm": False,
+        "sent_sigkill": False,
+    }
+    execution_path.write_text(json.dumps(execution_outcome), encoding="utf-8")
+    args.receipt = tmp_path / "resume-nonzero.json"
+    resumed_nonzero = terminal_runner.run_terminal(args)
+    nonzero_record = resumed_nonzero["scored_results"][0]
+    assert nonzero_record["analytic"]["reason"] == "harbor_subprocess_error"
+    assert resumed_nonzero["primary_reward_count"] == 0
+
+    execution_outcome["runtime_controls"]["watchdog_seconds"] = 61.0
+    execution_path.write_text(json.dumps(execution_outcome), encoding="utf-8")
+    args.receipt = tmp_path / "resume-controls-mismatch.json"
+    resumed_mismatch = terminal_runner.run_terminal(args)
+    mismatch_record = resumed_mismatch["scored_results"][0]
+    assert mismatch_record["official_verifier"]["reward"] == 1
+    assert mismatch_record["analytic"]["reason"] == "missing_parent_outcome"
+    assert mismatch_record["task_wall_seconds"] is None
+    assert resumed_mismatch["primary_reward_count"] == 0
+
+    execution_path.unlink()
+    args.receipt = tmp_path / "resume-missing-parent.json"
+    resumed_missing = terminal_runner.run_terminal(args)
+    missing_record = resumed_missing["scored_results"][0]
+    assert missing_record["official_verifier"]["reward"] == 1
+    assert missing_record["analytic"]["reason"] == "missing_parent_outcome"
+    assert missing_record["task_wall_seconds"] is None
+    assert missing_record["execution_outcome_sha256"] is None
+    assert resumed_missing["primary_reward_count"] == 0
+    assert resumed_missing["timing"]["unknown_timing_count"] == 1
+
+    execution_path.write_text("{", encoding="utf-8")
+    args.receipt = tmp_path / "resume-malformed.json"
+    malformed = terminal_runner.run_terminal(args)
+    assert malformed["primary_reward_count"] == 0
+    assert malformed["scored_results"][0]["analytic"]["reason"] == "missing_parent_outcome"
+
+    execution_outcome["runtime_controls"]["watchdog_seconds"] = 60.0
+    execution_path.write_text(json.dumps(execution_outcome), encoding="utf-8")
+    job_dir = args.result_dir / terminal_runner._result_name("fixture-task")
+    (job_dir / "result.json").write_text('{"changed": true}', encoding="utf-8")
+    args.receipt = tmp_path / "resume-result-tampered.json"
+    tampered = terminal_runner.run_terminal(args)
+    assert tampered["primary_reward_count"] == 0
+    assert tampered["scored_results"][0]["official_verifier"]["reward"] == 1
+    assert tampered["scored_results"][0]["analytic"]["reason"] == "missing_parent_outcome"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", "2"),
+        ("config_sha256", "c" * 64),
+        ("result_sha256", {}),
+        ("harbor_exit_code", True),
+        ("harbor_exit_code", 0.0),
+        ("task_wall_seconds", True),
+        ("task_wall_seconds", -1),
+        ("task_wall_seconds", float("nan")),
+        ("task_wall_seconds", float("inf")),
+        ("watchdog", {"timed_out": False}),
+        ("watchdog", {"timed_out": 0, "sent_sigterm": False, "sent_sigkill": False}),
+        ("watchdog", {"timed_out": False, "sent_sigterm": False, "sent_sigkill": True}),
+    ],
+)
+def test_execution_outcome_rejects_invalid_identity_status_and_timing(
+    tmp_path: Path, field: str, value: Any
+) -> None:
+    path = tmp_path / "execution.json"
+    payload = {
+        "schema_version": "1",
+        "config_sha256": "a" * 64,
+        "result_sha256": {"result.json": "b" * 64},
+        "harbor_exit_code": 0,
+        "task_wall_seconds": 1.0,
+        "watchdog": {"timed_out": False, "sent_sigterm": False, "sent_sigkill": False},
+    }
+    payload[field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        terminal_runner._load_execution_outcome(path, "a" * 64, {"result.json": "b" * 64})
 
 
 @pytest.mark.parametrize(
@@ -297,6 +515,36 @@ def test_larger_context_margin_is_honored() -> None:
         terminal_runner._validate_context_allocation(24513, 8192, 32768, 64)
 
 
+def test_runtime_controls_require_nested_finite_bounds() -> None:
+    terminal_runner._validate_runtime_controls(
+        watchdog_seconds=900.0,
+        teardown_grace_seconds=30.0,
+        llm_response_timeout_seconds=120.0,
+        max_turns=100,
+    )
+    with pytest.raises(ValueError, match="shorter than the parent watchdog"):
+        terminal_runner._validate_runtime_controls(
+            watchdog_seconds=60.0,
+            teardown_grace_seconds=5.0,
+            llm_response_timeout_seconds=60.0,
+            max_turns=20,
+        )
+    with pytest.raises(ValueError, match="finite positive"):
+        terminal_runner._validate_runtime_controls(
+            watchdog_seconds=float("inf"),
+            teardown_grace_seconds=5.0,
+            llm_response_timeout_seconds=1.0,
+            max_turns=20,
+        )
+    with pytest.raises(ValueError, match="at least 2"):
+        terminal_runner._validate_runtime_controls(
+            watchdog_seconds=60.0,
+            teardown_grace_seconds=5.0,
+            llm_response_timeout_seconds=10.0,
+            max_turns=1,
+        )
+
+
 def test_help_does_not_run_preflight_or_access_services(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -347,7 +595,8 @@ def test_endpoint_and_job_result_parsing(tmp_path: Path, monkeypatch: pytest.Mon
         ),
         encoding="utf-8",
     )
-    _, rewards, exception = terminal_runner._parse_job_result(result_path)
+    _, _, verifier, exception = terminal_runner._parse_job_result(result_path)
+    rewards = verifier["rewards"] if verifier is not None else None
     assert rewards == {"reward": 1}
     assert exception is None
 
@@ -369,7 +618,8 @@ def test_harbor_022_nested_trial_result_parsing(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    _, rewards, exception = terminal_runner._parse_job_result(result_path)
+    _, _, verifier, exception = terminal_runner._parse_job_result(result_path)
+    rewards = verifier["rewards"] if verifier is not None else None
 
     assert rewards == {"reward": 0}
     assert exception == "AgentTimeoutError"
@@ -434,6 +684,8 @@ def test_resume_existing_is_explicit() -> None:
             "/receipt.json",
             "--terminal-checkout",
             "/terminal",
+            "--harbor-checkout",
+            "/harbor-checkout",
             "--harbor-python",
             "/venv/python",
             "--harbor-executable",
@@ -446,6 +698,12 @@ def test_resume_existing_is_explicit() -> None:
             "/results",
             "--receipt",
             "/terminal-receipt.json",
+            "--watchdog-seconds",
+            "900",
+            "--llm-response-timeout-seconds",
+            "120",
+            "--max-turns",
+            "100",
             "--resume-existing",
         ]
     )
