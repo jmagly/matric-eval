@@ -102,7 +102,7 @@ jobs:
       - name: Audit dependencies
         run: |
           uv export --format requirements.txt --all-extras --no-extra dev --no-dev --locked \
-            --no-emit-project \
+            --no-emit-project --no-hashes \
             --output-file release-artifacts/evidence/python-requirements.txt
           set +e
           uvx --from pip-audit==2.10.0 pip-audit \

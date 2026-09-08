@@ -132,3 +132,14 @@ def test_tag_wrapper_checks_clean_main_and_never_pushes(tmp_path: Path) -> None:
     git("commit", "-m", "not on main remote")
     assert subprocess.run(command, cwd=repo, capture_output=True).returncode != 0
     assert git("tag", "--list") == ""
+
+
+def test_python_audit_export_preserves_vcs_pins_without_incompatible_hash_mode() -> None:
+    steps = workflow(".gitea/workflows/release.yml")["jobs"]["release"]["steps"]
+    audit = next(step for step in steps if step["name"] == "Audit dependencies")["run"]
+    assert "--locked" in audit
+    assert "--no-emit-project --no-hashes" in audit
+    assert "--all-extras --no-extra dev --no-dev" in audit
+    assert "--requirement release-artifacts/evidence/python-requirements.txt" in audit
+    assert "--ignore-vuln" not in audit
+    assert "--skip-editable" not in audit

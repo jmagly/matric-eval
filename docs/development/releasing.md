@@ -124,3 +124,11 @@ npm install ./packages/typescript/matric-eval-client-2026.9.0.tgz
 The TypeScript client still requires the Python executable on `PATH`. Preserve
 the manifest and evidence when using a release for a study. Registry publishing
 would require a separate reviewed change to this policy and the workflows.
+
+The audit requirements export uses `--no-hashes` because pip cannot combine its
+hash-checking mode with the study dependency pinned to a Git commit. `--locked`
+still preserves exact package versions and the VCS commit; installation uses the
+unchanged lock file. This flag applies only to the audit input, not dependency
+selection or release installation. A missing, failed, or skipped dependency audit
+still blocks release: removing hashes does not waive an unauditable dependency or
+any vulnerability-policy finding.
