@@ -308,12 +308,19 @@ def _execute_checks(
                         "MATRIC_PREFLIGHT_RECEIPT": str(output),
                         "MATRIC_PREFLIGHT_EVIDENCE_ID": row["evidence_id"],
                     }
-                    row.update(_run(check["command"], check["timeout_seconds"], env))
+                    try:
+                        row.update(_run(check["command"], check["timeout_seconds"], env))
+                    finally:
+                        if output.exists() and output.stat().st_size <= 1024 * 1024:
+                            raw_receipt = output.read_text(errors="replace")
+                            row["receipt_sha256"] = file_digest(output)
+                            excerpt = sanitize(raw_receipt, secrets)
+                            row["receipt_excerpt"] = excerpt[:LIMIT]
+                            row["receipt_excerpt_truncated"] = len(excerpt) > LIMIT
                     if output.stat().st_size > 1024 * 1024:
                         raise ValueError("check receipt exceeds 1 MiB")
                     evidence = json.loads(output.read_text())
                     _contract(evidence, check["receipt_contract"])
-                    row["receipt_sha256"] = file_digest(output)
                     row["completed_at"] = time.time()
                     row["status"] = "completed"
             except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
@@ -498,7 +505,7 @@ def tau_plan(
     scored_ids: Path,
     tau_checkout: Path,
     patch_manifest: Path,
-    launcher_smoke: dict[str, Any],
+    launcher_smoke: dict[str, Any] | None = None,
     auxiliary_checks: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the supported Tau pre-target profile without opening a model endpoint.
@@ -565,6 +572,20 @@ def tau_plan(
                 },
             }
         )
+    if launcher_smoke is None:
+        launcher_smoke = {
+            "command": [str(python), str(script), "launcher", *arguments],
+            "inputs": inputs,
+            "timeout_seconds": 120,
+            "freshness_seconds": 300,
+            "repetitions": 3,
+            "receipt_contract": {
+                "schema": "matric-eval.tau-preflight/1",
+                "mode": "launcher",
+                "passed": True,
+                "launcher": {"http_requests": 1, "scored_tasks_executed": 0},
+            },
+        }
     checks.append(
         {
             **launcher_smoke,
@@ -624,3 +645,55 @@ def execute_target_checks(
     result["completed_at"] = time.time()
     write_receipt(receipt_path, result)
     return result
+
+
+def auxiliary_client_check(
+    *, python: Path, checkout: Path, profile: Path, role: str = "simulator"
+) -> dict[str, Any]:
+    """Use the scored client profile and real broker canary, preserving evidence limits."""
+    if role not in {"simulator", "embedder"}:
+        raise ValueError("unknown auxiliary role")
+    operation = "embedding" if role == "embedder" else "completion"
+    script = checkout / "scripts/preflight_auxiliary_client.py"
+    canary = checkout / (
+        "scripts/qualify_embedding_client.py"
+        if operation == "embedding"
+        else "scripts/qualify_auxiliary_client.py"
+    )
+    return {
+        "id": f"auxiliary-{role}",
+        "role": role,
+        "stage": "auxiliary",
+        "command": [
+            str(python),
+            str(script),
+            "--profile",
+            str(profile),
+            "--canary-script",
+            str(canary),
+            "--operation",
+            operation,
+        ],
+        "inputs": [
+            str(path)
+            for path in (
+                python,
+                profile,
+                script,
+                canary,
+                checkout / "src/matric_eval/studies/client_conformance.py",
+                checkout / "src/matric_eval/studies/broker_admission.py",
+                checkout / "src/matric_eval/studies/auxiliary_runtime.py",
+                checkout / "src/matric_eval/studies/embedding_transport.py",
+            )
+        ],
+        "timeout_seconds": 420,
+        "freshness_seconds": 300,
+        "deterministic": False,
+        "receipt_contract": {
+            "schema": "matric-eval.auxiliary-preflight/1",
+            "transport_passed": True,
+            "execution_digest_binding": "unverified",
+            "qualification_scope": "actual_client_transport_and_own_request_correlation",
+        },
+    }

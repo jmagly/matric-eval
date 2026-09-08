@@ -101,3 +101,22 @@ admission_receipt, max_age_seconds=300)` validates admission and runs only the
 explicit target checks against an already-owned resident. It never reacquires,
 launches, invokes the scored adapter or releases a lease. Its receipt is separate
 from pre-target admission; the lifecycle controller owns cleanup on rejection.
+
+The `launcher` mode of `preflight_qwen38_tau.py` loads one selected immutable task
+through the official loader, roundtrips the actual `TextRunConfig` schema, calls
+Tau's actual `generate` and `UserMessage` serialization against a controlled HTTP
+endpoint, and writes the task/config/response through the production adapter's
+private receipt serializer. It does not call `run_single_task` or score the task.
+Missing imports in the resolved Tau environment therefore fail this check before
+any target acquisition.
+
+`auxiliary_client_check(python=..., checkout=..., profile=..., role="simulator")`
+produces the simulator command check; `role="embedder"` invokes the embedding CLI
+and requires its measured dimensions. It invokes the existing `qualify_auxiliary_client.py`
+public-broker canary with the exact profile, validates the returned own logical
+and broker request IDs and lane, and emits a bounded preflight receipt. Its
+`transport_passed` field means actual client transport and own-request correlation;
+`execution_digest_binding` remains explicitly `unverified`, and semantic
+calibration is not performed. A completion probe cannot be labeled an embedding
+qualification. The embedder check must separately exercise the actual embedding
+client, dimensions and broker evidence required by the selected profile.

@@ -208,3 +208,84 @@ def test_resident_target_checks_never_reacquire(plan: dict, tmp_path: Path) -> N
     admission["admitted"] = False
     rejected = execute_target_checks(plan, tmp_path / "target.json", admission)
     assert not rejected["completed"] and not rejected["checks"]
+
+
+def test_supported_tau_inputs_use_canonical_protocol_hash(tmp_path: Path) -> None:
+    import hashlib
+    import subprocess
+
+    from matric_eval.studies.preflight import digest
+    from matric_eval.studies.protocol import StudyProtocol
+
+    checkout = Path(__file__).resolve().parents[3]
+    protocol_path = checkout / "studies/qwen38-obliteration-2026-09/protocol.yaml"
+    protocol = StudyProtocol.from_yaml(protocol_path, validate_registry=False)
+    selected = ["retail:43", "airline:3", "retail:47"]
+    manifest = {
+        "study_id": protocol.id,
+        "cohort": "pilot",
+        "allocations": [{"allocation_id": "tau3-bench", "selected_ids": selected}],
+    }
+    manifest["manifest_sha256"] = digest(manifest)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    scored = tmp_path / "scored.json"
+    scored.write_text(json.dumps({"airline": ["3"], "retail": ["43", "47"]}))
+    summary = tmp_path / "summary.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "manifest_sha256": manifest["manifest_sha256"],
+                "cohort": "pilot",
+                "protocol_sha256": protocol.canonical_sha256,
+                "scored_samples": {"tau3-bench": 3},
+                "artifacts": {
+                    "tau3-scored-ids.json": hashlib.sha256(scored.read_bytes()).hexdigest()
+                },
+            }
+        )
+    )
+    receipt = tmp_path / "receipt.json"
+    command = [
+        sys.executable,
+        str(checkout / "scripts/preflight_qwen38_tau.py"),
+        "inputs",
+        "--protocol",
+        str(protocol_path),
+        "--model-id",
+        "qwen38-27b-source-bf16",
+        "--manifest",
+        str(manifest_path),
+        "--inputs-summary",
+        str(summary),
+        "--scored-ids",
+        str(scored),
+        "--tau-checkout",
+        str(tmp_path),
+    ]
+    completed = subprocess.run(
+        command,
+        env={**os.environ, "MATRIC_PREFLIGHT_RECEIPT": str(receipt)},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(receipt.read_text())["ordered_ids"] == selected
+    assert json.loads(scored.read_text()) == {"airline": ["3"], "retail": ["43", "47"]}
+
+
+def test_failed_check_retains_own_request_receipt(plan: dict, tmp_path: Path) -> None:
+    script = Path(plan["checks"][2]["inputs"][0])
+    # Make only auxiliary command fail after writing its own correlated evidence.
+    failed = tmp_path / "failed.py"
+    failed.write_text(
+        'import json,os,sys\nfrom pathlib import Path\nPath(os.environ["MATRIC_PREFLIGHT_RECEIPT"]).write_text(json.dumps({"broker_request_id":"own-123","reason":"queue_expired"}))\nsys.exit(7)\n'
+    )
+    plan["checks"][2]["command"] = [sys.executable, str(failed)]
+    plan["checks"][2]["inputs"] = [str(script), str(failed)]
+    result = execute_plan(plan, tmp_path / "receipt.json", launch=True)
+    row = result["checks"][2]
+    assert row["diagnostic"]["exit_code"] == 7
+    assert json.loads(row["receipt_excerpt"])["broker_request_id"] == "own-123"
+    assert result["target_launches"] == 0
