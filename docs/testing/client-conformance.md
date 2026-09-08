@@ -13,19 +13,20 @@ request ID, zero retries, no streaming, fixed output cap and timeout. The native
 profile uses `ollama_chat/` and requires `think:false` on `/api/chat`.
 OpenAI-compatible thinking-off is rejected until separately demonstrated. Tool
 capability must be exercised with a tool request and a returned call; visible
-text alone does not establish support. Embedding consumers must separately use
-`validate_embedding` with measured vector and server-attested digest.
+text alone does not establish support. Embedding consumers must separately qualify
+the measured vector and record the evidence source for the observed digest.
 
 Run no-model fixture tests on A100 with LiteLLM 1.81.11 installed. These retain the
 original missing-header failure alongside the corrected wire request, hidden
 reasoning and empty-output rejection, and lost-ack/admission fixtures that count
 actual HTTP attempts. Optional dependency skips are not qualification evidence.
 
-The TAU runner uses the shared argument validation for explicitly provided
-arguments. Its existing defaults and frozen external model stay unchanged. This
-validation does **not** qualify the existing runner's implicit retry defaults.
-Native local simulator qualification is an amendment candidate, not permission
-to execute deferred TAU or compare changed simulator protocols as matched runs.
+The TAU runner uses the shared dispatch and argument validation for an explicit
+auxiliary profile/amendment pair, as described below. Its existing defaults and
+frozen external model stay unchanged. This validation does **not** qualify the
+existing runner's implicit retry defaults. Native local simulator transport
+qualification does not authorize deferred TAU or establish comparability between
+changed simulator protocols.
 
 After explicit authorization and scoped allocation, an operator may run:
 
@@ -37,8 +38,10 @@ python scripts/qualify_auxiliary_client.py --profile PROFILE.json \
 The command makes one bounded actual-client call. It emits only a profile hash,
 request ID, content-free outcome and allocation artifact hash, with private file
 permissions. Correlate that request ID with the broker owner's scoped admission
-and execution evidence. Successful client output stays `pending_broker_evidence`;
-it is not a live qualification. No command here searches unrelated traffic.
+and execution evidence. Client output alone stays `pending_broker_evidence`;
+supported live transport qualification additionally requires the correlated
+public admission and identity observations described below. No command here
+searches unrelated traffic.
 
 Admission rejections and response timeouts are different failure codes. A client
 response timeout without broker phase evidence is explicitly **phase unknown**;
@@ -123,7 +126,8 @@ is not the broker's correlation key. Own responses bind logical ID, broker ID,
 queue ticket and lane. `queue_ms_including_warmup` includes model preparation;
 it cannot separate warmup from admission wait. The bounded in-memory broker
 response cache is not a durable exactly-once guarantee. Execution digest binding
-remains unverified, and transport qualification remains pending broker evidence.
+remains unverified. Supported transport qualification uses the correlated live
+observations below and does not claim this stronger execution guarantee.
 
 For public inference, use `--public-broker-admission` instead of an external
 `--lease-receipt`. This requires the resume profile and verifies that the returned
