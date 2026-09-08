@@ -19,6 +19,7 @@ from rich.table import Table
 
 from matric_eval.config import get_seed, get_settings, get_tier
 from matric_eval.core.engine import EvaluationEngine
+from matric_eval.data.cli import datasets
 from matric_eval.logging import (
     EvalLogger,
     configure_logging,
@@ -2126,6 +2127,9 @@ def trend_series_command(
         raise click.ClickException("trend_series_refused") from None
     finally:
         store.close()
+
+
+cli.add_command(datasets)
 
 
 if __name__ == "__main__":
