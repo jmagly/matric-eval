@@ -218,6 +218,10 @@ def _load_external_args(path: Path | None) -> JsonObject:
             pending.extend(value)
     if "seed" in payload:
         raise ValueError("the tau runner derives and supplies the per-task seed")
+    from matric_eval.studies.client_conformance import bounded_external_arguments
+
+    # Validate explicit bounds without changing the frozen study defaults.
+    bounded_external_arguments(payload)
     return payload
 
 
