@@ -294,7 +294,7 @@ def _execute(
     entries = {row["key"]: row for row in report["entries"]}
     work_by_key = {work.key: work for work in schedule.work}
     resident: str | None = None
-    failed_suites: set[str] = set()
+    failed_suites: set[tuple[str, str]] = set()
     global_stop = False
     report["observed_model_loads"] = 0
     report["execution_order"] = []
@@ -306,7 +306,7 @@ def _execute(
                     disposition="blocked", reasons=["global_stop" if global_stop else "stop_policy"]
                 )
                 continue
-            if work.suite in failed_suites or any(
+            if (work.model, work.suite) in failed_suites or any(
                 entries[dep]["disposition"] not in {"completed", "reused"}
                 for dep in work.dependencies
             ):
@@ -356,7 +356,7 @@ def _execute(
                     raise SuiteFailure("invalid_terminal")
             except SuiteFailure:
                 entry.update(disposition="failed", reasons=["suite_failure"])
-                failed_suites.add(work.suite)
+                failed_suites.add((work.model, work.suite))
                 if resident is not None:
                     resident = None
                     if not _stop(adapter):

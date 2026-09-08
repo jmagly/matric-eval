@@ -29,7 +29,7 @@ exceptions and uncertain cleanup trigger a global stop. Partial acquisition also
 receives cleanup. A suite-specific failure must be explicitly classified as
 `SuiteFailure`; arbitrary exceptions are global resource/integrity failures.
 
-Under `continue-independent`, a failed suite blocks its remaining work and true
+Under `continue-independent`, a failed model/suite pair blocks its remaining work and true
 dependents, while independently qualified suites continue. Under `stop`, any
 suite failure blocks the remaining work. Shared integrity/resource failures stop
 all subsequent work under either policy. No policy authorizes deferred TAU.
