@@ -47,6 +47,9 @@ def test_contract_invalidates_and_rejects_unsupported_guarantees():
         replace(p, route="openai", model="openai/fixture").validate()
     with pytest.raises(ConformanceError, match="auxiliary_target"):
         replace(p, target_model="fixture").validate()
+    for target in ("ollama_chat/fixture", "openai/fixture", "fixture:latest"):
+        with pytest.raises(ConformanceError, match="auxiliary_target"):
+            replace(p, target_model=target).validate()
     for bad in ({"num_retries": 1}, {"timeout": 0}, {"max_tokens": -1}, {"fallbacks": []}):
         with pytest.raises(ConformanceError):
             bounded_external_arguments(bad)
@@ -54,7 +57,19 @@ def test_contract_invalidates_and_rejects_unsupported_guarantees():
 
 @pytest.mark.parametrize(
     "scenario",
-    ["ok", "missing_header", "lost_ack", "timeout", "admission", "reasoning", "empty", "tools"],
+    [
+        "ok",
+        "missing_header",
+        "lost_ack",
+        "timeout",
+        "admission",
+        "reasoning",
+        "empty",
+        "tools",
+        "wrong_model",
+        "wrong_tool",
+        "invalid_arguments",
+    ],
 )
 def test_actual_litellm_serialization(scenario):
     pytest.importorskip("litellm")
@@ -93,11 +108,15 @@ def test_actual_litellm_serialization(scenario):
                 message["thinking"] = "hidden"
             if scenario == "empty":
                 message["content"] = ""
-            if scenario == "tools":
+            if scenario in ("tools", "wrong_tool", "invalid_arguments"):
                 message["tool_calls"] = [{"function": {"name": "ping", "arguments": {}}}]
+                if scenario == "wrong_tool":
+                    message["tool_calls"][0]["function"]["name"] = "delete"
+                if scenario == "invalid_arguments":
+                    message["tool_calls"][0]["function"]["arguments"] = {"unexpected": 1}
             payload = json.dumps(
                 {
-                    "model": "fixture",
+                    "model": "wrong" if scenario == "wrong_model" else "fixture",
                     "created_at": "2026-09-08T00:00:00Z",
                     "message": message,
                     "done": True,
@@ -118,7 +137,7 @@ def test_actual_litellm_serialization(scenario):
     p = replace(
         profile(f"http://127.0.0.1:{server.server_port}"),
         client_version=importlib.metadata.version("litellm"),
-        tools=scenario == "tools",
+        tools=scenario in ("tools", "wrong_tool", "invalid_arguments"),
         timeout=0.05 if scenario == "timeout" else 30,
     )
     tools = (
@@ -128,7 +147,11 @@ def test_actual_litellm_serialization(scenario):
                 "function": {
                     "name": "ping",
                     "description": "fixture ping",
-                    "parameters": {"type": "object", "properties": {}},
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
                 },
             }
         ]
@@ -143,13 +166,25 @@ def test_actual_litellm_serialization(scenario):
             del args["headers"]["Content-Type"]
             litellm.completion(model=p.model, messages=[{"role": "user", "content": "ok"}], **args)
             assert failures == ["missing_json_content_type"]
-        elif scenario in ("lost_ack", "timeout", "admission", "reasoning", "empty"):
+        elif scenario in (
+            "lost_ack",
+            "timeout",
+            "admission",
+            "reasoning",
+            "empty",
+            "wrong_model",
+            "wrong_tool",
+            "invalid_arguments",
+        ):
             expected = {
                 "lost_ack": "transport_failure_no_replay",
                 "timeout": "response_timeout_phase_unknown_no_replay",
                 "admission": "admission_unconfirmed_no_replay",
                 "reasoning": "thinking_off_violated",
                 "empty": "empty_output",
+                "wrong_model": "response_model_mismatch",
+                "wrong_tool": "tool_name_or_arguments_invalid",
+                "invalid_arguments": "tool_name_or_arguments_invalid",
             }[scenario]
             with pytest.raises(ConformanceError, match=expected):
                 qualify_completion(
@@ -208,6 +243,8 @@ def test_actual_litellm_embedding():
     thread.start()
     kwargs = dict(
         model="ollama/fixture-embed",
+        broker_identity="fixture-broker",
+        broker_revision="fixture-revision",
         api_base=f"http://127.0.0.1:{server.server_port}",
         expected_digest="fixture-digest",
         observed_digest="fixture-digest",
@@ -216,12 +253,16 @@ def test_actual_litellm_embedding():
         client_version=importlib.metadata.version("litellm"),
     )
     try:
-        assert qualify_embedding(**kwargs)["measured"]["dimensions"] == 2
+        original = qualify_embedding(**kwargs)
+        assert original["measured"]["dimensions"] == 2
+        for change in ({"broker_revision": "changed"}, {"timeout": 12.0}):
+            changed = qualify_embedding(**{**kwargs, **change})
+            assert changed["profile_sha256"] != original["profile_sha256"]
         with pytest.raises(ConformanceError, match="dimensions_or_values"):
             qualify_embedding(**{**kwargs, "dimensions": 3})
         with pytest.raises(ConformanceError, match="digest_mismatch"):
             qualify_embedding(**{**kwargs, "observed_digest": "changed"})
-        assert requests == [("/api/embed", "fixture-embed")] * 2
+        assert requests == [("/api/embed", "fixture-embed")] * 4
     finally:
         server.shutdown()
         server.server_close()
@@ -287,6 +328,45 @@ def test_actual_openai_route_separate_capability(monkeypatch):
             qualify_completion(
                 replace(p, thinking=False), "openai-fixture", [{"role": "user", "content": "OK"}]
             )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def test_public_metadata_digest_is_not_execution_attestation():
+    from matric_eval.studies.client_conformance import verify_public_model_metadata
+
+    digest = "sha256:model"
+    calls = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            calls.append((self.path, self.headers.get("X-Request-ID")))
+            payload = json.dumps(
+                {"models": [{"name": "fixture:latest", "digest": digest}]}
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    p = profile(f"http://127.0.0.1:{server.server_port}")
+    try:
+        result = verify_public_model_metadata(p, "metadata-fixture")
+        assert result["kind"] == "public_metadata_tag"
+        assert result["execution_digest_binding"] == "unverified"
+        digest = "sha256:changed"
+        with pytest.raises(ConformanceError, match="public_metadata_model_digest_mismatch"):
+            verify_public_model_metadata(p, "metadata-changed")
+        assert calls == [("/api/tags", "metadata-fixture"), ("/api/tags", "metadata-changed")]
     finally:
         server.shutdown()
         server.server_close()

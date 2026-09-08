@@ -63,3 +63,48 @@ wrapped as APIConnectionError(500), with OllamaError(429) in the exception chain
 classification uses the original structured status without parsing error text.
 The real OpenAI route omits `stream:false` and relies on the API's false default;
 its separate fixture checks that effective behavior and retained reasoning.
+
+Identity review corrections: the live command reads the public model metadata
+before and after the client call and rejects a changed/missing digest. Metadata
+receipts are explicitly `public_metadata_tag`; they never establish the digest
+used by an executing request. Request-bound execution digest evidence still
+requires the broker owner's correlated record. Both target and auxiliary names
+are normalized across provider prefixes and implicit `:latest` aliases.
+
+LiteLLM 1.81.11 replaces the native response's model with the requested model in
+its normalized result. Therefore native qualification uses a per-call HTTP client
+response hook to inspect its own raw model field and request options before that
+normalization. The hook retains only identity/check outcomes; it neither reads
+unrelated traffic nor stores raw message content. The wrong-model HTTP fixture
+fails even when the normalized LiteLLM identity appears correct. Tool results
+must name a requested function and contain JSON-object arguments conforming to
+that function's requested JSON schema. Embedding fingerprints bind broker
+identity/revision, endpoint, timeout, dimensions and installed client dependencies.
+
+The dedicated A100 fixture environment currently uses LiteLLM 1.81.11 with
+OpenAI 3.9.0, httpx 0.28.1, and Python 3.11.15. This is not the main lockfile
+environment and does not qualify the external study runtime. The separately
+inspected context-guard and simulator-guard-v3 environments use OpenAI 2.20.0,
+httpx 0.28.1, and Pydantic 2.12.4 with LiteLLM 1.81.11. Qualification fingerprints
+include installed OpenAI/httpx versions so evidence cannot transfer silently.
+
+The CI transport step now uses the independent locked project in
+`tests/profiles/client-conformance/`; it does not change the main package's
+OpenAI requirement. On A100 run the same commands:
+
+```sh
+uv sync --locked --project tests/profiles/client-conformance
+uv run --locked --project tests/profiles/client-conformance \
+  python scripts/run_client_conformance_tests.py
+```
+
+This profile pins LiteLLM 1.81.11, OpenAI 2.20.0, httpx 0.28.1 and Pydantic
+2.12.4 to the inspected incident runtime. All transitive dependencies are locked
+from PyPI. The driver verifies these installed identities before collection and
+fails on any skipped fixture. It prints inventory and retains JUnit. This is
+transport regression coverage, not a substitute for the full external harness
+lockfile, live GPU broker evidence, or scored-run qualification.
+
+The CI change adds shell steps to the existing Python 3.11 test job and reuses
+its existing pinned artifact action. It introduces no new action, installer or
+container reference; existing container/tool pin migration is outside this diff.

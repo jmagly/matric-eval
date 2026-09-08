@@ -11,6 +11,7 @@ import importlib
 import importlib.metadata
 import json
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
@@ -19,6 +20,49 @@ SCHEMA = "matric-eval.client-conformance/1"
 
 class ConformanceError(RuntimeError):
     """Stable, content-free failure classification."""
+
+
+def normalize_model(model: str) -> str:
+    for prefix in ("ollama_chat/", "ollama/", "openai/", "hosted_vllm/"):
+        if model.startswith(prefix):
+            model = model[len(prefix) :]
+            break
+    return model.removesuffix(":latest")
+
+
+def verify_public_model_metadata(profile: ClientProfile, request_id: str) -> dict[str, Any]:
+    """Read public metadata; this is tag evidence, never an execution attestation."""
+    import httpx
+
+    profile.arguments(request_id)
+    path = "/api/tags" if profile.route == "native" else "/models"
+    try:
+        with httpx.Client(timeout=min(profile.timeout, 10), follow_redirects=False) as client:
+            response = client.get(
+                profile.api_base.rstrip("/") + path,
+                headers={"X-Request-ID": request_id, "Accept": "application/json"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        models = payload.get("models" if profile.route == "native" else "data", [])
+        matching = [
+            item
+            for item in models
+            if normalize_model(str(item.get("name", item.get("id", ""))))
+            == normalize_model(profile.model)
+        ]
+        if len(matching) != 1 or matching[0].get("digest") != profile.model_digest:
+            raise ConformanceError("public_metadata_model_digest_mismatch")
+    except ConformanceError:
+        raise
+    except Exception:
+        raise ConformanceError("public_metadata_unavailable") from None
+    return {
+        "kind": "public_metadata_tag",
+        "model_digest": profile.model_digest,
+        "execution_digest_binding": "unverified",
+        "request_id": request_id,
+    }
 
 
 def bounded_external_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -75,7 +119,7 @@ class ClientProfile:
             (self.model_digest, self.broker_identity, self.broker_revision, self.client_version)
         ):
             raise ConformanceError("missing_identity")
-        if self.model.removeprefix("ollama_chat/").removeprefix("openai/") == self.target_model:
+        if normalize_model(self.model) == normalize_model(self.target_model):
             raise ConformanceError("auxiliary_target_identity_overlap")
         if self.route not in ("native", "openai"):
             raise ConformanceError("unsupported_route")
@@ -91,12 +135,13 @@ class ClientProfile:
         self.validate()
         identity = asdict(self)
         versions = {}
-        for package in ("litellm", "httpx", "openai"):
+        for package in ("litellm", "httpx", "openai", "pydantic", "jsonschema"):
             try:
                 versions[package] = importlib.metadata.version(package)
             except importlib.metadata.PackageNotFoundError:
                 versions[package] = "absent"
         identity["installed_dependencies"] = versions
+        identity["adapter_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
     def arguments(self, request_id: str) -> dict[str, Any]:
@@ -142,6 +187,34 @@ def qualify_completion(
         raise ConformanceError("tool_capability_mismatch")
     if completion is None:
         completion = importlib.import_module("litellm").completion
+    wire_models: list[str] = []
+    wire_failures: list[str] = []
+    http_client = None
+    if profile.route == "native":
+        import httpx
+
+        def inspect_response(raw: httpx.Response) -> None:
+            # Per-call client sees only this request; retain no raw text/headers.
+            if raw.is_success:
+                raw.read()
+                try:
+                    wire_models.append(str(raw.json().get("model", "")))
+                    validate_wire(
+                        profile,
+                        raw.request.url.path,
+                        dict(raw.request.headers),
+                        json.loads(raw.request.content),
+                    )
+                except Exception:
+                    wire_failures.append("wire_response_or_request_invalid")
+
+        http_client = httpx.Client(
+            timeout=profile.timeout,
+            follow_redirects=False,
+            event_hooks={"response": [inspect_response]},
+        )
+        handler = importlib.import_module("litellm.llms.custom_httpx.http_handler").HTTPHandler
+        arguments["client"] = handler(client=http_client)
     try:
         response = completion(model=profile.model, messages=messages, tools=tools, **arguments)
     except Exception as exc:
@@ -166,10 +239,20 @@ def qualify_completion(
         else:
             reason = "transport_failure_no_replay"
         raise ConformanceError(reason) from None
+    finally:
+        if http_client is not None:
+            http_client.close()
+    if profile.route == "native":
+        if wire_failures or len(wire_models) != 1:
+            raise ConformanceError("wire_identity_unavailable_or_duplicate")
+        if normalize_model(wire_models[0]) != normalize_model(profile.model):
+            raise ConformanceError("response_model_mismatch")
     try:
         message = response.choices[0].message.model_dump()
     except (AttributeError, IndexError, TypeError):
         raise ConformanceError("model_invalid_output") from None
+    if normalize_model(str(getattr(response, "model", ""))) != normalize_model(profile.model):
+        raise ConformanceError("response_model_mismatch")
     reasoning = any(message.get(key) for key in ("reasoning", "reasoning_content", "thinking"))
     provider_fields = message.get("provider_specific_fields") or {}
     reasoning = reasoning or any(
@@ -183,6 +266,28 @@ def qualify_completion(
         raise ConformanceError("tool_call_missing")
     if not profile.tools and tool_calls:
         raise ConformanceError("unexpected_tool_call")
+    if tool_calls:
+        requested = {
+            tool["function"]["name"]: tool["function"].get("parameters", {}) for tool in tools or []
+        }
+        try:
+            validate = importlib.import_module("jsonschema").validate
+
+            for call in tool_calls:
+                function = call["function"]
+                if function["name"] not in requested:
+                    raise ValueError("unrequested function")
+                arguments_value = function["arguments"]
+                decoded = (
+                    json.loads(arguments_value)
+                    if isinstance(arguments_value, str)
+                    else arguments_value
+                )
+                if not isinstance(decoded, dict):
+                    raise ValueError("non-object arguments")
+                validate(decoded, requested[function["name"]])
+        except Exception:
+            raise ConformanceError("tool_name_or_arguments_invalid") from None
     if not tool_calls and (not isinstance(content, str) or not content.strip()):
         raise ConformanceError("empty_output")
     return {
@@ -194,6 +299,8 @@ def qualify_completion(
         "retry_policy": "one_client_call_no_replay",
         "reasoning_present": bool(reasoning),
         "tool_calls_present": bool(tool_calls),
+        "response_model_check": "client_reported_identity_only",
+        "execution_digest_binding": "unverified",
     }
 
 
@@ -252,6 +359,8 @@ def qualify_embedding(
     request_id: str,
     client_version: str,
     timeout: float = 30.0,
+    broker_identity: str,
+    broker_revision: str,
 ) -> dict[str, Any]:
     """Exercise LiteLLM embedding serialization; digest comes from scoped broker evidence."""
     if not model.startswith("ollama/"):
@@ -263,8 +372,8 @@ def qualify_embedding(
         model.replace("ollama/", "ollama_chat/", 1),
         expected_digest,
         "",
-        "embedding-broker",
-        "scoped-evidence-required",
+        broker_identity,
+        broker_revision,
         api_base,
         "native",
         client_version,
@@ -294,11 +403,22 @@ def qualify_embedding(
         expected_digest=expected_digest,
         observed_digest=observed_digest,
     )
+    if normalize_model(str(getattr(response, "model", ""))) != normalize_model(model):
+        raise ConformanceError("response_model_mismatch")
+    identity = {
+        "client_profile_sha256": profile.fingerprint(),
+        "dimensions": dimensions,
+        "operation": "embedding",
+        "model": model,
+    }
     return {
         "schema": SCHEMA,
         "request_id": request_id,
         "client_version": client_version,
         "model": model,
+        "profile_sha256": hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest(),
+        "execution_digest_binding": "unverified",
+        "digest_evidence_kind": "caller_supplied_metadata",
         "measured": measured,
         "live_qualification": "pending_broker_evidence",
     }

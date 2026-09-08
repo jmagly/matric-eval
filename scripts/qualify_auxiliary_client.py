@@ -18,6 +18,7 @@ from matric_eval.studies.client_conformance import (
     ClientProfile,
     ConformanceError,
     qualify_completion,
+    verify_public_model_metadata,
 )
 
 
@@ -55,12 +56,15 @@ def main() -> None:
     )
     failure = None
     try:
+        before = verify_public_model_metadata(profile, request_id + "-before")
         receipt = qualify_completion(
             profile,
             request_id,
             [{"role": "user", "content": "Call ping." if tools else "Reply exactly OK."}],
             tools=tools,
         )
+        after = verify_public_model_metadata(profile, request_id + "-after")
+        receipt["public_model_metadata"] = {"before": before, "after": after}
     except ConformanceError as exc:
         failure = str(exc)
         receipt = {
