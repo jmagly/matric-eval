@@ -529,6 +529,9 @@ class ResourceLifecycle:
             }
             for key, value in replacements.items():
                 command = [arg.replace(key, value) for arg in command]
+            # Acquisition may block while evidence expires or inputs change.
+            # Recheck before recording any launch or opening the dispatch gate.
+            validate_admission(admission, preflight_plan, 300)
             # Persist potential container creation before dispatch. A missing
             # container before dispatch is safe; lost launch acknowledgment stays pending.
             self.save(state="launching", state_before_launch="launched")

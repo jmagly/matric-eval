@@ -1,0 +1,16 @@
+{
+  "schema": "matric-eval.manual-qualification/1",
+  "issue": 156,
+  "base_commit": "f8581209a914e45d99e670dae9fdedbd2770b990",
+  "environment": "A100 dedicated checkout; locked Python 3.11; absolute checkout PYTHONPATH",
+  "checkout": "/srv/matric-eval/workspaces/matric-eval-156-dispatch",
+  "log": "/srv/matric-eval/workspaces/matric-eval-156-dispatch/dispatch-tests.log",
+  "tests": {"passed": 47, "failed": 0, "seconds": 21.44},
+  "ruff": "passed",
+  "strict_mypy": "passed",
+  "source_mutated_during_acquire": "zero launcher dispatch; exact owned lease released; cleanup complete",
+  "evidence_expired_during_acquire": "real bounded 1.05-second wait exceeding declared 1-second freshness; zero launcher dispatch; exact owned lease released; cleanup complete",
+  "target_freshness_policy": "300-second admission cap retained; stale readiness fails closed without refreshing runtime identities",
+  "real_gpu_allocations": 0,
+  "target_model_loads": 0
+}

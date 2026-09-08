@@ -48,3 +48,13 @@ blocked retry, restart recovery, exact release, idempotence, and token-free publ
 records. A separate legacy regression verifies that incorrectly completed old
 records block new allocation and recover a later grant. Neither fixture loads a
 model or requests a real GPU lease.
+
+Admission is revalidated after acquisition, immediately before recording a launch
+or opening the launcher dispatch gate. Expiry or changed source/dependencies during
+a broker wait prevents target launch and follows the same exact-lease cleanup path.
+The 300-second overall admission limit also applies when readiness arrives, in
+addition to each check's declared freshness. A 900-second readiness timeout is an
+upper timeout, not permission to reuse admission evidence for 900 seconds: readiness
+after the admission limit fails target qualification and triggers teardown. The
+controller does not automatically refresh evidence or accept new runtime identities
+while a target is resident.
