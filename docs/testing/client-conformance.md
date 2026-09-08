@@ -224,3 +224,16 @@ profile fingerprint. This supplements the existing checkout/patch checks and
 prevents a changed official generation module from retaining the old profile.
 The live canary and scored amendment share these checks. Embedding's isolated
 thread proxy remains unchanged.
+
+The identity-bound requalification at source `685f3e5` retains a new
+[official-generation receipt](evidence/issue159/official-generation-identity.json)
+and [embedding receipt](evidence/issue159/embedding-identity.json), with their
+[official profile](evidence/issue159/identity-profile.json) and
+[embedding profile](evidence/issue159/embedding-identity-profile.json).
+Both calls succeeded after three HTTP admission attempts using body-free resume,
+with the existing 30-second/three-attempt bounds. The receipts retain the initial
+queue-admission reason, stable broker request identity, current source/configuration
+binding, visible-output check or 768 finite embedding values, and unchanged public
+tag metadata. Older receipts remain historical evidence. No benchmark tasks ran.
+The current locked regression lane passed 35 tests without skips; strict mypy
+passed the four adapter/identity modules.
