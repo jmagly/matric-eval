@@ -1,0 +1,23 @@
+{
+  "schema": "matric-eval.client-conformance/1",
+  "profile_sha256": "0926a4bc81e36d730bb491993fa74071eb8ae295e43211ece63aa6575601f94e",
+  "request_id": "matric-canary-cff8d71f91cb4fac961a655104f7e7a4",
+  "public_model_metadata": {
+    "before": {
+      "kind": "public_metadata_tag",
+      "model_digest": "3dd01e51cac784fe1603daab6461ec3fa1ac8850d71375bb1be0bd3cf5b1798e",
+      "execution_digest_binding": "unverified",
+      "request_id": "matric-canary-cff8d71f91cb4fac961a655104f7e7a4-before"
+    }
+  },
+  "client_response": "failed",
+  "reason": "broker_resume_budget_exhausted",
+  "broker_admission": {
+    "http_attempts": 3,
+    "logical_request_id": "matric-canary-cff8d71f91cb4fac961a655104f7e7a4",
+    "broker_request_id": "290248353315fee0",
+    "queue_ticket": "31671",
+    "execution_digest_binding": "unverified",
+    "reason_code": "queue_admission_timeout"
+  }
+}
