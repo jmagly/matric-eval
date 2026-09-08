@@ -44,6 +44,8 @@ def main() -> None:
     )
     profile = ClientProfile(**json.loads(args.profile.read_text()))
     profile.validate()
+    if profile.api_base.rstrip("/") != "http://127.0.0.1:11434":
+        raise ValueError("live qualification requires the public broker endpoint")
     if (
         args.public_broker_admission
         and profile.admission_protocol != "ollama-unify-body-free-resume/1"

@@ -609,7 +609,9 @@ def test_canary_later_failure_preserves_admission(tmp_path, monkeypatch, failure
         "lane": "own",
         "execution_digest_binding": "unverified",
     }
-    p = replace(profile(), admission_protocol="ollama-unify-body-free-resume/1")
+    p = replace(
+        profile("http://127.0.0.1:11434"), admission_protocol="ollama-unify-body-free-resume/1"
+    )
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps(asdict(p)))
     output = tmp_path / "receipt.json"
@@ -778,3 +780,65 @@ def test_amendment_rejects_changed_effective_profile_before_dispatch(tmp_path):
     profile_path.write_text(json.dumps(asdict(replace(p, max_tokens=32))))
     with pytest.raises(ConformanceError, match="amendment_identity_mismatch"):
         load_amendment(profile_path, amendment_path, study_id="study", protocol_sha256="a" * 64)
+
+
+def test_live_broker_identity_changes_invalidate_without_http(monkeypatch):
+    from matric_eval.studies import broker_identity
+
+    expected = {
+        "host": "basilisk",
+        "source_sha256": "source-1",
+        "pid": 41,
+        "files": [{"path": "config", "sha256": "config-1"}],
+    }
+    p = replace(
+        profile(broker_identity.PUBLIC),
+        broker_identity="basilisk-public-ollama-unify",
+        broker_revision="source-1",
+        broker_runtime=expected,
+    )
+    monkeypatch.setattr(broker_identity, "capture_local_broker", lambda: expected)
+    assert broker_identity.verify_broker_identity(p) == expected
+    for changed in [
+        dict(expected, source_sha256="source-2"),
+        dict(expected, pid=42),
+        dict(expected, files=[{"path": "config", "sha256": "config-2"}]),
+        dict(expected, host="different-host"),
+    ]:
+        monkeypatch.setattr(
+            broker_identity, "capture_local_broker", lambda changed=changed: changed
+        )
+        with pytest.raises(ConformanceError, match="live_broker_identity_changed"):
+            broker_identity.verify_broker_identity(p)
+    with pytest.raises(ConformanceError, match="binding_required"):
+        qualify_completion(
+            profile(broker_identity.PUBLIC),
+            "missing-binding",
+            [],
+            completion=lambda **kw: pytest.fail("must not dispatch"),
+        )
+
+
+def test_official_harness_code_change_rejected_before_dispatch(tmp_path):
+    import hashlib
+    from types import SimpleNamespace
+
+    from matric_eval.studies.auxiliary_runtime import scoped_auxiliary_client
+
+    module_path = tmp_path / "official.py"
+    module_path.write_text("version = 1\n")
+    p = replace(
+        profile(), harness_module_sha256=hashlib.sha256(module_path.read_bytes()).hexdigest()
+    )
+
+    def original(**kw):
+        return None
+
+    module = SimpleNamespace(__file__=str(module_path), completion=original)
+    with scoped_auxiliary_client(module, p, tmp_path / "receipts", seed=17):
+        pass
+    assert module.completion is original
+    module_path.write_text("version = 2\n")
+    with pytest.raises(ConformanceError, match="official_harness_identity_changed"):
+        with scoped_auxiliary_client(module, p, tmp_path / "receipts", seed=17):
+            pytest.fail("must not enter changed harness")

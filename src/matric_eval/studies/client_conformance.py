@@ -108,6 +108,8 @@ class ClientProfile:
     admission_max_attempts: int = 3
     seed: int | None = None
     schema: str = SCHEMA
+    broker_runtime: dict[str, Any] | None = None
+    harness_module_sha256: str | None = None
 
     def validate(self) -> None:
         if self.seed is not None and (
@@ -187,6 +189,9 @@ class ClientProfile:
         identity["runtime_adapter_sha256"] = hashlib.sha256(
             Path(__file__).with_name("auxiliary_runtime.py").read_bytes()
         ).hexdigest()
+        identity["broker_identity_adapter_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("broker_identity.py").read_bytes()
+        ).hexdigest()
         identity["embedding_adapter_sha256"] = hashlib.sha256(
             Path(__file__).with_name("embedding_transport.py").read_bytes()
         ).hexdigest()
@@ -251,6 +256,14 @@ def invoke_completion(
     admission/execution evidence is still required before live qualification.
     """
     arguments = profile.arguments(request_id)
+    from matric_eval.studies.broker_identity import verify_broker_identity
+
+    broker_identity = verify_broker_identity(profile)
+    metadata_before = (
+        verify_public_model_metadata(profile, request_id)
+        if profile.broker_runtime is not None
+        else None
+    )
     if importlib.metadata.version("litellm") != profile.client_version:
         raise ConformanceError("client_version_changed")
     if bool(tools) != profile.tools:
@@ -330,6 +343,13 @@ def invoke_completion(
         if http_client is not None:
             http_client.close()
     try:
+        if verify_broker_identity(profile) != broker_identity:
+            raise ConformanceError("live_broker_identity_changed")
+        metadata_after = (
+            verify_public_model_metadata(profile, request_id)
+            if metadata_before is not None
+            else None
+        )
         if profile.route == "native":
             if wire_failures or len(wire_models) != 1:
                 raise ConformanceError("wire_identity_unavailable_or_duplicate")
@@ -389,6 +409,8 @@ def invoke_completion(
             "live_qualification": "pending_broker_evidence",
             "retry_policy": "one_client_call_no_body_replay",
             "broker_admission": broker_evidence,
+            "broker_identity": broker_identity,
+            "public_model_metadata": {"before": metadata_before, "after": metadata_after},
             "reasoning_present": bool(reasoning),
             "tool_calls_present": bool(tool_calls),
             "response_model_check": "client_reported_identity_only",
@@ -493,6 +515,14 @@ def qualify_embedding(
     ):
         raise ConformanceError("embedding_profile_arguments_mismatch")
     arguments = profile.arguments(request_id)
+    from matric_eval.studies.broker_identity import verify_broker_identity
+
+    broker_identity = verify_broker_identity(profile)
+    metadata_before = (
+        verify_public_model_metadata(profile, request_id)
+        if profile.broker_runtime is not None
+        else None
+    )
     if expected_digest != observed_digest:
         raise ConformanceError("embedding_model_digest_mismatch")
     if dimensions <= 0:
@@ -529,6 +559,13 @@ def qualify_embedding(
             nested = nested.__cause__ or nested.__context__
         raise failure from None
     try:
+        if verify_broker_identity(profile) != broker_identity:
+            raise ConformanceError("live_broker_identity_changed")
+        metadata_after = (
+            verify_public_model_metadata(profile, request_id)
+            if metadata_before is not None
+            else None
+        )
         measured = validate_embedding(
             vector,
             dimensions=dimensions,
@@ -555,6 +592,8 @@ def qualify_embedding(
         "execution_digest_binding": "unverified",
         "digest_evidence_kind": "caller_supplied_metadata",
         "broker_admission": evidence,
+        "broker_identity": broker_identity,
+        "public_model_metadata": {"before": metadata_before, "after": metadata_after},
         "measured": measured,
         "live_qualification": "pending_broker_evidence",
     }

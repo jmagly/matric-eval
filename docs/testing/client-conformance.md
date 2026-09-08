@@ -196,3 +196,31 @@ unsupported by the audited broker. Their fields remain explicitly unverified;
 `live_qualification: pending_broker_evidence` must never be interpreted as those
 stronger guarantees. Before/after tag metadata is not executed-weight proof.
 Semantic simulator/grader calibration and any scored amendment remain separate.
+
+## Current broker and harness identity
+
+Live loopback broker dispatch now requires `broker_runtime`, captured with
+`broker_identity.capture_local_broker()`. The snapshot binds the actual systemd
+MainPID/start ticks/boot, source SHA-256, both declared environment files, loaded
+unit/drop-in files and the effective unit configuration hash. Configuration values
+are hashed in memory and never copied to receipts. Files modified since process
+startup cannot attest that process. The profile's broker revision must equal the
+measured source digest, and its identity must match the measured host. A process
+restart, code/configuration change or unavailable capture fails closed before a
+new inference. Capture a fresh profile/amendment and requalify after such changes.
+
+Both completion and embedding compare this identity before and after dispatch.
+They also check current public model metadata on the runtime path, so keeping an
+old profile while retagging the model no longer preserves qualification. These
+are current process/configuration and tag checks, not request-bound executed-weight
+attestation. Public discovery does not expose a software revision, so it is not
+used as a substitute. Controlled HTTP fixtures remain explicitly unverified
+endpoints and cannot qualify the live public endpoint without this binding.
+
+Official Tau profiles additionally carry `harness_module_sha256`, the SHA-256 of
+`tau2.utils.llm_utils.__file__`. `scoped_auxiliary_client` checks the actual loaded
+module's source before interception, and the field is part of the amendment's
+profile fingerprint. This supplements the existing checkout/patch checks and
+prevents a changed official generation module from retaining the old profile.
+The live canary and scored amendment share these checks. Embedding's isolated
+thread proxy remains unchanged.

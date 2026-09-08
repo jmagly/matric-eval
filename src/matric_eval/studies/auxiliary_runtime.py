@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import uuid
@@ -69,6 +70,15 @@ def scoped_auxiliary_client(
     per-call evidence. No prior qualification is implicitly reused for a new seed.
     """
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if profile.harness_module_sha256 is not None:
+        try:
+            observed = hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
+        except (OSError, AttributeError, TypeError):
+            raise ConformanceError("official_harness_identity_unavailable") from None
+        if observed != profile.harness_module_sha256:
+            raise ConformanceError("official_harness_identity_changed")
+    elif profile.api_base.rstrip("/") == "http://127.0.0.1:11434":
+        raise ConformanceError("official_harness_identity_required")
     original = module.completion
     effective = replace(profile, seed=seed)
 
