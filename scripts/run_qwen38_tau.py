@@ -29,6 +29,7 @@ from qwen38_tau_context import (
     verify_tau_checkout,
 )
 
+from matric_eval.studies.preflight import manifest_order
 from matric_eval.studies.run_status import AdapterStatus, adapter_main
 
 TAU_PACKAGE_VERSION = "1.0.1"
@@ -165,21 +166,8 @@ def _verify_manifest(
         or summary.get("cohort") != cohort
     ):
         raise ValueError("tau runner requires the declared pilot or full manifest")
-    allocations = manifest.get("allocations")
-    selected = (
-        next(
-            (
-                allocation.get("selected_ids")
-                for allocation in allocations
-                if isinstance(allocation, dict) and allocation.get("allocation_id") == "tau3-bench"
-            ),
-            None,
-        )
-        if isinstance(allocations, list)
-        else None
-    )
-    if selected != scored_ids:
-        raise ValueError("tau scored IDs do not exactly match the study manifest")
+    ordered = manifest_order(manifest, scored_ids, "tau3-bench")
+    scored_ids[:] = ordered
     return actual_hash
 
 
