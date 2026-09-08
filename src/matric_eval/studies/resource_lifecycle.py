@@ -67,12 +67,15 @@ def boot() -> str:
 
 
 class Broker:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, acquire_timeout: float = 10) -> None:
+        if not 0 < acquire_timeout <= 300:
+            raise ValueError("broker acquire timeout must be in (0, 300] seconds")
         self.path = path
+        self.acquire_timeout = acquire_timeout
 
     def call(self, action: str, **fields: Any) -> dict[str, Any]:
         with socket.socket(socket.AF_UNIX) as client:
-            client.settimeout(10)
+            client.settimeout(self.acquire_timeout if action == "acquire" else 10)
             client.connect(self.path)
             client.sendall(json.dumps({"action": action, **fields}).encode() + b"\n")
             with client.makefile("rb") as stream:
@@ -421,7 +424,9 @@ class ResourceLifecycle:
                 if self.owned_lease() is not None:
                     raise RuntimeError("lease release not established")
             if not acquisition_settled(self.record):
-                raise RuntimeError("acquisition outcome unknown; absent lease is not completion proof")
+                raise RuntimeError(
+                    "acquisition outcome unknown; absent lease is not completion proof"
+                )
             private_token = (
                 json.loads(self.private.read_text()).get("token") if self.private.exists() else None
             )
@@ -620,6 +625,7 @@ def main() -> int:
     parser.add_argument("--docker-host", default="unix:///run/matric-eval-docker.sock")
     parser.add_argument("--preflight-plan", type=Path)
     parser.add_argument("--storage-plan", type=Path)
+    parser.add_argument("--broker-acquire-timeout", type=float, default=10)
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--owner", default="matric-eval")
@@ -628,7 +634,9 @@ def main() -> int:
     parser.add_argument("--memory-mib", type=int, default=75000)
     args, command = parser.parse_known_args()
     lifecycle = ResourceLifecycle(
-        args.directory, Broker(args.broker_socket), Docker(args.docker_host)
+        args.directory,
+        Broker(args.broker_socket, args.broker_acquire_timeout),
+        Docker(args.docker_host),
     )
     try:
         if args.action == "reconcile":

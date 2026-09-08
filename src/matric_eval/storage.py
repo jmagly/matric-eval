@@ -45,7 +45,9 @@ class Allocation:
     disposable: bool = False
 
 
-def filesystem(path: Path, *, allow_read_only: bool = False) -> dict[str, Any]:
+def filesystem(
+    path: Path, *, allow_read_only: bool = False, reject_nested_mounts: bool = False
+) -> dict[str, Any]:
     """Resolve the real Linux mount, including bind mounts, without creating paths."""
     try:
         resolved = path.resolve(strict=True)
@@ -55,6 +57,8 @@ def filesystem(path: Path, *, allow_read_only: bool = False) -> dict[str, Any]:
         for line in Path("/proc/self/mountinfo").read_text().splitlines():
             fields = line.split()
             target = fields[4].replace("\\040", " ").replace("\\134", "\\")
+            if reject_nested_mounts and resolved in Path(target).parents:
+                raise StorageBlocker("storage_nested_mount", str(resolved))
             if resolved == Path(target) or Path(target) in resolved.parents:
                 split = fields.index("-")
                 mounts.append((len(target), fields[0], target, fields[split + 2]))
@@ -171,7 +175,9 @@ class StorageSession:
                 raise ValueError(f"Storage path must be an existing directory: {path}")
             self.paths[allocation.kind] = path
             self.mounts[allocation.kind] = filesystem(
-                path, allow_read_only=not (allocation.budget_bytes or allocation.budget_inodes)
+                path,
+                allow_read_only=not (allocation.budget_bytes or allocation.budget_inodes),
+                reject_nested_mounts=self.reject_nested_mounts(allocation),
             )
             self.baselines[allocation.kind] = usage(
                 path, backing_device_only=bool(self.docker_control and allocation.kind == "docker")
@@ -233,6 +239,15 @@ class StorageSession:
         except OSError as exc:
             raise StorageBlocker("storage_ledger_io", str(exc)) from exc
 
+    def reject_nested_mounts(self, allocation: Allocation) -> bool:
+        return not (
+            (allocation.kind == "docker" and self.docker_control)
+            or (
+                allocation.kind == "models"
+                and not (allocation.budget_bytes or allocation.budget_inodes)
+            )
+        )
+
     def plan(self) -> dict[str, Any]:
         volumes: dict[str, dict[str, Any]] = {}
         classes = []
@@ -240,6 +255,7 @@ class StorageSession:
             current = filesystem(
                 self.paths[allocation.kind],
                 allow_read_only=not (allocation.budget_bytes or allocation.budget_inodes),
+                reject_nested_mounts=self.reject_nested_mounts(allocation),
             )
             initial = self.mounts[allocation.kind]
             if any(current[key] != initial[key] for key in ("device", "mount_id", "mount")):

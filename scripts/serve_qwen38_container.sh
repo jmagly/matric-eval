@@ -26,9 +26,11 @@ attempt_id=""
 resource_directory=""
 preflight_plan=""
 storage_plan=""
+broker_acquire_timeout="10"
 
 while (( $# )); do
   case "$1" in
+    --broker-acquire-timeout) broker_acquire_timeout="${2:-}"; shift 2 ;;
     --storage-plan) storage_plan="${2:-}"; shift 2 ;;
     --preflight-plan) preflight_plan="${2:-}"; shift 2 ;;
     --run-id) run_id="${2:-}"; shift 2 ;;
@@ -136,7 +138,7 @@ sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATU
   --directory "$resource_directory" --preflight-plan "$preflight_plan" --storage-plan "$storage_plan" \
   --run-id "$run_id" --attempt-id "$attempt_id" \
   --owner "$owner" --gpu "$gpu_uuid" \
-  --ready-timeout 900 -- \
+  --broker-acquire-timeout "$broker_acquire_timeout" --ready-timeout 900 -- \
   /usr/bin/docker --host "$study_docker_host" run \
     --name '{container}' \
     --label 'matric.resource={resource_id}' \

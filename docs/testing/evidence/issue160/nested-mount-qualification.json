@@ -1,0 +1,10 @@
+{
+  "schema": "matric-eval.nested-mount-qualification/1",
+  "recorded_at": 1788903921.5559692,
+  "bounded_root_bytes": 1048576,
+  "bounded_root_inodes": 32,
+  "nested_external_bind_rejected": true,
+  "root_accepted_before_and_after_child_mount": true,
+  "private_mount_namespace": true,
+  "gpu_requests": 0
+}

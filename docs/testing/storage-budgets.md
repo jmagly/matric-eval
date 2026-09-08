@@ -165,3 +165,19 @@ resource record's `storage_reservation_active` and `cleanup` fields for the
 release outcome; the diagnostic receipt deliberately preserves the pre-release
 state. Measurements are sampled, include cache effects, and do not establish a
 cold-cache baseline or a SATA-versus-NVMe speedup.
+
+
+Application allocation roots must have no descendant mounts. Admission and every
+usage sample reject nested mounts, including a writable external bind hidden
+beneath a bounded root. The root's own mount remains valid. A real A100 private
+namespace [qualification](evidence/issue160/nested-mount-qualification.json)
+verified rejection of an external child bind and acceptance before and after
+that child mount. The attested Docker backing store's merged views and immutable
+zero-growth model roots are excluded from this writer-root rule.
+
+For broker quiescence, the launcher accepts `--broker-acquire-timeout` in
+`(0, 300]` seconds; the default remains 10 seconds. Only acquisition uses that
+wait. Status and heartbeat keep their 10-second deadlines. A timeout remains an
+unknown acquisition obligation, never proof that no lease can arrive later.
+Admission is checked again after broker acquisition and before service dispatch;
+the target readiness checks retain the 300-second admission freshness cap.

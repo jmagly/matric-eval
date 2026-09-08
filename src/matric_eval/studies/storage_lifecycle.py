@@ -27,12 +27,17 @@ def require_daemon_mount_namespace(host: str) -> None:
             pid, _, _ = struct.unpack(
                 "3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
             )
+        if pid <= 0:
+            raise StorageBlocker("storage_docker_contract", "Docker peer PID unavailable")
+        identity = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
         if Path(f"/proc/{pid}/comm").read_text().strip() != "dockerd" or os.readlink(
             f"/proc/{pid}/ns/mnt"
         ) != os.readlink("/proc/self/ns/mnt"):
             raise StorageBlocker(
                 "storage_docker_contract", "Docker daemon and controller mount views differ"
             )
+        if Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19] != identity:
+            raise StorageBlocker("storage_docker_contract", "Docker peer identity changed")
     except OSError as error:
         raise StorageBlocker(
             "storage_docker_contract", "Docker daemon mount identity unavailable"

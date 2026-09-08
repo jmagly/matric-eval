@@ -485,3 +485,31 @@ def test_read_only_model_allocation_with_zero_growth_is_usable(tmp_path, monkeyp
     run.check("immutable-model-validation")
     run.release()
     assert not run.active
+
+
+def test_nested_writer_mount_refused_before_admission_and_after_change(tmp_path, monkeypatch):
+    run = session(tmp_path)
+    original = Path.read_text
+    mountinfo = Path("/proc/self/mountinfo")
+    child = tmp_path / "scratch" / "unbounded-child"
+    child.mkdir()
+
+    def changed_mountinfo(path, *args, **kwargs):
+        value = original(path, *args, **kwargs)
+        if path == mountinfo:
+            value = value.rstrip() + f"\n99999 1 8:1 / {child} rw - ext4 /dev/unbounded rw\n"
+        return value
+
+    monkeypatch.setattr(Path, "read_text", changed_mountinfo)
+    with pytest.raises(StorageBlocker, match="storage_nested_mount"):
+        run.admit(reserve=True)
+    assert not run.active
+    with pytest.raises(StorageBlocker, match="storage_nested_mount"):
+        session(tmp_path)
+    monkeypatch.setattr(Path, "read_text", original)
+    run.admit(reserve=True)
+    monkeypatch.setattr(Path, "read_text", changed_mountinfo)
+    with pytest.raises(StorageBlocker, match="storage_nested_mount"):
+        run.check("model-loading")
+    monkeypatch.setattr(Path, "read_text", original)
+    run.release()
