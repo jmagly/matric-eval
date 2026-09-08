@@ -22,9 +22,7 @@ class FakeBroker:
             return {"lease": lease}
         if action == "release":
             self.released.append(fields["token"])
-            self.leases = [
-                lease for lease in self.leases if lease["token"] != fields["token"]
-            ]
+            self.leases = [lease for lease in self.leases if lease["token"] != fields["token"]]
         return {"leases": self.leases}
 
 
@@ -78,9 +76,7 @@ def test_outage_retains_obligation_and_reconnect(lifecycle):
 
 def test_lost_acquire_ack_recovered_by_exact_owner(lifecycle):
     lifecycle.save(state="acquiring")
-    lifecycle.broker.call(
-        "acquire", owner=lifecycle.record["owner"], gpu_uuids=["GPU-owned"]
-    )
+    lifecycle.broker.call("acquire", owner=lifecycle.record["owner"], gpu_uuids=["GPU-owned"])
     assert lifecycle.reconcile()
     assert lifecycle.broker.released == ["private-token"]
 
