@@ -190,6 +190,8 @@ def test_builds_complete_content_free_runtime_summary(tmp_path: Path) -> None:
     )
 
     assert result["status"] == "complete"
+    assert result["scale_gate"]["decision"] == "go"
+    assert result["scale_gate"]["incomplete_tau_runtime_models"] == []
     assert result["manifest_sha256"] == manifest["manifest_sha256"]
     assert result["judge"]["outcomes"] == 135
     assert result["runtime_totals"] == {
@@ -202,6 +204,99 @@ def test_builds_complete_content_free_runtime_summary(tmp_path: Path) -> None:
     for model in result["models"].values():
         assert model["agentic"]["pilot_seconds"] == 205.0
         assert model["pilot_gpu_hours"] == pytest.approx(325.0 / 3600.0)
+
+
+def test_direct_model_mapping_order_is_not_semantic(tmp_path: Path) -> None:
+    study, manifest, direct, judge = _fixture(tmp_path)
+    direct["models"] = dict(reversed(list(direct["models"].items())))
+
+    result = builder.build_summary(
+        study=study,
+        manifest=manifest,
+        direct=direct,
+        result_root=tmp_path,
+        judge_bundle=judge,
+        judge_bundle_sha256="a" * 64,
+        code_revision="b" * 40,
+    )
+
+    assert set(result["models"]) == {model.id for model in study.models}
+
+
+def test_accepts_and_labels_one_shared_amended_tau_contract(tmp_path: Path) -> None:
+    study, manifest, direct, judge = _fixture(tmp_path)
+    amendment = {
+        "status": "operator-authorized-local-simulator-pilot",
+        "comparability": "Within-cohort only.",
+    }
+    for model in study.models:
+        prefix = builder.MODEL_FILES[model.id]
+        default_path = tmp_path / f"{prefix}-pilot-tau-receipt.json"
+        receipt = json.loads(default_path.read_text(encoding="utf-8"))
+        receipt["protocol_amendment"] = amendment
+        _write(tmp_path / f"{prefix}-pilot-tau-local-receipt.json", receipt)
+        default_path.unlink()
+
+    result = builder.build_summary(
+        study=study,
+        manifest=manifest,
+        direct=direct,
+        result_root=tmp_path,
+        judge_bundle=judge,
+        judge_bundle_sha256="a" * 64,
+        code_revision="b" * 40,
+        tau_receipt_variant="local-amended",
+        incomplete_tau_runtime_models=frozenset({study.models[0].id}),
+    )
+
+    assert result["protocol_amendments"]["tau3-bench"] == amendment
+    assert (
+        result["models"][study.models[0].id]["agentic"]["lanes"]["tau3-bench"][
+            "runtime_accounting_complete"
+        ]
+        is False
+    )
+    assert result["models"][study.models[0].id]["estimated_full_gpu_hours"] is None
+    assert result["scale_gate"]["decision"] == "no-go"
+    assert result["status"] == "evidence-complete-scale-no-go"
+
+
+def test_scale_gate_blocks_runner_exceptions_and_terminal_timeouts(tmp_path: Path) -> None:
+    study, manifest, direct, judge = _fixture(tmp_path)
+    source_tau = tmp_path / "source-pilot-tau-receipt.json"
+    tau = json.loads(source_tau.read_text(encoding="utf-8"))
+    tau["termination_counts"] = {"runner_error": 2}
+    _write(source_tau.with_suffix(".replacement"), tau)
+    source_tau.unlink()
+    source_tau.with_suffix(".replacement").rename(source_tau)
+    source_terminal = tmp_path / "source-pilot-terminal-receipt.json"
+    terminal = json.loads(source_terminal.read_text(encoding="utf-8"))
+    terminal["exception_counts"] = {"AgentTimeoutError": 5}
+    _write(source_terminal.with_suffix(".replacement"), terminal)
+    source_terminal.unlink()
+    source_terminal.with_suffix(".replacement").rename(source_terminal)
+
+    result = builder.build_summary(
+        study=study,
+        manifest=manifest,
+        direct=direct,
+        result_root=tmp_path,
+        judge_bundle=judge,
+        judge_bundle_sha256="a" * 64,
+        code_revision="b" * 40,
+    )
+
+    assert result["scale_gate"] == {
+        "decision": "no-go",
+        "tau_runner_exceptions": 2,
+        "terminal_agent_timeouts": 5,
+        "incomplete_tau_runtime_models": [],
+        "blockers": [
+            "Repair and replay Tau runner exceptions for every model in affected paired blocks.",
+            "Repair Terminal-Bench execution and replay the complete paired pilot lane.",
+        ],
+    }
+    assert result["status"] == "evidence-complete-scale-no-go"
 
 
 def test_rejects_agentic_id_drift_and_incomplete_judge_runtime(tmp_path: Path) -> None:
