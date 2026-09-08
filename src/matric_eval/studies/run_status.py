@@ -528,6 +528,11 @@ def supervise(
                 failure["truncated"] |= any(totals[n] > LIMIT for n in buffers)
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)
+        resources = status.read(reconcile=False).get("resources", {})
+        if resources.get("cleanup") == "pending":
+            cleanup = "pending"
+            if failure is not None:
+                failure["cleanup_disposition"] = cleanup
         status.finish(phase, failure=failure, cleanup=cleanup)
     return code if status.read()["terminal_event"]["phase"] == "completed" else code or 1
 

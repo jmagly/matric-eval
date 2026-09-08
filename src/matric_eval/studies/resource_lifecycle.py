@@ -272,7 +272,9 @@ class ResourceLifecycle:
                 if alive(launcher):
                     os.killpg(launcher["pid"], signal.SIGKILL)
             info = self.docker.inspect(self.record["container"])
-            owned_pids = set(self.record["cuda_pids"])
+            owned_pids = (
+                set(self.record["cuda_pids"]) if self.record["boot_id"] == boot() else set()
+            )
             if info is not None:
                 if (
                     info["Config"].get("Labels", {}).get("matric.resource")
@@ -309,9 +311,7 @@ class ResourceLifecycle:
             ):
                 # We never run with --rm; disappearing containers invalidate proof.
                 raise RuntimeError("owned container disappeared; cleanup proof unavailable")
-            if self.record["boot_id"] == boot() and any(
-                pid in owned_pids for _, pid in self.docker.cuda()
-            ):
+            if any(pid in owned_pids for _, pid in self.docker.cuda()):
                 raise RuntimeError("owned CUDA allocation remains")
             if info is not None:
                 self.save(container_stopped=info["Id"])

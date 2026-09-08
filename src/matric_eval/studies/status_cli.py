@@ -34,6 +34,11 @@ def status_command(directory: Path, json_output: bool, stale_seconds: float) -> 
     click.echo(
         f"Supervisor alive: {data['liveness']['supervisor_alive']}; heartbeat fresh: {data['liveness']['heartbeat_fresh']}; cleanup: {data['cleanup']}"
     )
+    if data.get("resources"):
+        resource = data["resources"]
+        click.echo(
+            f"Resources: {resource['state']}; cleanup: {resource['cleanup']}; record: {resource['record']}"
+        )
     for row in data["tasks"]:
         click.echo(
             f"{row['model_id']}/{row['suite_id']}/{row['task_id']}: {row['state']}"

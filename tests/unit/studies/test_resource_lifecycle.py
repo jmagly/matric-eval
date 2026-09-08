@@ -340,3 +340,14 @@ def test_replaced_container_identity_is_not_stopped(lifecycle):
     assert lifecycle.record["reason"] == "container identity changed"
     assert not lifecycle.docker.stopped
     assert not lifecycle.broker.released
+
+
+def test_new_boot_still_checks_current_owned_cuda(lifecycle):
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    lifecycle.save(boot_id="old-boot")
+    lifecycle.docker.allocations = [("GPU-owned", 99999999)]
+    lifecycle.docker.cgroup = lambda pid: "owned-container-id" if pid == 99999999 else ""
+    assert not lifecycle.reconcile()
+    assert lifecycle.record["reason"] == "owned CUDA allocation remains"
+    assert not lifecycle.broker.released
