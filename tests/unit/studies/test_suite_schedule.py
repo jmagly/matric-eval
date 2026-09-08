@@ -437,3 +437,295 @@ def test_unknown_failure_is_global_and_cleanup_attempted(tmp_path):
         assert len(journal.list_attempts()) == 1
     assert report["global_stop"] and service.stopped
     assert report["entries"][1]["reasons"] == ["global_stop"]
+
+
+@pytest.fixture
+def command_services(tmp_path, monkeypatch):
+    """Actual Unix broker RPC and CLI Docker shim; no GPU allocation is claimed."""
+    import json
+    import os
+    import socketserver
+    import sys
+    import threading
+
+    state = tmp_path / "docker-state"
+    state.mkdir()
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    docker = binaries / "docker"
+    docker.write_text(
+        """#!"""
+        + sys.executable
+        + """
+import json, os, pathlib, sys
+root=pathlib.Path(os.environ['SCHEDULE_FAKE_DOCKER'])
+a=sys.argv[3:]
+if a[:2]==['container','ls']:
+ print('\\n'.join(p.stem for p in root.glob('*.json')))
+elif a[0]=='inspect':
+ print('['+(root/(a[1]+'.json')).read_text()+']')
+elif a[0] in ['stop','rm']:
+ for p in root.glob('*.json'):
+  data=json.loads(p.read_text())
+  if data['Id']==a[-1]:
+   if a[0]=='rm': p.unlink()
+   else:
+    data['State']['Running']=False
+    p.write_text(json.dumps(data))
+"""
+    )
+    docker.chmod(0o755)
+    nvidia = binaries / "nvidia-smi"
+    nvidia.write_text("#!/bin/sh\nexit 0\n")
+    nvidia.chmod(0o755)
+    monkeypatch.setenv("PATH", str(binaries) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("SCHEDULE_FAKE_DOCKER", str(state))
+    service = tmp_path / "service.py"
+    service.write_text("""import hashlib,json,os,pathlib,sys,time
+container,resource,ready=sys.argv[1:]
+root=pathlib.Path(os.environ['SCHEDULE_FAKE_DOCKER'])
+(root/(container+'.json')).write_text(json.dumps({'Id':'synthetic-'+resource,'Config':{'Labels':{'matric.resource':resource}},'State':{'Running':True,'Pid':os.getpid()}}))
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path(ready+'.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+while True: time.sleep(.1)
+""")
+    check = tmp_path / "check.py"
+    check.write_text(
+        "import os,pathlib\npathlib.Path(os.environ['MATRIC_PREFLIGHT_RECEIPT']).write_text('{\"passed\":true}')\n"
+    )
+    task = tmp_path / "task.py"
+    task.write_text("""import json,os,pathlib,sys
+from matric_eval.state.journal import AttemptIntent,TerminalAttempt
+from matric_eval.results.contract import Observation
+r=json.loads(pathlib.Path(os.environ['MATRIC_SCHEDULE_REQUEST']).read_text())
+if r['work']['suite']=='direct': sys.exit(17)
+i=AttemptIntent.model_validate(r['intent'])
+t=TerminalAttempt(attempt_id=i.attempt_id,observations=[Observation(observation_id=x.logical_id(),identity=x,attempt_id=i.attempt_id,previous_attempt_id=i.previous_attempt_id,accepted=False,execution='completed',outcome='observed',value=0,reason=None,native_status='fixture',judge=None,artifacts=[]) for x in i.identities])
+pathlib.Path(os.environ['MATRIC_SCHEDULE_TERMINAL']).write_text(t.model_dump_json())
+""")
+    leases = []
+
+    class Handler(socketserver.StreamRequestHandler):
+        def handle(self):
+            request = json.loads(self.rfile.readline())
+            action = request["action"]
+            response = {"ok": True}
+            if action == "acquire":
+                lease = {
+                    "owner": request["owner"],
+                    "gpu_uuids": request["gpu_uuids"],
+                    "token": "synthetic-" + str(len(leases)),
+                }
+                leases.append(lease)
+                response["lease"] = lease
+            elif action == "status":
+                response["leases"] = leases
+            elif action == "release":
+                leases[:] = [x for x in leases if x["token"] != request["token"]]
+            self.wfile.write(json.dumps(response).encode() + b"\n")
+
+    # Keep Unix socket path below sockaddr_un's limit on long pytest roots.
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="schedule-broker-") as sockets:
+        broker = socketserver.UnixStreamServer(str(Path(sockets) / "broker.sock"), Handler)
+        thread = threading.Thread(target=broker.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield {
+                "socket": broker.server_address,
+                "service": service,
+                "check": check,
+                "task": task,
+                "leases": leases,
+            }
+        finally:
+            broker.shutdown()
+            broker.server_close()
+            thread.join(5)
+
+
+@pytest.mark.parametrize("scenario", ["suite", "global", "crash"])
+def test_supported_command_cli_end_to_end(tmp_path, command_services, scenario):
+    import json
+    import os
+    import subprocess
+    import sys
+
+    from matric_eval.studies.schedule_cli import (
+        Binding,
+        CommandPlan,
+        ResidentService,
+        capture_binding,
+    )
+
+    fixtures = command_services
+    if scenario == "crash":
+        fixtures["task"].write_text(
+            fixtures["task"].read_text().replace("sys.exit(17)", "__import__('time').sleep(120)")
+        )
+    service = ResidentService(
+        command=[
+            sys.executable,
+            str(fixtures["service"]),
+            "{container}",
+            "{resource_id}",
+            "{ready_base}",
+        ],
+        gpu="GPU-synthetic-qualification",
+        broker_socket=fixtures["socket"],
+        memory_mib=1,
+        ready_timeout_seconds=10,
+    )
+    checks = [
+        {
+            "id": stage,
+            "stage": stage,
+            "command": [sys.executable, str(fixtures["check"])],
+            "inputs": [str(fixtures["check"]), str(fixtures["task"]), str(fixtures["service"])],
+            "timeout_seconds": 5,
+            "freshness_seconds": 600,
+            "receipt_contract": {"passed": True},
+            "deterministic": True,
+        }
+        for stage in ["static", "cpu", "auxiliary", "target"]
+    ]
+    binding = Binding(
+        preflight={"schema": "matric-eval.study-preflight/1", "checks": checks},
+        service=service,
+        command=[sys.executable, str(fixtures["task"])],
+        timeout_seconds=10,
+        suite_failure_exit_codes=[17] if scenario != "global" else [],
+    )
+    items = [
+        work("admission", suite="direct"),
+        work("independent"),
+        work("deferred", suite="tau", deferred=True),
+    ]
+    for item in items:
+        item.residency = service.model_dump()
+        item.fingerprint.environment.document["scheduler_binding_sha256"] = capture_binding(binding)
+    config = CommandPlan(
+        schedule=schedule(items),
+        bindings={item.key: binding for item in items if not item.deferred},
+    )
+    source = tmp_path / "schedule.json"
+    source.write_text(config.model_dump_json())
+    directory = tmp_path / "execution"
+    command = [
+        sys.executable,
+        "-m",
+        "matric_eval.studies.schedule_cli",
+        "execute",
+        "--plan",
+        str(source),
+        "--journal",
+        str(tmp_path / "journal.sqlite"),
+        "--directory",
+        str(directory),
+    ]
+    reports = []
+    if scenario == "crash":
+        import signal
+        import time
+
+        child = subprocess.Popen(
+            command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=os.environ
+        )
+        deadline = time.monotonic() + 30
+        while not list(directory.glob("tasks/*/controller.json")) and time.monotonic() < deadline:
+            assert child.poll() is None
+            time.sleep(0.05)
+        assert list(directory.glob("tasks/*/controller.json"))
+        child.send_signal(signal.SIGKILL)
+        child.wait(timeout=10)
+        child.stderr.close()
+    for _ in range(2 if scenario == "suite" else 1):
+        result = subprocess.run(command, capture_output=True, text=True, timeout=50, env=os.environ)
+        assert result.returncode == 1, result.stderr
+        assert result.stdout, result.stderr
+        reports.append(json.loads(result.stdout))
+    if scenario == "global":
+        assert reports[0]["global_stop"]
+        assert [row["disposition"] for row in reports[0]["entries"]] == [
+            "failed",
+            "blocked",
+            "deferred",
+        ]
+        assert reports[0]["execution_order"] == ["admission"]
+        assert not fixtures["leases"]
+        return
+    if scenario == "crash":
+        assert [row["disposition"] for row in reports[0]["entries"]] == [
+            "blocked",
+            "completed",
+            "deferred",
+        ]
+        assert reports[0]["execution_order"] == ["independent"]
+        assert not reports[0]["global_stop"]
+        assert not fixtures["leases"]
+        assert all(
+            json.loads(p.read_text())["cleanup"] == "complete"
+            for p in directory.glob("tasks/*/controller.json")
+        )
+        return
+    assert [row["disposition"] for row in reports[0]["entries"]] == [
+        "failed",
+        "completed",
+        "deferred",
+    ]
+    assert [row["disposition"] for row in reports[1]["entries"]] == [
+        "blocked",
+        "reused",
+        "deferred",
+    ]
+    assert reports[0]["execution_order"] == ["admission", "independent"]
+    assert reports[1]["execution_order"] == []
+    assert reports[0]["observed_model_loads"] == 2
+    assert reports[1]["observed_model_loads"] == 0
+    assert not fixtures["leases"]
+    assert all(
+        json.loads(p.read_text())["cleanup"] == "complete"
+        for p in directory.glob("resources/*/record.json")
+    )
+    fixtures["task"].write_text(fixtures["task"].read_text() + "\n# changed native adapter\n")
+    dry_run = [*command]
+    dry_run[3] = "plan"
+    changed = subprocess.run(dry_run, capture_output=True, text=True, timeout=20, env=os.environ)
+    assert changed.returncode == 1, changed.stderr
+    invalidated = json.loads(changed.stdout)
+    assert [row["disposition"] for row in invalidated["entries"]] == [
+        "invalidated",
+        "invalidated",
+        "deferred",
+    ]
+    assert invalidated["expected_model_loads"] == 0
+    with ObservationJournal(tmp_path / "journal.sqlite") as journal:
+        assert len(journal.list_attempts()) == 2
+
+
+def test_prior_direct_bfcl_reuse_only_needs_no_new_adapter_fingerprint(tmp_path):
+    from matric_eval.studies.schedule_cli import CommandAdapter, CommandPlan
+
+    direct, bfcl = work("prior-direct", suite="direct"), work("prior-bfcl", suite="bfcl")
+    missing = work("missing", suite="bfcl")
+    for item in [direct, bfcl, missing]:
+        item.reuse_only = True
+        item.fingerprint.protocol.document = {"profile": "recoverable-text-sample/1"}
+        item.fingerprint.sampler.document["effective_config"] = item.scoring_budget
+    config = CommandPlan(schedule=schedule([direct, bfcl, missing]), bindings={})
+    adapter = CommandAdapter(config, tmp_path / "private")
+    with ObservationJournal(tmp_path / "journal.sqlite") as journal:
+        for item in [direct, bfcl]:
+            intent = AttemptIntent(
+                attempt_id=item.key,
+                identities=item.identities,
+                fingerprint=item.fingerprint,
+                replay_capability=item.capability,
+            )
+            journal.record_intent(intent)
+            journal.commit_terminal(terminal(intent))
+        report = execute(config.schedule, journal, adapter, tmp_path / "events.jsonl")
+        assert len(journal.list_attempts()) == 2
+    assert [row["disposition"] for row in report["entries"]] == ["reused", "reused", "blocked"]
+    assert report["observed_model_loads"] == 0

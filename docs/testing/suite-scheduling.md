@@ -61,3 +61,57 @@ dispatch accounting. It does not run TAU scoring or load a model. Real adapter
 integration and active-study qualification must use the preflight/lifecycle
 contracts and the authorized A100 launcher; these fixtures do not attest a GPU
 service or historical evidence that was never committed to the journal.
+
+## Supported command adapter
+
+Use `matric-eval study-run schedule plan PLAN.json --journal JOURNAL.sqlite
+--directory PRIVATE_RUN_DIRECTORY`, then use `execute` with the identical inputs
+and selected policy. `python -m matric_eval.studies.schedule_cli` exposes the same
+operations with `--plan PLAN.json`. A nonzero exit means at least one failed,
+blocked or invalidated disposition remains; deferred work alone is not an error.
+The directory must be private (0700), and each run must have its own directory.
+
+The JSON document validates against `schedule_cli.CommandPlan`: `schedule` is the
+`Schedule` document described above; `bindings` maps work keys to `Binding`
+documents. Each binding includes the full preflight plan, target service command,
+exact GPU UUID, broker socket, Docker endpoint, requested MiB, readiness timeout,
+task command, task timeout and optional explicitly suite-local exit codes. Use `capture_binding(binding)` before freezing work; its digest includes argv,
+resolved executable bytes, declared input/code bytes and scheduler/lifecycle code.
+That digest must equal the work's captured
+`fingerprint.environment.document.scheduler_binding_sha256`; the work's
+`residency` must exactly equal its service document. These checks prevent command
+changes or incompatible runtime placement from silently preserving reuse or
+resident grouping. Keep the binding in the frozen protocol capture rather than
+editing hashes after a run.
+
+The service command runs under `resource_lifecycle`, which expands `{container}`,
+`{resource_id}` and `{ready_base}`, owns the lease and confirms readiness. The
+scheduler registers its lifecycle controller before dispatch and polls the durable
+ready state. It runs target checks before each native task command. Task commands
+receive `MATRIC_SCHEDULE_REQUEST` (a private JSON file with work, journal intent and
+resource-record path) and `MATRIC_SCHEDULE_TERMINAL` (a fresh output path). They must
+emit the existing `TerminalAttempt` JSON contract, referencing retained native
+artifacts. They must not manufacture a successful observation for missing native
+evidence. Each command gets a fresh attempt directory and process group.
+
+Both controller and task groups are registered behind a pipe gate before their
+first instruction. Restart reconciliation runs under the journal engine lock,
+stops only attested process identities, checks remaining task groups, and invokes
+the existing lifecycle reconciliation before considering new allocation. Unknown
+ownership remains a global blocker. Runtime output is drained into bounded,
+sanitized tails, and task/controller groups are cleaned up before later work.
+The CLI qualification exercises the actual subprocess entry point, Unix broker
+RPC, lifecycle controller, preflight stages and journal across process restarts;
+its Docker command shim is explicitly synthetic and does not qualify GPU cleanup.
+
+For prior #124 Direct/BFCL journal scopes, use `reuse_only: true` with the current
+fingerprint captured by the existing recovery profile. This preserves the prior
+identity documents without adding a new command-adapter fingerprint component.
+No command binding is required, and missing/incompatible acceptance blocks the
+entry rather than making it executable. This mode trusts the supplied current
+fingerprint to the same extent as the existing journal API; it does not synthesize
+current capture from old evidence. Native artifact hashes are still verified by
+`load_accepted`. Use a freshly captured fingerprint, never a copied historical one.
+For `recoverable-text-sample/1`, copy the current captured sampler's complete
+`effective_config` into `scoring_budget`; the existing fingerprint is retained
+without adding a new protocol field. The scheduler validates exact equality.

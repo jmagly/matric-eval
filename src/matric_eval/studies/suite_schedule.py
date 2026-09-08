@@ -43,6 +43,7 @@ class Work(Record):
     residency: dict[str, Any]
     dependencies: list[str] = Field(default_factory=list)
     deferred: bool = False
+    reuse_only: bool = False
     group_resident: bool = False
 
     @model_validator(mode="after")
@@ -59,7 +60,13 @@ class Work(Record):
             raise ValueError("work model/suite contradict observation identity")
         if self.fingerprint.sampler.document.get("generation_seed") != self.seed:
             raise ValueError("seed must match captured sampler fingerprint")
-        if self.fingerprint.protocol.document.get("scoring_budget") != self.scoring_budget:
+        frozen_budget = self.fingerprint.protocol.document.get("scoring_budget")
+        if (
+            self.reuse_only
+            and self.fingerprint.protocol.document.get("profile") == "recoverable-text-sample/1"
+        ):
+            frozen_budget = self.fingerprint.sampler.document.get("effective_config")
+        if frozen_budget != self.scoring_budget:
             raise ValueError("scoring budget must match captured protocol fingerprint")
         return self
 
@@ -152,7 +159,12 @@ def plan(
             continue
         reasons = [*work.fingerprint.eligibility.reasons, *preflight(work)]
         if reasons:
-            entry.update(disposition="blocked", reasons=reasons)
+            entry.update(
+                disposition="invalidated"
+                if any(reason.startswith("fingerprint_") for reason in reasons)
+                else "blocked",
+                reasons=reasons,
+            )
             continue
         try:
             accepted = journal.load_accepted(work.identities, work.fingerprint)
@@ -173,6 +185,9 @@ def plan(
                 entry.update(
                     disposition="blocked", reasons=["accepted_invalid_result_requires_review"]
                 )
+            continue
+        if work.reuse_only:
+            entry.update(disposition="blocked", reasons=["no_committed_reuse_only_evidence"])
             continue
         scope = work.identities[0].model_dump(exclude={"metric_id"})
         previous = [
@@ -248,12 +263,19 @@ def _event(path: Path, event: dict[str, Any]) -> None:
 
 
 def execute(
-    schedule: Schedule, journal: ObservationJournal, adapter: Adapter, receipt: Path
+    schedule: Schedule,
+    journal: ObservationJournal,
+    adapter: Adapter,
+    receipt: Path,
+    *,
+    reconcile: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Hold a single-writer schedule lock and persist intent before any task action."""
     receipt.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (journal.path.parent / ".engine.lock").open("a+b") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if reconcile is not None:
+            reconcile()
         return _execute(schedule, journal, adapter, receipt)
 
 
