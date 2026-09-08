@@ -308,8 +308,9 @@ def _run_canary(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "tau": {
             "upstream_revision": patch_evidence["upstream_revision"],
-            "patch_sha256": patch_evidence["patch_file_sha256"],
-            "applied_diff_sha256": patch_evidence["tracked_diff_sha256"],
+            "patch_sha256": patch_evidence["context_patch_sha256"],
+            "simulator_patch_sha256": patch_evidence["simulator_patch_sha256"],
+            "applied_diff_sha256": patch_evidence["cumulative_diff_sha256"],
             "changed_paths": patch_evidence["tracked_changes"],
         },
         "tokenizer": tokenizer_evidence,
