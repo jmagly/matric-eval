@@ -92,9 +92,7 @@ class Docker:
 
     def inspect(self, name: str) -> dict[str, Any] | None:
         result = subprocess.run(
-            self.command(
-                "container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}"
-            ),
+            self.command("container", "ls", "-a", "--no-trunc", "--format", "{{.Names}}"),
             check=True,
             capture_output=True,
             text=True,
@@ -213,12 +211,10 @@ class ResourceLifecycle:
             if candidate == self.path:
                 continue
             existing = json.loads(candidate.read_text())
-            if existing.get("cleanup") != "complete" and set(
-                existing.get("gpu_uuids", [])
-            ) & set(self.record["gpu_uuids"]):
-                raise RuntimeError(
-                    "another attempt has an unresolved cleanup obligation"
-                )
+            if existing.get("cleanup") != "complete" and set(existing.get("gpu_uuids", [])) & set(
+                self.record["gpu_uuids"]
+            ):
+                raise RuntimeError("another attempt has an unresolved cleanup obligation")
         self.save(state="acquiring")
         response = self.broker.call(
             "acquire",
@@ -232,10 +228,7 @@ class ResourceLifecycle:
         return str(lease["token"])
 
     def accept_lease(self, lease: dict[str, Any]) -> None:
-        if (
-            lease["owner"] != self.record["owner"]
-            or lease["gpu_uuids"] != self.record["gpu_uuids"]
-        ):
+        if lease["owner"] != self.record["owner"] or lease["gpu_uuids"] != self.record["gpu_uuids"]:
             raise RuntimeError("broker lease ownership mismatch")
         atomic(self.private, {"token": lease["token"]})
         self.save(
@@ -245,9 +238,7 @@ class ResourceLifecycle:
 
     def owned_lease(self) -> dict[str, Any] | None:
         leases = self.broker.call("status")["leases"]
-        matches = [
-            lease for lease in leases if lease.get("owner") == self.record["owner"]
-        ]
+        matches = [lease for lease in leases if lease.get("owner") == self.record["owner"]]
         if len(matches) > 1:
             raise RuntimeError("ambiguous lease ownership")
         if not matches:
@@ -288,22 +279,16 @@ class ResourceLifecycle:
                 ):
                     raise RuntimeError("container ownership mismatch")
                 identifier = info["Id"]
-                self.save(
-                    container_id=identifier, container_pid=info["State"].get("Pid")
-                )
+                self.save(container_id=identifier, container_pid=info["State"].get("Pid"))
                 # Capture actual per-process CUDA ownership before container teardown.
                 for gpu, pid in self.docker.cuda():
-                    if gpu in self.record[
-                        "gpu_uuids"
-                    ] and identifier in self.docker.cgroup(pid):
+                    if gpu in self.record["gpu_uuids"] and identifier in self.docker.cgroup(pid):
                         owned_pids.add(pid)
                 self.save(cuda_pids=sorted(owned_pids))
                 if info["State"]["Running"]:
                     self.docker.stop(identifier)
                 after = self.docker.inspect(self.record["container"])
-                if after is not None and (
-                    after["Id"] != identifier or after["State"]["Running"]
-                ):
+                if after is not None and (after["Id"] != identifier or after["State"]["Running"]):
                     raise RuntimeError("container stop not established")
                 # Docker stopped state plus empty container cgroups is the ownership
                 # proof; free VRAM is deliberately never used as a release predicate.
@@ -320,9 +305,7 @@ class ResourceLifecycle:
                 and self.record["boot_id"] == boot()
             ):
                 # We never run with --rm; disappearing containers invalidate proof.
-                raise RuntimeError(
-                    "owned container disappeared; cleanup proof unavailable"
-                )
+                raise RuntimeError("owned container disappeared; cleanup proof unavailable")
             if self.record["boot_id"] == boot() and any(
                 pid in owned_pids for _, pid in self.docker.cuda()
             ):
@@ -337,9 +320,7 @@ class ResourceLifecycle:
                 if self.owned_lease() is not None:
                     raise RuntimeError("lease release not established")
             if lease is not None:
-                Path(f"{self.record['readiness']}.{lease['token']}.ready").unlink(
-                    missing_ok=True
-                )
+                Path(f"{self.record['readiness']}.{lease['token']}.ready").unlink(missing_ok=True)
             if info is not None:
                 self.docker.remove(info["Id"])
             self.private.unlink(missing_ok=True)
@@ -353,9 +334,7 @@ class ResourceLifecycle:
             RuntimeError,
             subprocess.SubprocessError,
         ) as error:
-            self.save(
-                state="cleanup-pending", cleanup="pending", reason=type(error).__name__
-            )
+            self.save(state="cleanup-pending", cleanup="pending", reason=type(error).__name__)
             return False
 
     def run(
@@ -453,9 +432,7 @@ class ResourceLifecycle:
                         admission,
                     )
                     if heartbeat_failed.is_set():
-                        raise RuntimeError(
-                            "lease heartbeat failed during target qualification"
-                        )
+                        raise RuntimeError("lease heartbeat failed during target qualification")
                     if not target["completed"]:
                         raise RuntimeError("resident target preflight failed")
                     ready = True
@@ -489,18 +466,14 @@ class ResourceLifecycle:
             for original_signum, handler in handlers.items():
                 signal.signal(original_signum, handler)
             if not self.reconcile():
-                raise RuntimeError(
-                    "resource cleanup pending; run reconcile before new allocation"
-                )
+                raise RuntimeError("resource cleanup pending; run reconcile before new allocation")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["run", "reconcile"])
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument(
-        "--broker-socket", default="/run/ollama-unify/gpu-negotiator.sock"
-    )
+    parser.add_argument("--broker-socket", default="/run/ollama-unify/gpu-negotiator.sock")
     parser.add_argument("--docker-host", default="unix:///run/matric-eval-docker.sock")
     parser.add_argument("--preflight-plan", type=Path)
     parser.add_argument("--run-id")
@@ -521,9 +494,7 @@ def main() -> int:
         plan = json.loads(args.preflight_plan.read_text())
         lifecycle.prepare(args.run_id, args.attempt_id, args.gpu, args.owner)
         command = command[1:] if command[:1] == ["--"] else command
-        return lifecycle.run(
-            command, args.ready_timeout, args.memory_mib, preflight_plan=plan
-        )
+        return lifecycle.run(command, args.ready_timeout, args.memory_mib, preflight_plan=plan)
     finally:
         lifecycle.close()
 
