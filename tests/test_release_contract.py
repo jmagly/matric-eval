@@ -110,7 +110,9 @@ def test_vulnerability_review_rejects_unknown_finding(tmp_path: Path) -> None:
             }
         )
     )
-    npm_audit.write_text(json.dumps({"metadata": {"vulnerabilities": {"critical": 0}}}))
+    npm_audit.write_text(json.dumps(valid_npm_audit()))
+    exits = tmp_path / "exits.json"
+    exits.write_text(json.dumps({"python": 1, "typescript": 0}))
     policy.write_text(json.dumps({"accepted_findings": [], "schema_version": 1}))
 
     result = subprocess.run(
@@ -124,6 +126,8 @@ def test_vulnerability_review_rejects_unknown_finding(tmp_path: Path) -> None:
             str(python_audit),
             "--npm-audit",
             str(npm_audit),
+            "--audit-exit-codes",
+            str(exits),
             "--policy",
             str(policy),
             "--json-output",
@@ -287,3 +291,122 @@ def test_artifacts_reject_wrong_sdist_metadata(contract, tmp_path):
     (npm_dir / "matric-eval-client-2026.9.0.tgz").touch()
     with pytest.raises(ValueError, match="Source distribution metadata"):
         contract.verify_artifacts(tmp_path, "2026.9.0")
+
+
+def valid_npm_audit():
+    return {
+        "auditReportVersion": 2,
+        "vulnerabilities": {},
+        "metadata": {
+            "vulnerabilities": {
+                "info": 0,
+                "low": 0,
+                "moderate": 0,
+                "high": 0,
+                "critical": 0,
+                "total": 0,
+            },
+            "dependencies": {
+                "prod": 1,
+                "dev": 0,
+                "optional": 0,
+                "peer": 0,
+                "peerOptional": 0,
+                "total": 1,
+            },
+        },
+    }
+
+
+@pytest.fixture
+def audit_inputs():
+    return (
+        {"dependencies": [{"name": "example", "version": "1.0", "vulns": []}]},
+        valid_npm_audit(),
+        {"python": 0, "typescript": 0},
+    )
+
+
+@pytest.mark.parametrize("producer", ["python", "typescript"])
+@pytest.mark.parametrize("status", [2, 3, 127, -1, True, "0", None])
+def test_audit_producer_failure_cannot_pass_valid_json(contract, audit_inputs, producer, status):
+    python, npm, exits = audit_inputs
+    exits[producer] = status
+    with pytest.raises(ValueError, match="exit status"):
+        contract.validate_audit_reports(python, npm, exits)
+
+
+@pytest.mark.parametrize("producer", ["python", "typescript"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"error": {"code": "ENOAUDIT"}},
+        {"dependencies": []},
+        {"metadata": {"vulnerabilities": {"critical": 0}}},
+    ],
+)
+def test_error_and_partial_audit_payloads_fail_closed(contract, audit_inputs, producer, payload):
+    python, npm, exits = audit_inputs
+    with pytest.raises(ValueError):
+        contract.validate_audit_reports(
+            payload if producer == "python" else python,
+            payload if producer == "typescript" else npm,
+            exits,
+        )
+
+
+def test_skipped_python_dependency_fails_even_with_success_status(contract, audit_inputs):
+    python, npm, exits = audit_inputs
+    python["dependencies"].append({"name": "local", "skip_reason": "not on PyPI"})
+    with pytest.raises(ValueError, match="skipped"):
+        contract.validate_audit_reports(python, npm, exits)
+
+
+def test_exit_status_and_inventory_consistency(contract, audit_inputs):
+    python, npm, exits = audit_inputs
+    contract.validate_audit_reports(python, npm, exits)
+    exits["python"] = 1
+    with pytest.raises(ValueError, match="disagrees"):
+        contract.validate_audit_reports(python, npm, exits)
+    exits["python"] = 0
+    npm["metadata"]["vulnerabilities"]["high"] = 1
+    npm["metadata"]["vulnerabilities"]["total"] = 1
+    with pytest.raises(ValueError, match="summary disagrees"):
+        contract.validate_audit_reports(python, npm, exits)
+    npm["vulnerabilities"]["example"] = {
+        "name": "example",
+        "severity": "high",
+        "via": ["other"],
+        "nodes": ["node_modules/example"],
+    }
+    contract.validate_audit_reports(python, npm, exits)  # critical threshold: lower findings exit0.
+    exits["typescript"] = 1
+    with pytest.raises(ValueError, match="threshold"):
+        contract.validate_audit_reports(python, npm, exits)
+    npm["vulnerabilities"]["example"]["severity"] = "critical"
+    npm["metadata"]["vulnerabilities"]["high"] = 0
+    npm["metadata"]["vulnerabilities"]["critical"] = 1
+    contract.validate_audit_reports(python, npm, exits)
+
+
+def test_failed_audit_does_not_write_approval_report(contract, audit_inputs, tmp_path):
+    python, npm, exits = audit_inputs
+    exits["python"] = 2
+    for name, value in (
+        ("python", python),
+        ("npm", npm),
+        ("exits", exits),
+        ("policy", {"accepted_findings": []}),
+    ):
+        (tmp_path / f"{name}.json").write_text(json.dumps(value))
+    with pytest.raises(ValueError, match="exit status"):
+        contract.review_vulnerabilities(
+            tmp_path / "python.json",
+            tmp_path / "npm.json",
+            tmp_path / "policy.json",
+            tmp_path / "review.json",
+            tmp_path / "review.md",
+            tmp_path / "exits.json",
+        )
+    assert not (tmp_path / "review.json").exists()

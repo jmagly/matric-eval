@@ -415,15 +415,103 @@ def generate_license_report(
         raise ValueError(f"License review failed: unresolved={unresolved}, unaccepted={unaccepted}")
 
 
+def validate_audit_reports(
+    python_audit: dict[str, Any], npm_audit: dict[str, Any], exits: dict[str, Any]
+) -> None:
+    """Require complete pip-audit JSON and npm audit v2 at --audit-level=critical."""
+    for producer in ("python", "typescript"):
+        status = exits.get(producer)
+        if type(status) is not int or status not in (0, 1):
+            raise ValueError(f"Invalid or failed {producer} audit exit status")
+    error_fields = {"error", "errors", "skip_reason", "skipped"}
+    if error_fields.intersection(python_audit) or error_fields.intersection(npm_audit):
+        raise ValueError("Audit producer reported an error or skipped work")
+    dependencies = python_audit.get("dependencies")
+    if not isinstance(dependencies, list) or not dependencies:
+        raise ValueError("Python audit is missing its nonempty dependency inventory")
+    python_findings = 0
+    seen = set()
+    for dependency in dependencies:
+        if not isinstance(dependency, dict) or error_fields.intersection(dependency):
+            raise ValueError("Python audit contains an invalid or skipped dependency")
+        for field in ("name", "version"):
+            if not isinstance(dependency.get(field), str) or not dependency[field]:
+                raise ValueError(f"Python audit dependency is missing {field}")
+        identity = (dependency["name"].lower().replace("_", "-"), dependency["version"])
+        if identity in seen:
+            raise ValueError("Python audit contains a duplicate dependency")
+        seen.add(identity)
+        vulns = dependency.get("vulns")
+        if not isinstance(vulns, list):
+            raise ValueError("Python audit dependency is missing vulnerability results")
+        for vuln in vulns:
+            if (
+                not isinstance(vuln, dict)
+                or error_fields.intersection(vuln)
+                or not isinstance(vuln.get("id"), str)
+                or not vuln["id"]
+                or not isinstance(vuln.get("fix_versions"), list)
+                or not all(isinstance(item, str) for item in vuln["fix_versions"])
+            ):
+                raise ValueError("Python audit contains an incomplete vulnerability")
+        python_findings += len(vulns)
+    if exits["python"] != int(python_findings > 0):
+        raise ValueError("Python audit exit status disagrees with findings")
+
+    if npm_audit.get("auditReportVersion") != 2:
+        raise ValueError("Expected npm audit report version 2")
+    metadata = npm_audit.get("metadata")
+    vulnerabilities = npm_audit.get("vulnerabilities")
+    if not isinstance(metadata, dict) or not isinstance(vulnerabilities, dict):
+        raise ValueError("npm audit is missing metadata or vulnerability results")
+    counts = metadata.get("vulnerabilities")
+    inventory = metadata.get("dependencies")
+    severities = ("info", "low", "moderate", "high", "critical")
+    for values, fields in (
+        (counts, (*severities, "total")),
+        (inventory, ("prod", "dev", "optional", "peer", "peerOptional", "total")),
+    ):
+        if not isinstance(values, dict) or any(
+            type(values.get(field)) is not int or values[field] < 0 for field in fields
+        ):
+            raise ValueError("npm audit contains incomplete or invalid summary counts")
+    assert isinstance(counts, dict) and isinstance(inventory, dict)
+    if inventory["total"] < 1:
+        raise ValueError("npm audit has an empty dependency inventory")
+    measured = dict.fromkeys(severities, 0)
+    for name, vuln in vulnerabilities.items():
+        if (
+            not isinstance(vuln, dict)
+            or error_fields.intersection(vuln)
+            or vuln.get("name") != name
+            or vuln.get("severity") not in severities
+            or not isinstance(vuln.get("via"), list)
+            or not vuln["via"]
+            or not isinstance(vuln.get("nodes"), list)
+            or not vuln["nodes"]
+        ):
+            raise ValueError("npm audit contains an incomplete vulnerability")
+        measured[vuln["severity"]] += 1
+    if any(counts[field] != measured[field] for field in severities) or counts["total"] != sum(
+        measured.values()
+    ):
+        raise ValueError("npm audit summary disagrees with vulnerability inventory")
+    if exits["typescript"] != int(counts["critical"] > 0):
+        raise ValueError("npm audit exit status disagrees with critical audit threshold")
+
+
 def review_vulnerabilities(
     python_audit_path: Path,
     npm_audit_path: Path,
     policy_path: Path,
     json_output: Path,
     markdown_output: Path,
+    audit_exit_codes_path: Path,
 ) -> None:
     python_audit = _read_json(python_audit_path)
     npm_audit = _read_json(npm_audit_path)
+    exits = _read_json(audit_exit_codes_path)
+    validate_audit_reports(python_audit, npm_audit, exits)
     policy = _read_json(policy_path)
     accepted = {
         (item["id"], item["package"], item["version"]): item for item in policy["accepted_findings"]
@@ -432,10 +520,10 @@ def review_vulnerabilities(
     findings: list[dict[str, Any]] = []
     unaccepted: list[str] = []
 
-    for dependency in python_audit.get("dependencies", []):
+    for dependency in python_audit["dependencies"]:
         package = str(dependency["name"])
         version = str(dependency["version"])
-        for vulnerability in dependency.get("vulns", []):
+        for vulnerability in dependency["vulns"]:
             identifier = str(vulnerability["id"])
             decision = accepted.get((identifier, package, version))
             record = {
@@ -467,8 +555,8 @@ def review_vulnerabilities(
                     record["review_status"] = "accepted"
             findings.append(record)
 
-    npm_counts = npm_audit.get("metadata", {}).get("vulnerabilities", {})
-    npm_critical = int(npm_counts.get("critical", 0))
+    npm_counts = npm_audit["metadata"]["vulnerabilities"]
+    npm_critical = npm_counts["critical"]
     if npm_critical:
         unaccepted.append(f"npm:critical:{npm_critical}")
 
@@ -486,6 +574,8 @@ def review_vulnerabilities(
         },
         "unaccepted": unaccepted,
         "python_findings": findings,
+        "audit_exit_codes": exits,
+        "npm_audit_level": "critical",
     }
     json_output.parent.mkdir(parents=True, exist_ok=True)
     json_output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -567,6 +657,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vulnerabilities.add_argument("--python-audit", type=Path, required=True)
     vulnerabilities.add_argument("--npm-audit", type=Path, required=True)
+    vulnerabilities.add_argument("--audit-exit-codes", type=Path, required=True)
     vulnerabilities.add_argument("--policy", type=Path, required=True)
     vulnerabilities.add_argument("--json-output", type=Path, required=True)
     vulnerabilities.add_argument("--markdown-output", type=Path, required=True)
@@ -604,6 +695,7 @@ def main() -> int:
             args.policy,
             args.json_output,
             args.markdown_output,
+            args.audit_exit_codes,
         )
     elif args.command == "manifest":
         generate_manifest(args.artifact_root, version, args.output, args.sums_output)
