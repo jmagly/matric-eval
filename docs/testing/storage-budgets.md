@@ -147,7 +147,7 @@ The supported adapter requires a local Unix Docker socket whose peer credentials
 identify `dockerd` in the same mount namespace as the controller. Client-only
 private mounts cannot attest bounds for an external daemon and are rejected
 before reservation or GPU acquisition. A100 qualification verified both the
-actual host daemon match and rejection from a private client namespace.
+[actual host daemon match and rejection from a private client namespace](evidence/issue160/daemon-mount-qualification.json).
 Zero-growth model allocations may reside on read-only filesystems; writable
 allocations and the emergency ledger still require writable mounts.
 

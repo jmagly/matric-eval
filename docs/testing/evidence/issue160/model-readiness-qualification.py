@@ -71,7 +71,26 @@ command=['bash',str(workspace/'scripts/serve_qwen38_container.sh'),'--run-id','i
 print(json.dumps({'qualification_root':str(base),'gpu':gpu,'model':model_id,'scoring_requests':0}),flush=True)
 root_log=(base/'volumes/logs/controller.log').open('xb')
 process=subprocess.Popen(command,cwd=workspace,env={**os.environ,'MATRIC_LIFECYCLE_PYTHON':str(python),'PYTHONDONTWRITEBYTECODE':'1'},stdout=root_log,stderr=subprocess.STDOUT)
+def stop_controller(record):
+    identity = record['controller']
+    pid = identity['pid']
+    try:
+        descriptor = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return
+    try:
+        start = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+        boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        if start != identity['start_ticks'] or boot != identity['boot_id']:
+            raise RuntimeError('controller identity changed; cancellation refused')
+        signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+    except (FileNotFoundError, ProcessLookupError):
+        pass
+    finally:
+        os.close(descriptor)
+
 ready=False
+transitions=[]
 try:
  deadline=time.monotonic()+1100
  previous=None
@@ -80,24 +99,25 @@ try:
   record=json.loads(record_path.read_text()) if record_path.exists() else {}
   state=record.get('state')
   if state!=previous:
-   print(json.dumps({'state':state,'elapsed':1100-(deadline-time.monotonic())}),flush=True); previous=state
+   transitions.append({'state':state,'elapsed':1100-(deadline-time.monotonic())})
+   print(json.dumps(transitions[-1]),flush=True); previous=state
   if state=='ready':
    ready=True; time.sleep(3)
-   os.kill(record['controller']['pid'],signal.SIGTERM)
+   stop_controller(record)
    break
   if process.poll() is not None:
    break
   time.sleep(.5)
  else:
   if record.get('controller'):
-   os.kill(record['controller']['pid'],signal.SIGTERM)
+   stop_controller(record)
  process.wait(timeout=120)
 finally:
  root_log.close()
 record=json.loads((base/'resources/record.json').read_text())
 for path in (base/'volumes/logs').iterdir():
  if path.is_file(): shutil.copyfile(path,evidence/path.name)
-summary={'ready':ready,'scoring_requests':0,'wrapper_exit':process.returncode,'resource':record,'source_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=workspace,text=True).strip()}
+summary={'ready':ready,'state_transitions':transitions,'scoring_requests':0,'wrapper_exit':process.returncode,'resource':record,'source_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=workspace,text=True).strip()}
 (base/'summary.json').write_text(json.dumps(summary,indent=2))
 print(json.dumps(summary),flush=True)
 if not ready or record.get('cleanup')!='complete' or record.get('storage_reservation_active') is not False:

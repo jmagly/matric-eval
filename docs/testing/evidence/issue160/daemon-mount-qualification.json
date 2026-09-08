@@ -1,0 +1,12 @@
+{
+  "schema": "matric-eval.docker-mount-qualification/1",
+  "host": "basilisk",
+  "recorded_at": 1788903446.2340963,
+  "daemon_pid": 132803,
+  "daemon_mount_namespace": "mnt:[4026531841]",
+  "controller_mount_namespace": "mnt:[4026531841]",
+  "same_namespace_admitted": true,
+  "private_client_namespace_rejected": true,
+  "probe_containers": 0,
+  "gpu_requests": 0
+}
