@@ -734,10 +734,16 @@ def test_prior_direct_bfcl_reuse_only_needs_no_new_adapter_fingerprint(tmp_path)
 def test_suite_failure_does_not_suppress_other_model_suite(tmp_path):
     class ModelAdmission(Service):
         def start(self, item):
-            if item.model == 'source':
-                raise SuiteFailure('model-local admission')
+            if item.model == "source":
+                raise SuiteFailure("model-local admission")
             super().start(item)
+
     service = ModelAdmission()
-    with ObservationJournal(tmp_path/'journal.sqlite') as journal:
-        report = execute(schedule([work('source-task', model='source'), work('other-task', model='other')]), journal, service, tmp_path/'events.jsonl')
-    assert [row['disposition'] for row in report['entries']] == ['failed', 'completed']
+    with ObservationJournal(tmp_path / "journal.sqlite") as journal:
+        report = execute(
+            schedule([work("source-task", model="source"), work("other-task", model="other")]),
+            journal,
+            service,
+            tmp_path / "events.jsonl",
+        )
+    assert [row["disposition"] for row in report["entries"]] == ["failed", "completed"]
