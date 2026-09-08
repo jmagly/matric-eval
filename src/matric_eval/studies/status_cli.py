@@ -101,3 +101,23 @@ def preflight_command(plan: Path, receipt: Path, launch: bool) -> None:
         raise click.ClickException(str(error)) from None
     click.echo(json.dumps(result, allow_nan=False))
     raise click.exceptions.Exit(0 if result["completed"] else 1)
+
+
+@study_run.command("schedule")
+@click.argument("action", type=click.Choice(["plan", "execute"]))
+@click.argument("plan", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--journal", type=click.Path(path_type=Path), required=True)
+@click.option("--directory", type=click.Path(path_type=Path), required=True)
+def schedule_command(action: str, plan: Path, journal: Path, directory: Path) -> None:
+    """Plan or execute explicitly authorized independent suites."""
+    from matric_eval.studies.schedule_cli import run_command_plan
+
+    try:
+        report = run_command_plan(action, plan, journal, directory)
+    except (ValueError, OSError, KeyError, RuntimeError) as error:
+        raise click.ClickException(type(error).__name__) from None
+    click.echo(json.dumps(report, allow_nan=False))
+    failed = report.get("global_stop") or any(
+        row["disposition"] in {"failed", "invalidated", "blocked"} for row in report["entries"]
+    )
+    raise click.exceptions.Exit(1 if failed else 0)

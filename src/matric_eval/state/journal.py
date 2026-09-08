@@ -393,7 +393,19 @@ class ObservationJournal:
             if digest.hexdigest() != artifact.sha256:
                 raise ReuseRefused("verified artifact digest mismatch")
 
+    def retain_invalid_terminal(self, terminal: TerminalAttempt) -> None:
+        """Retain failed measurement evidence without consuming logical acceptance."""
+        if all(
+            row.execution == "completed" and row.outcome == "observed"
+            for row in terminal.observations
+        ):
+            raise ValueError("valid measurements must use commit_terminal")
+        self._commit_terminal(terminal, accept=False)
+
     def commit_terminal(self, terminal: TerminalAttempt) -> AcceptanceReceipt:
+        return self._commit_terminal(terminal, accept=True)
+
+    def _commit_terminal(self, terminal: TerminalAttempt, *, accept: bool) -> AcceptanceReceipt:
         terminal = TerminalAttempt.model_validate(terminal.model_dump())
         # Acceptance is an index projection, never an immutable candidate claim.
         # Both winning and losing terminal evidence retain accepted=False.
@@ -437,6 +449,10 @@ class ObservationJournal:
                     ).fetchone()
                     for logical_id in ids
                 ]
+                if not accept:
+                    return AcceptanceReceipt(
+                        attempt_id=terminal.attempt_id, payload_sha256=digest, observation_ids=[]
+                    )
                 if any(
                     row is not None and row != (terminal.attempt_id, digest) for row in accepted
                 ):
