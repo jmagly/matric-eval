@@ -1,18 +1,51 @@
 """Real journal scheduling qualification, with process restart and admission failure."""
 
+import json
 import multiprocessing
 from pathlib import Path
 
 import pytest
 
 from matric_eval.results.contract import Observation, ObservationIdentity
-from matric_eval.state.journal import AttemptIntent, ObservationJournal, TerminalAttempt
+from matric_eval.state.journal import (
+    AttemptIntent,
+    ObservationJournal,
+    TerminalAttempt,
+    storage_profile,
+)
 from matric_eval.state.observation_identity import (
     COMPONENTS,
     ExecutionFingerprint,
     ReplayCapability,
 )
 from matric_eval.studies.suite_schedule import Schedule, SuiteFailure, Work, execute, plan
+
+
+def _semantics_only_profile(path):
+    return {
+        **storage_profile(path),
+        "supported": True,
+        "profile": "TEST-ONLY-sqlite-transaction-semantics",
+    }
+
+
+def _child_storage_seam(path):
+    import matric_eval.state.journal as module
+
+    if not storage_profile(Path(path))["supported"]:
+        module.storage_profile = _semantics_only_profile
+
+
+@pytest.fixture(autouse=True)
+def journal_storage_context(tmp_path, monkeypatch, record_property):
+    actual = storage_profile(tmp_path)
+    record_property("actual_storage_profile", json.dumps(actual, sort_keys=True))
+    record_property(
+        "filesystem_qualification",
+        "actual_ext4" if actual["supported"] else "sqlite_transaction_semantics_only",
+    )
+    if not actual["supported"]:
+        monkeypatch.setattr("matric_eval.state.journal.storage_profile", _semantics_only_profile)
 
 
 def work(key, model="model", suite="terminal", **updates):
@@ -196,6 +229,7 @@ def test_lost_ack_is_reused_and_interrupted_external_is_blocked(tmp_path):
 
 def _run_process(directory):
     root = Path(directory)
+    _child_storage_seam(root)
     with ObservationJournal(root / "journal.sqlite") as journal:
         execute(
             schedule([work("admission", suite="tau"), work("independent")]),
@@ -304,6 +338,7 @@ class HTTPService(Service):
 
 def _run_http_process(directory):
     root = Path(directory)
+    _child_storage_seam(root)
     with ObservationJournal(root / "journal.sqlite") as journal:
         execute(
             schedule([work("admission", suite="tau"), work("independent")]),
@@ -624,6 +659,17 @@ def test_supported_command_cli_end_to_end(tmp_path, command_services, scenario):
         "--directory",
         str(directory),
     ]
+    if not storage_profile(tmp_path)["supported"]:
+        # Exercise the real CLI with a private storage seam, as journal tests do.
+        # This qualifies scheduling/transactions, never the host filesystem.
+        command[1:3] = [
+            "-c",
+            "import runpy; import matric_eval.state.journal as j; "
+            "original=j.storage_profile; "
+            "j.storage_profile=lambda p: {**original(p), 'supported':True, "
+            "'profile':'TEST-ONLY-sqlite-transaction-semantics'}; "
+            "runpy.run_module('matric_eval.studies.schedule_cli', run_name='__main__', alter_sys=True)",
+        ]
     reports = []
     if scenario == "crash":
         import signal
