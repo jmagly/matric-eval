@@ -355,8 +355,10 @@ class ResourceLifecycle:
         mib: int = 75000,
         *,
         preflight_plan: dict[str, Any],
+        storage_plan: dict[str, Any] | None = None,
     ) -> int:
         child = None
+        storage = None
         handlers: dict[int, Any] = {}
         heartbeat_stop = threading.Event()
         heartbeat_failed = threading.Event()
@@ -368,6 +370,12 @@ class ResourceLifecycle:
 
             for signum in (signal.SIGINT, signal.SIGTERM):
                 handlers[signum] = signal.signal(signum, cancel)
+            if storage_plan is not None:
+                from matric_eval.studies.storage_lifecycle import ResidentStorage
+
+                storage = ResidentStorage(storage_plan, self, command)
+                storage.admit()
+            receipt_directory = storage.session.paths["evidence"] if storage else self.directory
             preflight_plan = {
                 **preflight_plan,
                 "resource_binding": {
@@ -378,7 +386,7 @@ class ResourceLifecycle:
                 },
             }
             admission = execute_plan(
-                preflight_plan, self.directory / "preflight.json", launch=False
+                preflight_plan, receipt_directory / "preflight.json", launch=False
             )
             validate_admission(admission, preflight_plan, 300)
             self.save(
@@ -426,9 +434,15 @@ class ResourceLifecycle:
                     env=env,
                     start_new_session=True,
                     pass_fds=(read_fd,),
+                    stdout=storage.log if storage else None,
+                    stderr=subprocess.STDOUT if storage else None,
                 )
                 self.save(state="loading", launcher=process_identity(child.pid))
+                if storage:
+                    storage.session.check("before-target-load")
                 os.write(write_fd, b"1")
+                if storage:
+                    storage.start()
             finally:
                 os.close(read_fd)
                 os.close(write_fd)
@@ -437,6 +451,8 @@ class ResourceLifecycle:
             ready = False
             marker = Path(f"{self.record['readiness']}.{token}.ready")
             while child.poll() is None:
+                if storage:
+                    storage.check_failure()
                 if heartbeat_failed.is_set():
                     raise RuntimeError("lease heartbeat failed")
                 now = time.monotonic()
@@ -451,7 +467,7 @@ class ResourceLifecycle:
                     self.save(state="qualifying-target")
                     target = execute_target_checks(
                         preflight_plan,
-                        self.directory / "target-preflight.json",
+                        receipt_directory / "target-preflight.json",
                         admission,
                     )
                     if heartbeat_failed.is_set():
@@ -470,6 +486,8 @@ class ResourceLifecycle:
                 if not ready and now >= deadline:
                     raise TimeoutError("model readiness timeout")
                 time.sleep(0.2)
+            if storage:
+                storage.check_failure()
             if not ready:
                 raise RuntimeError("model exited before readiness")
             return child.returncode
@@ -488,7 +506,12 @@ class ResourceLifecycle:
                     child.wait()
             for original_signum, handler in handlers.items():
                 signal.signal(original_signum, handler)
-            if not self.reconcile():
+            if storage:
+                storage.before_cleanup()
+            resource_cleanup = self.reconcile()
+            if storage:
+                storage.finish(resource_cleanup)
+            if not resource_cleanup:
                 raise RuntimeError("resource cleanup pending; run reconcile before new allocation")
 
 
@@ -499,6 +522,7 @@ def main() -> int:
     parser.add_argument("--broker-socket", default="/run/ollama-unify/gpu-negotiator.sock")
     parser.add_argument("--docker-host", default="unix:///run/matric-eval-docker.sock")
     parser.add_argument("--preflight-plan", type=Path)
+    parser.add_argument("--storage-plan", type=Path)
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--owner", default="matric-eval")
@@ -517,7 +541,13 @@ def main() -> int:
         plan = json.loads(args.preflight_plan.read_text())
         lifecycle.prepare(args.run_id, args.attempt_id, args.gpu, args.owner)
         command = command[1:] if command[:1] == ["--"] else command
-        return lifecycle.run(command, args.ready_timeout, args.memory_mib, preflight_plan=plan)
+        return lifecycle.run(
+            command,
+            args.ready_timeout,
+            args.memory_mib,
+            preflight_plan=plan,
+            storage_plan=json.loads(args.storage_plan.read_text()) if args.storage_plan else None,
+        )
     finally:
         lifecycle.close()
 

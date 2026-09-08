@@ -529,7 +529,10 @@ def supervise(
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)
         snapshot = status.read(reconcile=False)
-        if snapshot.get("storage", {}).get("reservation_active") or snapshot.get("resources", {}).get("cleanup") == "pending":
+        if (
+            snapshot.get("storage", {}).get("reservation_active")
+            or snapshot.get("resources", {}).get("cleanup") == "pending"
+        ):
             cleanup = "pending"
             if failure is not None:
                 failure["cleanup_disposition"] = cleanup

@@ -389,3 +389,36 @@ def test_storage_cleanup_projection_retains_recoverable_obligation(tmp_path, mon
     publish_run_status(run, "cleanup", receipt_path=tmp_path / "receipt.json")
     assert not status.read()["storage"]["reservation_active"]
     assert status.read()["storage"]["diagnostic_receipt"].endswith("receipt.json")
+
+
+def test_dead_controller_cannot_reclaim_daemon_storage_before_cleanup(tmp_path, monkeypatch):
+    run = session(tmp_path)
+    record = tmp_path / "resource.json"
+    record.write_text(json.dumps({"cleanup": "pending"}))
+    run.admit(reserve=True)
+    run.bind_resource(record)
+    monkeypatch.setattr("matric_eval.storage.process_identity", lambda pid: None)
+    with run.locked() as state:
+        assert run.token in state
+    record.write_text(json.dumps({"cleanup": "complete"}))
+    with run.locked() as state:
+        assert run.token not in state
+
+
+def test_live_controller_retains_pending_resource_reservation(tmp_path):
+    run = session(tmp_path)
+    record = tmp_path / "resource.json"
+    record.write_text(json.dumps({"cleanup": "pending"}))
+    run.admit(reserve=True)
+    run.bind_resource(record)
+    run.release()
+    assert run.active
+    record.write_text(json.dumps({"cleanup": "complete"}))
+    run.release()
+    assert not run.active
+
+
+def test_owned_cgroup_measurement_rejects_foreign_pid(tmp_path):
+    run = session(tmp_path)
+    with pytest.raises(StorageBlocker, match="storage_io_identity"):
+        run.check("loading", os.getpid(), container_id="not-this-process-container")

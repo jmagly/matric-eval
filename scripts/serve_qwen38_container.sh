@@ -25,9 +25,11 @@ run_id=""
 attempt_id=""
 resource_directory=""
 preflight_plan=""
+storage_plan=""
 
 while (( $# )); do
   case "$1" in
+    --storage-plan) storage_plan="${2:-}"; shift 2 ;;
     --preflight-plan) preflight_plan="${2:-}"; shift 2 ;;
     --run-id) run_id="${2:-}"; shift 2 ;;
     --attempt-id) attempt_id="${2:-}"; shift 2 ;;
@@ -46,7 +48,7 @@ while (( $# )); do
   esac
 done
 
-for required in preflight_plan run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
+for required in storage_plan preflight_plan run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
   if [[ -z "${!required}" ]]; then
     printf 'missing required option for %s\n' "$required" >&2
     exit 2
@@ -114,12 +116,24 @@ if [[ "$actual_image_id" != "${study_image#*@}" ]]; then
   exit 1
 fi
 
+mapfile -t budget_paths < <(python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); paths={a["kind"]:a["path"] for a in data["allocations"]}; [print(paths[k]) for k in ("temporary","download_cache","scratch","evidence","logs")]' "$storage_plan")
+if (( ${#budget_paths[@]} != 5 )); then
+  printf 'storage plan must declare all runtime paths\n' >&2
+  exit 2
+fi
+for output in "$lease_receipt" "$server_receipt" "${MATRIC_RUN_STATUS_DIR:-${budget_paths[3]}/unused}"; do
+  if [[ "$output" != "${budget_paths[3]}/"* ]]; then
+    printf 'output and inherited status must be beneath bounded evidence storage\n' >&2
+    exit 2
+  fi
+done
+
 code_revision="$(git -C "$study_repo" rev-parse HEAD)"
 evidence_uid="$(id -u)"
 evidence_gid="$(id -g)"
 
-sudo env PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
-  --directory "$resource_directory" --preflight-plan "$preflight_plan" \
+sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
+  --directory "$resource_directory" --preflight-plan "$preflight_plan" --storage-plan "$storage_plan" \
   --run-id "$run_id" --attempt-id "$attempt_id" \
   --owner "$owner" --gpu "$gpu_uuid" \
   --ready-timeout 900 -- \
@@ -129,17 +143,21 @@ sudo env PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS
     --network host \
     --hostname basilisk \
     --read-only \
+    --pull never \
+    --log-driver none \
     --runtime nvidia \
     --gpus "device=${gpu_uuid}" \
-    --ipc host \
+    --ipc private \
     --ulimit memlock=-1 \
     --ulimit stack=67108864 \
-    --tmpfs /tmp:rw,nosuid,nodev,exec,size=8g \
-    --tmpfs /root/.cache:rw,nosuid,nodev,exec,size=32g \
-    --tmpfs /root/.triton:rw,nosuid,nodev,exec,size=8g \
+    --mount type=bind,src="${budget_paths[0]}",dst=/tmp \
+    --mount type=bind,src="${budget_paths[1]}",dst=/root/.cache \
+    --mount type=bind,src="${budget_paths[2]}",dst=/root/.triton \
+    --mount type=bind,src="${budget_paths[2]}",dst=/dev/shm \
+    --mount type=bind,src="${budget_paths[3]}",dst="${budget_paths[3]}" \
     --mount type=bind,src="$study_repo",dst=/workspace,readonly \
     --mount type=bind,src=/srv/obliteratus/matric-eval,dst=/srv/obliteratus/matric-eval,readonly \
-    --mount type=bind,src=/srv/matric-eval/results,dst=/srv/matric-eval/results \
+    --mount type=bind,src=/srv/matric-eval/results,dst=/srv/matric-eval/results,readonly \
     --mount type=bind,src="$study_broker_socket",dst="$study_broker_socket" \
     --workdir /workspace \
     --env PYTHONPATH=/workspace/src:/workspace/runtime/vllm-plugin \

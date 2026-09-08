@@ -129,11 +129,13 @@ class StorageSession:
         headroom_bytes: int,
         headroom_inodes: int,
         require_enforced_bounds: bool = True,
+        docker_control: dict[str, Any] | None = None,
     ):
         if {a.kind for a in allocations} != CLASSES or len(allocations) != len(CLASSES):
             raise ValueError(f"Declare each storage class exactly once: {sorted(CLASSES)}")
         if min(headroom_bytes, headroom_inodes) < 0:
             raise ValueError("Headroom must be nonnegative")
+        self.docker_control = docker_control
         self.allocations = allocations
         self.ledger = ledger.resolve(strict=True)
         self.ledger_mount = filesystem(self.ledger)
@@ -201,6 +203,12 @@ class StorageSession:
                     if process_identity(record["pid"]) != record["identity"] and not (
                         record.get("process_group") and group_alive(record["process_group"])
                     ):
+                        resource = record.get("resource_record")
+                        if resource and (
+                            not Path(resource).exists()
+                            or json.loads(Path(resource).read_text()).get("cleanup") != "complete"
+                        ):
+                            continue
                         del state[key]
                 yield state
                 temporary = self.ledger / f".{self.token}.tmp"
@@ -224,10 +232,16 @@ class StorageSession:
                 current["device"], {**current, "reserved_bytes": 0, "reserved_inodes": 0}
             )
             protect = (
-                not self.require_enforced_bounds or current["device"] == self.ledger_mount["device"]
+                not self.require_enforced_bounds
+                or current["device"] == self.ledger_mount["device"]
+                or (self.docker_control is not None and allocation.kind == "docker")
             )
-            volume["headroom_bytes"] = self.headroom_bytes if protect else 0
-            volume["headroom_inodes"] = self.headroom_inodes if protect else 0
+            volume["headroom_bytes"] = max(
+                volume.get("headroom_bytes", 0), self.headroom_bytes if protect else 0
+            )
+            volume["headroom_inodes"] = max(
+                volume.get("headroom_inodes", 0), self.headroom_inodes if protect else 0
+            )
             baseline = self.baselines[allocation.kind]
             volume["reserved_bytes"] += min(
                 allocation.budget_bytes, max(0, current["capacity_bytes"] - baseline[0])
@@ -251,7 +265,7 @@ class StorageSession:
             diagnostic["device"], {**diagnostic, "reserved_bytes": 0, "reserved_inodes": 0}
         )
         volume["reserved_bytes"] += DIAGNOSTIC_BYTES
-        volume["reserved_inodes"] += 4
+        volume["reserved_inodes"] += 16
         volume["headroom_bytes"] = self.headroom_bytes
         volume["headroom_inodes"] = self.headroom_inodes
         return {
@@ -260,7 +274,7 @@ class StorageSession:
             "emergency_diagnostics": {
                 "path": str(self.ledger),
                 "reserved_bytes": DIAGNOSTIC_BYTES,
-                "reserved_inodes": 4,
+                "reserved_inodes": 16,
             },
         }
 
@@ -303,6 +317,13 @@ class StorageSession:
                 self.active = True
         return plan
 
+    def bind_resource(self, path: Path) -> None:
+        """Keep a dead controller's reservation until owned daemon cleanup is proven."""
+        if not self.active:
+            raise ValueError("resource binding requires an active reservation")
+        with self.locked() as state:
+            state[self.token]["resource_record"] = str(path.resolve())
+
     def attach_process_group(self, pid: int) -> None:
         """Attach a dedicated child process group before allowing its writers to run."""
         if not self.active or os.getpgid(pid) != pid:
@@ -321,6 +342,17 @@ class StorageSession:
         for item in plan["classes"]:
             if not (item["budget_bytes"] or item["budget_inodes"]):
                 continue
+            if item["kind"] == "docker" and self.docker_control is not None:
+                if (
+                    Path(self.docker_control["root"]).resolve() != self.paths["docker"]
+                    or item["budget_bytes"] < 64 * 1024 * 1024
+                    or item["budget_inodes"] < 4096
+                ):
+                    raise StorageBlocker(
+                        "storage_docker_control_bound",
+                        "reserve at least 64 MiB/4096 inodes for the validated single-container daemon contract",
+                    )
+                continue
             if (
                 item["device"] == diagnostic_device
                 or item["capacity_bytes"] > item["budget_bytes"]
@@ -332,7 +364,9 @@ class StorageSession:
                     f"{item['kind']}: require a byte/inode bounded filesystem on a different device from emergency diagnostics; configured budgets are not kernel quotas",
                 )
 
-    def check(self, phase: str, pid: int | None = None) -> dict[str, Any]:
+    def check(
+        self, phase: str, pid: int | None = None, *, container_id: str | None = None
+    ) -> dict[str, Any]:
         plan = self.plan()
         measured = {}
         blocker = None
@@ -353,19 +387,50 @@ class StorageSession:
                 process_io[str(process_id)] = "process_exited_before_sample"
             except OSError as exc:
                 raise StorageBlocker("storage_io", str(exc)) from exc
+        container_io: dict[str, Any] = {}
+        if pid and container_id:
+            try:
+                lines = Path(f"/proc/{pid}/cgroup").read_text().splitlines()
+                unified = next(line.split(":", 2)[2] for line in lines if line.startswith("0::"))
+                if container_id not in unified or ".." in Path(unified).parts:
+                    raise StorageBlocker(
+                        "storage_io_identity", "PID is not in the owned container cgroup"
+                    )
+                cgroup = Path("/sys/fs/cgroup") / unified.lstrip("/")
+                container_io = {
+                    "container_id": container_id,
+                    "pid": pid,
+                    "cgroup": unified,
+                    "io_stat": (cgroup / "io.stat").read_text(),
+                }
+            except FileNotFoundError:
+                container_io = {
+                    "container_id": container_id,
+                    "pid": pid,
+                    "state": "exited-before-sample",
+                }
+            except (OSError, StopIteration) as error:
+                raise StorageBlocker("storage_io", "owned cgroup counters unavailable") from error
         sample = {
             "phase": phase,
             "elapsed_seconds": time.monotonic() - self.started,
             "usage": measured,
             "filesystems": plan["filesystems"],
             "process_io": process_io,
+            "container_io": container_io,
         }
         self.samples.append(sample)
         self.peak_scratch_bytes = max(self.peak_scratch_bytes, measured["scratch"]["bytes"])
         if len(self.samples) > 64:
             del self.samples[1]
         for volume in plan["filesystems"].values():
-            if self.require_enforced_bounds and volume["device"] != self.ledger_mount["device"]:
+            if (
+                self.require_enforced_bounds
+                and volume["device"] != self.ledger_mount["device"]
+                and not (
+                    self.docker_control and volume["device"] == self.mounts["docker"]["device"]
+                )
+            ):
                 if volume["free_bytes"] == 0 or volume["free_inodes"] == 0:
                     blocker = StorageBlocker("storage_bound_exhausted", str(volume))
                 continue
@@ -429,6 +494,12 @@ class StorageSession:
                     and record["pid"] == os.getpid()
                     and record["identity"] == process_identity(os.getpid())
                 ):
+                    resource = record.get("resource_record")
+                    if resource and (
+                        not Path(resource).exists()
+                        or json.loads(Path(resource).read_text()).get("cleanup") != "complete"
+                    ):
+                        return
                     if record.get("process_group") and group_alive(record["process_group"]):
                         return
                     del state[self.token]
@@ -446,7 +517,8 @@ class StorageSession:
             "peak_scratch_bytes": self.peak_scratch_bytes,
             "cleanup_preview": self.cleanup_preview(),
             "elapsed_seconds": time.monotonic() - self.started,
-            "measurement_scope": "sampled allocated blocks/inodes and named PID I/O; descendants and between-sample peaks are not included; no throughput claim",
+            "docker_control": self.docker_control,
+            "measurement_scope": "sampled allocated blocks/inodes, named PID I/O and exact owned container cgroup I/O when available; cgroup counters include descendants; between-sample filesystem peaks are not included; no throughput improvement is inferred",
         }
 
     def write_diagnostics(self, receipt: dict[str, Any]) -> Path:
