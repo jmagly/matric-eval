@@ -120,3 +120,19 @@ and broker request IDs and lane, and emits a bounded preflight receipt. Its
 calibration is not performed. A completion probe cannot be labeled an embedding
 qualification. The embedder check must separately exercise the actual embedding
 client, dimensions and broker evidence required by the selected profile.
+
+The supported Tau builder declares the referenced patch blob, benchmark
+`pyproject.toml`/`uv.lock`, the benchmark's complete `src` and `data` trees, and its
+Git revision/status as fingerprint inputs. Tree closures are limited to 20,000
+entries and 1 GiB each, exclude `.git`, `.venv`, `__pycache__` and bytecode caches,
+and reject symlinks or unreadable entries. New source/data files invalidate
+admission as well as modified files. The dependency check also verifies that the
+resolved `tau2` module belongs to the declared benchmark checkout.
+
+Checks with `runtime_python` resolve that interpreter's installed inventory again
+at admission validation: Python/prefix/import paths, distribution versions, and
+hashes of `METADATA`, `RECORD`, and editable-install `direct_url.json`. This includes
+external interpreters independently of the controller's own environment. The
+supported auxiliary builder declares this runtime identity and the executed
+client/runtime/transport source modules. This is a bounded declared dependency
+closure, not a claim to detect arbitrary tampering anywhere in a virtualenv.

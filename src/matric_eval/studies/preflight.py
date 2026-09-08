@@ -184,12 +184,89 @@ def _validate_plan(plan: dict[str, Any]) -> None:
             raise ValueError("each check requires a receipt contract")
 
 
+def source_tree_identity(root: Path) -> str:
+    """Hash a declared source/data closure, excluding generated interpreter caches."""
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError("source closure requires a real directory")
+    rows: list[tuple[str, str]] = []
+    total = 0
+    entries = 0
+
+    def inaccessible(error: OSError) -> None:
+        raise error
+
+    for directory, children, files in os.walk(root, followlinks=False, onerror=inaccessible):
+        entries += len(children) + len(files)
+        if entries > 20000:
+            raise ValueError("source closure exceeds 20000 entries")
+        children[:] = sorted(
+            name for name in children if name not in {".git", ".venv", "__pycache__"}
+        )
+        for name in children:
+            if (Path(directory) / name).is_symlink():
+                raise ValueError("source closure contains an undeclared directory symlink")
+        for name in sorted(files):
+            if name.endswith((".pyc", ".pyo")):
+                continue
+            path = Path(directory) / name
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("source closure requires regular files")
+            total += path.stat().st_size
+            if len(rows) >= 20000 or total > 1024 * 1024 * 1024:
+                raise ValueError("source closure exceeds 20000 files or 1 GiB")
+            rows.append((str(path.relative_to(root)), file_digest(path)))
+    return digest(sorted(rows))
+
+
+def checkout_identity(path: str) -> dict[str, str]:
+    result = {}
+    for key, arguments in (
+        ("revision", ["rev-parse", "HEAD"]),
+        ("status", ["status", "--porcelain=v1", "--untracked-files=all"]),
+    ):
+        output = subprocess.run(
+            ["git", "-C", path, *arguments], check=True, capture_output=True, text=True, timeout=20
+        ).stdout
+        if len(output) > 1024 * 1024:
+            raise ValueError("checkout identity exceeds 1 MiB")
+        result[key] = output
+    return result
+
+
+def interpreter_identity(python: str) -> dict[str, Any]:
+    """Resolve the check interpreter's installed runtime, not the launcher's venv."""
+    code = """import hashlib,importlib.metadata as m,json,sys
+packages=[]
+for d in m.distributions():
+    files={}
+    for name in ('METADATA','RECORD','direct_url.json'):
+        value=d.read_text(name)
+        files[name]=hashlib.sha256(value.encode()).hexdigest() if value is not None else None
+    packages.append((d.metadata['Name'],d.version,files))
+print(json.dumps({'python':sys.version,'prefix':sys.prefix,'paths':sys.path,'packages':sorted(packages,key=lambda item:(item[0],item[1]))}))
+"""
+    output = subprocess.run(
+        [python, "-c", code], check=True, capture_output=True, text=True, timeout=20
+    ).stdout
+    if len(output) > 2 * 1024 * 1024:
+        raise ValueError("runtime inventory exceeds 2 MiB")
+    value: dict[str, Any] = json.loads(output)
+    return value
+
+
 def check_fingerprint(check: dict[str, Any], runtime: dict[str, Any]) -> str:
     return digest(
         {
             "check": check,
             "runtime": runtime,
             "engine": file_digest(Path(__file__)),
+            "checkouts": {name: checkout_identity(name) for name in check.get("git_checkouts", [])},
+            "source_trees": {
+                name: source_tree_identity(Path(name)) for name in check.get("input_trees", [])
+            },
+            "check_runtime": interpreter_identity(check["runtime_python"])
+            if check.get("runtime_python")
+            else None,
             "inputs": {
                 name: {"sha256": file_digest(Path(name)), "mount": mount_identity(Path(name))}
                 for name in check["inputs"]
@@ -323,7 +400,7 @@ def _execute_checks(
                     _contract(evidence, check["receipt_contract"])
                     row["completed_at"] = time.time()
                     row["status"] = "completed"
-            except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
                 row["diagnostic"] = diagnostic(
                     error,
                     actor=check["id"],
@@ -433,7 +510,7 @@ def execute_plan(
                     plan.get("cleanup_timeout_seconds", 60),
                     dict(os.environ),
                 )
-            except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
                 result["completed"] = False
                 result["cleanup"] = diagnostic(
                     error,
@@ -548,6 +625,19 @@ def tau_plan(
             patch_manifest,
         )
     ]
+    contract = json.loads(patch_manifest.read_text())
+    patch_path = (patch_manifest.parent / contract["patch_file"]).resolve()
+    if not patch_path.is_relative_to(patch_manifest.parent.resolve()):
+        raise ValueError("patch source must remain inside the declared patch directory")
+    inputs.extend(
+        str(path)
+        for path in (patch_path, tau_checkout / "pyproject.toml", tau_checkout / "uv.lock")
+    )
+    closure = {
+        "input_trees": [str(tau_checkout / "src"), str(tau_checkout / "data")],
+        "runtime_python": str(python),
+        "git_checkouts": [str(tau_checkout)],
+    }
     checks: list[dict[str, Any]] = []
     for mode, stage in (
         ("inputs", "static"),
@@ -559,6 +649,7 @@ def tau_plan(
         checks.append(
             {
                 "id": f"tau-{mode}",
+                **closure,
                 "stage": stage,
                 "command": [str(python), str(script), mode, *arguments],
                 "inputs": inputs,
@@ -589,6 +680,7 @@ def tau_plan(
     checks.append(
         {
             **launcher_smoke,
+            **closure,
             "id": "launcher-adapter-receipt-smoke",
             "stage": "cpu",
             "deterministic": False,
@@ -662,6 +754,7 @@ def auxiliary_client_check(
     )
     return {
         "id": f"auxiliary-{role}",
+        "runtime_python": str(python),
         "role": role,
         "stage": "auxiliary",
         "command": [
@@ -683,6 +776,7 @@ def auxiliary_client_check(
                 canary,
                 checkout / "src/matric_eval/studies/client_conformance.py",
                 checkout / "src/matric_eval/studies/broker_admission.py",
+                checkout / "src/matric_eval/studies/broker_identity.py",
                 checkout / "src/matric_eval/studies/auxiliary_runtime.py",
                 checkout / "src/matric_eval/studies/embedding_transport.py",
             )
