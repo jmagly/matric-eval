@@ -1,0 +1,488 @@
+"""Linux storage admission, cooperative reservations, and bounded run monitoring.
+
+Run ``python -m matric_eval.storage plan.json`` for an admission plan.
+Use ``-- command ...`` to reserve capacity and supervise a process group.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import uuid
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Iterator
+
+CLASSES = {"models", "download_cache", "docker", "scratch", "temporary", "logs", "evidence"}
+
+
+class StorageBlocker(RuntimeError):
+    """An actionable infrastructure failure, never a model-quality score."""
+
+    def __init__(self, code: str, detail: str):
+        self.code = code
+        super().__init__(f"{code}: {detail}")
+
+
+@dataclass(frozen=True)
+class Allocation:
+    kind: str
+    path: str
+    budget_bytes: int
+    budget_inodes: int
+    estimated_bytes: int | None = None
+    disposable: bool = False
+
+
+def filesystem(path: Path) -> dict[str, Any]:
+    """Resolve the real Linux mount, including bind mounts, without creating paths."""
+    try:
+        resolved = path.resolve(strict=True)
+        stat = resolved.stat()
+        capacity = os.statvfs(resolved)
+        mounts = []
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            fields = line.split()
+            target = fields[4].replace("\\040", " ").replace("\\134", "\\")
+            if resolved == Path(target) or Path(target) in resolved.parents:
+                split = fields.index("-")
+                mounts.append((len(target), fields[0], target, fields[split + 2]))
+        _, mount_id, target, source = max(mounts)
+        if capacity.f_flag & os.ST_RDONLY:
+            raise StorageBlocker("storage_read_only", str(resolved))
+        return {
+            "device": str(stat.st_dev),
+            "mount_id": mount_id,
+            "mount": target,
+            "source": source,
+            "free_bytes": capacity.f_bavail * capacity.f_frsize,
+            "free_inodes": capacity.f_favail,
+            "capacity_bytes": capacity.f_blocks * capacity.f_frsize,
+            "capacity_inodes": capacity.f_files,
+        }
+    except OSError as exc:
+        raise StorageBlocker("storage_io", f"{path}: {exc}") from exc
+
+
+def usage(path: Path) -> tuple[int, int]:
+    """Allocated blocks and unique inodes; links never traverse ownership boundaries."""
+    seen: set[tuple[int, int]] = set()
+    size = 0
+    try:
+        for root, dirs, files in os.walk(
+            path, followlinks=False, onerror=lambda e: (_ for _ in ()).throw(e)
+        ):
+            for entry in [Path(root), *(Path(root) / name for name in dirs + files)]:
+                stat = entry.lstat()
+                key = (stat.st_dev, stat.st_ino)
+                if key not in seen:
+                    seen.add(key)
+                    size += stat.st_blocks * 512
+        return size, len(seen)
+    except OSError as exc:
+        raise StorageBlocker("storage_io", f"{path}: {exc}") from exc
+
+
+def process_identity(pid: int) -> str | None:
+    try:
+        # comm can contain spaces and parentheses; starttime is field 22.
+        start = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip() + ":" + start
+    except FileNotFoundError:
+        return None
+
+
+def group_alive(group: int) -> bool:
+    """Conservatively retain a dead supervisor's reservation while writers remain."""
+    try:
+        os.killpg(group, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+class StorageSession:
+    """One host-wide ledger directory must be shared by all cooperating runs.
+
+    Reservations remain conservative (full remaining allowances) until release.
+    Recovery requires proof that the reserving PID identity has disappeared.
+    """
+
+    def __init__(
+        self,
+        allocations: list[Allocation],
+        ledger: Path,
+        ownership: Path,
+        headroom_bytes: int,
+        headroom_inodes: int,
+        require_enforced_bounds: bool = True,
+    ):
+        if {a.kind for a in allocations} != CLASSES or len(allocations) != len(CLASSES):
+            raise ValueError(f"Declare each storage class exactly once: {sorted(CLASSES)}")
+        if min(headroom_bytes, headroom_inodes) < 0:
+            raise ValueError("Headroom must be nonnegative")
+        self.allocations = allocations
+        self.ledger = ledger.resolve(strict=True)
+        self.ownership = ownership.resolve(strict=True)
+        self.headroom_bytes = headroom_bytes
+        self.headroom_inodes = headroom_inodes
+        self.require_enforced_bounds = require_enforced_bounds
+        self.token = uuid.uuid4().hex
+        self.active = False
+        self.started = time.monotonic()
+        self.samples: list[dict[str, Any]] = []
+        self.paths: dict[str, Path] = {}
+        self.baselines: dict[str, tuple[int, int]] = {}
+        self.mounts: dict[str, dict[str, Any]] = {}
+        for allocation in allocations:
+            if min(allocation.budget_bytes, allocation.budget_inodes) < 0:
+                raise ValueError("Budgets must be nonnegative")
+            if (
+                allocation.estimated_bytes is not None
+                and not 0 <= allocation.estimated_bytes <= allocation.budget_bytes
+            ):
+                raise ValueError("Estimated demand must fit the budget")
+            path = Path(allocation.path).resolve(strict=True)
+            if not path.is_dir():
+                raise ValueError(f"Storage path must be an existing directory: {path}")
+            self.paths[allocation.kind] = path
+            self.mounts[allocation.kind] = filesystem(path)
+            self.baselines[allocation.kind] = usage(path)
+        mutable = [self.paths[a.kind] for a in allocations if a.budget_bytes or a.budget_inodes]
+        if any(
+            a == b or a in b.parents or b in a.parents
+            for i, a in enumerate(mutable)
+            for b in mutable[i + 1 :]
+        ):
+            raise ValueError("Writable storage roots must not overlap")
+        self.before = self.plan()
+        self.owned: dict[str, tuple[int, int]] = {}
+
+    def claim_empty_scratch(self) -> None:
+        """Record lineage only for empty, dedicated scratch directories we can own."""
+        protected = [
+            self.paths[a.kind] for a in self.allocations if a.kind not in {"scratch", "temporary"}
+        ]
+        for allocation in self.allocations:
+            path = self.paths[allocation.kind]
+            if (
+                allocation.disposable
+                and allocation.kind in {"scratch", "temporary"}
+                and self.ownership in path.parents
+                and not any(path == p or path in p.parents or p in path.parents for p in protected)
+                and not any(path.iterdir())
+            ):
+                stat = path.stat()
+                self.owned[allocation.kind] = (stat.st_dev, stat.st_ino)
+
+    @contextmanager
+    def locked(self) -> Iterator[dict[str, Any]]:
+        try:
+            with (self.ledger / "reservations.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                path = self.ledger / "reservations.json"
+                state = json.loads(path.read_text()) if path.exists() else {}
+                for key, record in list(state.items()):
+                    if process_identity(record["pid"]) != record["identity"] and not (
+                        record.get("process_group") and group_alive(record["process_group"])
+                    ):
+                        del state[key]
+                yield state
+                temporary = self.ledger / f".{self.token}.tmp"
+                with temporary.open("w") as output:
+                    json.dump(state, output)
+                    output.flush()
+                    os.fsync(output.fileno())
+                temporary.replace(path)
+        except OSError as exc:
+            raise StorageBlocker("storage_ledger_io", str(exc)) from exc
+
+    def plan(self) -> dict[str, Any]:
+        volumes: dict[str, dict[str, Any]] = {}
+        classes = []
+        for allocation in self.allocations:
+            current = filesystem(self.paths[allocation.kind])
+            initial = self.mounts[allocation.kind]
+            if any(current[key] != initial[key] for key in ("device", "mount_id", "mount")):
+                raise StorageBlocker("storage_mount_changed", allocation.kind)
+            volume = volumes.setdefault(
+                current["device"], {**current, "reserved_bytes": 0, "reserved_inodes": 0}
+            )
+            baseline = self.baselines[allocation.kind]
+            volume["reserved_bytes"] += min(
+                allocation.budget_bytes, max(0, current["capacity_bytes"] - baseline[0])
+            )
+            volume["reserved_inodes"] += min(
+                allocation.budget_inodes, max(0, current["capacity_inodes"] - baseline[1])
+            )
+            classes.append(
+                {
+                    **asdict(allocation),
+                    **current,
+                    "demand": "unknown" if allocation.estimated_bytes is None else "estimated",
+                }
+            )
+        return {"classes": classes, "filesystems": volumes}
+
+    def _admit(self, plan: dict[str, Any], state: dict[str, Any]) -> None:
+        for device, volume in plan["filesystems"].items():
+            for unit, headroom in (
+                ("bytes", self.headroom_bytes),
+                ("inodes", self.headroom_inodes),
+            ):
+                if self.require_enforced_bounds and device != self.mounts["evidence"]["device"]:
+                    headroom = 0
+                reserved = sum(
+                    record["volumes"].get(device, {}).get(f"reserved_{unit}", 0)
+                    for key, record in state.items()
+                    if key != self.token
+                )
+                if volume[f"free_{unit}"] < headroom + volume[f"reserved_{unit}"] + reserved:
+                    raise StorageBlocker(
+                        f"storage_insufficient_{unit}",
+                        f"device {device}: free={volume[f'free_{unit}']}, budget={volume[f'reserved_{unit}']}, concurrent={reserved}, headroom={headroom}",
+                    )
+
+    def admit(self, reserve: bool = False) -> dict[str, Any]:
+        plan = self.plan()
+        with self.locked() as state:
+            self._admit(plan, state)
+            if reserve:
+                if self.require_enforced_bounds:
+                    self.verify_bounds(plan)
+                state[self.token] = {
+                    "pid": os.getpid(),
+                    "identity": process_identity(os.getpid()),
+                    "volumes": plan["filesystems"],
+                }
+                self.active = True
+        return plan
+
+    def attach_process_group(self, pid: int) -> None:
+        """Attach a dedicated child process group before allowing its writers to run."""
+        if not self.active or os.getpgid(pid) != pid:
+            raise ValueError("An active reservation and dedicated process group are required")
+        with self.locked() as state:
+            state[self.token]["process_group"] = pid
+
+    def verify_bounds(self, plan: dict[str, Any]) -> None:
+        """Fail closed unless volatile writers have kernel-bounded filesystems.
+
+        A configured byte allowance alone is not proof of an enforced quota.
+        Evidence lives on a different device so scratch bursts cannot consume it.
+        This implementation supports bounded filesystems, not quota attestations.
+        """
+        evidence_device = self.mounts["evidence"]["device"]
+        for item in plan["classes"]:
+            if item["kind"] == "evidence" or not (item["budget_bytes"] or item["budget_inodes"]):
+                continue
+            if (
+                item["device"] == evidence_device
+                or item["capacity_bytes"] > item["budget_bytes"]
+                or not item["capacity_inodes"]
+                or item["capacity_inodes"] > item["budget_inodes"]
+            ):
+                raise StorageBlocker(
+                    "storage_enforcement_required",
+                    f"{item['kind']}: require a byte/inode bounded filesystem on a different device from evidence; configured budgets are not kernel quotas",
+                )
+
+    def check(self, phase: str, pid: int | None = None) -> dict[str, Any]:
+        plan = self.plan()
+        measured = {}
+        blocker = None
+        for allocation in self.allocations:
+            current = usage(self.paths[allocation.kind])
+            baseline = self.baselines[allocation.kind]
+            delta = tuple(max(0, value - base) for value, base in zip(current, baseline))
+            measured[allocation.kind] = {"bytes": delta[0], "inodes": delta[1]}
+            if delta[0] > allocation.budget_bytes or delta[1] > allocation.budget_inodes:
+                blocker = StorageBlocker(
+                    "storage_budget_exceeded", f"{allocation.kind}: {measured[allocation.kind]}"
+                )
+        process_io = {}
+        for process_id in {os.getpid(), pid} - {None}:
+            try:
+                process_io[str(process_id)] = Path(f"/proc/{process_id}/io").read_text()
+            except FileNotFoundError:
+                process_io[str(process_id)] = "process_exited_before_sample"
+            except OSError as exc:
+                raise StorageBlocker("storage_io", str(exc)) from exc
+        sample = {
+            "phase": phase,
+            "elapsed_seconds": time.monotonic() - self.started,
+            "usage": measured,
+            "filesystems": plan["filesystems"],
+            "process_io": process_io,
+        }
+        self.samples.append(sample)
+        for volume in plan["filesystems"].values():
+            if (
+                self.require_enforced_bounds
+                and volume["device"] != self.mounts["evidence"]["device"]
+            ):
+                if volume["free_bytes"] == 0 or volume["free_inodes"] == 0:
+                    blocker = StorageBlocker("storage_bound_exhausted", str(volume))
+                continue
+            if (
+                volume["free_bytes"] < self.headroom_bytes
+                or volume["free_inodes"] < self.headroom_inodes
+            ):
+                blocker = StorageBlocker("storage_headroom_exhausted", str(volume))
+        if blocker:
+            raise blocker
+        return sample
+
+    @contextmanager
+    def phase(self, name: str, pid: int | None = None) -> Iterator[None]:
+        """Capture load or task boundaries; caller still checks during long phases."""
+        self.check(f"{name}:before", pid)
+        try:
+            yield
+        finally:
+            self.check(f"{name}:after", pid)
+
+    def cleanup_preview(self) -> list[dict[str, str]]:
+        """Only explicitly declared owned scratch is eligible; this API never deletes."""
+
+        def still_owned(kind: str) -> bool:
+            path = self.paths[kind]
+            try:
+                stat = path.lstat()
+                return not path.is_symlink() and self.owned.get(kind) == (stat.st_dev, stat.st_ino)
+            except OSError:
+                return False
+
+        return [
+            {"path": str(self.paths[a.kind]), "owner": self.token, "action": "policy_required"}
+            for a in self.allocations
+            if a.disposable
+            and a.kind in {"scratch", "temporary"}
+            and still_owned(a.kind)
+            and self.ownership in self.paths[a.kind].parents
+            and not any(
+                word in str(self.paths[a.kind]).lower()
+                for word in (
+                    "omnius",
+                    "lance",
+                    "credential",
+                    "weights",
+                    "models",
+                    "docker",
+                    "evidence",
+                    "results",
+                )
+            )
+        ]
+
+    def release(self) -> None:
+        if self.active:
+            with self.locked() as state:
+                record = state.get(self.token)
+                if (
+                    record
+                    and record["pid"] == os.getpid()
+                    and record["identity"] == process_identity(os.getpid())
+                ):
+                    del state[self.token]
+            self.active = False
+
+    def receipt(self) -> dict[str, Any]:
+        return {
+            "owner": self.token,
+            "before": self.before,
+            "samples": self.samples,
+            "peak_scratch_bytes": max(
+                (s["usage"]["scratch"]["bytes"] for s in self.samples), default=0
+            ),
+            "cleanup_preview": self.cleanup_preview(),
+            "elapsed_seconds": time.monotonic() - self.started,
+            "measurement_scope": "sampled allocated blocks/inodes and named PID I/O; descendants and between-sample peaks are not included; no throughput claim",
+        }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("plan", type=Path)
+    parser.add_argument("--interval", type=float, default=0.25)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    try:
+        config = json.loads(args.plan.read_text())
+        session = StorageSession(
+            [Allocation(**item) for item in config["allocations"]],
+            Path(config["ledger"]),
+            Path(config["ownership"]),
+            config["headroom_bytes"],
+            config["headroom_inodes"],
+        )
+    except (StorageBlocker, OSError, ValueError, KeyError, TypeError) as exc:
+        code = exc.code if isinstance(exc, StorageBlocker) else "storage_configuration"
+        print(json.dumps({"failure_class": code, "detail": str(exc)}), flush=True)
+        return 75
+    command = args.command
+    if command[:1] == ["--"]:
+        command = command[1:]
+    process = None
+    try:
+        plan = session.admit(reserve=bool(command))
+        if not command:
+            print(json.dumps(plan, indent=2))
+            return 0
+        session.claim_empty_scratch()
+        reader, writer = os.pipe()
+        try:
+            # EOF on supervisor death prevents unregistered writers from starting.
+            launcher = (
+                "import os,sys; fd=int(sys.argv[1]); ready=os.read(fd,1); os.close(fd); "
+                "sys.exit(75) if ready != b'1' else os.execvp(sys.argv[2],sys.argv[2:])"
+            )
+            process = subprocess.Popen(
+                [sys.executable, "-c", launcher, str(reader), *command],
+                pass_fds=(reader,),
+                start_new_session=True,
+            )
+            session.attach_process_group(process.pid)
+            os.write(writer, b"1")
+        finally:
+            os.close(reader)
+            os.close(writer)
+        while process.poll() is None:
+            session.check("running", process.pid)
+            time.sleep(max(0.01, args.interval))
+        session.check("finished")
+        return int(process.returncode)
+    except StorageBlocker as exc:
+        print(json.dumps({"failure_class": exc.code, "detail": str(exc)}), flush=True)
+        return 75
+    finally:
+        if process is not None and group_alive(process.pid):
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+            if group_alive(process.pid):
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
+        session.release()
+        print(json.dumps({"storage_receipt": session.receipt()}), flush=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
