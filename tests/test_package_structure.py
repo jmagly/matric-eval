@@ -14,7 +14,13 @@ class TestPackageStructure:
         import matric_eval
 
         assert hasattr(matric_eval, "__version__")
-        assert matric_eval.__version__ == "0.2.0"
+        import tomllib
+        from pathlib import Path
+
+        project = tomllib.loads(
+            (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+        )
+        assert matric_eval.__version__ == project["project"]["version"]
 
     def test_config_module_import(self) -> None:
         """Test that config module can be imported."""

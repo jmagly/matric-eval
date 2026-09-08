@@ -12,7 +12,7 @@ import subprocess
 import tarfile
 import tomllib
 import zipfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from importlib.metadata import Distribution, distributions
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -61,9 +61,14 @@ def version_surfaces(root: Path) -> dict[str, str]:
     package = _read_json(root / "bindings/typescript/package.json")
     package_lock = _read_json(root / "bindings/typescript/package-lock.json")
     lock_root = package_lock.get("packages", {}).get("", {})
+    uv_lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    locked = [item for item in uv_lock["package"] if item["name"] == "matric-eval"]
+    if len(locked) != 1:
+        raise ValueError("Expected exactly one matric-eval package in uv.lock")
     return {
         "pyproject": str(pyproject["project"]["version"]),
         "python_runtime": _source_version(root),
+        "python_lock": str(locked[0]["version"]),
         "typescript_package": str(package["version"]),
         "typescript_lock": str(package_lock["version"]),
         "typescript_lock_root": str(lock_root.get("version", "")),
@@ -76,8 +81,82 @@ def verify_versions(root: Path, expected: str | None = None) -> str:
     if len(values) != 1 or "" in values:
         raise ValueError(f"Release versions disagree: {surfaces}")
     version = values.pop()
+    parse_calver(version)
     if expected is not None and version != expected:
         raise ValueError(f"Expected release {expected}, found {version}")
+    return version
+
+
+def parse_calver(version: str) -> tuple[int, int, int]:
+    """Canonical YYYY.M.PATCH: unpadded month and monthly release counter."""
+    if not re.fullmatch(r"[2-9][0-9]{3}\.(?:[1-9]|1[0-2])\.(?:0|[1-9][0-9]*)", version):
+        raise ValueError(f"Invalid CalVer {version!r}; expected YYYY.M.PATCH")
+    year, month, patch = map(int, version.split("."))
+    return year, month, patch
+
+
+def next_version(current: str, today: date) -> str:
+    year, month, patch = parse_calver(current)
+    if (year, month) > (today.year, today.month):
+        raise ValueError("Current release is ahead of the UTC calendar month")
+    patch = patch + 1 if (year, month) == (today.year, today.month) else 0
+    return f"{today.year}.{today.month}.{patch}"
+
+
+def bump_version(root: Path, requested: str | None = None, *, today: date | None = None) -> str:
+    """Update package versions and root lock identities without resolving dependencies."""
+    surfaces = version_surfaces(root)
+    if len(set(surfaces.values())) != 1:
+        raise ValueError(f"Release versions disagree: {surfaces}")
+    current = surfaces["pyproject"]
+    version = (
+        requested
+        if requested is not None
+        else next_version(current, today or datetime.now(timezone.utc).date())
+    )
+    target = parse_calver(version)
+    try:
+        previous = parse_calver(current)
+    except ValueError:
+        # Migration is deliberate: never infer a calendar version from SemVer.
+        if requested is None or not re.fullmatch(
+            r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", current
+        ):
+            raise ValueError("Migration requires an explicit initial CalVer version") from None
+        if int(current.split(".")[0]) >= 2000:
+            raise ValueError("Cannot migrate malformed calendar version") from None
+    else:
+        if target <= previous:
+            raise ValueError("Release version must increase monotonically")
+    replacements: dict[Path, str] = {}
+    for relative, pattern in (
+        ("pyproject.toml", r'(?ms)(^\[project\]\n.*?^version\s*=\s*")[^"]+(")'),
+        ("src/matric_eval/version.py", r'(?m)(^__version__\s*=\s*")[^"]+(")'),
+        ("uv.lock", r'(?m)(^name = "matric-eval"\nversion = ")[^"]+(")'),
+    ):
+        path = root / relative
+        text, count = re.subn(
+            pattern, lambda match: match[1] + version + match[2], path.read_text()
+        )
+        if count != 1:
+            raise ValueError(f"Expected one version assignment in {relative}")
+        replacements[path] = text
+    for relative in ("bindings/typescript/package.json", "bindings/typescript/package-lock.json"):
+        path = root / relative
+        value = _read_json(path)
+        value["version"] = version
+        if relative.endswith("package-lock.json"):
+            value["packages"][""]["version"] = version
+        replacements[path] = json.dumps(value, indent=2) + "\n"
+    originals = {path: path.read_bytes() for path in replacements}
+    try:
+        for path, text in replacements.items():
+            path.write_text(text, encoding="utf-8")
+        verify_versions(root, version)
+    except Exception:
+        for path, content in originals.items():
+            path.write_bytes(content)
+        raise
     return version
 
 
@@ -114,6 +193,9 @@ def verify_artifacts(root: Path, version: str) -> dict[str, str]:
         package_info = [name for name in archive.getnames() if name.endswith("/PKG-INFO")]
         if len(package_info) != 1:
             raise ValueError("Source distribution is missing a unique PKG-INFO")
+        metadata = _archive_member_payload(sdist, package_info[0]).decode("utf-8")
+        if f"Version: {version}\n" not in metadata:
+            raise ValueError(f"Source distribution metadata does not declare version {version}")
 
     package_json_name = "package/package.json"
     with tarfile.open(npm, "r:gz") as archive:
@@ -467,6 +549,9 @@ def build_parser() -> argparse.ArgumentParser:
     versions.add_argument("--expected")
     versions.add_argument("--output", type=Path)
 
+    bump = subparsers.add_parser("bump", help="Bump all package versions and root lock identities")
+    bump.add_argument("--version", help="Explicit strictly increasing YYYY.M.PATCH version")
+
     artifacts = subparsers.add_parser("artifacts", help="Verify built package contents")
     artifacts.add_argument("--artifact-root", type=Path, required=True)
     artifacts.add_argument("--expected")
@@ -497,6 +582,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     root = args.root.resolve()
+    if args.command == "bump":
+        version = bump_version(root, args.version)
+        print(json.dumps({"version": version, "surfaces": version_surfaces(root)}, sort_keys=True))
+        return 0
     version = verify_versions(root, getattr(args, "expected", None))
     if args.command == "versions":
         result = {"version": version, "surfaces": version_surfaces(root)}
