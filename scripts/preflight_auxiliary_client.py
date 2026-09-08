@@ -28,6 +28,8 @@ def main() -> int:
         raise ValueError("embedding dimensions and operation must agree")
     profile = ClientProfile(**document)
     profile.validate()
+    if profile.broker_runtime is None:
+        raise ValueError("live auxiliary preflight requires observed broker runtime identity")
     if profile.admission_protocol != "ollama-unify-body-free-resume/1":
         raise ValueError("preflight requires actual correlated public broker admission")
     with tempfile.TemporaryDirectory(prefix="matric-auxiliary-preflight-") as temporary:
@@ -58,6 +60,7 @@ def main() -> int:
             completed.returncode == 0
             and receipt.get("client_response") == "passed"
             and receipt.get(profile_field) == profile.fingerprint()
+            and receipt.get("broker_identity") == profile.broker_runtime
             and admission.get("logical_request_id") == receipt.get("request_id")
             and bool(admission.get("broker_request_id"))
             and bool(admission.get("lane"))
@@ -75,6 +78,7 @@ def main() -> int:
                 "profile_sha256": profile.fingerprint(),
                 "profile_file_sha256": file_digest(args.profile),
                 "broker_admission": admission,
+                "broker_identity": receipt.get("broker_identity"),
                 "allocation": allocation,
                 "measured": receipt.get("measured"),
                 "execution_digest_binding": "unverified",

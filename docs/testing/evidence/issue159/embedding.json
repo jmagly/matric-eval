@@ -1,0 +1,49 @@
+{
+  "request_id": "matric-embedding-6fa93b773e7e443abb731a7a8f54551d",
+  "client_profile_sha256": "b86367382550d4da8f37a549ac5f516a479010e34a2171203b4f47a7ed1b091d",
+  "schema": "matric-eval.client-conformance/1",
+  "client_version": "1.81.11",
+  "model": "ollama/nomic-embed-text:latest",
+  "profile_sha256": "acd348a6b9d5c1a164e9d1491aaac9f80ebdfe414a158682e065ace97c9446de",
+  "execution_digest_binding": "unverified",
+  "digest_evidence_kind": "caller_supplied_metadata",
+  "broker_admission": {
+    "http_attempts": 1,
+    "logical_request_id": "matric-embedding-6fa93b773e7e443abb731a7a8f54551d",
+    "broker_request_id": "ea23d07ea3feaf76",
+    "queue_ticket": "31785",
+    "execution_digest_binding": "unverified",
+    "lane": "lane-1186",
+    "queue_ms_including_warmup": 0,
+    "response_replayed": false
+  },
+  "measured": {
+    "dimensions": 768,
+    "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+  },
+  "live_qualification": "pending_broker_evidence",
+  "allocation": {
+    "kind": "public_broker_lane_observation",
+    "lane": "lane-1186",
+    "gpu_uuid": "GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0",
+    "logical_request_id": "matric-embedding-6fa93b773e7e443abb731a7a8f54551d",
+    "broker_request_id": "ea23d07ea3feaf76",
+    "execution_digest_binding": "unverified",
+    "allocation_binding": "response_lane_and_current_public_mapping"
+  },
+  "public_model_metadata": {
+    "before": {
+      "kind": "public_metadata_tag",
+      "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+      "execution_digest_binding": "unverified",
+      "request_id": "matric-embedding-6fa93b773e7e443abb731a7a8f54551d-before"
+    },
+    "after": {
+      "kind": "public_metadata_tag",
+      "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+      "execution_digest_binding": "unverified",
+      "request_id": "matric-embedding-6fa93b773e7e443abb731a7a8f54551d-after"
+    }
+  },
+  "client_response": "passed"
+}

@@ -1,0 +1,18 @@
+[project]
+name = "matric-eval-client-conformance-tests"
+version = "0.0.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "litellm==1.81.11",
+  "openai==2.20.0",
+  "httpx==0.28.1",
+  "pydantic==2.12.4",
+  "pydantic-settings==2.12.0",
+  "pytest==9.1.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = ""

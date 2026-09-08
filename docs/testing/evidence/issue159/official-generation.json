@@ -1,0 +1,61 @@
+{
+  "broker_admission": {
+    "broker_request_id": "5d378289ff5d4b7a",
+    "execution_digest_binding": "unverified",
+    "http_attempts": 1,
+    "lane": "lane-1189",
+    "logical_request_id": "matric-runtime-b4c40c7c0819479284799967be994637",
+    "queue_ms_including_warmup": 0,
+    "queue_ticket": "31784",
+    "response_replayed": false
+  },
+  "client_response": "passed",
+  "execution_digest_binding": "unverified",
+  "live_qualification": "pending_broker_evidence",
+  "profile_sha256": "13468874f13b974815728a68d2bde3e2a3de65c5f001d940c642e70c2a660c01",
+  "reasoning_present": false,
+  "request_id": "matric-runtime-b4c40c7c0819479284799967be994637",
+  "response_model_check": "client_reported_identity_only",
+  "retry_policy": "one_client_call_no_body_replay",
+  "schema": "matric-eval.client-conformance/1",
+  "tool_calls_present": false,
+  "allocation": {
+    "kind": "public_broker_lane_observation",
+    "lane": "lane-1189",
+    "gpu_uuid": "GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0",
+    "logical_request_id": "matric-runtime-b4c40c7c0819479284799967be994637",
+    "broker_request_id": "5d378289ff5d4b7a",
+    "execution_digest_binding": "unverified",
+    "allocation_binding": "response_lane_and_current_public_mapping"
+  },
+  "public_model_metadata": {
+    "before": {
+      "kind": "public_metadata_tag",
+      "model_digest": "3dd01e51cac784fe1603daab6461ec3fa1ac8850d71375bb1be0bd3cf5b1798e",
+      "execution_digest_binding": "unverified",
+      "request_id": "official-before"
+    },
+    "after": {
+      "kind": "public_metadata_tag",
+      "model_digest": "3dd01e51cac784fe1603daab6461ec3fa1ac8850d71375bb1be0bd3cf5b1798e",
+      "execution_digest_binding": "unverified",
+      "request_id": "official-after"
+    }
+  },
+  "official_harness": {
+    "entrypoint": "tau2.utils.llm_utils.generate",
+    "module_sha256": "61c422069a88057804bfcabba8beda1c88da09bcd344271ed468dff44f8eaca2",
+    "python": "3.12.3",
+    "versions": {
+      "litellm": "1.81.11",
+      "openai": "2.20.0",
+      "httpx": "0.28.1",
+      "pydantic": "2.12.4",
+      "pydantic-settings": "2.12.0",
+      "jsonschema": "4.25.1"
+    },
+    "response_role": "assistant",
+    "visible_output_present": true,
+    "tasks_executed": 0
+  }
+}

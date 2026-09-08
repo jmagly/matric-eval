@@ -193,6 +193,12 @@ def main() -> int:
         if missing:
             raise RuntimeError("missing resolved Tau dependencies: " + ", ".join(missing))
         result["resolved_dependencies"] = versions
+        import tau2
+
+        resolved_package = Path(tau2.__file__).resolve()
+        if not resolved_package.is_relative_to((args.tau_checkout / "src/tau2").resolve()):
+            raise RuntimeError("resolved Tau package differs from declared benchmark checkout")
+        result["resolved_tau_module"] = str(resolved_package)
         if importlib.metadata.version("tau2") != tau.TAU_PACKAGE_VERSION:
             raise ValueError("installed tau2 version differs from pinned contract")
         if tau._git_revision(args.tau_checkout) != tau.TAU_SOURCE_REVISION:
