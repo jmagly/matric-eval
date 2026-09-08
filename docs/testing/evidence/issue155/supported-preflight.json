@@ -1,0 +1,151 @@
+{
+  "schema": "matric-eval.preflight-qualification/1",
+  "host": "basilisk",
+  "scope": "Full supported pre-target Tau admission, actual immutable inputs and live auxiliary transport; no scored tasks or target model loads",
+  "receipt_path": "/srv/matric-eval/workspaces/matric-eval-155-preflight/official-success-receipt.json",
+  "receipt_sha256": "6b9bdd8cc0151cec4eb6e6328f17c8690a052d50a8372c33f1dcd49ca1de9809",
+  "source_sha256": {
+    "src/matric_eval/studies/preflight.py": "4d81f7068bfc04072ae480eaad9903b82c258342ad035fd1b6afd678b50eb8ca",
+    "scripts/preflight_qwen38_tau.py": "ce611280ffe99fc6ad9c4047a0bfa9d7d41d4a2c71dfbc51f860f19cbd6b6826",
+    "scripts/run_qwen38_tau.py": "b5e72bb29ad859722feba02074f14a1d3488e2b5192b7e22d14eb8c4fd3cbd10",
+    "scripts/preflight_auxiliary_client.py": "127c5001baad9e3a3c77821596f350fa5c45a793bb24fc307f63493c11bbf812",
+    "src/matric_eval/studies/client_conformance.py": "13ae1d01fd13c90bdb210b078bc8acef722f065dacbd159e489249a618d927b5",
+    "src/matric_eval/studies/broker_admission.py": "346b2e5ff83ca75184f53ffd9cbb77af2d376373d6f388e8a5e82c9dc70129ed",
+    "src/matric_eval/studies/auxiliary_runtime.py": "17eb63c408181027dac9657d458c5f7ee3ce5ef264367cb284032512dbea301d",
+    "src/matric_eval/studies/embedding_transport.py": "d18540874a49df22edf515542daad3bae7e580815938876423626d38ed14f04c",
+    "scripts/qualify_auxiliary_client.py": "806b74d59aaa6f789c8ba6f3e62edfedd511d854a15817317241fba8085f9858",
+    "scripts/qualify_embedding_client.py": "e6b200add8a924975c010c4e2e712bfd0e1e6986451659d781007b0189faa4e8"
+  },
+  "client_source_commit": "807a5c2",
+  "admitted": true,
+  "target_launches": 0,
+  "elapsed_seconds": 23.667124155908823,
+  "checks_reexecuted": 10,
+  "checks_reused": 0,
+  "checks": [
+    {
+      "id": "tau-inputs",
+      "repetition": 0,
+      "evidence_id": "cebc577136d0486d9995316a00985594",
+      "status": "completed",
+      "completed_at": 1788898572.7029042,
+      "receipt_sha256": "c4893e51aa30ad0d58d47c12c263e1f45b9b4ceb7e413ed2ca10b5adb94367f5"
+    },
+    {
+      "id": "tau-patch",
+      "repetition": 0,
+      "evidence_id": "eee4b67f98eb4073a13bc5b65878fa44",
+      "status": "completed",
+      "completed_at": 1788898572.991297,
+      "receipt_sha256": "116ca1491d4cda7c218e27506fae10422a72809ee5365b0ef338c4aeace9cc19"
+    },
+    {
+      "id": "tau-dependencies",
+      "repetition": 0,
+      "evidence_id": "e3cd140d0af44719b80677d3069993bb",
+      "status": "completed",
+      "completed_at": 1788898575.4379652,
+      "receipt_sha256": "dfb6c10c9a3a41838dd1e9f2b150e251ac46d9665130f130f1f01ee6a4e76e2f"
+    },
+    {
+      "id": "tau-tasks",
+      "repetition": 0,
+      "evidence_id": "bd3c3bfef5d7418b8aa7ea1c18a17bb0",
+      "status": "completed",
+      "completed_at": 1788898578.0294068,
+      "receipt_sha256": "b92e73e6110fecfb018ee545c6708627ca5dcd542d2bd5e7baf2b5022a5986f5"
+    },
+    {
+      "id": "tau-sandbox",
+      "repetition": 0,
+      "evidence_id": "a10f88d37d084ebd81c8abfb78d54deb",
+      "status": "completed",
+      "completed_at": 1788898581.124942,
+      "receipt_sha256": "cc50c1768502ba0cd0e5ec6f75e05d103ac4ec63dc04ffa58473d93ee3a559c4"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 0,
+      "evidence_id": "fd898d925f444e6fb3207f7d4d1e5925",
+      "status": "completed",
+      "completed_at": 1788898600.2154737,
+      "receipt_sha256": "be01fc4ed4b5893853222f24487a5a00833fc50a1f9c0ea3341702950a641d93"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 1,
+      "evidence_id": "f83242dbebc14803b38d1449d2ca6f73",
+      "status": "completed",
+      "completed_at": 1788898603.663318,
+      "receipt_sha256": "8acf7345b50f401888f34bff96dbc874b57b029b3f644bc668a698dbd7051d9a"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 2,
+      "evidence_id": "cc901a62c9ad4b6099e9eb007c47f555",
+      "status": "completed",
+      "completed_at": 1788898607.1188102,
+      "receipt_sha256": "00fe49b92971783025025eb91526c4aec643d03143561e51a9d5d4947ca68b83"
+    },
+    {
+      "id": "auxiliary-simulator",
+      "repetition": 0,
+      "evidence_id": "668539faf7eb4cfebaafbafb25afd37d",
+      "status": "completed",
+      "completed_at": 1788898609.513479,
+      "receipt_sha256": "08669bc818a54be2154a75fe76ac736b18f281574aaf795a73c17e12cf978b06",
+      "transport": {
+        "operation": "completion",
+        "transport_passed": true,
+        "profile_sha256": "13468874f13b974815728a68d2bde3e2a3de65c5f001d940c642e70c2a660c01",
+        "profile_file_sha256": "3a7b4f9b5969a114df1094984cc564814c239a3e959129c270e6f47084fcc3f6",
+        "broker_admission": {
+          "broker_request_id": "1127c4c5d07aa94e",
+          "execution_digest_binding": "unverified",
+          "http_attempts": 1,
+          "lane": "lane-1189",
+          "logical_request_id": "matric-canary-cebc30481f354da28b78616b3ecebfc3",
+          "queue_ms_including_warmup": 0,
+          "queue_ticket": "31793",
+          "response_replayed": false
+        },
+        "measured": null,
+        "execution_digest_binding": "unverified",
+        "semantic_calibration": "not_performed"
+      }
+    },
+    {
+      "id": "auxiliary-embedder",
+      "repetition": 0,
+      "evidence_id": "0f971a8f5b96416db30f679f4003aaa2",
+      "status": "completed",
+      "completed_at": 1788898611.6057234,
+      "receipt_sha256": "1b9cf45736c9a338bbb9915323f4ac1ff4c3d612d710ed8fbe90670f654477f9",
+      "transport": {
+        "operation": "embedding",
+        "transport_passed": true,
+        "profile_sha256": "ecdf01ee7cbe666688efe4574699f9662df5e1f7831958c1f36caeeb5bd3220b",
+        "profile_file_sha256": "f4b3a1eca2c1c05da7aed98b0b43aa4dcd7135cb13b3bdb41b884e897d65ff7d",
+        "broker_admission": {
+          "broker_request_id": "1b726becb32453ab",
+          "execution_digest_binding": "unverified",
+          "http_attempts": 1,
+          "lane": "lane-1186",
+          "logical_request_id": "matric-embedding-c805948bdbac4192835e5bf87aad3bc6",
+          "queue_ms_including_warmup": 0,
+          "queue_ticket": "31794",
+          "response_replayed": false
+        },
+        "measured": {
+          "dimensions": 768,
+          "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+        },
+        "execution_digest_binding": "unverified",
+        "semantic_calibration": "not_performed"
+      }
+    }
+  ],
+  "fresh_admission_validation": "passed",
+  "tau_checkout": "/srv/matric-eval/benchmarks/tau2-qwen38-context-guard",
+  "scored_tasks_executed": 0
+}

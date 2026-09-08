@@ -26,3 +26,19 @@ including freshness/reuse invalidation, failed receipt preservation, bounded
 stdout/stderr/timeout handling, actual public CLI dispatch and input hash tampering.
 Live broker transport qualification is reported separately by the actual client
 profile; it must not be inferred from this deliberately failing fixture.
+
+## Full supported admission
+
+`supported-preflight.json` records the subsequent complete supported plan with
+`/srv/matric-eval/benchmarks/tau2-qwen38-context-guard`, whose patch matches the
+pinned contract. All ten checks passed in 23.67 seconds, including three separate
+actual Tau controlled-endpoint repetitions and actual simulator and embedding
+client checks through the public broker. The client snapshot is commit `807a5c2`;
+all executed source hashes are retained. The embedder measured the configured
+dimensions and both probes retained their own broker correlation. Served execution
+digest binding remains unverified, and semantic calibration was not performed.
+
+Fresh admission validation passed immediately afterward. No target model was
+acquired or loaded, and no task was scored. This receipt qualifies the pre-target
+admission boundary in that observed service context; target-resident qualification
+and lifecycle ownership remain separate gates.
