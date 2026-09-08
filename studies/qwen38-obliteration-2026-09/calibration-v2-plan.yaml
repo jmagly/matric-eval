@@ -1,0 +1,127 @@
+# Execution amendment only: protocol.yaml and historical official rewards stay immutable.
+# Validate with python -m matric_eval.studies.calibration_plan PLAN --protocol PROTOCOL.
+schema_version: "1"
+plan_id: qwen38-calibration-v2
+study_id: qwen38-obliteration-2026-09
+protocol_sha256: 01804a01700335f2b14186c3ead87c71590ff8af1707c70b55a85f42cf26c833
+seed: 1790783388
+model_pins:
+  qwen38-27b-source-bf16: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+  qwen38-27b-e03-bf16: 95583d3ee44c40e840cb0ceb7106d12a1087d52f
+  qwen38-27b-pliny-v3-bf16: a58c3b53b3ce71551eafde2ed5ec8df48e0f4ff8
+stages: [100, 300, 600, 1200]
+# Cumulative unique scored tasks/model. Repeat calls, MT-Bench second turns and
+# BFCL prerequisites are overhead, never additional independent samples.
+allocations:
+  xstest-safe: [10, 25, 50, 100]
+  xstest-unsafe: [5, 25, 50, 100]
+  or-bench-hard-benign: [10, 40, 75, 150]
+  strongreject-harmful: [15, 25, 50, 100]
+  ifeval: [10, 30, 62, 125]
+  mmlu-pro: [15, 50, 100, 200]
+  livecodebench: [10, 30, 63, 125]
+  mtbench: [5, 15, 25, 50]
+  bfcl-v4-agentic: [5, 25, 50, 100]
+  tau3-bench: [10, 25, 50, 100]
+  terminal-bench-2.1: [5, 10, 25, 50]
+selection:
+  algorithm: allocation-declared-v1
+  key_format: "{seed}\\0{allocation_id}\\0{canonical_sample_id}"
+  generation_seed_algorithm: sha256-uint32-v1
+  paired_ids_and_seeds: true
+  nested_prefixes: true
+  identical_ordered_request_batches: true
+  bfcl_category_round_robin: true
+  bfcl_dependencies_scored: false
+execution:
+  generation_host: a100
+  direct_mode: offline-batch
+  agentic_mode: serialized-online
+  agentic_concurrency: 1
+  model_gpu_assignment: randomized-three-block-crossover
+  stage_release: all-models-paired-gate-and-operator-approval
+  effective_runtime_receipt_required: true
+  agentic_amendment_required: true
+  historical_pilot_is_confirmatory: false
+  post_side_effect_retry: require-idempotency-proof
+  verified_state_success_latch: true
+  terminal_recovery_max_attempts: 1
+  terminal_watchdog_budget: pinned-task-wall-clock-including-recovery
+  terminal_timeout_submission: forbidden
+gates:
+  critical_identity_defects_max: 0
+  critical_context_defects_max: 0
+  critical_termination_defects_max: 0
+  direct_generation_valid_min: 0.99
+  direct_parse_valid_min: 0.99
+  agentic_trajectory_valid_min: 0.98
+  denominator: all-planned-first-attempts-per-model-per-stage
+  missing_evidence: no-go
+  canary_repetitions: 3
+  canaries_must_all_pass: true
+  terminal_canaries_model_independent: true
+  quality_score_is_gate: false
+  outcome_adaptive_threshold_changes: false
+required_canaries:
+  - identity-and-effective-runtime
+  - context-boundary-with-output-reserve
+  - terminal-reference-solution-verifier
+  - terminal-invalid-solution-verifier
+  - terminal-command-and-completion-roundtrip
+  - json-transport-and-malformed-tool
+  - terminal-bounded-recovery-and-timeout-no-submit
+  - tau-valid-user-message
+  - tau-stop-transfer-out-of-scope
+  - tau-post-success-termination
+  - tau-user-tool-ownership-and-persona
+  - bfcl-five-backends-and-dependency-closure
+failure_attribution:
+  required_for_every_attempt: true
+  owners: [target-model, simulator, evaluator, context-runtime, harness-interface, mixed-uncertain]
+  actors: [target-model, user-simulator, tool-service, evaluator, runner]
+  stages: [setup, context-budget, transport, generation, parse, tool-execution, simulation, verification, termination, recovery]
+  actor_stage_separate: true
+  preserve_official_reward_and_termination: true
+  infrastructure_quality_policy: exclude-paired-and-report-bounds
+  target_error_quality_policy: failure-and-separate-rate
+  unknown_origin_policy: unresolved-and-report-bounds
+  post_success_timeout_policy: retain-official-zero-and-secondary-state-evidence
+  post_success_invalid_trajectory_policy: analytic-invalid-exclude-paired
+  retain_partial_trace_and_exception: true
+measurement:
+  required_fields: [invocation_wall_seconds, fresh_attempt_count, recovered_attempt_count, total_attempt_count, unknown_timing_count, fresh_wall_seconds, recovered_wall_seconds, total_wall_seconds]
+  phase_times: [queue, model-load, context-preparation, generation, tool, simulator, judge, setup, verifier, prerequisite, replay, recovery]
+  unknown_duration_policy: null-with-explicit-count
+  attempt_count_identity: total-equals-fresh-plus-recovered
+  invocation_measured_independently: true
+  recovered_results_are_fresh_latency: false
+  tokens_and_gpu_lease_hours_required: true
+amendment_replay:
+  seal_before_execution: true
+  changes_require_new_identity: true
+  replay_scope: all-models-for-every-affected-task-or-batch
+  preserve_old_evidence: true
+  pool_incompatible_runs: false
+  reuse_unaffected_requires_hash_identity: true
+  success_seeking_retries: false
+  outcome_adaptive_replacement: false
+  replay_attempts_in_validity_denominator: false
+repetitions:
+  primary_trials_per_task: 1
+  deterministic_scorer_passes: 2
+  same_seed_direct_replay: complete-identical-request-batches
+  same_seed_agentic_replay_tasks: 5
+  alternate_seed_tasks: 20
+  selection: hash-ranked-before-execution
+  replicate_seed_domain: qwen38-calibration-v2-replicate
+  repeats_count_as_independent_samples: false
+  replay_scores_enter_primary: false
+required_artifacts:
+  - ordered-manifest-and-hash
+  - model-runtime-and-gpu-lease-receipts
+  - execution-schedule
+  - attempt-and-failure-attribution-ledger
+  - canary-evidence
+  - paired-coverage-and-missingness-report
+  - scorer-repeat-and-judge-adjudication-report
+  - timing-and-cost-forecast
