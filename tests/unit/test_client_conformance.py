@@ -218,7 +218,10 @@ def test_embedding_requires_actual_dimensions_and_identity():
             validate_embedding(vector, dimensions=2, expected_digest="a", observed_digest=digest)
 
 
-def test_actual_litellm_embedding():
+@pytest.mark.parametrize(
+    "admission_protocol", ["reject_wait_yield_resume", "ollama-unify-body-free-resume/1"]
+)
+def test_actual_litellm_embedding(admission_protocol):
     pytest.importorskip("litellm")
     from matric_eval.studies.client_conformance import qualify_embedding
 
@@ -235,6 +238,11 @@ def test_actual_litellm_embedding():
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
+            self.send_header("X-Ollama-Unify-Logical-Request-Id", "embedding-fixture")
+            self.send_header("X-Ollama-Unify-Request-Id", "broker-embedding-fixture")
+            self.send_header("X-Ollama-Unify-Queue-Ticket", "1")
+            self.send_header("X-Ollama-Unify-Lane", "fixture-lane")
+            self.send_header("X-Ollama-Unify-Queue-Ms", "0")
             self.end_headers()
             self.wfile.write(payload)
 
@@ -250,11 +258,14 @@ def test_actual_litellm_embedding():
         observed_digest="fixture-digest",
         dimensions=2,
         request_id="embedding-fixture",
+        admission_protocol=admission_protocol,
         client_version=importlib.metadata.version("litellm"),
     )
     try:
         original = qualify_embedding(**kwargs)
         assert original["measured"]["dimensions"] == 2
+        if admission_protocol == "ollama-unify-body-free-resume/1":
+            assert original["broker_admission"]["broker_request_id"] == "broker-embedding-fixture"
         for change in ({"broker_revision": "changed"}, {"timeout": 12.0}):
             changed = qualify_embedding(**{**kwargs, **change})
             assert changed["profile_sha256"] != original["profile_sha256"]
@@ -645,3 +656,124 @@ def test_canary_later_failure_preserves_admission(tmp_path, monkeypatch, failure
     assert receipt["public_model_metadata"]["before"]["kind"] == "public_metadata_tag"
     if failure_stage == "after_metadata":
         assert receipt["allocation"]["kind"] == "public_broker_lane_observation"
+
+
+def test_runtime_and_canary_share_actual_wire_arguments(tmp_path):
+    from types import SimpleNamespace
+
+    from matric_eval.studies.auxiliary_runtime import external_arguments, scoped_auxiliary_client
+
+    requests = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            requests.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            payload = json.dumps(
+                {
+                    "model": "fixture",
+                    "message": {"role": "assistant", "content": "ok"},
+                    "done": True,
+                    "done_reason": "stop",
+                    "prompt_eval_count": 1,
+                    "eval_count": 1,
+                    "created_at": "2026-09-08T00:00:00Z",
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    p = replace(profile(f"http://127.0.0.1:{server.server_port}"), seed=17)
+    messages = [{"role": "user", "content": "Reply OK."}]
+    target_calls = []
+
+    def target(**kwargs):
+        target_calls.append(kwargs)
+        return "target untouched"
+
+    module = SimpleNamespace(completion=target)
+    try:
+        canary = qualify_completion(p, "canary-17", messages)
+        with scoped_auxiliary_client(module, p, tmp_path, seed=17):
+            result = module.completion(
+                model=p.model,
+                messages=messages,
+                tools=None,
+                tool_choice=None,
+                **external_arguments(p),
+            )
+            assert result.choices[0].message.content == "ok"
+            with pytest.raises(ConformanceError, match="arguments_mismatch"):
+                module.completion(
+                    model=p.model, messages=messages, **{**external_arguments(p), "num_retries": 2}
+                )
+            assert module.completion(model="target", messages=messages) == "target untouched"
+        assert module.completion is target
+        assert len(requests) == 2 and requests[0] == requests[1]
+        receipts = list(tmp_path.glob("*.json"))
+        assert len(receipts) == 1
+        assert json.loads(receipts[0].read_text())["profile_sha256"] == canary["profile_sha256"]
+        assert len(target_calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def test_embedding_transport_does_not_capture_other_threads():
+    import litellm
+
+    from matric_eval.studies.embedding_transport import embedding_client
+
+    original = litellm.module_level_client
+    observed = []
+    with embedding_client(
+        replace(profile(), admission_protocol="ollama-unify-body-free-resume/1"), "thread-scope", {}
+    ):
+        thread = threading.Thread(
+            target=lambda: observed.append(litellm.module_level_client.post.__self__)
+        )
+        thread.start()
+        thread.join()
+        assert observed == [original]
+        assert litellm.module_level_client.post.__self__ is not original
+    assert litellm.module_level_client is original
+
+
+def test_amendment_rejects_changed_effective_profile_before_dispatch(tmp_path):
+    from dataclasses import asdict
+
+    from matric_eval.studies.auxiliary_runtime import load_amendment
+
+    p = replace(
+        profile("http://127.0.0.1:11434"), admission_protocol="ollama-unify-body-free-resume/1"
+    )
+    profile_path, amendment_path = tmp_path / "profile.json", tmp_path / "amendment.json"
+    profile_path.write_text(json.dumps(asdict(p)))
+    amendment_path.write_text(
+        json.dumps(
+            {
+                "schema": "matric-eval.auxiliary-amendment/1",
+                "study_id": "study",
+                "protocol_sha256": "a" * 64,
+                "profile_sha256": p.fingerprint(),
+                "comparability": "separate-amendment-lane",
+                "roles": ["user_simulator", "nl_evaluator"],
+            }
+        )
+    )
+    loaded, _ = load_amendment(
+        profile_path, amendment_path, study_id="study", protocol_sha256="a" * 64
+    )
+    assert loaded == p
+    profile_path.write_text(json.dumps(asdict(replace(p, max_tokens=32))))
+    with pytest.raises(ConformanceError, match="amendment_identity_mismatch"):
+        load_amendment(profile_path, amendment_path, study_id="study", protocol_sha256="a" * 64)

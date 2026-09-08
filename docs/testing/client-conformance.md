@@ -46,9 +46,8 @@ we cannot infer admission wait, warmup, or inference. The default profile reject
 is described below. Durable exactly-once guarantees remain unsupported. Lost acknowledgments never
 trigger application replay. No timeout increase substitutes for measuring phase.
 
-Outstanding qualification gates: authorized live broker correlation, measured
-phase durations, live embedding digest attestation,
-and integration of an approved local amendment into scored execution. Transport
+Supported live broker correlation and the explicit runtime amendment are documented below.
+Executed-digest attestation and separate phase durations remain unsupported; transport
 correctness does not establish simulator semantics or grader calibration (#126).
 
 `qualify_embedding` also invokes LiteLLM on `/api/embed`; its fixture checks the
@@ -81,7 +80,7 @@ must name a requested function and contain JSON-object arguments conforming to
 that function's requested JSON schema. Embedding fingerprints bind broker
 identity/revision, endpoint, timeout, dimensions and installed client dependencies.
 
-The dedicated A100 fixture environment currently uses LiteLLM 1.81.11 with
+An earlier exploratory A100 fixture environment used LiteLLM 1.81.11 with
 OpenAI 3.9.0, httpx 0.28.1, and Python 3.11.15. This is not the main lockfile
 environment and does not qualify the external study runtime. The separately
 inspected context-guard and simulator-guard-v3 environments use OpenAI 2.20.0,
@@ -138,3 +137,58 @@ This contract was audited against A100
 `/usr/local/libexec/ollama-unify-gpu-negotiator`, SHA256
 `c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e`.
 Live discovery is authoritative; the on-disk discovery snapshot was stale.
+
+## Runtime boundary and retained live qualification
+
+`invoke_completion` is now the common dispatch and validation implementation for
+`qualify_completion` and `scoped_auxiliary_client`. The Tau wrapper accepts an
+explicit `--auxiliary-client-profile` plus `--auxiliary-amendment`; it requires
+both auxiliary roles to match the profile and rejects changed effective options
+before HTTP dispatch. Target calls retain their original client. The per-task
+seed is explicit and included in the per-call profile fingerprint. Fingerprints
+also include Python, pydantic-settings and the runtime/embedding adapter sources.
+
+The amendment JSON requires schema `matric-eval.auxiliary-amendment/1`, `study_id`,
+`protocol_sha256` (the exact protocol file SHA256), `profile_sha256`, roles
+`["user_simulator", "nl_evaluator"]`, and comparability
+`separate-amendment-lane`. This is an explicit alternate lane; it cannot silently
+replace the frozen external-model snapshot or authorize deferred TAU scoring.
+Native amendments must use the public loopback broker and bounded resume profile.
+
+`qualify_tau_auxiliary.py --profile PROFILE --directory NEW_DIRECTORY
+--authorized-live-canary` invokes the official `tau2.utils.llm_utils.generate`
+through that runtime adapter, with zero benchmark tasks. The live September 8
+[official generation receipt](evidence/issue159/official-generation.json) records
+Python 3.12.3, LiteLLM 1.81.11/OpenAI 2.20.0, the exact official module hash,
+visible-output verification and the request's public broker lane/GPU mapping.
+The original Tau environment was preserved. A separate support directory supplied
+only the already pinned `pydantic-settings==2.12.0`, installed with `uv pip install
+--target SUPPORT --no-deps pydantic-settings==2.12.0`; the invocation used
+`PYTHONPATH=CHECKOUT/src:SUPPORT`. Retain this environment when qualifying the
+amendment. The Python 3.11 incident-fixture environment is separately identified.
+
+`qualify_embedding_client.py --profile PROFILE --receipt NEW_RECEIPT
+--authorized-live-canary` accepts the same profile fields plus
+`embedding_dimensions`. LiteLLM 1.81's native embedding function uses a global
+HTTP client and ignores per-call headers. The adapter serializes its own overrides
+and leaves other threads on their original client. A request-scoped transport
+adds the same logical correlation and bounded body-free resume contract.
+The [live embedding receipt](evidence/issue159/embedding.json) verifies 768 finite
+values, unchanged public model metadata and its own admitted GPU lane.
+
+The [initial admission failure](evidence/issue159/initial-admission-failure.json)
+retains the earlier three-attempt admission exhaustion. A subsequent canary used
+unchanged bounds after public discovery reported the model ready. No failed
+attempt was relabeled successful and no inference body was automatically replayed.
+
+Final A100 regression coverage: 33 locked client tests passed without skips,
+67 existing Tau wrapper tests passed, and strict mypy passed the three adapter
+modules. The actual HTTP comparison proves canary/runtime request bodies match;
+amendment tampering and unrelated-thread embedding isolation have regressions.
+
+These receipts qualify the supported transport contract. Executed-weight digest
+attestation, separate warmup/inference phase timing and durable exactly-once remain
+unsupported by the audited broker. Their fields remain explicitly unverified;
+`live_qualification: pending_broker_evidence` must never be interpreted as those
+stronger guarantees. Before/after tag metadata is not executed-weight proof.
+Semantic simulator/grader calibration and any scored amendment remain separate.

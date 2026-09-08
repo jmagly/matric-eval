@@ -15,6 +15,7 @@ import tempfile
 import time
 import urllib.request
 from collections import Counter
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -480,7 +481,31 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     }
     if args.nl_evaluator_model in target_names:
         raise ValueError("a target model may not score tau natural-language assertions")
-    if args.user_model != TAU_EXTERNAL_MODEL or args.nl_evaluator_model != TAU_EXTERNAL_MODEL:
+    auxiliary_profile = None
+    auxiliary_amendment = None
+    if getattr(args, "auxiliary_amendment", None) and not getattr(
+        args, "auxiliary_client_profile", None
+    ):
+        raise ValueError("an auxiliary amendment requires its client profile")
+    if getattr(args, "auxiliary_client_profile", None):
+        from matric_eval.studies.auxiliary_runtime import load_amendment
+
+        if not args.auxiliary_amendment:
+            raise ValueError("an explicit auxiliary amendment is required")
+        auxiliary_profile, auxiliary_amendment = load_amendment(
+            args.auxiliary_client_profile,
+            args.auxiliary_amendment,
+            study_id=str(study["id"]),
+            protocol_sha256=_sha256_file(args.protocol),
+        )
+        if (
+            args.user_model != auxiliary_profile.model
+            or args.nl_evaluator_model != auxiliary_profile.model
+        ):
+            raise ValueError("external models must match the declared auxiliary amendment")
+        if auxiliary_profile.target_model not in target_names:
+            raise ValueError("auxiliary amendment target identity does not match this run")
+    elif args.user_model != TAU_EXTERNAL_MODEL or args.nl_evaluator_model != TAU_EXTERNAL_MODEL:
         raise ValueError(f"tau external models must use fixed snapshot {TAU_EXTERNAL_MODEL}")
     if os.environ.get("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY must not be exported; use --external-api-key-fd")
@@ -515,6 +540,13 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     _validate_endpoint(args.endpoint, args.model_id, args.model_path)
 
     external_args = _load_external_args(args.external_llm_args)
+    if auxiliary_profile is not None:
+        from matric_eval.studies.auxiliary_runtime import external_arguments
+
+        declared_args = external_arguments(auxiliary_profile)
+        if args.external_llm_args and external_args != declared_args:
+            raise ValueError("external arguments do not match the auxiliary profile")
+        external_args = declared_args
     agent_args = _agent_args(args.endpoint, sampler, runtime["context_limit"])
     root_seed = int(study["seed"])
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -538,8 +570,12 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         if set(task_inventory[domain]) != set(task_ids):
             raise RuntimeError(f"official tau task loader omitted selected IDs for {domain}")
 
-    external_api_key = _read_secret_fd(args.external_api_key_fd)
-    runtime_external_args = {**external_args, "api_key": external_api_key}
+    external_api_key = (
+        _read_secret_fd(args.external_api_key_fd) if auxiliary_profile is None else None
+    )
+    runtime_external_args = dict(external_args)
+    if external_api_key is not None:
+        runtime_external_args["api_key"] = external_api_key
 
     args.result_dir.mkdir(parents=True, exist_ok=False)
     args.result_dir.chmod(0o750)
@@ -591,7 +627,16 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             count_tokens=target_counter,
         )
         try:
-            with scoped_llm_request_guard(target_guard):
+            auxiliary_scope: AbstractContextManager[None] = nullcontext()
+            if auxiliary_profile is not None:
+                import tau2.utils.llm_utils as tau_llm
+
+                from matric_eval.studies.auxiliary_runtime import scoped_auxiliary_client
+
+                auxiliary_scope = scoped_auxiliary_client(
+                    tau_llm, auxiliary_profile, args.result_dir / "auxiliary-client", seed=seed
+                )
+            with auxiliary_scope, scoped_llm_request_guard(target_guard):
                 simulation = run_single_task(
                     config,
                     task,
@@ -615,7 +660,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                     "failure_attribution": failure,
                 }
             )
-            if external_api_key in json.dumps(raw_payload, sort_keys=True):
+            if external_api_key and external_api_key in json.dumps(raw_payload, sort_keys=True):
                 raise RuntimeError("external API key escaped invalid evidence redaction")
             raw_sha256 = _write_private_json(output_path, raw_payload)
             status.result(
@@ -649,7 +694,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             raise RuntimeError(f"tau did not retain the declared seed for {canonical_id}")
         output_path = args.result_dir / _result_filename(canonical_id)
         raw_payload = _redact_sensitive(simulation.model_dump(mode="json"))
-        if external_api_key in json.dumps(raw_payload, sort_keys=True):
+        if external_api_key and external_api_key in json.dumps(raw_payload, sort_keys=True):
             raise RuntimeError("external API key escaped simulation evidence redaction")
         raw_sha256 = _write_private_json(output_path, raw_payload)
         termination = str(
@@ -724,6 +769,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         },
         "sampler": sampler,
         "user_simulator": {"model": args.user_model, "arguments": external_args},
+        "auxiliary_amendment": auxiliary_amendment,
         "nl_assertion_evaluator": {
             "model": args.nl_evaluator_model,
             "arguments": {**external_args, "seed": "per-task-generation-seed"},
@@ -759,6 +805,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--user-model", required=True)
     parser.add_argument("--nl-evaluator-model", required=True)
     parser.add_argument("--external-llm-args", type=Path)
+    parser.add_argument("--auxiliary-client-profile", type=Path)
+    parser.add_argument("--auxiliary-amendment", type=Path)
     parser.add_argument("--external-api-key-fd", type=int, default=3)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)

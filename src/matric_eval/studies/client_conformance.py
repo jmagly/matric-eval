@@ -10,6 +10,8 @@ import hashlib
 import importlib
 import importlib.metadata
 import json
+import platform
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -104,9 +106,14 @@ class ClientProfile:
     admission_wait_ms: int = 1000
     admission_total_seconds: float = 30.0
     admission_max_attempts: int = 3
+    seed: int | None = None
     schema: str = SCHEMA
 
     def validate(self) -> None:
+        if self.seed is not None and (
+            isinstance(self.seed, bool) or not isinstance(self.seed, int)
+        ):
+            raise ConformanceError("invalid_seed")
         if self.phase_timing != "unavailable" or self.admission_protocol not in (
             "reject_wait_yield_resume",
             "ollama-unify-body-free-resume/1",
@@ -158,8 +165,16 @@ class ClientProfile:
     def fingerprint(self) -> str:
         self.validate()
         identity = asdict(self)
+        identity["python_version"] = platform.python_version()
         versions = {}
-        for package in ("litellm", "httpx", "openai", "pydantic", "jsonschema"):
+        for package in (
+            "litellm",
+            "httpx",
+            "openai",
+            "pydantic",
+            "pydantic-settings",
+            "jsonschema",
+        ):
             try:
                 versions[package] = importlib.metadata.version(package)
             except importlib.metadata.PackageNotFoundError:
@@ -168,6 +183,12 @@ class ClientProfile:
         identity["adapter_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         identity["broker_adapter_sha256"] = hashlib.sha256(
             Path(__file__).with_name("broker_admission.py").read_bytes()
+        ).hexdigest()
+        identity["runtime_adapter_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("auxiliary_runtime.py").read_bytes()
+        ).hexdigest()
+        identity["embedding_adapter_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("embedding_transport.py").read_bytes()
         ).hexdigest()
         return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
@@ -200,6 +221,8 @@ class ClientProfile:
             )
         if self.route == "native":
             result["think"] = self.thinking
+        if self.seed is not None:
+            result["seed"] = self.seed
         return result
 
 
@@ -211,6 +234,17 @@ def qualify_completion(
     completion: Callable[..., Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    return invoke_completion(profile, request_id, messages, completion=completion, tools=tools)[1]
+
+
+def invoke_completion(
+    profile: ClientProfile,
+    request_id: str,
+    messages: list[dict[str, Any]],
+    *,
+    completion: Callable[..., Any] | None = None,
+    tools: list[dict[str, Any]] | None = None,
+) -> tuple[Any, dict[str, Any]]:
     """Call the actual client once. No exception text, prompts or output in receipts.
 
     A successful response proves client output only. Broker-owner correlated
@@ -347,7 +381,7 @@ def qualify_completion(
                 raise ConformanceError("tool_name_or_arguments_invalid") from None
         if not tool_calls and (not isinstance(content, str) or not content.strip()):
             raise ConformanceError("empty_output")
-        return {
+        return response, {
             "schema": SCHEMA,
             "profile_sha256": profile.fingerprint(),
             "request_id": request_id,
@@ -426,6 +460,8 @@ def qualify_embedding(
     timeout: float = 30.0,
     broker_identity: str,
     broker_revision: str,
+    admission_protocol: str = "reject_wait_yield_resume",
+    profile: ClientProfile | None = None,
 ) -> dict[str, Any]:
     """Exercise LiteLLM embedding serialization; digest comes from scoped broker evidence."""
     if not model.startswith("ollama/"):
@@ -433,7 +469,7 @@ def qualify_embedding(
     if importlib.metadata.version("litellm") != client_version:
         raise ConformanceError("client_version_changed")
     # Validate all identity and bound inputs before touching the endpoint.
-    profile = ClientProfile(
+    profile = profile or ClientProfile(
         model.replace("ollama/", "ollama_chat/", 1),
         expected_digest,
         "",
@@ -443,33 +479,67 @@ def qualify_embedding(
         "native",
         client_version,
         timeout=timeout,
+        admission_protocol=admission_protocol,
     )
+    if (
+        normalize_model(profile.model) != normalize_model(model)
+        or profile.model_digest != expected_digest
+        or profile.api_base != api_base
+        or profile.client_version != client_version
+        or profile.broker_identity != broker_identity
+        or profile.broker_revision != broker_revision
+        or profile.timeout != timeout
+        or profile.admission_protocol != admission_protocol
+    ):
+        raise ConformanceError("embedding_profile_arguments_mismatch")
     arguments = profile.arguments(request_id)
     if expected_digest != observed_digest:
         raise ConformanceError("embedding_model_digest_mismatch")
     if dimensions <= 0:
         raise ConformanceError("embedding_dimensions_or_values_invalid")
     embedding = importlib.import_module("litellm").embedding
+    from matric_eval.studies.embedding_transport import embedding_client
+
+    evidence: dict[str, Any] = {}
     try:
-        response = embedding(
-            model=model,
-            input=["transport fixture"],
-            api_base=api_base,
-            timeout=timeout,
-            num_retries=0,
-            headers=arguments["headers"],
+        with (
+            embedding_client(profile, request_id, evidence)
+            if admission_protocol == "ollama-unify-body-free-resume/1"
+            else nullcontext()
+        ):
+            response = embedding(
+                model=model,
+                input=["transport fixture"],
+                api_base=api_base,
+                timeout=timeout,
+                num_retries=0,
+                headers=arguments["headers"],
+            )
+            vector = response.data[0]["embedding"]
+    except Exception as exc:
+        failure = ConformanceError("embedding_transport_or_output_failure_no_replay")
+        failure.broker_evidence = dict(evidence)
+        nested: BaseException | None = exc
+        seen: set[int] = set()
+        while nested is not None and id(nested) not in seen:
+            seen.add(id(nested))
+            if isinstance(nested, ConformanceError):
+                nested.broker_evidence = dict(evidence)
+                raise nested from None
+            nested = nested.__cause__ or nested.__context__
+        raise failure from None
+    try:
+        measured = validate_embedding(
+            vector,
+            dimensions=dimensions,
+            expected_digest=expected_digest,
+            observed_digest=observed_digest,
         )
-        vector = response.data[0]["embedding"]
-    except Exception:
-        raise ConformanceError("embedding_transport_or_output_failure_no_replay") from None
-    measured = validate_embedding(
-        vector,
-        dimensions=dimensions,
-        expected_digest=expected_digest,
-        observed_digest=observed_digest,
-    )
-    if normalize_model(str(getattr(response, "model", ""))) != normalize_model(model):
-        raise ConformanceError("response_model_mismatch")
+        if normalize_model(str(getattr(response, "model", ""))) != normalize_model(model):
+            raise ConformanceError("response_model_mismatch")
+    except ConformanceError as exc:
+        exc.broker_evidence = dict(evidence)
+        raise
     identity = {
         "client_profile_sha256": profile.fingerprint(),
         "dimensions": dimensions,
@@ -484,6 +554,7 @@ def qualify_embedding(
         "profile_sha256": hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest(),
         "execution_digest_binding": "unverified",
         "digest_evidence_kind": "caller_supplied_metadata",
+        "broker_admission": evidence,
         "measured": measured,
         "live_qualification": "pending_broker_evidence",
     }
