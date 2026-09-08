@@ -169,7 +169,9 @@ class ResourceLifecycle:
     def save(self, **fields: Any) -> None:
         self.record.update(fields)
         atomic(self.path, self.record)
-        status_directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
+        status_directory = os.environ.get("MATRIC_RUN_STATUS_DIR") or self.record.get(
+            "status_directory"
+        )
         if status_directory:
             with RunStatus(Path(status_directory)).update() as status:
                 if (status["run_id"], status["attempt_id"]) != (
@@ -200,6 +202,7 @@ class ResourceLifecycle:
             owner=f"{owner}:{identity}",
             gpu_uuids=[gpu],
             container=f"matric-{identity}",
+            status_directory=os.environ.get("MATRIC_RUN_STATUS_DIR"),
             controller_type="process",
             controller=process_identity(os.getpid()),
             controller_unit=None,
@@ -331,13 +334,17 @@ class ResourceLifecycle:
                 return
         raise RuntimeError("owned launcher descendants remain alive")
 
-    def reconcile(self) -> bool:
+    def reconcile(self, *, recover_storage: bool = True) -> bool:
         if not self.record:
             return True
         try:
             if self.record.get("host", socket.gethostname()) != socket.gethostname():
                 raise RuntimeError("reconciliation requires the owning host")
             if self.record.get("cleanup") == "complete":
+                if recover_storage:
+                    from matric_eval.studies.storage_lifecycle import recover_resource_storage
+
+                    recover_resource_storage(self)
                 return True
             self.save(state="cleanup-pending", cleanup="pending")
             self.stop_launcher()
@@ -403,6 +410,10 @@ class ResourceLifecycle:
             self.private.unlink(missing_ok=True)
             Path(self.record["readiness"]).unlink(missing_ok=True)
             self.save(state="stopped", cleanup="complete", reason=None)
+            if recover_storage:
+                from matric_eval.studies.storage_lifecycle import recover_resource_storage
+
+                recover_resource_storage(self)
             return True
         except (
             OSError,
@@ -566,7 +577,7 @@ class ResourceLifecycle:
                 storage.before_cleanup()
             for original_signum, handler in handlers.items():
                 signal.signal(original_signum, handler)
-            resource_cleanup = self.reconcile()
+            resource_cleanup = self.reconcile(recover_storage=False)
             if storage:
                 try:
                     storage.finish(resource_cleanup)

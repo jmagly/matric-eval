@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
@@ -16,12 +17,7 @@ from matric_eval.storage import Allocation, StorageBlocker, StorageSession, publ
 def docker_control_contract(
     command: list[str], config: dict[str, Any], docker: Any
 ) -> dict[str, Any]:
-    """Validate the finite daemon write path; arbitrary daemon workloads cannot opt in.
-
-    Writable application paths are separately kernel bounded. Docker metadata is
-    reserved and observed conservatively across the real shared daemon root, not
-    described as a kernel quota or zero-growth immutable image directory.
-    """
+    """Validate Docker options before IMAGE and every implicit writable image volume."""
     if (
         len(command) < 5
         or Path(command[0]).name != "docker"
@@ -30,73 +26,124 @@ def docker_control_contract(
         raise StorageBlocker(
             "storage_docker_contract", "expected one explicit daemon/container run"
         )
-    if (
-        "--read-only" not in command
-        or any(
-            arg.startswith(
-                ("--tmpfs", "--privileged", "--volume", "--mount=", "--read-only=", "--restart")
+    valued = {
+        "--name",
+        "--label",
+        "--network",
+        "--hostname",
+        "--runtime",
+        "--gpus",
+        "--ipc",
+        "--ulimit",
+        "--mount",
+        "--workdir",
+        "--env",
+        "--entrypoint",
+        "--pull",
+        "--log-driver",
+        "--pids-limit",
+    }
+    options: dict[str, list[str]] = {}
+    index = 4
+    while index < len(command) and command[index].startswith("-"):
+        flag = command[index]
+        if flag == "--":
+            index += 1
+            break
+        if flag == "--read-only":
+            options.setdefault(flag, []).append("true")
+            index += 1
+        elif flag in valued and index + 1 < len(command):
+            options.setdefault(flag, []).append(command[index + 1])
+            index += 2
+        else:
+            raise StorageBlocker(
+                "storage_docker_contract", "unsupported or incomplete Docker option"
             )
-            or arg.startswith("-v")
-            for arg in command
-        )
-        or any(arg in command for arg in ("--privileged", "-v", "--volume", "--mount=type=volume"))
-    ):
+    if index >= len(command) or "@sha256:" not in command[index]:
         raise StorageBlocker(
-            "storage_docker_contract", "read-only root and declared bind mounts are required"
+            "storage_docker_contract", "an existing digest-pinned image is required"
         )
-    for flag, value in (("--pull", "never"), ("--log-driver", "none")):
-        if (
-            command.count(flag) != 1
-            or command.index(flag) + 1 >= len(command)
-            or command[command.index(flag) + 1] != value
-            or any(arg.startswith(flag + "=") for arg in command)
-        ):
-            raise StorageBlocker("storage_docker_contract", f"{flag} {value} is required")
+    image = command[index]
+    for flag, value in (
+        ("--read-only", "true"),
+        ("--pull", "never"),
+        ("--log-driver", "none"),
+        ("--ipc", "private"),
+    ):
+        if options.get(flag) != [value]:
+            raise StorageBlocker(
+                "storage_docker_contract", f"{flag} {value} is required before IMAGE"
+            )
     writable = {
         str(Path(item["path"]).resolve())
         for item in config["allocations"]
         if item["kind"] != "docker" and (item["budget_bytes"] or item["budget_inodes"])
     }
-    seen = set()
-    for index, argument in enumerate(command):
-        if argument != "--mount":
-            continue
-        if index + 1 >= len(command):
-            raise StorageBlocker("storage_docker_contract", "mount argument missing")
-        fields = dict(
-            (part.split("=", 1)[0], part.split("=", 1)[1]) if "=" in part else (part, "true")
-            for part in command[index + 1].split(",")
-        )
-        if fields.get("type") != "bind":
-            raise StorageBlocker(
-                "storage_docker_contract", "only declared bind mounts are supported"
-            )
-        if fields.get("readonly") == "true" or fields.get("ro") == "true":
-            continue
-        source = str(Path(fields.get("src", fields.get("source", ""))).resolve())
-        if source == "/run/ollama-unify/gpu-negotiator.sock":
-            continue
-        if source not in writable:
-            raise StorageBlocker(
-                "storage_docker_contract", "writable bind is outside declared bounded storage"
-            )
-        seen.add(source)
     required = {
         str(Path(item["path"]).resolve())
         for item in config["allocations"]
         if item["kind"] not in ("docker", "logs")
         and (item["budget_bytes"] or item["budget_inodes"])
     }
+    seen: set[str] = set()
+    destinations: set[str] = set()
+    bounded_destinations: set[str] = set()
+    for mount in options.get("--mount", []):
+        fields = {}
+        for part in mount.split(","):
+            key, _, value = part.partition("=")
+            if key in fields:
+                raise StorageBlocker("storage_docker_contract", "duplicate mount option")
+            fields[key] = value or "true"
+        if fields.get("type") != "bind":
+            raise StorageBlocker(
+                "storage_docker_contract", "only declared bind mounts are supported"
+            )
+        source = str(Path(fields.get("src", fields.get("source", ""))).resolve())
+        destination = fields.get("dst", fields.get("destination", fields.get("target", "")))
+        if not destination.startswith("/") or destination in destinations:
+            raise StorageBlocker(
+                "storage_docker_contract", "unique absolute mount destinations are required"
+            )
+        destinations.add(destination)
+        if source == "/run/ollama-unify/gpu-negotiator.sock":
+            continue
+        if Path(source).is_socket():
+            raise StorageBlocker("storage_docker_contract", "undeclared control socket")
+        if fields.get("readonly") == "true" or fields.get("ro") == "true":
+            continue
+        if source not in writable:
+            raise StorageBlocker(
+                "storage_docker_contract", "writable bind is outside declared bounded storage"
+            )
+        seen.add(source)
+        bounded_destinations.add(destination)
+    if "/dev/shm" not in bounded_destinations:
+        raise StorageBlocker(
+            "storage_docker_contract", "private IPC requires a declared bounded /dev/shm bind"
+        )
     if not required <= seen:
         raise StorageBlocker(
+            "storage_docker_contract", "all application writer paths require bounded binds"
+        )
+    metadata = json.loads(
+        subprocess.check_output(docker.command("image", "inspect", image), text=True, timeout=15)
+    )[0]
+    volumes = sorted((metadata.get("Config") or {}).get("Volumes") or {})
+    if any(volume not in destinations for volume in volumes):
+        raise StorageBlocker(
             "storage_docker_contract",
-            "all application storage budgets must bind their actual writer paths",
+            "image-declared writable volume lacks an explicit bounded or read-only bind",
         )
     root = subprocess.check_output(
         docker.command("info", "--format", "{{.DockerRootDir}}"), text=True, timeout=15
     ).strip()
     return {
         "root": root,
+        "image": image,
+        "image_id": metadata["Id"],
+        "image_volumes": volumes,
         "container_limit": 1,
         "rootfs": "read-only",
         "pull": "never",
@@ -141,7 +188,11 @@ class ResidentStorage:
         self.session.check("before-preflight")
         publish_run_status(self.session, "admission")
         self.resource.save(
-            storage_reservation={"ledger": str(self.session.ledger), "owner": self.session.token}
+            storage_reservation={
+                "ledger": str(self.session.ledger),
+                "owner": self.session.token,
+                "ledger_identity": self.session.ledger_mount,
+            }
         )
         self.resource.save(
             readiness=str(
@@ -240,3 +291,52 @@ class ResidentStorage:
             raise StorageBlocker(
                 "storage_cleanup_pending", "owned resources retain their storage reservation"
             )
+
+
+def recover_resource_storage(resource: Any) -> None:
+    """Discharge exactly one dead controller's storage obligation after CUDA cleanup."""
+    import fcntl
+
+    from matric_eval.storage import filesystem, process_identity
+    from matric_eval.studies.resource_lifecycle import atomic
+    from matric_eval.studies.run_status import RunStatus, group_alive
+
+    reservation = resource.record.get("storage_reservation")
+    if not reservation:
+        return
+    ledger = Path(reservation["ledger"])
+    current = filesystem(ledger)
+    expected = reservation["ledger_identity"]
+    if any(current[key] != expected[key] for key in ("device", "mount_id", "mount")):
+        raise StorageBlocker("storage_mount_changed", "reservation ledger moved")
+    with (ledger / "reservations.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        path = ledger / "reservations.json"
+        state = json.loads(path.read_text())
+        owned = state.get(reservation["owner"])
+        if owned:
+            if owned.get("resource_record") != str(resource.path.resolve()):
+                raise StorageBlocker(
+                    "storage_owner_mismatch", "reservation belongs to another resource"
+                )
+            if process_identity(owned["pid"]) == owned["identity"]:
+                raise StorageBlocker("storage_owner_alive", "storage owner has not exited")
+            del state[reservation["owner"]]
+            atomic(path, state)
+    directory = os.environ.get("MATRIC_RUN_STATUS_DIR") or resource.record.get("status_directory")
+    if directory:
+        with RunStatus(Path(directory)).update() as status:
+            storage = status.get("storage", {})
+            if storage.get("owner") != reservation["owner"]:
+                raise StorageBlocker(
+                    "storage_owner_mismatch", "status belongs to another storage owner"
+                )
+            storage.update(reservation_active=False, stage="reconciled")
+            worker = status.get("worker")
+            if resource.record.get("cleanup") == "complete" and (
+                worker is None or not group_alive(worker["pid"])
+            ):
+                status["cleanup"] = "complete"
+                if status["phase"] == "cleanup-pending" and status.get("terminal_event"):
+                    status["phase"] = status["terminal_event"]["phase"]
+    resource.save(storage_reservation_active=False)
