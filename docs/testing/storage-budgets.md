@@ -181,3 +181,45 @@ wait. Status and heartbeat keep their 10-second deadlines. A timeout remains an
 unknown acquisition obligation, never proof that no lease can arrive later.
 Admission is checked again after broker acquisition and before service dispatch;
 the target readiness checks retain the 300-second admission freshness cap.
+
+## Real study-model qualification
+
+On September 8, 2026, immutable source `6a282abdfaf653d945ef603583fc172121e1d074`
+passed the [actual model-load qualification](evidence/issue160/model-load-qualification.json)
+on Basilisk. The supported launcher loaded the installed Qwen3.8-27B source BF16
+checkpoint with its pinned vLLM image, under a broker-admitted 75000 MiB lease.
+Full tensor verification ran before acquisition; the target check verified the
+actual `/v1/models` identity and CUDA ownership in the exact container cgroup.
+There were zero scoring requests.
+
+Loading to qualified readiness took approximately 240.12 seconds. At readiness,
+the owned container cgroup had recorded 11,165,233,152 block-read bytes and 90,112
+block-write bytes across its devices. These counters include descendants and
+startup work. The preflight had warmed page cache, so these are neither cold-cache
+measurements nor a count of every tensor byte transferred to GPU. Sampled peak
+scratch was 36,864 bytes; cache growth at readiness was 238,542,848 bytes. Docker
+backing metadata growth was 49,152 bytes, with no model-root growth. No comparative
+placement improvement is claimed.
+
+The controller received an identity-pinned SIGTERM after readiness. Owned CUDA
+absence was verified at `1788904481.204819`; the exact lease release was
+acknowledged later at `1788904483.9436803`. Container absence, broker owner absence,
+and storage reservation absence were then checked independently. The wrapper's
+exit status 1 records intentional cancellation; the qualification returned 0
+only after readiness and cleanup succeeded.
+
+The [raw storage receipt](evidence/issue160/model-load-storage-receipt.json) retains
+before/after filesystem capacity, bounded samples, cgroup/PID I/O, scratch peak,
+cleanup preview, and the private emergency-ledger source path. The
+[preflight](evidence/issue160/model-load-preflight.json) and
+[target receipt](evidence/issue160/model-load-target-preflight.json) retain the
+executed checks. Persistent evidence used a 256 MiB filesystem; temporary, cache,
+scratch and logs used dedicated bounded tmpfs mounts visible to Docker. The
+separate emergency ledger remained on NVMe. After collecting the receipt, only
+this qualification's temporary mounts were unmounted; persistent evidence and
+all shared model/image assets were retained.
+
+The same code passed complete A100 `make ci`: 3,356 main tests, 349 expected skips,
+and 35 mandatory isolated client conformance tests with zero skips. Combined
+coverage was 80.72%; Ruff, formatting and the mypy gate passed. Validation log:
+`/srv/matric-eval/workspaces/matric-eval-160-allissue-final-verification-3.log`.
