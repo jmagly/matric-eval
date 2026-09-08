@@ -9,6 +9,10 @@ concurrency:
   group: real-provider-smoke
   cancel-in-progress: false
 
+env:
+  UV_LOCKED: "1"
+  UV_PYTHON: "3.11"
+
 jobs:
   smoke:
     name: Ollama CPU Smoke
@@ -31,16 +35,16 @@ jobs:
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
           git fetch --depth 1 origin ${{ github.sha }}
           git checkout --detach FETCH_HEAD
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install uv==0.9.26
 
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Run real-provider smoke
         env:

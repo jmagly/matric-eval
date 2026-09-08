@@ -1,7 +1,28 @@
 # Changelog
 
 All notable changes to matric-eval are documented here. The project follows
-[Semantic Versioning](https://semver.org/).
+CalVer `YYYY.M.PATCH`, documented in [the release guide](docs/development/releasing.md).
+The patch counter starts at zero each UTC month; historical SemVer tags remain unchanged.
+
+## [2026.9.0] - Unreleased
+
+### Changed
+
+- Adopted synchronized CalVer versions for Python, TypeScript and their lockfiles,
+  with one checked bump command and strict tag/package agreement.
+- Changed release distribution to verified Gitea downloads. Python and npm
+  registry publication is disabled.
+- Require the tagged source to belong to main and pass exact-commit CI before
+  release uploads. Draft staging and digest checks make retries safe.
+- Locked CI dependency setup, retained combined client coverage, removed duplicate
+  unit-test smoke execution and aligned mirror package checks.
+
+### Added
+
+- Staged study preflight, durable GPU/service cleanup, correlated progress and
+  failure diagnostics, independent suite scheduling and compatible result reuse.
+- Actual client/broker conformance and bounded storage/model-load qualification.
+  Deferred TAU scoring and frozen study protocols remain unchanged.
 
 ## [0.2.0] - 2026-08-03
 

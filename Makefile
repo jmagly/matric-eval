@@ -1,6 +1,6 @@
 # Makefile for matric-eval development tasks
 
-.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail operational-validation ci release-workflow-required publish-pypi publish-npm publish release
+.PHONY: help test test-unit test-integration test-coverage test-fast lint format install clean type-check type-check-strict type-check-update format-check test-coverage-fail operational-validation ci release-workflow-required publish-pypi publish-npm publish release version-check version-bump
 
 help:  ## Show this help message
 	@echo "matric-eval development commands:"
@@ -80,7 +80,7 @@ smoke:  ## Run smoke tests
 operational-validation:  ## Generate scorer parity and operational evidence
 	uv run python scripts/run_operational_validation.py
 
-ci: lint format-check type-check test-coverage-fail  ## Run all authoritative CI gates
+ci: version-check lint format-check type-check test-coverage-fail  ## Run all authoritative CI gates
 
 dev:  ## Set up development environment
 	uv sync --extra dev --extra study
@@ -96,14 +96,20 @@ build-ts:  ## Build TypeScript bindings
 	cd bindings/typescript && npm run build
 	@echo "TypeScript bindings built"
 
+version-check:  ## Verify synchronized CalVer package and lock versions
+	uv run python scripts/release_contract.py versions
+
+version-bump:  ## Advance the UTC monthly CalVer counter across all version surfaces
+	uv run python scripts/release_contract.py bump
+
 release-workflow-required:
-	@echo "Direct publication is disabled. Dispatch .gitea/workflows/release.yml for a candidate, then publish the validated v* tag."
+	@echo "Registry publication is disabled. See docs/development/releasing.md for validated Gitea release downloads."
 	@false
 
-publish-pypi: release-workflow-required  ## Disabled; publish through the validated release workflow
+publish-pypi: release-workflow-required  ## Disabled; no Python or npm registry publishing
 
-publish-npm: release-workflow-required  ## Disabled; publish through the validated release workflow
+publish-npm: release-workflow-required  ## Disabled; no Python or npm registry publishing
 
-publish: release-workflow-required  ## Disabled; publish through the validated release workflow
+publish: release-workflow-required  ## Disabled; no Python or npm registry publishing
 
-release: release-workflow-required  ## Disabled; release through the validated release workflow
+release: release-workflow-required  ## Use the documented candidate and checked-tag workflow

@@ -9,6 +9,7 @@ on:
 env:
   UV_CACHE_DIR: /tmp/.uv-cache
   UV_PYTHON: "3.11"
+  UV_LOCKED: "1"
 
 jobs:
   quality:
@@ -21,9 +22,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          version: "0.9.26"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra study
+        run: uv sync --locked --extra dev --extra study
+
+      - name: Verify CalVer surfaces
+        run: python scripts/release_contract.py versions
 
       - name: Run lint
         run: make lint
@@ -48,9 +53,10 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          version: "0.9.26"
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra study
+        run: uv sync --locked --extra dev --extra study
 
       - name: Run all tests with coverage
         run: make test-coverage-fail
@@ -65,7 +71,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: benchmark-freshness
-          path: benchmark-freshness.json
+          path: |
+            benchmark-freshness.json
+            client-conformance-junit.xml
 
   build:
     name: Build Package
@@ -78,9 +86,10 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          version: "0.9.26"
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --locked --extra dev
 
       - name: Build package
         run: uv build
@@ -88,25 +97,10 @@ jobs:
       - name: Verify wheel
         run: uv run --isolated --no-project --with dist/*.whl python -c "import matric_eval; print(matric_eval.__version__)"
 
-  # =========================================================================
-  # Tier 3: Nightly Smoke — full benchmark smoke tests against real models
-  # =========================================================================
-  nightly-smoke:
-    name: Nightly Smoke Tests
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Run smoke tests
-        run: uv run pytest tests/smoke/ -q --tb=short
-        env:
-          MATRIC_EVAL_PROVIDER: ollama
+      - name: Build and test TypeScript package
+        working-directory: bindings/typescript
+        run: |
+          npm ci
+          npm run build
+          npm test
+          npm pack --dry-run

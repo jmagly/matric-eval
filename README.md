@@ -24,7 +24,7 @@ Use it to compare code generation, math, reasoning, instruction following, knowl
 
 ## Status
 
-The Python package and TypeScript client source versions are **0.2.0**. Check [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. A source version alone does not establish registry availability.
+The Python package and TypeScript client source versions are **2026.9.0**, using CalVer `YYYY.M.PATCH`. Check [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. Package registry publishing is disabled; a source version alone does not establish release availability.
 
 The [roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md) records support boundaries and deferred work. Benchmark inventories change independently of release notes; inspect the current checkout with `matric-eval list-benchmarks` and `matric-eval audit-benchmarks`.
 
@@ -46,19 +46,18 @@ The canonical Gitea repository may require access. The [GitHub repository](https
 
 Use `uv run matric-eval` for commands from a source checkout. Examples below use that form. With an installed package, use `matric-eval` directly.
 
-### From a published package
+### From verified release downloads
 
-After confirming the desired release is available, install into a virtual environment:
+Download and verify the desired bundle from Gitea Releases as described in the [release guide](docs/development/releasing.md), then install its wheel into a virtual environment:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install matric-eval \
-  --index-url https://git.integrolabs.net/api/packages/roctinam/pypi/simple/
+python -m pip install ./packages/python/matric_eval-2026.9.0-py3-none-any.whl
 matric-eval --version
 ```
 
-Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/0.2.0.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
+Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/2026.9.0.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
 
 ## Quick Start
 
@@ -207,11 +206,10 @@ Follow the [study index](https://github.com/jmagly/matric-eval/blob/main/studies
 
 ## TypeScript Client
 
-The client requires Node.js 18 or newer and a separately installed Python `matric-eval` executable. Install the package after confirming its release is published:
+The client requires Node.js 18 or newer and a separately installed Python `matric-eval` executable. Install the verified tarball from a Gitea release bundle:
 
 ```bash
-npm install @matric/eval-client \
-  --registry https://git.integrolabs.net/api/packages/roctinam/npm/
+npm install ./packages/typescript/matric-eval-client-2026.9.0.tgz
 ```
 
 ```typescript
