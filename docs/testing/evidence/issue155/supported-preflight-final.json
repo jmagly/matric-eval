@@ -1,0 +1,227 @@
+{
+  "schema": "matric-eval.preflight-qualification/1",
+  "host": "basilisk",
+  "scope": "Full supported pre-target Tau admission, actual immutable inputs and live auxiliary transport; no scored tasks or target model loads",
+  "receipt_path": "/srv/matric-eval/workspaces/matric-eval-155-final-qualified/official-success-receipt.json",
+  "receipt_sha256": "4898ae948d0c3ecd8bb20f1513006faca62f1b344fb802188729344560850173",
+  "source_sha256": {
+    "src/matric_eval/studies/preflight.py": "0a4ec63a917b9ab1a35596bac135310dd8d8dfe5adfaf6a90ea8aba36283ff2a",
+    "scripts/preflight_qwen38_tau.py": "f87be80d87ddd5ad945167f89687bbcabc704ad1f4ffa7e930226e256e2f8d57",
+    "scripts/run_qwen38_tau.py": "b5e72bb29ad859722feba02074f14a1d3488e2b5192b7e22d14eb8c4fd3cbd10",
+    "scripts/preflight_auxiliary_client.py": "9ce4db62731a7e54f4c96e4e2a00c46307414f6377293ea9897ac90a85b49dc0",
+    "src/matric_eval/studies/client_conformance.py": "d5a3e8977f27efe4ed334ad6ac9e170eb85b5e40ba00743af19064933da5d9de",
+    "src/matric_eval/studies/broker_admission.py": "346b2e5ff83ca75184f53ffd9cbb77af2d376373d6f388e8a5e82c9dc70129ed",
+    "src/matric_eval/studies/broker_identity.py": "f33c622c2e3b6c14a69fe622e2d50507b488a6e251bb9755f7696746b1bceea5",
+    "src/matric_eval/studies/auxiliary_runtime.py": "cceedb75d94e00c6f5b05d9dbcade2f8cca549faa3061802354550442bcd865b",
+    "src/matric_eval/studies/embedding_transport.py": "d18540874a49df22edf515542daad3bae7e580815938876423626d38ed14f04c",
+    "scripts/qualify_auxiliary_client.py": "c90922ed88ab80c05940fbd8a3194bfcd1184bef4de33475c130837f70a6b855",
+    "scripts/qualify_embedding_client.py": "e6b200add8a924975c010c4e2e712bfd0e1e6986451659d781007b0189faa4e8"
+  },
+  "client_source_commit": "685f3e5",
+  "preflight_source_commit": "398e156",
+  "admitted": true,
+  "target_launches": 0,
+  "elapsed_seconds": 36.34544942888897,
+  "checks_reexecuted": 10,
+  "checks_reused": 0,
+  "checks": [
+    {
+      "id": "tau-inputs",
+      "repetition": 0,
+      "evidence_id": "f1027a59bf134890b3dbc55e4456eafb",
+      "status": "completed",
+      "completed_at": 1788901034.3133204,
+      "receipt_sha256": "c4893e51aa30ad0d58d47c12c263e1f45b9b4ceb7e413ed2ca10b5adb94367f5"
+    },
+    {
+      "id": "tau-patch",
+      "repetition": 0,
+      "evidence_id": "c34eec4462a741418a7af8f61c41efe2",
+      "status": "completed",
+      "completed_at": 1788901035.2220907,
+      "receipt_sha256": "116ca1491d4cda7c218e27506fae10422a72809ee5365b0ef338c4aeace9cc19"
+    },
+    {
+      "id": "tau-dependencies",
+      "repetition": 0,
+      "evidence_id": "c939cd460c984735b7dd74b7f2506370",
+      "status": "completed",
+      "completed_at": 1788901038.4444313,
+      "receipt_sha256": "14015ebab4e3057d1be67e4680fbbb52e266bd46246c7ebb908d47074174bf0f"
+    },
+    {
+      "id": "tau-tasks",
+      "repetition": 0,
+      "evidence_id": "94dda9ea807045b68c160b3c0f8a5d00",
+      "status": "completed",
+      "completed_at": 1788901041.8565364,
+      "receipt_sha256": "b92e73e6110fecfb018ee545c6708627ca5dcd542d2bd5e7baf2b5022a5986f5"
+    },
+    {
+      "id": "tau-sandbox",
+      "repetition": 0,
+      "evidence_id": "a96bddf5b2f7450cbc3078040f131f1e",
+      "status": "completed",
+      "completed_at": 1788901045.9341526,
+      "receipt_sha256": "cc50c1768502ba0cd0e5ec6f75e05d103ac4ec63dc04ffa58473d93ee3a559c4"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 0,
+      "evidence_id": "cf6d30da3fcf43f3b3864049325f5bff",
+      "status": "completed",
+      "completed_at": 1788901049.9913216,
+      "receipt_sha256": "92e52a31de46ac0461dbd85e5ac6bdfc8754d1107226509d58e36da540ad3016"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 1,
+      "evidence_id": "54cbb96de6c54f998ea151297a5eff20",
+      "status": "completed",
+      "completed_at": 1788901054.5169551,
+      "receipt_sha256": "cf6b959c93f3faf72056c694d6cf95f236f94da1b44fe7adcad2fb08799e29a8"
+    },
+    {
+      "id": "launcher-adapter-receipt-smoke",
+      "repetition": 2,
+      "evidence_id": "f9bb83ae3d5b4c31b6d4f2eac3c8a522",
+      "status": "completed",
+      "completed_at": 1788901058.701175,
+      "receipt_sha256": "2ef0614d2416ab16c5b0c9dc188ccc54e0396d22071ca06ed3842a156d9ea1a0"
+    },
+    {
+      "id": "auxiliary-simulator",
+      "repetition": 0,
+      "evidence_id": "dc622c80f315460c8073e6edfb9e4dd3",
+      "status": "completed",
+      "completed_at": 1788901061.3005443,
+      "receipt_sha256": "42be163b2c8879875b7b11d99062e16955babbc7e864cc5931034bc007260874",
+      "transport": {
+        "operation": "completion",
+        "transport_passed": true,
+        "profile_sha256": "51b0fc945099ded15bef7774582a37b9f30a04d4e2b1f434520e93a9e01ddd2f",
+        "profile_file_sha256": "39ceb0e5fdfd6df286f592acfa44817dae800b0a390d52f1f62d8a209b43d9e4",
+        "broker_admission": {
+          "broker_request_id": "07ee310c013a09b0",
+          "execution_digest_binding": "unverified",
+          "http_attempts": 1,
+          "lane": "lane-1204",
+          "logical_request_id": "matric-canary-cb44317cfd544f5ebcb130aa6ab80cda",
+          "queue_ms_including_warmup": 0,
+          "queue_ticket": "32079",
+          "response_replayed": false
+        },
+        "broker_identity": {
+          "boot_id": "005f624c-1c59-40bc-b2fd-c44b4a41a2ee",
+          "execution_digest_binding": "unverified",
+          "files": [
+            {
+              "path": "/etc/default/ollama-unify-negotiator",
+              "sha256": "d1a3362f49166d1ad2134005f1b618bab47880937d845737b50c4de88bcabb0f"
+            },
+            {
+              "path": "/etc/default/ollama-unify-obliteratus",
+              "sha256": "70c569322f0dd5a5120d42d754e3699cc991b6bc62bdda5777fb02c0380b9ecc"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service",
+              "sha256": "8d17d0c51b3eab8faf0d9820ee46d084dc210a82aec5624b12016bde83887e8f"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/70-obliteratus-loading-window.conf",
+              "sha256": "d1413f46fe9ae2c548e91ef5577430e4b959a6e41892639ed4275af6d82f3f5d"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/state.conf",
+              "sha256": "45c191100d83d41c1691f781122ed7b23399861640573c4edf569d2f83aa3c3b"
+            },
+            {
+              "path": "/usr/local/libexec/ollama-unify-gpu-negotiator",
+              "sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e"
+            }
+          ],
+          "host": "basilisk",
+          "kind": "local_process_source_configuration",
+          "pid": 3149301,
+          "source_sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e",
+          "start_ticks": "55172164",
+          "unit": "ollama-unify-negotiator.service",
+          "unit_configuration_sha256": "e679479984cfa64dc218aa6c1b6d430adc3aba3b1b031b1a90dae619d2530749"
+        },
+        "measured": null,
+        "execution_digest_binding": "unverified",
+        "semantic_calibration": "not_performed"
+      }
+    },
+    {
+      "id": "auxiliary-embedder",
+      "repetition": 0,
+      "evidence_id": "22f09876db684e048873311fe147ba73",
+      "status": "completed",
+      "completed_at": 1788901063.5915174,
+      "receipt_sha256": "eaf801f719801a93dc98baaa901670d2e82b9bed7bee683534aef9c251e2ab25",
+      "transport": {
+        "operation": "embedding",
+        "transport_passed": true,
+        "profile_sha256": "cd045fcaa25b9cb83f64011f3ce56ac64760843b947f84f0ee48d6f6d3f464b2",
+        "profile_file_sha256": "a29718d73112aa4a127dda3f20b4cf377a7b22f339626a7c8ae279beb0682f9c",
+        "broker_admission": {
+          "broker_request_id": "dc2d59a1c6c56ab7",
+          "execution_digest_binding": "unverified",
+          "http_attempts": 1,
+          "lane": "lane-1205",
+          "logical_request_id": "matric-embedding-8831e5da21b24ac0b863e88dc58c8189",
+          "queue_ms_including_warmup": 0,
+          "queue_ticket": "32080",
+          "response_replayed": false
+        },
+        "broker_identity": {
+          "boot_id": "005f624c-1c59-40bc-b2fd-c44b4a41a2ee",
+          "execution_digest_binding": "unverified",
+          "files": [
+            {
+              "path": "/etc/default/ollama-unify-negotiator",
+              "sha256": "d1a3362f49166d1ad2134005f1b618bab47880937d845737b50c4de88bcabb0f"
+            },
+            {
+              "path": "/etc/default/ollama-unify-obliteratus",
+              "sha256": "70c569322f0dd5a5120d42d754e3699cc991b6bc62bdda5777fb02c0380b9ecc"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service",
+              "sha256": "8d17d0c51b3eab8faf0d9820ee46d084dc210a82aec5624b12016bde83887e8f"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/70-obliteratus-loading-window.conf",
+              "sha256": "d1413f46fe9ae2c548e91ef5577430e4b959a6e41892639ed4275af6d82f3f5d"
+            },
+            {
+              "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/state.conf",
+              "sha256": "45c191100d83d41c1691f781122ed7b23399861640573c4edf569d2f83aa3c3b"
+            },
+            {
+              "path": "/usr/local/libexec/ollama-unify-gpu-negotiator",
+              "sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e"
+            }
+          ],
+          "host": "basilisk",
+          "kind": "local_process_source_configuration",
+          "pid": 3149301,
+          "source_sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e",
+          "start_ticks": "55172164",
+          "unit": "ollama-unify-negotiator.service",
+          "unit_configuration_sha256": "e679479984cfa64dc218aa6c1b6d430adc3aba3b1b031b1a90dae619d2530749"
+        },
+        "measured": {
+          "dimensions": 768,
+          "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+        },
+        "execution_digest_binding": "unverified",
+        "semantic_calibration": "not_performed"
+      }
+    }
+  ],
+  "fresh_admission_validation": "passed",
+  "tau_checkout": "/srv/matric-eval/benchmarks/tau2-qwen38-context-guard",
+  "scored_tasks_executed": 0
+}

@@ -289,3 +289,52 @@ def test_failed_check_retains_own_request_receipt(plan: dict, tmp_path: Path) ->
     assert row["diagnostic"]["exit_code"] == 7
     assert json.loads(row["receipt_excerpt"])["broker_request_id"] == "own-123"
     assert result["target_launches"] == 0
+
+
+@pytest.mark.parametrize(
+    "changed", ["patch", "source", "new-source", "data", "runtime", "runtime-record"]
+)
+def test_external_dependency_mutation_invalidates_admission(plan, tmp_path, changed):
+    source = tmp_path / "external-source"
+    source.mkdir()
+    module = source / "adapter.py"
+    module.write_text("original source\n")
+    data = source / "tasks.json"
+    data.write_text("[]\n")
+    patch = tmp_path / "external.patch"
+    patch.write_text("original patch\n")
+    package = tmp_path / "fixture_runtime-1.0.dist-info"
+    package.mkdir()
+    metadata = package / "METADATA"
+    metadata.write_text("Metadata-Version: 2.1\nName: fixture-runtime\nVersion: 1.0\n")
+    record = package / "RECORD"
+    record.write_text("original package installation record\n")
+    # The actual configured interpreter resolves its own runtime inventory.
+    check = plan["checks"][0]
+    check["inputs"] = [*check["inputs"], str(patch)]
+    check["input_trees"] = [str(source)]
+    check["runtime_python"] = sys.executable
+
+    # A wrapper makes this independent of the test runner's imported inventory.
+    wrapper = tmp_path / "runtime-python"
+    wrapper.write_text(
+        f'#!{sys.executable}\nimport os,sys\nos.environ["PYTHONPATH"]={str(tmp_path)!r}\nos.execv(sys.executable,[sys.executable,*sys.argv[1:]])\n'
+    )
+    wrapper.chmod(0o700)
+    check["runtime_python"] = str(wrapper)
+    receipt = execute_plan(plan, tmp_path / "admission.json")
+    assert receipt["admitted"]
+    if changed == "patch":
+        patch.write_text("mutated patch\n")
+    elif changed == "source":
+        module.write_text("mutated source\n")
+    elif changed == "new-source":
+        (source / "shadow.py").write_text("new source\n")
+    elif changed == "data":
+        data.write_text('["substituted-task"]\n')
+    elif changed == "runtime-record":
+        record.write_text("changed package installation record\n")
+    else:
+        metadata.write_text("Metadata-Version: 2.1\nName: fixture-runtime\nVersion: 2.0\n")
+    with pytest.raises(ValueError, match="changed"):
+        validate_admission(receipt, plan, 60)
