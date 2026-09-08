@@ -25,6 +25,7 @@ TAU_SOURCE_REVISION = "672227c6b6676edc20d57ea53b7000262aae77b9"
 SANDBOX_RUNTIME_PACKAGE_VERSION = "0.0.23"
 RANK_BM25_PACKAGE_VERSION = "0.2.2"
 TAU_EXTERNAL_MODEL = "gpt-4.1-2025-04-14"
+CONTEXT_SAFETY_MARGIN_TOKENS = 32
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 ALLOWED_TAU_WORKTREE_CHANGES = {"uv.lock"}
 JsonObject = dict[str, Any]
@@ -310,18 +311,61 @@ def _knowledge_dependency_evidence() -> JsonObject:
     }
 
 
-def _agent_args(endpoint: str, sampler: JsonObject) -> JsonObject:
+def _validate_context_allocation(
+    input_tokens: int,
+    output_tokens: int,
+    context_limit: int,
+    safety_margin: int = CONTEXT_SAFETY_MARGIN_TOKENS,
+) -> None:
+    """Reject a declared request budget that overbooks the model context."""
+    values = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "context_limit": context_limit,
+        "safety_margin": safety_margin,
+    }
+    for label, value in values.items():
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{label} must be a positive integer")
+    if safety_margin < 32:
+        raise ValueError("context safety margin must be at least 32 tokens")
+    combined = input_tokens + output_tokens + safety_margin
+    if combined > context_limit:
+        raise ValueError(
+            f"combined context budget {combined} exceeds context limit {context_limit}"
+        )
+
+
+def _context_budget(context_limit: int, output_tokens: int) -> JsonObject:
+    """Reserve output and safety tokens before advertising the input limit."""
+    if type(context_limit) is not int or context_limit < 1:
+        raise ValueError("context_limit must be a positive integer")
+    if type(output_tokens) is not int or output_tokens < 1:
+        raise ValueError("output_tokens must be a positive integer")
+    input_tokens = context_limit - output_tokens - CONTEXT_SAFETY_MARGIN_TOKENS
+    _validate_context_allocation(input_tokens, output_tokens, context_limit)
+    return {
+        "max_context_tokens": context_limit,
+        "max_input_tokens": input_tokens,
+        "max_output_tokens": output_tokens,
+        "safety_margin_tokens": CONTEXT_SAFETY_MARGIN_TOKENS,
+    }
+
+
+def _agent_args(endpoint: str, sampler: JsonObject, context_limit: int) -> JsonObject:
+    context_budget = _context_budget(context_limit, sampler["max_tokens"])
     return {
         "api_base": endpoint,
         "api_key": "EMPTY",
         "temperature": float(sampler["temperature"]),
         "top_p": float(sampler["top_p"]),
         "presence_penalty": float(sampler["presence_penalty"]),
-        "max_tokens": int(sampler["max_tokens"]),
+        "max_tokens": context_budget["max_output_tokens"],
         "extra_body": {
             "top_k": int(sampler["top_k"]),
             "min_p": float(sampler["min_p"]),
             "repetition_penalty": float(sampler["repetition_penalty"]),
+            "chat_template_kwargs": {"enable_thinking": False},
         },
     }
 
@@ -359,6 +403,8 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     tau_worktree = _tau_worktree_evidence(args.tau_checkout)
 
     study, model, sampler = _load_protocol(args.protocol, args.model_id)
+    runtime = model["runtime"]
+    context_budget = _context_budget(runtime["context_limit"], sampler["max_tokens"])
     target_names = {
         args.model_id,
         str(args.model_path),
@@ -395,7 +441,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     _validate_endpoint(args.endpoint, args.model_id, args.model_path)
 
     external_args = _load_external_args(args.external_llm_args)
-    agent_args = _agent_args(args.endpoint, sampler)
+    agent_args = _agent_args(args.endpoint, sampler, runtime["context_limit"])
     root_seed = int(study["seed"])
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     os.environ["OMP_NUM_THREADS"] = "1"
@@ -525,6 +571,9 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             "banking_retrieval_config": "alltools",
             "banking_knowledge_dependencies": knowledge_dependencies,
             "external_credential_transport": "inherited-file-descriptor",
+            "context_budget": context_budget,
+            "context_budget_enforcement": "declared-only-no-per-turn-guard",
+            "target_thinking_mode_requested": "disabled",
         },
         "sampler": sampler,
         "user_simulator": {"model": args.user_model, "arguments": external_args},

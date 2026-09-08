@@ -22,6 +22,7 @@ import yaml
 
 HARBOR_PACKAGE_VERSION = "0.22.0"
 TERMINAL_SOURCE_REVISION = "5c8eadf1f393183288fa08b8f73ca9a469cc5e00"
+CONTEXT_SAFETY_MARGIN_TOKENS = 32
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 DOCKER_HOST = "unix:///run/matric-eval-docker.sock"
 DOCKER_DATA_ROOT = "/srv/obliteratus/matric-eval/docker/data"
@@ -234,13 +235,55 @@ def _validate_endpoint(endpoint: str, model_id: str, model_path: Path) -> None:
         )
 
 
+def _validate_context_allocation(
+    input_tokens: int,
+    output_tokens: int,
+    context_limit: int,
+    safety_margin: int = CONTEXT_SAFETY_MARGIN_TOKENS,
+) -> None:
+    """Reject a declared request budget that overbooks the model context."""
+    values = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "context_limit": context_limit,
+        "safety_margin": safety_margin,
+    }
+    for label, value in values.items():
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{label} must be a positive integer")
+    if safety_margin < 32:
+        raise ValueError("context safety margin must be at least 32 tokens")
+    combined = input_tokens + output_tokens + safety_margin
+    if combined > context_limit:
+        raise ValueError(
+            f"combined context budget {combined} exceeds context limit {context_limit}"
+        )
+
+
+def _context_budget(context_limit: int, output_tokens: int) -> JsonObject:
+    """Reserve output and safety tokens before advertising the input limit."""
+    if type(context_limit) is not int or context_limit < 1:
+        raise ValueError("context_limit must be a positive integer")
+    if type(output_tokens) is not int or output_tokens < 1:
+        raise ValueError("output_tokens must be a positive integer")
+    input_tokens = context_limit - output_tokens - CONTEXT_SAFETY_MARGIN_TOKENS
+    _validate_context_allocation(input_tokens, output_tokens, context_limit)
+    return {
+        "max_context_tokens": context_limit,
+        "max_input_tokens": input_tokens,
+        "max_output_tokens": output_tokens,
+        "safety_margin_tokens": CONTEXT_SAFETY_MARGIN_TOKENS,
+    }
+
+
 def _agent_kwargs(endpoint: str, sampler: JsonObject, seed: int, context_limit: int) -> JsonObject:
+    context_budget = _context_budget(context_limit, sampler["max_tokens"])
     return {
         "api_base": endpoint,
         "temperature": float(sampler["temperature"]),
         "model_info": {
-            "max_input_tokens": context_limit,
-            "max_output_tokens": int(sampler["max_tokens"]),
+            "max_input_tokens": context_budget["max_input_tokens"],
+            "max_output_tokens": context_budget["max_output_tokens"],
             "input_cost_per_token": 0.0,
             "output_cost_per_token": 0.0,
             "cache_creation_input_token_cost": 0.0,
@@ -250,12 +293,13 @@ def _agent_kwargs(endpoint: str, sampler: JsonObject, seed: int, context_limit: 
         "llm_call_kwargs": {
             "top_p": float(sampler["top_p"]),
             "presence_penalty": float(sampler["presence_penalty"]),
-            "max_tokens": int(sampler["max_tokens"]),
+            "max_tokens": context_budget["max_output_tokens"],
             "seed": seed,
             "extra_body": {
                 "top_k": int(sampler["top_k"]),
                 "min_p": float(sampler["min_p"]),
                 "repetition_penalty": float(sampler["repetition_penalty"]),
+                "chat_template_kwargs": {"enable_thinking": False},
             },
         },
     }
@@ -416,6 +460,8 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
     )
 
     study, model, sampler = _load_protocol(args.protocol, args.model_id)
+    runtime = model["runtime"]
+    context_budget = _context_budget(runtime["context_limit"], sampler["max_tokens"])
     summary = _load_object(args.inputs_summary, "agentic input summary")
     scored_payload = json.loads(args.scored_ids.read_text(encoding="utf-8"))
     if not isinstance(scored_payload, list) or not all(
@@ -477,7 +523,6 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
     recovered_tasks = 0
     recovered_execution_seconds = 0.0
     started = time.time()
-    runtime = model["runtime"]
     for sample_id in scored_ids:
         seed = _generation_seed(int(study["seed"]), sample_id)
         job_name = _result_name(sample_id)
@@ -487,7 +532,7 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             tasks_dir=tasks_dir,
             task_id=sample_id,
             model_id=args.model_id,
-            agent_kwargs=_agent_kwargs(args.endpoint, sampler, seed, int(runtime["context_limit"])),
+            agent_kwargs=_agent_kwargs(args.endpoint, sampler, seed, runtime["context_limit"]),
         )
         validated = JobConfig.model_validate(config)
         config_payload = validated.model_dump(
@@ -601,6 +646,9 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             "resume_existing": args.resume_existing,
             "recovered_tasks": recovered_tasks,
             "recovered_execution_seconds": recovered_execution_seconds,
+            "context_budget": context_budget,
+            "context_budget_enforcement": "harbor-model-info-input-limit-requested-unverified",
+            "target_thinking_mode_requested": "disabled",
         },
         "sampler": sampler,
         "scored_samples": len(records),

@@ -8,7 +8,8 @@ import json
 import os
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -86,15 +87,26 @@ def test_sampler_and_external_args_are_sealed(tmp_path: Path) -> None:
         "repetition_penalty": 1.0,
         "max_tokens": 8192,
     }
-    assert tau_runner._agent_args("http://127.0.0.1:18080/v1", sampler) == {
+    agent_args = tau_runner._agent_args("http://127.0.0.1:18080/v1", sampler, 32768)
+    assert agent_args == {
         "api_base": "http://127.0.0.1:18080/v1",
         "api_key": "EMPTY",
         "temperature": 1.0,
         "top_p": 0.95,
         "presence_penalty": 0.0,
         "max_tokens": 8192,
-        "extra_body": {"top_k": 20, "min_p": 0.0, "repetition_penalty": 1.0},
+        "extra_body": {
+            "top_k": 20,
+            "min_p": 0.0,
+            "repetition_penalty": 1.0,
+            "chat_template_kwargs": {"enable_thinking": False},
+        },
     }
+    budget = tau_runner._context_budget(32768, agent_args["max_tokens"])
+    assert (
+        budget["max_input_tokens"] + budget["max_output_tokens"] + budget["safety_margin_tokens"]
+        == budget["max_context_tokens"]
+    )
     assert tau_runner._load_external_args(None) == {"temperature": 0.0}
 
     secret_args = tmp_path / "secret.json"
@@ -114,6 +126,94 @@ def test_sampler_and_external_args_are_sealed(tmp_path: Path) -> None:
     seeded_args.write_text('{"seed": 7}', encoding="utf-8")
     with pytest.raises(ValueError, match="derives"):
         tau_runner._load_external_args(seeded_args)
+
+
+def test_context_budget_accepts_32768_and_rejects_32769() -> None:
+    assert tau_runner.CONTEXT_SAFETY_MARGIN_TOKENS >= 32
+    budget = tau_runner._context_budget(32768, 8192)
+    assert budget == {
+        "max_context_tokens": 32768,
+        "max_input_tokens": 24544,
+        "max_output_tokens": 8192,
+        "safety_margin_tokens": 32,
+    }
+    tau_runner._validate_context_allocation(24544, 8192, 32768)
+    with pytest.raises(ValueError, match="32769 exceeds context limit 32768"):
+        tau_runner._validate_context_allocation(24545, 8192, 32768)
+    with pytest.raises(ValueError, match="positive integer"):
+        tau_runner._context_budget(8224, 8192)
+    with pytest.raises(ValueError, match="positive integer"):
+        tau_runner._agent_args("http://127.0.0.1:18080/v1", {"max_tokens": 8192}, 8224)
+    with pytest.raises(ValueError, match="positive integer"):
+        tau_runner._context_budget(32768, True)
+    with pytest.raises(ValueError, match="at least 32 tokens"):
+        tau_runner._validate_context_allocation(24545, 8192, 32768, 31)
+
+
+@pytest.mark.parametrize(
+    "field", ["input_tokens", "output_tokens", "context_limit", "safety_margin"]
+)
+@pytest.mark.parametrize(
+    "invalid", [0, -1, True, False, 1.0, "1", None, float("nan"), float("inf")]
+)
+def test_context_allocation_rejects_nonpositive_or_noninteger_values(
+    field: str, invalid: Any
+) -> None:
+    allocation = {
+        "input_tokens": 24544,
+        "output_tokens": 8192,
+        "context_limit": 32768,
+        "safety_margin": 32,
+    }
+    allocation[field] = invalid
+    with pytest.raises(ValueError, match="positive integer"):
+        tau_runner._validate_context_allocation(**allocation)
+
+
+@pytest.mark.parametrize("field", ["context_limit", "output_tokens"])
+@pytest.mark.parametrize("invalid", [0, -1, True, 32768.0, "32768", None])
+def test_context_budget_rejects_types_before_arithmetic(field: str, invalid: Any) -> None:
+    allocation = {"context_limit": 32768, "output_tokens": 8192}
+    allocation[field] = invalid
+    with pytest.raises(ValueError, match="positive integer"):
+        tau_runner._context_budget(**allocation)
+
+
+@pytest.mark.parametrize(
+    ("context_limit", "output_tokens", "expected_input"),
+    [(8225, 8192, 1), (32768, 4096, 28640), (34, 1, 1), (65536, 8192, 57312)],
+)
+def test_context_budget_reserves_output_and_margin_at_all_sizes(
+    context_limit: int, output_tokens: int, expected_input: int
+) -> None:
+    budget = tau_runner._context_budget(context_limit, output_tokens)
+    assert budget["max_input_tokens"] == expected_input
+    assert budget["max_output_tokens"] == output_tokens
+    assert budget["max_context_tokens"] == context_limit
+    assert budget["safety_margin_tokens"] == 32
+    assert json.loads(json.dumps(budget)) == budget
+
+
+def test_larger_context_margin_is_honored() -> None:
+    tau_runner._validate_context_allocation(24512, 8192, 32768, 64)
+    with pytest.raises(ValueError, match="32769 exceeds"):
+        tau_runner._validate_context_allocation(24513, 8192, 32768, 64)
+
+
+def test_help_does_not_run_preflight_or_access_services(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("help must not execute the runner or access services")
+
+    monkeypatch.setattr(tau_runner, "run_tau", forbidden)
+    monkeypatch.setattr(tau_runner.subprocess, "run", forbidden)
+    monkeypatch.setattr(tau_runner.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(tau_runner.importlib.metadata, "version", forbidden)
+    with pytest.raises(SystemExit) as result:
+        tau_runner.main(["--help"])
+    assert result.value.code == 0
+    assert "--model-id" in capsys.readouterr().out
 
 
 def test_external_key_uses_one_shot_descriptor_and_is_redacted() -> None:
@@ -201,3 +301,101 @@ def test_tau_worktree_allows_only_recorded_lockfile(
     )
     with pytest.raises(RuntimeError, match="modified tracked source"):
         tau_runner._tau_worktree_evidence(Path("/tau"))
+
+
+def test_receipt_distinguishes_requested_context_and_thinking_from_effective_behavior(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model_id = "qwen38-27b-source-bf16"
+    digest = "a" * 64
+    args = SimpleNamespace(
+        protocol=PROTOCOL,
+        manifest=tmp_path / "manifest",
+        model_id=model_id,
+        model_path=Path("/fixture/model"),
+        tau_checkout=Path("/fixture/tau"),
+        inputs_summary=tmp_path / "summary",
+        scored_ids=tmp_path / "ids",
+        server_receipt=tmp_path / "server",
+        endpoint="http://127.0.0.1:18083/v1",
+        user_model=tau_runner.TAU_EXTERNAL_MODEL,
+        nl_evaluator_model=tau_runner.TAU_EXTERNAL_MODEL,
+        external_llm_args=None,
+        external_api_key_fd=3,
+        result_dir=tmp_path / "results",
+        receipt=tmp_path / "receipt.json",
+    )
+    objects = {
+        args.inputs_summary: {
+            "protocol_sha256": digest,
+            "scored_samples": {"tau3-bench": 1},
+            "artifacts": {"tau3-scored-ids.json": digest},
+        },
+        args.scored_ids: {"airline": ["3"]},
+        args.server_receipt: {
+            "study_id": "qwen38-obliteration-2026-09",
+            "model_id": model_id,
+            "protocol_sha256": digest,
+        },
+    }
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for key in ("TOKENIZERS_PARALLELISM", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+        monkeypatch.setenv(key, "fixture")
+    monkeypatch.setattr(tau_runner.platform, "node", lambda: "basilisk")
+    monkeypatch.setattr(
+        tau_runner.importlib.metadata, "version", lambda _: tau_runner.TAU_PACKAGE_VERSION
+    )
+    monkeypatch.setattr(tau_runner, "_private_path", lambda *args: None)
+    monkeypatch.setattr(tau_runner, "_git_revision", lambda _: tau_runner.TAU_SOURCE_REVISION)
+    monkeypatch.setattr(tau_runner, "_tau_worktree_evidence", lambda _: {})
+    monkeypatch.setattr(tau_runner, "_load_object", lambda path, _: objects[path])
+    monkeypatch.setattr(tau_runner, "_sha256_file", lambda _: digest)
+    monkeypatch.setattr(tau_runner, "_verify_manifest", lambda *args: digest)
+    monkeypatch.setattr(tau_runner, "_validate_endpoint", lambda *args: None)
+    monkeypatch.setattr(tau_runner, "_read_secret_fd", lambda _: "fixture-external-secret")
+    captured = []
+
+    def simulated_task(config: Any, task: Any, **kwargs: Any) -> SimpleNamespace:
+        captured.append(config)
+        return SimpleNamespace(
+            seed=config.seed,
+            termination_reason="user_stop",
+            reward_info=SimpleNamespace(reward=1),
+            model_dump=lambda **kwargs: {"seed": config.seed},
+        )
+
+    modules = {
+        name: ModuleType(name)
+        for name in (
+            "tau2",
+            "tau2.evaluator",
+            "tau2.evaluator.evaluator_nl_assertions",
+            "tau2.evaluator.evaluator",
+            "tau2.data_model",
+            "tau2.data_model.simulation",
+            "tau2.run",
+        )
+    }
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+        if "." in name:
+            parent, child = name.rsplit(".", 1)
+            setattr(modules[parent], child, module)
+    modules["tau2.data_model.simulation"].TextRunConfig = lambda **kwargs: SimpleNamespace(**kwargs)
+    modules["tau2.evaluator.evaluator"].EvaluationType = SimpleNamespace(ALL="all")
+    modules["tau2.run"].get_tasks = lambda *args, **kwargs: [SimpleNamespace(id="3")]
+    modules["tau2.run"].run_single_task = simulated_task
+
+    receipt = tau_runner.run_tau(args)
+
+    assert len(captured) == 1
+    assert "metadata" not in captured[0].llm_args_agent
+    assert captured[0].llm_args_agent["extra_body"]["chat_template_kwargs"] == {
+        "enable_thinking": False
+    }
+    execution = receipt["execution"]
+    assert execution["context_budget"] == tau_runner._context_budget(32768, 8192)
+    assert execution["context_budget_enforcement"] == "declared-only-no-per-turn-guard"
+    assert execution["target_thinking_mode_requested"] == "disabled"
+    assert "target_thinking_mode" not in execution
+    assert json.loads(args.receipt.read_text())["execution"] == execution
