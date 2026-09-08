@@ -534,3 +534,41 @@ def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycl
         assert json.loads(lifecycle.path.read_text())["cleanup"] == "complete"
     finally:
         other.close()
+
+
+@pytest.mark.parametrize("change", ["source", "expiry"])
+def test_admission_changes_during_acquire_prevent_dispatch(
+    lifecycle, admission_plan, tmp_path, change
+):
+    import sys
+    import time
+    from pathlib import Path
+
+    if change == "expiry":
+        for check in admission_plan["checks"]:
+            check["freshness_seconds"] = 1
+    original = lifecycle.broker.call
+
+    def acquire_then_change(action, **fields):
+        response = original(action, **fields)
+        if action == "acquire":
+            if change == "source":
+                script = Path(admission_plan["checks"][0]["inputs"][0])
+                script.write_text(script.read_text() + "\n# changed during broker acquire\n")
+            else:
+                time.sleep(1.05)  # Real bounded expiry while the acquire RPC is outstanding.
+        return response
+
+    lifecycle.broker.call = acquire_then_change
+    launched = tmp_path / "launched"
+    with pytest.raises(ValueError, match="stale|changed"):
+        lifecycle.run(
+            [sys.executable, "-c", f"from pathlib import Path; Path({str(launched)!r}).touch()"],
+            preflight_plan=admission_plan,
+        )
+    assert not launched.exists()
+    assert "launcher" not in lifecycle.record
+    assert "state_before_launch" not in lifecycle.record
+    assert lifecycle.broker.released == ["private-token"]
+    assert lifecycle.record["cleanup"] == "complete"
+    assert not lifecycle.private.exists()

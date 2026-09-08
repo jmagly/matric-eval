@@ -414,7 +414,9 @@ class ResourceLifecycle:
                 if self.owned_lease() is not None:
                     raise RuntimeError("lease release not established")
             if not acquisition_settled(self.record):
-                raise RuntimeError("acquisition outcome unknown; absent lease is not completion proof")
+                raise RuntimeError(
+                    "acquisition outcome unknown; absent lease is not completion proof"
+                )
             private_token = (
                 json.loads(self.private.read_text()).get("token") if self.private.exists() else None
             )
@@ -508,6 +510,9 @@ class ResourceLifecycle:
             }
             for key, value in replacements.items():
                 command = [arg.replace(key, value) for arg in command]
+            # Acquisition may block while evidence expires or inputs change.
+            # Recheck before recording any launch or opening the dispatch gate.
+            validate_admission(admission, preflight_plan, 300)
             # Persist potential container creation before dispatch. A missing
             # container before dispatch is safe; lost launch acknowledgment stays pending.
             self.save(state="launching", state_before_launch="launched")
