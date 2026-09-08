@@ -1,0 +1,99 @@
+{
+  "broker_admission": {
+    "broker_request_id": "deb34c095613bc2e",
+    "execution_digest_binding": "unverified",
+    "http_attempts": 3,
+    "lane": "lane-1204",
+    "logical_request_id": "matric-runtime-5cedd3d7db684b429f110544af2e7bdc",
+    "queue_ms_including_warmup": 6876,
+    "queue_ticket": "32023",
+    "reason_code": "queue_admission_timeout",
+    "response_replayed": false
+  },
+  "broker_identity": {
+    "boot_id": "005f624c-1c59-40bc-b2fd-c44b4a41a2ee",
+    "execution_digest_binding": "unverified",
+    "files": [
+      {
+        "path": "/etc/default/ollama-unify-negotiator",
+        "sha256": "d1a3362f49166d1ad2134005f1b618bab47880937d845737b50c4de88bcabb0f"
+      },
+      {
+        "path": "/etc/default/ollama-unify-obliteratus",
+        "sha256": "70c569322f0dd5a5120d42d754e3699cc991b6bc62bdda5777fb02c0380b9ecc"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service",
+        "sha256": "8d17d0c51b3eab8faf0d9820ee46d084dc210a82aec5624b12016bde83887e8f"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/70-obliteratus-loading-window.conf",
+        "sha256": "d1413f46fe9ae2c548e91ef5577430e4b959a6e41892639ed4275af6d82f3f5d"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/state.conf",
+        "sha256": "45c191100d83d41c1691f781122ed7b23399861640573c4edf569d2f83aa3c3b"
+      },
+      {
+        "path": "/usr/local/libexec/ollama-unify-gpu-negotiator",
+        "sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e"
+      }
+    ],
+    "host": "basilisk",
+    "kind": "local_process_source_configuration",
+    "pid": 3149301,
+    "source_sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e",
+    "start_ticks": "55172164",
+    "unit": "ollama-unify-negotiator.service",
+    "unit_configuration_sha256": "e679479984cfa64dc218aa6c1b6d430adc3aba3b1b031b1a90dae619d2530749"
+  },
+  "client_response": "passed",
+  "execution_digest_binding": "unverified",
+  "live_qualification": "pending_broker_evidence",
+  "profile_sha256": "51b0fc945099ded15bef7774582a37b9f30a04d4e2b1f434520e93a9e01ddd2f",
+  "public_model_metadata": {
+    "before": {
+      "kind": "public_metadata_tag",
+      "model_digest": "3dd01e51cac784fe1603daab6461ec3fa1ac8850d71375bb1be0bd3cf5b1798e",
+      "execution_digest_binding": "unverified",
+      "request_id": "official-before"
+    },
+    "after": {
+      "kind": "public_metadata_tag",
+      "model_digest": "3dd01e51cac784fe1603daab6461ec3fa1ac8850d71375bb1be0bd3cf5b1798e",
+      "execution_digest_binding": "unverified",
+      "request_id": "official-after"
+    }
+  },
+  "reasoning_present": false,
+  "request_id": "matric-runtime-5cedd3d7db684b429f110544af2e7bdc",
+  "response_model_check": "client_reported_identity_only",
+  "retry_policy": "one_client_call_no_body_replay",
+  "schema": "matric-eval.client-conformance/1",
+  "tool_calls_present": false,
+  "allocation": {
+    "kind": "public_broker_lane_observation",
+    "lane": "lane-1204",
+    "gpu_uuid": "GPU-3538758b-6ba7-fa1b-a80c-e315a606c3f0",
+    "logical_request_id": "matric-runtime-5cedd3d7db684b429f110544af2e7bdc",
+    "broker_request_id": "deb34c095613bc2e",
+    "execution_digest_binding": "unverified",
+    "allocation_binding": "response_lane_and_current_public_mapping"
+  },
+  "official_harness": {
+    "entrypoint": "tau2.utils.llm_utils.generate",
+    "module_sha256": "61c422069a88057804bfcabba8beda1c88da09bcd344271ed468dff44f8eaca2",
+    "python": "3.12.3",
+    "versions": {
+      "litellm": "1.81.11",
+      "openai": "2.20.0",
+      "httpx": "0.28.1",
+      "pydantic": "2.12.4",
+      "pydantic-settings": "2.12.0",
+      "jsonschema": "4.25.1"
+    },
+    "response_role": "assistant",
+    "visible_output_present": true,
+    "tasks_executed": 0
+  }
+}
