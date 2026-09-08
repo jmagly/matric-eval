@@ -27,3 +27,24 @@ Docker list/inspect/stop/remove and NVIDIA process queries each have a 30-second
 subprocess deadline. Timeout preserves the cleanup record and private token;
 reconciliation can resume after the service recovers. Real orphan-process and
 hung-tool fixtures verify these boundaries on A100 without allocating a GPU.
+
+Acquisition records explicitly distinguish `not-sent`, `unknown`, and
+`acknowledged`. The controller persists `unknown` before the broker RPC; its
+10-second socket timeout is unchanged. An empty status response cannot discharge
+an unknown request: the server may still grant it later. Repeated empty responses,
+record age, and a legacy `cleanup=complete` without acquisition/release evidence
+are also insufficient. Such records remain pending and block overlapping attempts.
+The controller never retries an uncertain acquisition. Reconciliation recovers
+only the exact attempt owner's lease, durably records its identity, then releases
+it and verifies absence. A confirmed acquisition whose lease is now absent can
+complete, including after a lost release acknowledgment. Generic broker errors
+remain ambiguous because the protocol does not establish that they precede all
+side effects; an authoritative broker cancellation/outcome contract is required
+to discharge a request that never produces an observable lease.
+
+The delayed Unix-broker regression waits through the real socket timeout, returns
+an immediately empty status, then grants the request. It verifies pending cleanup,
+blocked retry, restart recovery, exact release, idempotence, and token-free public
+records. A separate legacy regression verifies that incorrectly completed old
+records block new allocation and recover a later grant. Neither fixture loads a
+model or requests a real GPU lease.
