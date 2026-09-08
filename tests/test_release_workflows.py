@@ -82,3 +82,53 @@ def test_release_audits_use_runtime_inventory_and_producer_status() -> None:
         "--audit-exit-codes release-artifacts/evidence/audit-exit-codes.json"
         in vulnerabilities["run"]
     )
+
+
+def test_tag_wrapper_checks_clean_main_and_never_pushes(tmp_path: Path) -> None:
+    import subprocess
+
+    repo = tmp_path / "source"
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True)
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    for key, value in (
+        ("user.name", "Fixture"),
+        ("user.email", "fixture@example.invalid"),
+        ("commit.gpgsign", "false"),
+        ("tag.gpgsign", "false"),
+    ):
+        git("config", key, value)
+    (repo / "scripts").mkdir()
+    # Helper behavior is qualified separately by HTTP/source contract fixtures.
+    for name in ("release_contract.py", "publish_forge_release.py"):
+        (repo / "scripts" / name).write_text("print('verified fixture')\n")
+    notes = repo / "docs/releases/2026.9.0.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("Prepared release\n")
+    (repo / "CHANGELOG.md").write_text("## [2026.9.0]\n")
+    git("add", ".")
+    git("commit", "-m", "fixture")
+    git("remote", "add", "origin", str(remote))
+    git("push", "-u", "origin", "main")
+    command = ["bash", str(ROOT / "tools/release/cut-tag.sh"), "2026.9.0"]
+    subprocess.run([*command, "--check"], cwd=repo, check=True, capture_output=True)
+    assert git("tag", "--list") == ""
+    notes.write_text("uncommitted change\n")
+    assert subprocess.run(command, cwd=repo, capture_output=True).returncode != 0
+    git("restore", "docs/releases/2026.9.0.md")
+    subprocess.run(command, cwd=repo, check=True, capture_output=True)
+    assert git("tag", "--list") == "v2026.9.0"
+    assert git("ls-remote", "--tags", "origin") == ""
+    assert subprocess.run(command, cwd=repo, capture_output=True).returncode != 0
+    git("tag", "-d", "v2026.9.0")
+    notes.write_text("unreviewed commit\n")
+    git("add", ".")
+    git("commit", "-m", "not on main remote")
+    assert subprocess.run(command, cwd=repo, capture_output=True).returncode != 0
+    assert git("tag", "--list") == ""
