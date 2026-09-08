@@ -139,6 +139,18 @@ class Docker:
         return Path(f"/proc/{pid}/cgroup").read_text()
 
 
+def acquisition_settled(record: dict[str, Any]) -> bool:
+    """Absence proves nothing about an RPC that may still create a lease.
+
+    Legacy completion alone is not evidence. A persisted lease identity or
+    release acknowledgment does establish that the single acquisition finished.
+    """
+    outcome = record.get("acquisition_outcome")
+    if outcome is not None:
+        return outcome in {"not-sent", "acknowledged"}
+    return bool(record.get("lease_sha256") or record.get("lease_release_acknowledged_at"))
+
+
 class ResourceLifecycle:
     """The directory is private; record.json contains no lease token.
 
@@ -212,6 +224,7 @@ class ResourceLifecycle:
             state="planned",
             cleanup="pending",
             cuda_pids=[],
+            acquisition_outcome="not-sent",
         )
 
     def acquire(self, mib: int = 75000) -> str:
@@ -220,15 +233,19 @@ class ResourceLifecycle:
             return self._acquire(mib)
 
     def _acquire(self, mib: int) -> str:
+        if self.record.get("acquisition_outcome") != "not-sent":
+            raise RuntimeError("acquisition already attempted; reconcile before a new attempt")
         for candidate in self.directory.parent.glob("*/record.json"):
             if candidate == self.path:
                 continue
             existing = json.loads(candidate.read_text())
-            if existing.get("cleanup") != "complete" and set(existing.get("gpu_uuids", [])) & set(
-                self.record["gpu_uuids"]
+            if (existing.get("cleanup") != "complete" or not acquisition_settled(existing)) and (
+                set(existing.get("gpu_uuids", [])) & set(self.record["gpu_uuids"])
             ):
                 raise RuntimeError("another attempt has an unresolved cleanup obligation")
-        self.save(state="acquiring")
+        # Persist before sending: timeout, cancellation, malformed responses and
+        # process death all leave an unresolved, possibly still running request.
+        self.save(state="acquiring", acquisition_outcome="unknown")
         response = self.broker.call(
             "acquire",
             owner=self.record["owner"],
@@ -246,6 +263,7 @@ class ResourceLifecycle:
         atomic(self.private, {"token": lease["token"]})
         self.save(
             state="leased",
+            acquisition_outcome="acknowledged",
             lease_sha256=hashlib.sha256(lease["token"].encode()).hexdigest(),
         )
 
@@ -340,7 +358,7 @@ class ResourceLifecycle:
         try:
             if self.record.get("host", socket.gethostname()) != socket.gethostname():
                 raise RuntimeError("reconciliation requires the owning host")
-            if self.record.get("cleanup") == "complete":
+            if self.record.get("cleanup") == "complete" and acquisition_settled(self.record):
                 if recover_storage:
                     from matric_eval.studies.storage_lifecycle import recover_resource_storage
 
@@ -395,10 +413,15 @@ class ResourceLifecycle:
             self.save(cuda_release_verified_at=time.time())
             lease = self.owned_lease()
             if lease is not None:
+                # Recover a lost acquire acknowledgment before release, so a
+                # subsequent lost release acknowledgment remains reconcilable.
+                self.accept_lease(lease)
                 self.broker.call("release", token=lease["token"])
                 self.save(lease_release_acknowledged_at=time.time())
                 if self.owned_lease() is not None:
                     raise RuntimeError("lease release not established")
+            if not acquisition_settled(self.record):
+                raise RuntimeError("acquisition outcome unknown; absent lease is not completion proof")
             private_token = (
                 json.loads(self.private.read_text()).get("token") if self.private.exists() else None
             )

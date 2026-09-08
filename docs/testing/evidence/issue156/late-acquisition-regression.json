@@ -1,0 +1,24 @@
+{
+  "schema": "matric-eval.manual-qualification/1",
+  "issue": 156,
+  "environment": "A100 dedicated checkout; locked Python 3.11 environment; absolute checkout PYTHONPATH",
+  "base_commit": "b3cec3866da532a2ec1e834bdefc61846241cc1b",
+  "checkout": "/srv/matric-eval/workspaces/matric-eval-156-late-acquire",
+  "log": "/srv/matric-eval/workspaces/matric-eval-156-late-acquire/late-acquire-tests.log",
+  "tests": {"passed": 45, "failed": 0, "seconds": 19.08},
+  "ruff": "passed",
+  "strict_mypy": "passed",
+  "delayed_unix_broker": {
+    "actual_client_socket_timeout_seconds": 10,
+    "initial_empty_status_cleanup": "pending",
+    "duplicate_acquire": "blocked",
+    "restart_late_owner_lease_recovery": "passed",
+    "exact_release_and_verified_absence": "passed",
+    "repeated_reconcile": "passed",
+    "public_token_absent": true
+  },
+  "legacy_false_complete": "reopened; blocks overlapping allocation; repeated absence remains pending; late grant recovered",
+  "real_gpu_allocations": 0,
+  "target_model_loads": 0,
+  "limitation": "Generic broker errors remain ambiguous without an authoritative no-side-effects cancellation or outcome contract. No timeout increase or elapsed-time completion assumption."
+}

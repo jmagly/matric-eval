@@ -439,3 +439,98 @@ def test_tool_timeout_retains_lease_obligation(lifecycle, tmp_path, monkeypatch)
     assert lifecycle.record["reason"] == "TimeoutExpired"
     assert not lifecycle.broker.released
     assert lifecycle.private.exists()
+
+
+def test_delayed_unix_acquisition_cannot_be_discharged_by_empty_status(tmp_path):
+    import json
+    import socket
+    import threading
+
+    from matric_eval.studies.resource_lifecycle import Broker
+
+    path = str(tmp_path / "delayed.sock")
+    errors = []
+    delayed = []
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(path)
+        server.listen()
+        server.settimeout(20)
+
+        def respond():
+            leases = []
+            pending = None
+            try:
+                for index in range(5):
+                    client, _ = server.accept()
+                    request = json.loads(client.recv(4096))
+                    if index == 0:
+                        assert request["action"] == "acquire"
+                        pending = {
+                            "owner": request["owner"],
+                            "gpu_uuids": request["gpu_uuids"],
+                            "token": "delayed-private-token",
+                        }
+                        # Keep the real RPC unanswered beyond its 10-second
+                        # deadline. The server has not granted anything yet.
+                        delayed.append(client)
+                        continue
+                    with client:
+                        if index == 2:
+                            leases.append(pending)
+                        if request["action"] == "release":
+                            assert request["token"] == "delayed-private-token"
+                            leases.clear()
+                        client.sendall(json.dumps({"ok": True, "leases": leases}).encode() + b"\n")
+            except Exception as error:
+                errors.append(error)
+            finally:
+                for client in delayed:
+                    client.close()
+
+        worker = threading.Thread(target=respond, daemon=True)
+        worker.start()
+        value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
+        try:
+            value.prepare("run", "attempt", "GPU-owned", "test")
+            with pytest.raises(TimeoutError):
+                value.acquire()
+            assert value.record["acquisition_outcome"] == "unknown"
+            assert not value.reconcile()  # First status is empty, request still running.
+            assert value.record["cleanup"] == "pending"
+            with pytest.raises(RuntimeError, match="already attempted"):
+                value.acquire()
+            value.close()
+            value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
+            assert value.reconcile()  # Later status exposes the exact owner's late grant.
+            assert value.record["acquisition_outcome"] == "acknowledged"
+            assert value.record["lease_release_acknowledged_at"] > 0
+            assert value.reconcile()
+            assert "delayed-private-token" not in value.path.read_text()
+            assert not value.private.exists()
+        finally:
+            value.close()
+            worker.join(timeout=20)
+        assert not worker.is_alive()
+        assert not errors
+
+
+def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycle, tmp_path):
+    import json
+
+    lifecycle.record.pop("acquisition_outcome")
+    lifecycle.save(state="stopped", cleanup="complete")
+    other = ResourceLifecycle(tmp_path / "other", FakeBroker(), FakeDocker())
+    try:
+        other.prepare("run", "new", "GPU-owned", "test")
+        with pytest.raises(RuntimeError, match="unresolved"):
+            other.acquire()
+        assert not lifecycle.reconcile()
+        # Neither age nor repeated empty statuses resolves an unknown request.
+        lifecycle.save(updated_at=0, cuda_release_verified_at=0)
+        assert not lifecycle.reconcile()
+        lifecycle.broker.call("acquire", owner=lifecycle.record["owner"], gpu_uuids=["GPU-owned"])
+        assert lifecycle.reconcile()
+        assert lifecycle.broker.released == ["private-token"]
+        assert json.loads(lifecycle.path.read_text())["cleanup"] == "complete"
+    finally:
+        other.close()
