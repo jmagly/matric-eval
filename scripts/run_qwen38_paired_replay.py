@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
-OUT = STUDY / "replay-20260908-r4"
+OUT = STUDY / "replay-20260908-r5"
 TAU = Path("/srv/matric-eval/benchmarks/tau2-qwen38-simulator-guard-v3")
 HARBOR = Path("/srv/matric-eval/benchmarks/harbor-qwen38-terminal-runtime-guard")
 TERMINAL = Path("/srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1")
@@ -84,6 +84,38 @@ def check_space():
         st = os.statvfs(path)
         if st.f_bavail * st.f_frsize < floor * 1024**3:
             raise RuntimeError(f"Free space below {floor} GiB at {path}")
+
+
+def stop_server(unit):
+    subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
+    containers = subprocess.check_output(
+        [
+            "sudo",
+            "-n",
+            "docker",
+            "--host",
+            "unix:///run/matric-eval-docker.sock",
+            "ps",
+            "-a",
+            "--format",
+            "{{.Names}}",
+        ],
+        text=True,
+    ).splitlines()
+    if unit in containers:
+        raise RuntimeError("Run container remains; refusing to release its GPU lease")
+    leases = json.loads(
+        subprocess.check_output(["sudo", "-n", "docker", "gpu", "status"], text=True)
+    )["leases"]
+    for lease in leases:
+        if lease.get("owner") == unit and lease.get("gpu_uuids") == [GPU]:
+            result = subprocess.run(
+                ["sudo", "-n", "docker", "gpu", "release", lease["token"]],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode:
+                raise RuntimeError("Run GPU lease release failed")
 
 
 def main():
@@ -328,7 +360,7 @@ def main():
                 ],
                 29000,
             )
-            subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
+            stop_server(unit)
             unit = None
         save(status="complete", model=None)
     except BaseException as error:
@@ -336,7 +368,7 @@ def main():
         raise
     finally:
         if unit:
-            subprocess.run(["sudo", "-n", "systemctl", "stop", unit], timeout=150)
+            stop_server(unit)
 
 
 if __name__ == "__main__":
