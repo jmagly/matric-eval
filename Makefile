@@ -27,8 +27,12 @@ test-coverage:  ## Run tests with coverage report
 	@echo ""
 	@echo "HTML coverage report: htmlcov/index.html"
 
-test-coverage-fail:  ## Run tests with coverage, fail if below 80%
-	uv run pytest --cov=matric_eval --cov-report=term-missing --cov-fail-under=80
+test-coverage-fail:  ## Combine main and mandatory isolated client coverage; enforce 80%
+	rm -f .coverage .coverage.main .coverage.client
+	COVERAGE_FILE=.coverage.main uv run pytest --cov=matric_eval --cov-report=term-missing --cov-fail-under=0
+	env -u UV_PROJECT_ENVIRONMENT -u UV_NO_SYNC -u VIRTUAL_ENV uv run --locked --python 3.11 --project tests/profiles/client-conformance python scripts/run_client_conformance_tests.py
+	COVERAGE_FILE=.coverage uv run coverage combine --keep .coverage.main .coverage.client
+	COVERAGE_FILE=.coverage uv run coverage report --fail-under=80
 
 lint:  ## Run code linters
 	uv run ruff check src/ tests/ scripts/

@@ -8,10 +8,17 @@ import os
 import sys
 from pathlib import Path
 
+import coverage
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {"litellm": "1.81.11", "openai": "2.20.0", "httpx": "0.28.1", "pydantic": "2.12.4"}
+EXPECTED = {
+    "litellm": "1.81.11",
+    "openai": "2.20.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.12.4",
+    "coverage": "7.15.3",
+}
 
 
 class NoSkippedTests:
@@ -34,18 +41,27 @@ def main() -> int:
     os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
     sys.path.insert(0, str(ROOT / "src"))
     plugin = NoSkippedTests()
-    result = pytest.main(
-        [
-            "-c",
-            str(ROOT / "tests/profiles/client-conformance/pyproject.toml"),
-            "--confcutdir",
-            str(ROOT / "tests/unit"),
-            str(ROOT / "tests/unit/test_client_conformance.py"),
-            "-q",
-            "--junitxml=client-conformance-junit.xml",
-        ],
-        plugins=[plugin],
+    os.chdir(ROOT)
+    measurement = coverage.Coverage(
+        config_file=str(ROOT / "pyproject.toml"), data_file=str(ROOT / ".coverage.client")
     )
+    measurement.start()
+    try:
+        result = pytest.main(
+            [
+                "-c",
+                str(ROOT / "tests/profiles/client-conformance/pyproject.toml"),
+                "--confcutdir",
+                str(ROOT / "tests/unit"),
+                str(ROOT / "tests/unit/test_client_conformance.py"),
+                "-q",
+                "--junitxml=client-conformance-junit.xml",
+            ],
+            plugins=[plugin],
+        )
+    finally:
+        measurement.stop()
+        measurement.save()
     return 1 if plugin.skipped else int(result)
 
 
