@@ -73,3 +73,21 @@ def supervise_command(
         raise click.ClickException(str(error)) from None
     click.echo(json.dumps(status.read()["terminal_event"]))
     raise click.exceptions.Exit(code)
+
+
+@study_run.command("preflight")
+@click.argument("plan", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("receipt", type=click.Path(path_type=Path))
+@click.option(
+    "--launch", is_flag=True, help="Acquire target and invoke adapter only after admission."
+)
+def preflight_command(plan: Path, receipt: Path, launch: bool) -> None:
+    """Validate a staged execution PLAN in the actual caller service context."""
+    from matric_eval.studies.preflight import execute_plan
+
+    try:
+        result = execute_plan(json.loads(plan.read_text()), receipt, launch=launch)
+    except (ValueError, OSError) as error:
+        raise click.ClickException(str(error)) from None
+    click.echo(json.dumps(result, allow_nan=False))
+    raise click.exceptions.Exit(0 if result["completed"] else 1)

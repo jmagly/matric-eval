@@ -46,15 +46,16 @@ def test_protocol_and_generation_seed_match_study_contract() -> None:
 
 
 @pytest.mark.parametrize("cohort", ["pilot", "full"])
-def test_manifest_and_scored_ids_require_exact_order(tmp_path: Path, cohort: str) -> None:
+def test_manifest_and_scored_ids_restore_exact_order(tmp_path: Path, cohort: str) -> None:
     scored = {"airline": ["3"], "retail": ["43", "47"]}
     flattened = tau_runner._flatten_scored_ids(scored)
     assert flattened == ["airline:3", "retail:43", "retail:47"]
 
+    selected = ["retail:43", "airline:3", "retail:47"]
     manifest = {
         "study_id": "study",
         "cohort": cohort,
-        "allocations": [{"allocation_id": "tau3-bench", "selected_ids": flattened}],
+        "allocations": [{"allocation_id": "tau3-bench", "selected_ids": selected}],
     }
     manifest_hash = hashlib.sha256(
         json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
@@ -72,12 +73,22 @@ def test_manifest_and_scored_ids_require_exact_order(tmp_path: Path, cohort: str
         )
         == manifest_hash
     )
-    with pytest.raises(ValueError, match="exactly match"):
+    grouped = list(reversed(flattened))
+    tau_runner._verify_manifest(
+        path, {"manifest_sha256": manifest_hash, "cohort": cohort}, grouped, "study"
+    )
+    assert grouped == selected
+    assert json.loads(path.read_text())["allocations"][0]["selected_ids"] == selected
+    for invalid in (flattened[:-1], flattened + [flattened[0]], ["substituted:1", *flattened[1:]]):
+        with pytest.raises(ValueError, match="exactly match"):
+            tau_runner._verify_manifest(
+                path, {"manifest_sha256": manifest_hash, "cohort": cohort}, invalid, "study"
+            )
+    manifest["study_id"] = "tampered"
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="hash"):
         tau_runner._verify_manifest(
-            path,
-            {"manifest_sha256": manifest_hash, "cohort": cohort},
-            list(reversed(flattened)),
-            "study",
+            path, {"manifest_sha256": manifest_hash, "cohort": cohort}, flattened, "study"
         )
 
 
