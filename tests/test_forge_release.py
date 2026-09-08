@@ -110,19 +110,13 @@ def forge(source, monkeypatch):
                 page, limit = int(query["page"][0]), int(query["limit"][0])
                 self.reply(
                     {
-                        "workflow_runs": state["runs"][
-                            (page - 1) * limit : page * limit
-                        ],
+                        "workflow_runs": state["runs"][(page - 1) * limit : page * limit],
                         "total_count": len(state["runs"]),
                     }
                 )
             elif "/actions/runs/" in path:
                 self.reply(
-                    next(
-                        row
-                        for row in state["runs"]
-                        if row["id"] == int(path.rsplit("/", 1)[1])
-                    )
+                    next(row for row in state["runs"] if row["id"] == int(path.rsplit("/", 1)[1]))
                 )
             elif "/releases/tags/" in path:
                 self.reply(state["release"] or {}, 200 if state["release"] else 404)
@@ -244,10 +238,7 @@ def artifacts(source, tmp_path):
         "typescript-sbom.cdx.json": {"bomFormat": "CycloneDX"},
     }
     files.update(
-        {
-            "evidence/" + name: json.dumps(value).encode()
-            for name, value in reports.items()
-        }
+        {"evidence/" + name: json.dumps(value).encode() for name, value in reports.items()}
     )
     files.update(
         {
@@ -295,9 +286,7 @@ def artifacts(source, tmp_path):
     }
 
 
-def test_draft_published_only_after_all_assets_and_published_retry_read_only(
-    forge, artifacts
-):
+def test_draft_published_only_after_all_assets_and_published_retry_read_only(forge, artifacts):
     client, state = forge
     result = release.publish(client, **artifacts)
     assert result["published"] and state["events"][0] == "draft"
@@ -373,9 +362,7 @@ def test_unproved_source_or_evidence_prevents_every_mutation(forge, artifacts, f
     elif failure == "dirty":
         artifacts["notes"].write_text("mutated\n")
     elif failure == "manifest":
-        (artifacts["artifact_root"] / "packages/python/package.whl").write_bytes(
-            b"changed"
-        )
+        (artifacts["artifact_root"] / "packages/python/package.whl").write_bytes(b"changed")
     else:
         with tarfile.open(artifacts["bundle"], "w:gz"):
             pass
@@ -384,9 +371,7 @@ def test_unproved_source_or_evidence_prevents_every_mutation(forge, artifacts, f
     assert not state["events"]
 
 
-def test_paginated_ci_and_latest_pending_attempt_do_not_accept_old_success(
-    forge, artifacts
-):
+def test_paginated_ci_and_latest_pending_attempt_do_not_accept_old_success(forge, artifacts):
     client, state = forge
     good = state["runs"][0]
     state["runs"] = [
@@ -394,13 +379,8 @@ def test_paginated_ci_and_latest_pending_attempt_do_not_accept_old_success(
         {**good, "id": 2, "head_sha": "e" * 40},
         good,
     ]
-    assert (
-        release.verify(client, TAG, artifacts["commit"], artifacts["root"])["ci_run_id"]
-        == 7
-    )
-    state["runs"].insert(
-        0, {**good, "id": 9, "status": "in_progress", "conclusion": "success"}
-    )
+    assert release.verify(client, TAG, artifacts["commit"], artifacts["root"])["ci_run_id"] == 7
+    state["runs"].insert(0, {**good, "id": 9, "status": "in_progress", "conclusion": "success"})
     with pytest.raises(release.Refused, match="unavailable"):
         release.verify(client, TAG, artifacts["commit"], artifacts["root"])
 
@@ -408,10 +388,7 @@ def test_paginated_ci_and_latest_pending_attempt_do_not_accept_old_success(
 def test_source_only_verification_does_not_require_a_tag(forge, artifacts):
     client, state = forge
     state["commit"] = "f" * 40
-    assert (
-        release.verify(client, None, artifacts["commit"], artifacts["root"])["tag"]
-        is None
-    )
+    assert release.verify(client, None, artifacts["commit"], artifacts["root"])["tag"] is None
 
 
 @pytest.mark.parametrize(
@@ -468,9 +445,7 @@ def test_wait_is_bounded(forge, artifacts, wait):
         release.verify(client, TAG, artifacts["commit"], artifacts["root"], wait)
 
 
-@pytest.mark.parametrize(
-    "evidence", ["license", "consumer", "matrix", "source", "missing"]
-)
+@pytest.mark.parametrize("evidence", ["license", "consumer", "matrix", "source", "missing"])
 def test_rebound_manifest_cannot_bypass_evidence_contract(forge, artifacts, evidence):
     client, state = forge
     target = artifacts["artifact_root"]
@@ -539,15 +514,11 @@ def test_wait_observes_pending_ci_become_success(forge, artifacts, monkeypatch):
         state["runs"][0].update(status="completed", conclusion="success")
 
     monkeypatch.setattr(release.time, "sleep", finish)
-    result = release.verify(
-        client, TAG, artifacts["commit"], artifacts["root"], wait_seconds=1
-    )
+    result = release.verify(client, TAG, artifacts["commit"], artifacts["root"], wait_seconds=1)
     assert result["ci_run_id"] == 7
 
 
-def test_git_auth_is_ephemeral_environment_not_argv_or_saved_config(
-    tmp_path, monkeypatch
-):
+def test_git_auth_is_ephemeral_environment_not_argv_or_saved_config(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     captured = {}
@@ -562,10 +533,7 @@ def test_git_auth_is_ephemeral_environment_not_argv_or_saved_config(
     release.git(tmp_path, "fetch", "origin")
     assert secret not in repr(captured["command"])
     assert "config" not in captured["command"]
-    assert (
-        captured["env"]["GIT_CONFIG_KEY_0"]
-        == "http.https://git.integrolabs.net/.extraheader"
-    )
+    assert captured["env"]["GIT_CONFIG_KEY_0"] == "http.https://git.integrolabs.net/.extraheader"
     assert captured["env"]["GIT_CONFIG_VALUE_0"].startswith("Authorization: Basic ")
     assert captured["env"]["GIT_CONFIG_KEY_1"] == "http.followRedirects"
     assert captured["env"]["GIT_CONFIG_VALUE_1"] == "false"

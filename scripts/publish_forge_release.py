@@ -58,8 +58,7 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
         require(
             urllib.parse.urlsplit(newurl).netloc == urllib.parse.urlsplit(SERVER).netloc
-            and urllib.parse.urlsplit(newurl).scheme
-            == urllib.parse.urlsplit(SERVER).scheme,
+            and urllib.parse.urlsplit(newurl).scheme == urllib.parse.urlsplit(SERVER).scheme,
             "cross-origin redirect refused",
         )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -108,17 +107,13 @@ class Forge:
         except urllib.error.HTTPError as error:
             if missing and error.code == 404:
                 return None
-            raise Refused(
-                f"canonical API {method} failed with HTTP {error.code}"
-            ) from None
+            raise Refused(f"canonical API {method} failed with HTTP {error.code}") from None
         except (OSError, urllib.error.URLError) as error:
             raise Refused(
                 f"canonical API {method} transport failed ({type(error).__name__})"
             ) from None
 
-    def json(
-        self, method: str, path: str, value: Any = None, *, missing: bool = False
-    ) -> Any:
+    def json(self, method: str, path: str, value: Any = None, *, missing: bool = False) -> Any:
         data = self.request(
             method,
             path,
@@ -153,10 +148,7 @@ def git(root: Path, *args: str) -> str:
     environment = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     token = os.environ.get("RELEASE_TOKEN")
     if token:
-        header = (
-            "Authorization: Basic "
-            + base64.b64encode(("oauth2:" + token).encode()).decode()
-        )
+        header = "Authorization: Basic " + base64.b64encode(("oauth2:" + token).encode()).decode()
         environment.update(
             GIT_CONFIG_COUNT="3",
             GIT_CONFIG_KEY_0="http.https://git.integrolabs.net/.extraheader",
@@ -200,9 +192,7 @@ def verify_source(forge: Forge, tag: str | None, commit: str, root: Path) -> Non
         ),
         "origin is not the canonical repository",
     )
-    require(
-        git(root, "rev-parse", "HEAD") == commit, "checkout does not match source SHA"
-    )
+    require(git(root, "rev-parse", "HEAD") == commit, "checkout does not match source SHA")
     git(root, "diff", "--quiet", "HEAD", "--")
     arguments = ["fetch", "--no-tags"]
     if git(root, "rev-parse", "--is-shallow-repository") == "true":
@@ -220,9 +210,7 @@ def verify_source(forge: Forge, tag: str | None, commit: str, root: Path) -> Non
 def verify(
     forge: Forge, tag: str | None, commit: str, root: Path, wait_seconds: float = 0
 ) -> dict[str, Any]:
-    require(
-        0 <= wait_seconds <= 1800, "wait must be finite and between 0 and 1800 seconds"
-    )
+    require(0 <= wait_seconds <= 1800, "wait must be finite and between 0 and 1800 seconds")
     verify_source(forge, tag, commit, root)
     deadline = time.monotonic() + wait_seconds
     while True:
@@ -231,8 +219,7 @@ def verify(
             row
             for row in runs
             if row.get("head_sha") == commit
-            and str(row.get("path", "")).split("@", 1)[0]
-            in ("ci.yml", ".gitea/workflows/ci.yml")
+            and str(row.get("path", "")).split("@", 1)[0] in ("ci.yml", ".gitea/workflows/ci.yml")
         ]
         if candidates:
             latest = max(
@@ -264,8 +251,7 @@ def verify(
                     "ci_attempt": latest.get("run_attempt", 0),
                 }
             require(
-                status
-                in ("", "queued", "pending", "waiting", "running", "in_progress"),
+                status in ("", "queued", "pending", "waiting", "running", "in_progress"),
                 "latest exact-SHA canonical CI did not succeed",
             )
         require(
@@ -275,9 +261,7 @@ def verify(
         time.sleep(min(5, max(0, deadline - time.monotonic())))
 
 
-def snapshot(
-    artifact_root: Path, bundle: Path, tag: str, commit: str
-) -> dict[str, bytes]:
+def snapshot(artifact_root: Path, bundle: Path, tag: str, commit: str) -> dict[str, bytes]:
     version = version_for(tag, commit)
     root = artifact_root.resolve(strict=True)
     files: dict[str, bytes] = {}
@@ -325,11 +309,7 @@ def snapshot(
         "checksum inventory mismatch",
     )
     require(
-        all(
-            sums[name] == digest(data)
-            for name, data in files.items()
-            if name != "SHA256SUMS"
-        ),
+        all(sums[name] == digest(data) for name, data in files.items() if name != "SHA256SUMS"),
         "checksum content mismatch",
     )
     required = {
@@ -359,8 +339,7 @@ def snapshot(
     reports = {name: json.loads(files[f"evidence/{name}"]) for name in required}
     versions = reports["version-surfaces.json"]
     require(
-        versions["version"] == version
-        and set(versions["surfaces"].values()) == {version},
+        versions["version"] == version and set(versions["surfaces"].values()) == {version},
         "version evidence mismatch",
     )
     clean = reports["clean-install-validation.json"]
@@ -410,8 +389,7 @@ def snapshot(
         "license review not accepted",
     )
     require(
-        vulnerabilities["unaccepted"] == []
-        and vulnerabilities["summary"]["unaccepted"] == 0,
+        vulnerabilities["unaccepted"] == [] and vulnerabilities["summary"]["unaccepted"] == 0,
         "vulnerability review not accepted",
     )
     require(
@@ -434,8 +412,7 @@ def snapshot(
         for member in archive:
             name = member.name.removeprefix("./")
             require(
-                not PurePosixPath(name).is_absolute()
-                and ".." not in PurePosixPath(name).parts,
+                not PurePosixPath(name).is_absolute() and ".." not in PurePosixPath(name).parts,
                 "unsafe bundle path",
             )
             if member.isdir():
@@ -542,9 +519,7 @@ def publish(
             item["name"] == name and item["size"] == len(data),
             "release asset metadata mismatch",
         )
-        downloaded = forge.request(
-            "GET", item["browser_download_url"], maximum=len(data)
-        )
+        downloaded = forge.request("GET", item["browser_download_url"], maximum=len(data))
         require(
             downloaded is not None and digest(downloaded) == digest(data),
             "release asset content mismatch",
@@ -561,10 +536,7 @@ def publish(
         data = assets[item["name"]]
         require(
             item["size"] == len(data)
-            and digest(
-                forge.request("GET", item["browser_download_url"], maximum=len(data))
-                or b""
-            )
+            and digest(forge.request("GET", item["browser_download_url"], maximum=len(data)) or b"")
             == digest(data),
             "final release asset content mismatch",
         )
@@ -608,9 +580,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         forge = Forge(os.environ.get("RELEASE_TOKEN", ""))
-        require(
-            args.command == "verify-source" or args.tag is not None, "tag is required"
-        )
+        require(args.command == "verify-source" or args.tag is not None, "tag is required")
         require(
             args.command != "verify-source" or args.tag is None,
             "verify-source does not take a tag",
