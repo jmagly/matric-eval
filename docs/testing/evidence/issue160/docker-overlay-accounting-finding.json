@@ -1,0 +1,68 @@
+{
+  "schema": "matric-eval.storage-qualification-finding/1",
+  "source_revision": "ad41b04789ca39f9e5c22d5ede1f528ec665c79c",
+  "result": "measurement_false_positive_fixed",
+  "finding": "Recursive Docker-root scan counted the mounted merged image view as new storage; backing-device-only accounting fixes this. This is not evidence of 18.96GB physical growth.",
+  "raw_receipt_path": "/srv/matric-eval/results/qwen38-obliteration-2026-09/run-control/storage160-qualification-1788902220153994635/ledger/c393a45a8a1f470dbc9737103993584f.receipt.json",
+  "raw_receipt_sha256": "c07e44beead33909f35f71c9715e78554f254968f95ebb4cf277354e890bace2",
+  "failure": "storage_budget_exceeded: docker: {'bytes': 18955866112, 'inodes': 112206}",
+  "samples": [
+    {
+      "phase": "before-preflight",
+      "elapsed_seconds": 0.08991842099931091,
+      "docker_growth": {
+        "bytes": 0,
+        "inodes": 0
+      }
+    },
+    {
+      "phase": "before-target-load",
+      "elapsed_seconds": 266.72823948191945,
+      "docker_growth": {
+        "bytes": 0,
+        "inodes": 0
+      }
+    },
+    {
+      "phase": "loading",
+      "elapsed_seconds": 272.3163933790056,
+      "docker_growth": {
+        "bytes": 18955866112,
+        "inodes": 112206
+      }
+    },
+    {
+      "phase": "before-resource-cleanup",
+      "elapsed_seconds": 273.6662088399753,
+      "docker_growth": {
+        "bytes": 18955866112,
+        "inodes": 112206
+      }
+    },
+    {
+      "phase": "after-resource-cleanup",
+      "elapsed_seconds": 278.69182646193076,
+      "docker_growth": {
+        "bytes": 0,
+        "inodes": 0
+      }
+    }
+  ],
+  "resource_cleanup": true,
+  "scoring_requests": 0,
+  "regression": {
+    "host": "basilisk",
+    "private_mount_namespace": true,
+    "bounded_tmpfs_bytes": 1048576,
+    "bounded_tmpfs_inodes": 32,
+    "backing_device_usage": [
+      8192,
+      2
+    ],
+    "all_mounted_views": [
+      40960,
+      4
+    ],
+    "passed": true
+  }
+}

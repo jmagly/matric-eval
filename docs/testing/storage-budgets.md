@@ -138,6 +138,18 @@ bounds: it uses a finite reservation of at least 64 MiB and 4096 inodes plus
 conservative shared-root growth monitoring, not a kernel quota. Application
 writes remain on bounded bind mounts. Shared-root measurements may include
 unrelated activity and do not attribute all daemon metadata to this container.
+Docker measurements count the backing data-root device, excluding mounted merged
+overlay views that expose existing image blocks again. A real first attempt
+identified this [accounting false positive](evidence/issue160/docker-overlay-accounting-finding.json);
+its container and lease were cleaned up before the corrected retry.
+
+The supported adapter requires a local Unix Docker socket whose peer credentials
+identify `dockerd` in the same mount namespace as the controller. Client-only
+private mounts cannot attest bounds for an external daemon and are rejected
+before reservation or GPU acquisition. A100 qualification verified both the
+actual host daemon match and rejection from a private client namespace.
+Zero-growth model allocations may reside on read-only filesystems; writable
+allocations and the emergency ledger still require writable mounts.
 
 The monitor samples the exact owned container PID/cgroup through loading and
 readiness. A monitor failure interrupts its own controller, which follows the
