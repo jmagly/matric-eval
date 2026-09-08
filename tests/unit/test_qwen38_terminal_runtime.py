@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import ctypes
 import hashlib
+import os
 import sys
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -99,15 +103,25 @@ def test_watchdog_terminates_then_kills_one_process_group(
 
         def wait(self, timeout: float) -> int:
             waits.append(timeout)
-            if len(waits) < 3:
+            if len(waits) == 1:
                 raise runtime.subprocess.TimeoutExpired(["fixture"], timeout)
             return -9
+
+        def poll(self) -> int | None:
+            return None
 
     process = Process()
     monkeypatch.setattr(runtime.subprocess, "Popen", lambda *args, **kwargs: process)
     signals: list[tuple[int, int]] = []
     monkeypatch.setattr(runtime.os, "killpg", lambda pid, signum: signals.append((pid, signum)))
-    ticks = iter([10.0, 14.5])
+    group_waits: list[float] = []
+
+    def wait_for_group(_: object, deadline: float) -> bool:
+        group_waits.append(deadline)
+        return len(group_waits) == 2
+
+    monkeypatch.setattr(runtime, "_wait_for_process_group_exit", wait_for_group)
+    ticks = iter([10.0, 11.0, 12.0, 14.5])
     monkeypatch.setattr(runtime.time, "monotonic", lambda: next(ticks))
     stdout = (tmp_path / "stdout").open("w", encoding="utf-8")
     stderr = (tmp_path / "stderr").open("w", encoding="utf-8")
@@ -124,12 +138,83 @@ def test_watchdog_terminates_then_kills_one_process_group(
     finally:
         stdout.close()
         stderr.close()
-    assert waits == [3.0, 1.0, 1.0]
+    assert waits == [3.0, 1.0]
+    assert group_waits == [12.0, 13.0]
     assert signals == [
         (4242, runtime.signal.SIGTERM),
         (4242, runtime.signal.SIGKILL),
     ]
     assert result == runtime.WatchdogResult(-9, True, True, True, 4.5)
+
+
+def test_watchdog_kills_child_when_leader_exits_on_sigterm(tmp_path: Path) -> None:
+    if sys.platform != "linux":
+        pytest.skip("Linux process-group fixture")
+    libc = ctypes.CDLL(None, use_errno=True)
+    previous = ctypes.c_int()
+    assert libc.prctl(37, ctypes.byref(previous), 0, 0, 0) == 0  # PR_GET_CHILD_SUBREAPER
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        pytest.skip("Linux child-subreaper support is unavailable")
+    child_pid_path = tmp_path / "child.pid"
+    code = (
+        "import subprocess,sys,time;"
+        "child=subprocess.Popen([sys.executable,'-c',"
+        "'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)']);"
+        f"open({str(child_pid_path)!r},'w').write(str(child.pid));"
+        "time.sleep(60)"
+    )
+    child_pid: int | None = None
+    stop_reaper = threading.Event()
+
+    def reap_adopted_child() -> None:
+        deadline = time.monotonic() + 5
+        while not stop_reaper.is_set() and time.monotonic() < deadline:
+            if child_pid_path.is_file():
+                try:
+                    pid = int(child_pid_path.read_text(encoding="utf-8"))
+                except ValueError:
+                    time.sleep(0.01)
+                    continue
+                try:
+                    reaped, _ = os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:
+                    reaped = 0
+                if reaped == pid:
+                    return
+            time.sleep(0.01)
+
+    reaper = threading.Thread(target=reap_adopted_child, daemon=True)
+    reaper.start()
+    with (
+        (tmp_path / "stdout").open("x", encoding="utf-8") as stdout,
+        (tmp_path / "stderr").open("x", encoding="utf-8") as stderr,
+    ):
+        try:
+            result = runtime.run_with_watchdog(
+                [sys.executable, "-c", code],
+                cwd=tmp_path,
+                env={},
+                stdout=stdout,
+                stderr=stderr,
+                timeout_seconds=0.5,
+                teardown_grace_seconds=0.5,
+            )
+            child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+            assert result.timed_out is True
+            assert result.sent_sigterm is True
+            assert result.sent_sigkill is True
+            assert not Path(f"/proc/{child_pid}").exists()
+        finally:
+            if child_pid is None and child_pid_path.is_file():
+                child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+            if child_pid is not None and Path(f"/proc/{child_pid}").exists():
+                try:
+                    runtime.os.kill(child_pid, runtime.signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            reaper.join(timeout=5)
+            stop_reaper.set()
+            assert libc.prctl(36, previous.value, 0, 0, 0) == 0
 
 
 def test_timing_summary_splits_fresh_recovered_and_unknown() -> None:

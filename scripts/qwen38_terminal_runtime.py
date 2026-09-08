@@ -201,6 +201,20 @@ def apply_harbor_patch(checkout: Path, contract: HarborPatchContract) -> JsonObj
     return verify_harbor_checkout(checkout, contract)
 
 
+def _wait_for_process_group_exit(process: subprocess.Popen[str], deadline: float) -> bool:
+    """Reap the leader while waiting for every member of its process group to exit."""
+    while True:
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.05, remaining))
+
+
 def run_with_watchdog(
     command: Sequence[str],
     *,
@@ -212,7 +226,13 @@ def run_with_watchdog(
     teardown_grace_seconds: float,
 ) -> WatchdogResult:
     """Run one process group and bound TERM/KILL teardown after timeout."""
-    if timeout_seconds <= 0 or teardown_grace_seconds <= 0:
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+        for value in (timeout_seconds, teardown_grace_seconds)
+    ):
         raise ValueError("watchdog and teardown grace must be positive")
     started = time.monotonic()
     process = subprocess.Popen(
@@ -231,14 +251,20 @@ def run_with_watchdog(
         returncode = process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         timed_out = True
-        sent_sigterm = True
-        os.killpg(process.pid, signal.SIGTERM)
         try:
-            returncode = process.wait(timeout=teardown_grace_seconds)
-        except subprocess.TimeoutExpired:
-            sent_sigkill = True
-            os.killpg(process.pid, signal.SIGKILL)
-            returncode = process.wait(timeout=teardown_grace_seconds)
+            os.killpg(process.pid, signal.SIGTERM)
+            sent_sigterm = True
+        except ProcessLookupError:
+            pass
+        if not _wait_for_process_group_exit(process, time.monotonic() + teardown_grace_seconds):
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+                sent_sigkill = True
+            except ProcessLookupError:
+                pass
+            if not _wait_for_process_group_exit(process, time.monotonic() + teardown_grace_seconds):
+                raise RuntimeError("parent watchdog process group survived bounded teardown")
+        returncode = process.wait(timeout=teardown_grace_seconds)
     return WatchdogResult(
         returncode=returncode,
         timed_out=timed_out,

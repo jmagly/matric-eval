@@ -394,18 +394,19 @@ def _assert_trial(
     }
 
 
-def _watchdog_cleanup(root: Path) -> dict[str, Any]:
-    child_pid_path = root / "watchdog-child.pid"
+def _watchdog_case(root: Path, name: str, *, leader_ignores_term: bool) -> dict[str, Any]:
+    child_pid_path = root / f"watchdog-{name}-child.pid"
+    leader_signal = "signal.signal(signal.SIGTERM,signal.SIG_IGN);" if leader_ignores_term else ""
     code = (
         "import os,signal,subprocess,sys,time;"
-        "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+        f"{leader_signal}"
         "child=subprocess.Popen([sys.executable,'-c',"
         "'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)']);"
         f"open({str(child_pid_path)!r},'w').write(str(child.pid));"
         "time.sleep(60)"
     )
-    stdout_path = root / "watchdog.stdout"
-    stderr_path = root / "watchdog.stderr"
+    stdout_path = root / f"watchdog-{name}.stdout"
+    stderr_path = root / f"watchdog-{name}.stderr"
     with (
         stdout_path.open("x", encoding="utf-8") as stdout,
         stderr_path.open("x", encoding="utf-8") as stderr,
@@ -417,7 +418,7 @@ def _watchdog_cleanup(root: Path) -> dict[str, Any]:
             stdout=stdout,
             stderr=stderr,
             timeout_seconds=0.5,
-            teardown_grace_seconds=0.5,
+            teardown_grace_seconds=1.0,
         )
     child_pid = int(child_pid_path.read_text(encoding="utf-8"))
     deadline = time.monotonic() + 5
@@ -431,6 +432,17 @@ def _watchdog_cleanup(root: Path) -> dict[str, Any]:
         "sent_sigterm": result.sent_sigterm,
         "sent_sigkill": result.sent_sigkill,
         "child_process_gone": child_gone,
+    }
+
+
+def _watchdog_cleanup(root: Path) -> dict[str, Any]:
+    leader_ignores = _watchdog_case(root, "leader-ignores", leader_ignores_term=True)
+    leader_exits = _watchdog_case(root, "leader-exits", leader_ignores_term=False)
+    if not leader_exits["sent_sigkill"]:
+        raise RuntimeError("watchdog did not kill descendants after the leader exited")
+    return {
+        **leader_ignores,
+        "leader_exits_child_cleaned": leader_exits["child_process_gone"],
     }
 
 
