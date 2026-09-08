@@ -318,3 +318,25 @@ def test_failed_resident_preflight_stops_loaded_child(lifecycle, admission_plan)
         lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan)
     assert lifecycle.record["cleanup"] == "complete"
     assert lifecycle.broker.released == ["private-token"]
+
+
+def test_lost_release_ack_removes_owned_readiness(lifecycle):
+    from pathlib import Path
+
+    token = lifecycle.acquire()
+    marker = Path(f"{lifecycle.record['readiness']}.{token}.ready")
+    marker.touch()
+    lifecycle.broker.leases.clear()
+    assert lifecycle.reconcile()
+    assert not marker.exists()
+    assert not lifecycle.broker.released
+
+
+def test_replaced_container_identity_is_not_stopped(lifecycle):
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    lifecycle.save(container_id="original-id")
+    assert not lifecycle.reconcile()
+    assert lifecycle.record["reason"] == "container identity changed"
+    assert not lifecycle.docker.stopped
+    assert not lifecycle.broker.released
