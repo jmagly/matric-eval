@@ -194,6 +194,9 @@ class RunStatus:
     def _write(self, data: dict[str, Any]) -> None:
         fd, name = tempfile.mkstemp(prefix=".status-", dir=self.directory)
         try:
+            if self.path.exists():
+                owner = self.path.stat()
+                os.fchown(fd, owner.st_uid, owner.st_gid)
             with os.fdopen(fd, "w") as stream:
                 json.dump(data, stream, allow_nan=False, sort_keys=True)
                 stream.flush()
@@ -210,6 +213,8 @@ class RunStatus:
     @contextmanager
     def update(self) -> Iterator[dict[str, Any]]:
         fd = os.open(self.directory / ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+        owner = self.path.stat()
+        os.fchown(fd, owner.st_uid, owner.st_gid)
         with os.fdopen(fd, "r+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             data: dict[str, Any] = json.loads(self.path.read_text())
@@ -359,6 +364,13 @@ class RunStatus:
                 cleanup="pending",
             )
             data = json.loads(self.path.read_text())
+        for model in data.get("models", {}).values():
+            model["alive"] = alive(model["process"])
+            model["current_phase"] = (
+                model["phase"]
+                if model["alive"] is True or model["phase"] == "stopped"
+                else "unknown"
+            )
         heartbeat = data["heartbeat_at"]
         data["liveness"] = {
             "supervisor_alive": supervisor_alive,
@@ -456,6 +468,8 @@ def supervise(
         current = status.read(reconcile=False)
         if current["phase"] == "queued" and not current["counts"]["attempted"]:
             status.phase("preflight-blocked")
+        if status.read(reconcile=False)["phase"] == "preflight-blocked" and phase != "cancelled":
+            phase = "preflight-blocked"
         failure = diagnostic(
             error,
             actor="adapter",

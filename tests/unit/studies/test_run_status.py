@@ -249,3 +249,19 @@ def test_native_grader_failure_preserves_attribution_and_human_detail(tmp_path, 
 
 def test_exception_message_truncation_is_declared():
     assert diagnostic(RuntimeError("x" * 9000), actor="a", stage="s", reason="r")["truncated"]
+
+
+def test_adapter_admission_failure_is_terminal_preflight_blocker(tmp_path):
+    status = create(tmp_path)
+    script = """
+from matric_eval.studies.run_status import adapter_main
+def fail():
+    raise RuntimeError('banking dependency unavailable')
+raise SystemExit(adapter_main(fail))
+"""
+    supervise(status, [sys.executable, "-c", script], timeout=5)
+    data = status.read()
+    assert data["terminal_event"]["phase"] == "preflight-blocked"
+    assert data["counts"]["attempted"] == 0
+    result = CliRunner().invoke(study_run, ["status", str(status.directory)])
+    assert "banking dependency unavailable" in result.output
