@@ -265,3 +265,23 @@ raise SystemExit(adapter_main(fail))
     assert data["counts"]["attempted"] == 0
     result = CliRunner().invoke(study_run, ["status", str(status.directory)])
     assert "banking dependency unavailable" in result.output
+
+
+def test_worker_exit_retains_resource_cleanup_obligation(tmp_path):
+    status = create(tmp_path)
+    script = """
+import os,sys
+from pathlib import Path
+from matric_eval.studies.run_status import RunStatus
+with RunStatus(Path(os.environ['MATRIC_RUN_STATUS_DIR'])).update() as data:
+    data['resources'] = {'resource_id':'owned', 'state':'cleanup-pending', 'cleanup':'pending', 'record':'/private/attempt/record.json'}
+sys.exit(17)
+"""
+    assert supervise(status, [sys.executable, "-c", script], timeout=5) == 17
+    assert status.read()["cleanup"] == "pending"
+    result = CliRunner().invoke(study_run, ["status", str(status.directory)])
+    assert result.exit_code == 0
+    assert (
+        "Resources: cleanup-pending; cleanup: pending; record: /private/attempt/record.json"
+        in result.output
+    )

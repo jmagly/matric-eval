@@ -21,9 +21,17 @@ server_receipt=""
 ready_base=""
 container_name=""
 port="18083"
+run_id=""
+attempt_id=""
+resource_directory=""
+preflight_plan=""
 
 while (( $# )); do
   case "$1" in
+    --preflight-plan) preflight_plan="${2:-}"; shift 2 ;;
+    --run-id) run_id="${2:-}"; shift 2 ;;
+    --attempt-id) attempt_id="${2:-}"; shift 2 ;;
+    --resource-directory) resource_directory="${2:-}"; shift 2 ;;
     --gpu) gpu_uuid="${2:-}"; shift 2 ;;
     --owner) owner="${2:-}"; shift 2 ;;
     --model-id) model_id="${2:-}"; shift 2 ;;
@@ -38,7 +46,7 @@ while (( $# )); do
   esac
 done
 
-for required in gpu_uuid owner model_id model_path qualification lease_receipt server_receipt ready_base container_name; do
+for required in preflight_plan run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
   if [[ -z "${!required}" ]]; then
     printf 'missing required option for %s\n' "$required" >&2
     exit 2
@@ -57,7 +65,7 @@ if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then
   printf 'port must be an integer between 1024 and 65535\n' >&2
   exit 2
 fi
-if [[ ! "$container_name" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+if [[ -n "$container_name" && ! "$container_name" =~ ^[A-Za-z0-9_.-]+$ ]]; then
   printf 'container name contains unsafe characters\n' >&2
   exit 2
 fi
@@ -85,8 +93,12 @@ for private_output in "$lease_receipt" "$server_receipt"; do
     exit 1
   fi
 done
-if [[ "$ready_base" != "${study_root}/run-control/"* ]]; then
+if [[ -n "$ready_base" && "$ready_base" != "${study_root}/run-control/"* ]]; then
   printf 'ready-base must be inside the study run-control directory\n' >&2
+  exit 2
+fi
+if [[ "$resource_directory" != "${study_root}/run-control/"* ]]; then
+  printf 'resource-directory must remain inside study run-control\n' >&2
   exit 2
 fi
 if [[ -n "$(git -C "$study_repo" status --porcelain)" ]]; then
@@ -102,22 +114,18 @@ if [[ "$actual_image_id" != "${study_image#*@}" ]]; then
   exit 1
 fi
 
-sudo docker gpu discover >/dev/null
-ready_command="test -s \"${ready_base}.\${OLLAMA_UNIFY_GPU_LEASE}.ready\""
 code_revision="$(git -C "$study_repo" rev-parse HEAD)"
 evidence_uid="$(id -u)"
 evidence_gid="$(id -g)"
 
-sudo docker gpu run \
-  --owner "$owner" \
-  --vram-mib 75000 \
-  --ttl 300 \
-  --gpu "$gpu_uuid" \
-  --ready-timeout 900 \
-  --ready-command "$ready_command" \
-  -- \
-  /usr/bin/docker --host "$study_docker_host" run --rm \
-    --name "$container_name" \
+sudo env PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
+  --directory "$resource_directory" --preflight-plan "$preflight_plan" \
+  --run-id "$run_id" --attempt-id "$attempt_id" \
+  --owner "$owner" --gpu "$gpu_uuid" \
+  --ready-timeout 900 -- \
+  /usr/bin/docker --host "$study_docker_host" run \
+    --name '{container}' \
+    --label 'matric.resource={resource_id}' \
     --network host \
     --hostname basilisk \
     --read-only \
@@ -149,7 +157,7 @@ sudo docker gpu run \
     --env MATRIC_EVAL_EVIDENCE_UID="$evidence_uid" \
     --env MATRIC_EVAL_EVIDENCE_GID="$evidence_gid" \
     --env MATRIC_EVAL_GPU_BROKER_SOCKET="$study_broker_socket" \
-    --env MATRIC_EVAL_MODEL_READY_BASE="$ready_base" \
+    --env 'MATRIC_EVAL_MODEL_READY_BASE={ready_base}' \
     --entrypoint /usr/bin/python3 \
     "$study_image" \
     -m matric_eval.studies.server_cli serve \
