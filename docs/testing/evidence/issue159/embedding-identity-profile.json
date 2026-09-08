@@ -1,0 +1,57 @@
+{
+  "model": "ollama_chat/nomic-embed-text:latest",
+  "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+  "target_model": "qwen38-27b-source-bf16",
+  "broker_identity": "basilisk-public-ollama-unify",
+  "broker_revision": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e",
+  "api_base": "http://127.0.0.1:11434",
+  "route": "native",
+  "client_version": "1.81.11",
+  "max_tokens": 64,
+  "timeout": 30.0,
+  "thinking": false,
+  "tools": false,
+  "seed": null,
+  "admission_protocol": "ollama-unify-body-free-resume/1",
+  "admission_wait_ms": 1000,
+  "admission_total_seconds": 30.0,
+  "admission_max_attempts": 3,
+  "embedding_dimensions": 768,
+  "broker_runtime": {
+    "kind": "local_process_source_configuration",
+    "host": "basilisk",
+    "unit": "ollama-unify-negotiator.service",
+    "pid": 3149301,
+    "start_ticks": "55172164",
+    "boot_id": "005f624c-1c59-40bc-b2fd-c44b4a41a2ee",
+    "source_sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e",
+    "files": [
+      {
+        "path": "/etc/default/ollama-unify-negotiator",
+        "sha256": "d1a3362f49166d1ad2134005f1b618bab47880937d845737b50c4de88bcabb0f"
+      },
+      {
+        "path": "/etc/default/ollama-unify-obliteratus",
+        "sha256": "70c569322f0dd5a5120d42d754e3699cc991b6bc62bdda5777fb02c0380b9ecc"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service",
+        "sha256": "8d17d0c51b3eab8faf0d9820ee46d084dc210a82aec5624b12016bde83887e8f"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/70-obliteratus-loading-window.conf",
+        "sha256": "d1413f46fe9ae2c548e91ef5577430e4b959a6e41892639ed4275af6d82f3f5d"
+      },
+      {
+        "path": "/etc/systemd/system/ollama-unify-negotiator.service.d/state.conf",
+        "sha256": "45c191100d83d41c1691f781122ed7b23399861640573c4edf569d2f83aa3c3b"
+      },
+      {
+        "path": "/usr/local/libexec/ollama-unify-gpu-negotiator",
+        "sha256": "c5ff7b5c33bd5160b177179df0403543aac338464ab97a94f19b74f43dc0f37e"
+      }
+    ],
+    "unit_configuration_sha256": "e679479984cfa64dc218aa6c1b6d430adc3aba3b1b031b1a90dae619d2530749",
+    "execution_digest_binding": "unverified"
+  }
+}
