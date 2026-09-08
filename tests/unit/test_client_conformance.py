@@ -659,6 +659,7 @@ def test_canary_later_failure_preserves_admission(tmp_path, monkeypatch, failure
 
 
 def test_runtime_and_canary_share_actual_wire_arguments(tmp_path):
+    pytest.importorskip("litellm")
     from types import SimpleNamespace
 
     from matric_eval.studies.auxiliary_runtime import external_arguments, scoped_auxiliary_client
@@ -729,7 +730,7 @@ def test_runtime_and_canary_share_actual_wire_arguments(tmp_path):
 
 
 def test_embedding_transport_does_not_capture_other_threads():
-    import litellm
+    litellm = pytest.importorskip("litellm")
 
     from matric_eval.studies.embedding_transport import embedding_client
 
