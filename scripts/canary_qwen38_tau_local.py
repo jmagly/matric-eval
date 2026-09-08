@@ -50,6 +50,10 @@ def main():
         if evidence["embedding_dimensions"] != 768:
             raise RuntimeError("Embedding dimensions differ from amended study")
         evidence["status"] = "passed"
+    except BaseException as exc:
+        evidence["status"] = "failed"
+        evidence["failure_type"] = type(exc).__name__
+        raise
     finally:
         with args.output.open("x") as output:
             json.dump(evidence, output, indent=2)

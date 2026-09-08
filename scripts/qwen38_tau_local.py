@@ -48,6 +48,7 @@ def configure_local() -> dict[str, Any]:
 def external_arguments() -> dict[str, Any]:
     return {
         "api_base": API_BASE,
+        "extra_headers": {"Content-Type": "application/json"},
         "temperature": 0.0,
         "max_tokens": 1024,
         "num_retries": 0,

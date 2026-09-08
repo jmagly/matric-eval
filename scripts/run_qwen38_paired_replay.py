@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
-OUT = STUDY / "replay-20260908-r2"
+OUT = STUDY / "replay-20260908-r3"
 TAU = Path("/srv/matric-eval/benchmarks/tau2-qwen38-simulator-guard-v3")
 HARBOR = Path("/srv/matric-eval/benchmarks/harbor-qwen38-terminal-runtime-guard")
 TERMINAL = Path("/srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1")
@@ -33,6 +33,26 @@ def save(**fields):
 
 def execute(name, command, timeout):
     save(phase=name)
+    if name.startswith(
+        ("tau-interface-canary-", "tau-context-canary-", "terminal-runtime-canary-")
+    ):
+        receipt = STUDY / "replay-20260908-r2/canaries" / Path(command[-1]).name
+        data = json.loads(receipt.read_text())
+        if data.get("status") != "passed" or not data.get("source_sha256"):
+            raise RuntimeError("Prior runner validation did not pass")
+        for source, digest in data["source_sha256"].items():
+            if hashlib.sha256((ROOT / source).read_bytes()).hexdigest() != digest:
+                raise RuntimeError(f"Validated source changed: {source}")
+        STATUS["operations"].append(
+            {
+                "name": name,
+                "exit_code": 0,
+                "reused_receipt": str(receipt),
+                "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+            }
+        )
+        save()
+        return
     with (OUT / (name + ".log")).open("xb") as log:
         process = subprocess.Popen(
             [str(x) for x in command],

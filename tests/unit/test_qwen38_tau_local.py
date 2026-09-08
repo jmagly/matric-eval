@@ -25,3 +25,7 @@ def test_local_arguments_use_public_broker_without_hidden_retries():
     assert args["timeout"] == 180
     assert "api_key" not in args
     assert args["reasoning_effort"] == "none"
+
+
+def test_native_client_marks_json_for_broker_routing():
+    assert local.external_arguments()["extra_headers"]["Content-Type"] == "application/json"
