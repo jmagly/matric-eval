@@ -1,0 +1,13 @@
+{
+  "changed_paths": [
+    "pyproject.toml",
+    "src/tau2/utils/llm_utils.py",
+    "uv.lock"
+  ],
+  "patch_file": "tau2-1.0.1-context-guard.patch",
+  "patch_sha256": "71bd8bbdded3dfac6e2cff06b541c4fc27dd7ab24a98687371890e9e1f446919",
+  "patched_diff_sha256": "71bd8bbdded3dfac6e2cff06b541c4fc27dd7ab24a98687371890e9e1f446919",
+  "schema_version": "1",
+  "transformers_version": "5.14.1",
+  "upstream_revision": "672227c6b6676edc20d57ea53b7000262aae77b9"
+}

@@ -660,7 +660,41 @@ The pinned tau2 `alltools` banking profile additionally requires `rg`, `bwrap`,
 unprivileged-user-namespace restriction and install a narrowly scoped AppArmor profile
 for `/usr/bin/bwrap` containing `userns,`; verify an actual sandbox command, not only
 binary presence. Install the Python knowledge extra with `uv sync --extra knowledge
---frozen`. The bridge rechecks package versions, the AppArmor-dependent execution
+--frozen`. Before any calibration run, create a fresh checkout at the pinned revision
+and apply the repository's content-addressed request-guard patch exactly once.
+Run these commands from the matric-eval repository root. Set `QWEN38_TAU_CHECKOUT`
+to a new absolute checkout path, and set `QWEN38_MODEL_PATH`,
+`QWEN38_CHAT_TEMPLATE`, and `QWEN38_SERVER_RECEIPT` to the approved local model
+snapshot, forced template, and matching server receipt. None is a credential.
+Set `QWEN38_CANARY_OUTPUT` to a new absolute receipt path outside the Git checkout;
+the canary creates it exclusively with mode 0600 and refuses existing files.
+
+```bash
+git clone https://github.com/sierra-research/tau2-bench.git "$QWEN38_TAU_CHECKOUT"
+git -C "$QWEN38_TAU_CHECKOUT" checkout --detach 672227c6b6676edc20d57ea53b7000262aae77b9
+uv run --extra study python scripts/prepare_qwen38_tau_runtime.py \
+  --tau-checkout "$QWEN38_TAU_CHECKOUT" \
+  --sync
+```
+
+Before opening the external-simulator credential, run the model-independent boundary
+canary with the patched Tau Python. It loads tokenizer assets but never calls a target
+model; the only completion endpoint is a scripted loopback server:
+
+```bash
+"$QWEN38_TAU_CHECKOUT/.venv/bin/python" \
+  scripts/canary_qwen38_tau_context.py \
+  --tau-checkout "$QWEN38_TAU_CHECKOUT" \
+  --model-path "$QWEN38_MODEL_PATH" \
+  --chat-template "$QWEN38_CHAT_TEMPLATE" \
+  --server-receipt "$QWEN38_SERVER_RECEIPT" \
+  --output "$QWEN38_CANARY_OUTPUT"
+```
+
+The patch adds the server-matched Transformers tokenizer and a scoped hook after Tau's
+message/tool serialization but before LiteLLM can issue HTTP. The bridge rechecks the
+exact patch and worktree diff, package versions, forced template and tokenizer assets,
+the AppArmor-dependent execution
 canary, the selected tasks, and the recorded tau source worktree before every run.
 The exact profile is retained at `host/bwrap.apparmor` and can be installed with
 `sudo install -o root -g root -m 0644` followed by `sudo apparmor_parser -r`.
@@ -676,14 +710,15 @@ instead of being replaced by the batch runner's trial-seed generator:
 
 ```bash
 # The approved credential broker opens descriptor 3 before this command starts.
-/srv/matric-eval/benchmarks/tau2-v1.0.1/.venv/bin/python \
+"$QWEN38_TAU_CHECKOUT/.venv/bin/python" \
   scripts/run_qwen38_tau.py \
   studies/qwen38-obliteration-2026-09/protocol.yaml \
   /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-manifest.json \
   --model-id qwen38-27b-source-bf16 \
   --model-path /srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --server-receipt /srv/matric-eval/results/qwen38-obliteration-2026-09/source-agentic-server.json \
-  --tau-checkout /srv/matric-eval/benchmarks/tau2-v1.0.1 \
+  --tau-checkout "$QWEN38_TAU_CHECKOUT" \
+  --chat-template "$QWEN38_CHAT_TEMPLATE" \
   --inputs-summary /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/agentic-inputs-summary.json \
   --scored-ids /srv/matric-eval/results/qwen38-obliteration-2026-09/pilot-agentic-inputs/tau3-scored-ids.json \
   --user-model gpt-4.1-2025-04-14 \

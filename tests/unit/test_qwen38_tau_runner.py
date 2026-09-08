@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -16,6 +17,9 @@ import pytest
 from matric_eval.studies import StudyProtocol
 
 ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
 SCRIPT = ROOT / "scripts/run_qwen38_tau.py"
 SPEC = importlib.util.spec_from_file_location("qwen38_tau_runner", SCRIPT)
@@ -95,6 +99,7 @@ def test_sampler_and_external_args_are_sealed(tmp_path: Path) -> None:
         "top_p": 0.95,
         "presence_penalty": 0.0,
         "max_tokens": 8192,
+        "num_retries": 0,
         "extra_body": {
             "top_k": 20,
             "min_p": 0.0,
@@ -148,6 +153,25 @@ def test_context_budget_accepts_32768_and_rejects_32769() -> None:
         tau_runner._context_budget(32768, True)
     with pytest.raises(ValueError, match="at least 32 tokens"):
         tau_runner._validate_context_allocation(24545, 8192, 32768, 31)
+
+
+def test_context_overflow_has_typed_nonretryable_attribution() -> None:
+    exc = tau_runner.TargetContextRuntimeInvalid(
+        {
+            "input_tokens": 24545,
+            "output_tokens": 8192,
+            "safety_margin_tokens": 32,
+            "combined_tokens": 32769,
+            "context_limit": 32768,
+        }
+    )
+    failure = tau_runner._context_invalid_failure(exc)
+    assert failure["owner"] == "context-runtime"
+    assert failure["actor"] == "runner"
+    assert failure["stage"] == "context-budget"
+    assert failure["http_attempted"] is False
+    assert failure["side_effect_retry_attempted"] is False
+    assert failure["exception_chain"][0]["type"] == "TargetContextRuntimeInvalid"
 
 
 @pytest.mark.parametrize(
@@ -280,31 +304,80 @@ def test_endpoint_and_private_result_helpers(
     assert first != second
 
 
-def test_tau_worktree_allows_only_recorded_lockfile(
+def test_target_counter_requires_exact_server_template_context_and_parsers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = iter(
-        [
-            SimpleNamespace(stdout=" M uv.lock\n"),
-            SimpleNamespace(stdout=b"lock diff"),
-        ]
-    )
-    monkeypatch.setattr(tau_runner.subprocess, "run", lambda *args, **kwargs: next(calls))
-    evidence = tau_runner._tau_worktree_evidence(Path("/tau"))
-    assert evidence["tracked_changes"] == ["uv.lock"]
-    assert evidence["tracked_diff_sha256"] == hashlib.sha256(b"lock diff").hexdigest()
+    model_path = Path("/qualified/model")
+    template = Path("/private/chat-template.jinja")
+    receipt = {
+        "chat_template_sha256": "a" * 64,
+        "runtime": {
+            "versions": {"transformers": "5.14.1"},
+            "arguments": [
+                str(model_path),
+                "--host",
+                "127.0.0.1",
+                "--chat-template",
+                str(template),
+                "--max-model-len",
+                "32768",
+                "--language-model-only",
+                "--enable-auto-tool-choice",
+                "--reasoning-parser",
+                "qwen3",
+                "--tool-call-parser",
+                "qwen3_coder",
+            ],
+        },
+    }
+    captured: dict[str, Any] = {}
 
+    def loader(**kwargs: Any) -> tuple[str, dict[str, str]]:
+        captured.update(kwargs)
+        return "counter", {"status": "attested"}
+
+    monkeypatch.setattr(tau_runner, "load_attested_tokenizer", loader)
+    counter, evidence = tau_runner._load_target_counter(
+        server_receipt=receipt,
+        model_path=model_path,
+        chat_template=template,
+        runtime={"context_limit": 32768, "chat_template_sha256": "a" * 64},
+        transformers_version="5.14.1",
+    )
+    assert counter == "counter"
+    assert evidence == {"status": "attested"}
+    assert captured["expected_template_sha256"] == "a" * 64
+
+    receipt["runtime"]["arguments"][-1] = "wrong"
+    with pytest.raises(ValueError, match="wrong tool/reasoning parser"):
+        tau_runner._load_target_counter(
+            server_receipt=receipt,
+            model_path=model_path,
+            chat_template=template,
+            runtime={"context_limit": 32768, "chat_template_sha256": "a" * 64},
+            transformers_version="5.14.1",
+        )
+
+
+def test_tau_worktree_requires_content_addressed_patch(monkeypatch: pytest.MonkeyPatch) -> None:
+    contract = SimpleNamespace(upstream_revision=tau_runner.TAU_SOURCE_REVISION)
+    monkeypatch.setattr(tau_runner, "load_patch_contract", lambda _: contract)
     monkeypatch.setattr(
-        tau_runner.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=" M src/tau2/run.py\n"),
+        tau_runner,
+        "verify_tau_checkout",
+        lambda checkout, loaded: {"checkout": str(checkout), "verified": loaded is contract},
     )
-    with pytest.raises(RuntimeError, match="modified tracked source"):
-        tau_runner._tau_worktree_evidence(Path("/tau"))
+    evidence = tau_runner._tau_worktree_evidence(Path("/tau"), Path("/patch.json"))
+    assert evidence == {"checkout": "/tau", "verified": True}
+
+    contract.upstream_revision = "0" * 40
+    with pytest.raises(RuntimeError, match="protocol-pinned revision"):
+        tau_runner._tau_worktree_evidence(Path("/tau"), Path("/patch.json"))
 
 
+@pytest.mark.parametrize("overflow", [False, True])
 def test_receipt_distinguishes_requested_context_and_thinking_from_effective_behavior(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, overflow: bool
 ) -> None:
     model_id = "qwen38-27b-source-bf16"
     digest = "a" * 64
@@ -314,6 +387,8 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
         model_id=model_id,
         model_path=Path("/fixture/model"),
         tau_checkout=Path("/fixture/tau"),
+        tau_patch_manifest=Path("/fixture/patch.json"),
+        chat_template=Path("/fixture/chat-template.jinja"),
         inputs_summary=tmp_path / "summary",
         scored_ids=tmp_path / "ids",
         server_receipt=tmp_path / "server",
@@ -336,6 +411,8 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
             "study_id": "qwen38-obliteration-2026-09",
             "model_id": model_id,
             "protocol_sha256": digest,
+            "chat_template_sha256": digest,
+            "runtime": {"versions": {"transformers": "5.14.1"}, "arguments": []},
         },
     }
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -347,16 +424,47 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
     )
     monkeypatch.setattr(tau_runner, "_private_path", lambda *args: None)
     monkeypatch.setattr(tau_runner, "_git_revision", lambda _: tau_runner.TAU_SOURCE_REVISION)
-    monkeypatch.setattr(tau_runner, "_tau_worktree_evidence", lambda _: {})
+    monkeypatch.setattr(
+        tau_runner,
+        "load_patch_contract",
+        lambda _: SimpleNamespace(transformers_version="5.14.1"),
+    )
+    monkeypatch.setattr(tau_runner, "_tau_worktree_evidence", lambda *args: {})
     monkeypatch.setattr(tau_runner, "_load_object", lambda path, _: objects[path])
-    monkeypatch.setattr(tau_runner, "_sha256_file", lambda _: digest)
+    original_sha256_file = tau_runner._sha256_file
+    monkeypatch.setattr(
+        tau_runner,
+        "_sha256_file",
+        lambda path: (
+            original_sha256_file(path)
+            if args.result_dir in path.parents or path == args.receipt
+            else digest
+        ),
+    )
     monkeypatch.setattr(tau_runner, "_verify_manifest", lambda *args: digest)
     monkeypatch.setattr(tau_runner, "_validate_endpoint", lambda *args: None)
+    monkeypatch.setattr(
+        tau_runner,
+        "_load_target_counter",
+        lambda **kwargs: (
+            lambda messages, tools: 24545 if overflow else 1,
+            {"transformers_version": "5.14.1"},
+        ),
+    )
     monkeypatch.setattr(tau_runner, "_read_secret_fd", lambda _: "fixture-external-secret")
     captured = []
+    active_guard = []
 
     def simulated_task(config: Any, task: Any, **kwargs: Any) -> SimpleNamespace:
         captured.append(config)
+        active_guard[-1](
+            config.llm_agent,
+            [{"role": "user", "content": "fixture"}],
+            None,
+            None,
+            "agent_response",
+            {"max_tokens": 8192},
+        )
         return SimpleNamespace(
             seed=config.seed,
             termination_reason="user_stop",
@@ -374,6 +482,8 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
             "tau2.data_model",
             "tau2.data_model.simulation",
             "tau2.run",
+            "tau2.utils",
+            "tau2.utils.llm_utils",
         )
     }
     for name, module in modules.items():
@@ -386,16 +496,57 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
     modules["tau2.run"].get_tasks = lambda *args, **kwargs: [SimpleNamespace(id="3")]
     modules["tau2.run"].run_single_task = simulated_task
 
+    @contextmanager
+    def scoped_guard(guard: Any) -> Any:
+        active_guard.append(guard)
+        try:
+            yield
+        finally:
+            active_guard.pop()
+
+    modules["tau2.utils.llm_utils"].scoped_llm_request_guard = scoped_guard
+
     receipt = tau_runner.run_tau(args)
 
     assert len(captured) == 1
     assert "metadata" not in captured[0].llm_args_agent
+    assert captured[0].llm_args_agent["num_retries"] == 0
     assert captured[0].llm_args_agent["extra_body"]["chat_template_kwargs"] == {
         "enable_thinking": False
     }
     execution = receipt["execution"]
     assert execution["context_budget"] == tau_runner._context_budget(32768, 8192)
-    assert execution["context_budget_enforcement"] == "declared-only-no-per-turn-guard"
+    assert execution["context_budget_enforcement"] == "exact-serialized-target-pre-http"
+    assert execution["target_transport_retries"] == 0
     assert execution["target_thinking_mode_requested"] == "disabled"
     assert "target_thinking_mode" not in execution
     assert json.loads(args.receipt.read_text())["execution"] == execution
+    record = receipt["scored_results"][0]
+    raw_path = args.result_dir / record["raw_result_file"]
+    assert record["raw_result_sha256"] == hashlib.sha256(raw_path.read_bytes()).hexdigest()
+    assert record["fresh_attempt_count"] == record["total_attempt_count"] == 1
+    assert record["recovered_attempt_count"] == 0
+    if overflow:
+        assert record["analytic_status"] == "invalid"
+        assert record["reward"] is None and record["termination_reason"] is None
+        assert receipt["reward_count"] == 0 and receipt["reward_mean"] is None
+        assert receipt["analytic_status_counts"] == {"invalid": 1}
+        assert receipt["termination_counts"] == {}
+        assert record["failure_attribution"]["owner"] == "context-runtime"
+        assert record["failure_attribution"]["retryable"] is False
+        raw = json.loads((args.result_dir / record["raw_result_file"]).read_text())
+        assert raw["official_reward"] is None
+        assert raw["official_termination_reason"] is None
+        assert raw["analytic_status"] == "invalid"
+        assert raw["partial_trace"]["target_request"]["messages"] == [
+            {"role": "user", "content": "fixture"}
+        ]
+    else:
+        assert record["analytic_status"] == "valid"
+        assert record["reward"] == 1 and record["termination_reason"] == "user_stop"
+        assert receipt["analytic_status_counts"] == {"valid": 1}
+    preserved = {path: path.read_bytes() for path in (raw_path, args.receipt)}
+    with pytest.raises(FileExistsError):
+        tau_runner.run_tau(args)
+    assert len(captured) == 1
+    assert all(path.read_bytes() == payload for path, payload in preserved.items())
