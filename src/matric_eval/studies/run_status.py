@@ -657,7 +657,7 @@ def adapter_main(action: Callable[[], int]) -> int:
         if isinstance(error, SystemExit) and error.code in (None, 0):
             raise
         directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
-        if directory is None:
+        if not directory:
             raise
         status = RunStatus(Path(directory))
         current = status.read(reconcile=False)

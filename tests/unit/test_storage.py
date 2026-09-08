@@ -429,3 +429,33 @@ def test_owned_cgroup_measurement_rejects_foreign_pid(tmp_path):
     run = session(tmp_path)
     with pytest.raises(StorageBlocker, match="storage_io_identity"):
         run.check("loading", os.getpid(), container_id="not-this-process-container")
+
+
+def test_docker_backing_usage_does_not_count_mounted_image_view(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from matric_eval.storage import usage
+
+    backing = tmp_path / "metadata"
+    backing.write_bytes(b"x" * 4096)
+    merged = tmp_path / "merged"
+    merged.mkdir()
+    image = merged / "existing-image"
+    image.write_bytes(b"x" * 8192)
+    original = Path.lstat
+
+    def mount_stat(path, *args, **kwargs):
+        result = original(path, *args, **kwargs)
+        if path == merged:
+            return SimpleNamespace(
+                st_dev=result.st_dev + 1, st_ino=result.st_ino, st_blocks=result.st_blocks
+            )
+        if path == image:
+            raise AssertionError("must not descend into mounted image filesystem")
+        return result
+
+    monkeypatch.setattr(Path, "lstat", mount_stat)
+    assert usage(tmp_path, backing_device_only=True) == (
+        (tmp_path.stat().st_blocks + backing.stat().st_blocks) * 512,
+        2,
+    )

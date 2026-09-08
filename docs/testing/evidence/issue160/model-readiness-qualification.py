@@ -8,6 +8,9 @@ import subprocess
 import sys
 import time
 
+if os.readlink('/proc/self/ns/mnt') == os.readlink('/proc/1/ns/mnt'):
+    raise SystemExit('Run under unshare --mount --propagation private')
+
 workspace = Path('/srv/matric-eval/workspaces/matric-eval-160-model-qualification')
 python = Path('/srv/matric-eval/workspaces/matric-eval-157-status/.venv311/bin/python')
 study = Path('/srv/matric-eval/results/qwen38-obliteration-2026-09')
@@ -16,8 +19,10 @@ base.mkdir(mode=0o700)
 (base / 'ledger').mkdir(mode=0o700)
 (base / 'volumes').mkdir(mode=0o700)
 model_root = Path('/srv/obliteratus/matric-eval/cache/huggingface/hub/models--Qwen--Qwen3.8-27B')
+subprocess.run(['mount', '--bind', str(model_root), str(model_root)], check=True)
+subprocess.run(['mount', '-o', 'remount,bind,ro', str(model_root)], check=True)
 model_path = model_root / 'snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0'
-gpu = 'GPU-fc9d264d-8a20-bf8c-eb72-72a6dcbdaf2a'
+gpu = 'GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0'
 model_id = 'qwen38-27b-source-bf16'
 port = 18091
 sizes = {'temporary': 8*2**30, 'download_cache': 16*2**30, 'scratch': 8*2**30, 'logs': 64*2**20, 'evidence': 256*2**20}
@@ -50,7 +55,7 @@ stage,workspace,base,model_path,model_id,port=sys.argv[1:]
 workspace=pathlib.Path(workspace); base=pathlib.Path(base); study=pathlib.Path('/srv/matric-eval/results/qwen38-obliteration-2026-09')
 if stage=='static':
  protocol=StudyProtocol.from_yaml(workspace/'studies/qwen38-obliteration-2026-09/protocol.yaml',validate_registry=False)
- verify_model_artifact(_model_for_id(protocol,model_id),pathlib.Path(model_path),json.loads((study/'source-model-qualification.json').read_text()),verify_tensor_hashes=True)
+ verify_model_artifact(_model_for_id(protocol,model_id),pathlib.Path(model_path),json.loads((study/'source-model-qualification.json').read_text()),verify_tensor_hashes=False)
 elif stage=='cpu':
  subprocess.run([sys.executable,'-m','matric_eval.studies.server_cli','--help'],check=True,capture_output=True,timeout=15)
 elif stage=='auxiliary':

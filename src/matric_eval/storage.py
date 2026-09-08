@@ -75,16 +75,23 @@ def filesystem(path: Path) -> dict[str, Any]:
         raise StorageBlocker("storage_io", f"{path}: {exc}") from exc
 
 
-def usage(path: Path) -> tuple[int, int]:
+def usage(path: Path, *, backing_device_only: bool = False) -> tuple[int, int]:
     """Allocated blocks and unique inodes; links never traverse ownership boundaries."""
     seen: set[tuple[int, int]] = set()
     size = 0
     try:
+        device = path.stat().st_dev
         for root, dirs, files in os.walk(
             path, followlinks=False, onerror=lambda e: (_ for _ in ()).throw(e)
         ):
+            if backing_device_only:
+                # Docker merged overlay mounts expose existing image blocks again;
+                # account the backing data root, not those virtual filesystem views.
+                dirs[:] = [name for name in dirs if (Path(root) / name).lstat().st_dev == device]
             for entry in [Path(root), *(Path(root) / name for name in dirs + files)]:
                 stat = entry.lstat()
+                if backing_device_only and stat.st_dev != device:
+                    continue
                 key = (stat.st_dev, stat.st_ino)
                 if key not in seen:
                     seen.add(key)
@@ -164,7 +171,9 @@ class StorageSession:
                 raise ValueError(f"Storage path must be an existing directory: {path}")
             self.paths[allocation.kind] = path
             self.mounts[allocation.kind] = filesystem(path)
-            self.baselines[allocation.kind] = usage(path)
+            self.baselines[allocation.kind] = usage(
+                path, backing_device_only=bool(self.docker_control and allocation.kind == "docker")
+            )
         mutable = [self.paths[a.kind] for a in allocations if a.budget_bytes or a.budget_inodes]
         if any(
             a == b or a in b.parents or b in a.parents
@@ -385,7 +394,10 @@ class StorageSession:
         measured = {}
         blocker = None
         for allocation in self.allocations:
-            current = usage(self.paths[allocation.kind])
+            current = usage(
+                self.paths[allocation.kind],
+                backing_device_only=bool(self.docker_control and allocation.kind == "docker"),
+            )
             baseline = self.baselines[allocation.kind]
             delta = tuple(max(0, value - base) for value, base in zip(current, baseline))
             measured[allocation.kind] = {"bytes": delta[0], "inodes": delta[1]}
