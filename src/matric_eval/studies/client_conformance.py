@@ -258,7 +258,7 @@ def invoke_completion(
     arguments = profile.arguments(request_id)
     from matric_eval.studies.broker_identity import verify_broker_identity
 
-    broker_identity = verify_broker_identity(profile)
+    broker_runtime_identity = verify_broker_identity(profile)
     metadata_before = (
         verify_public_model_metadata(profile, request_id)
         if profile.broker_runtime is not None
@@ -343,7 +343,7 @@ def invoke_completion(
         if http_client is not None:
             http_client.close()
     try:
-        if verify_broker_identity(profile) != broker_identity:
+        if verify_broker_identity(profile) != broker_runtime_identity:
             raise ConformanceError("live_broker_identity_changed")
         metadata_after = (
             verify_public_model_metadata(profile, request_id)
@@ -409,7 +409,7 @@ def invoke_completion(
             "live_qualification": "pending_broker_evidence",
             "retry_policy": "one_client_call_no_body_replay",
             "broker_admission": broker_evidence,
-            "broker_identity": broker_identity,
+            "broker_identity": broker_runtime_identity,
             "public_model_metadata": {"before": metadata_before, "after": metadata_after},
             "reasoning_present": bool(reasoning),
             "tool_calls_present": bool(tool_calls),
@@ -517,7 +517,7 @@ def qualify_embedding(
     arguments = profile.arguments(request_id)
     from matric_eval.studies.broker_identity import verify_broker_identity
 
-    broker_identity = verify_broker_identity(profile)
+    broker_runtime_identity = verify_broker_identity(profile)
     metadata_before = (
         verify_public_model_metadata(profile, request_id)
         if profile.broker_runtime is not None
@@ -559,7 +559,7 @@ def qualify_embedding(
             nested = nested.__cause__ or nested.__context__
         raise failure from None
     try:
-        if verify_broker_identity(profile) != broker_identity:
+        if verify_broker_identity(profile) != broker_runtime_identity:
             raise ConformanceError("live_broker_identity_changed")
         metadata_after = (
             verify_public_model_metadata(profile, request_id)
@@ -592,7 +592,7 @@ def qualify_embedding(
         "execution_digest_binding": "unverified",
         "digest_evidence_kind": "caller_supplied_metadata",
         "broker_admission": evidence,
-        "broker_identity": broker_identity,
+        "broker_identity": broker_runtime_identity,
         "public_model_metadata": {"before": metadata_before, "after": metadata_after},
         "measured": measured,
         "live_qualification": "pending_broker_evidence",
