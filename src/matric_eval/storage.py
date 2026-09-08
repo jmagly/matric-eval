@@ -178,13 +178,15 @@ class StorageSession:
     def claim_empty_scratch(self) -> None:
         """Record lineage only for empty, dedicated scratch directories we can own."""
         protected = [
-            self.paths[a.kind] for a in self.allocations if a.kind not in {"scratch", "temporary"}
+            self.paths[a.kind]
+            for a in self.allocations
+            if a.kind not in {"scratch", "temporary", "download_cache"} or not a.disposable
         ]
         for allocation in self.allocations:
             path = self.paths[allocation.kind]
             if (
                 allocation.disposable
-                and allocation.kind in {"scratch", "temporary"}
+                and allocation.kind in {"scratch", "temporary", "download_cache"}
                 and self.ownership in path.parents
                 and not any(path == p or path in p.parents or p in path.parents for p in protected)
                 and not any(path.iterdir())
@@ -244,16 +246,28 @@ class StorageSession:
             )
             baseline = self.baselines[allocation.kind]
             volume["reserved_bytes"] += min(
-                allocation.budget_bytes, max(0, current["capacity_bytes"] - baseline[0])
+                allocation.budget_bytes,
+                current["free_bytes"]
+                if self.require_enforced_bounds
+                and allocation.kind != "docker"
+                and current["device"] != self.ledger_mount["device"]
+                else max(0, current["capacity_bytes"] - baseline[0]),
             )
             volume["reserved_inodes"] += min(
-                allocation.budget_inodes, max(0, current["capacity_inodes"] - baseline[1])
+                allocation.budget_inodes,
+                current["free_inodes"]
+                if self.require_enforced_bounds
+                and allocation.kind != "docker"
+                and current["device"] != self.ledger_mount["device"]
+                else max(0, current["capacity_inodes"] - baseline[1]),
             )
             classes.append(
                 {
                     **asdict(allocation),
                     **current,
                     "demand": "unknown" if allocation.estimated_bytes is None else "estimated",
+                    "baseline_bytes": baseline[0],
+                    "baseline_inodes": baseline[1],
                 }
             )
         diagnostic = filesystem(self.ledger)
@@ -467,7 +481,7 @@ class StorageSession:
             {"path": str(self.paths[a.kind]), "owner": self.token, "action": "policy_required"}
             for a in self.allocations
             if a.disposable
-            and a.kind in {"scratch", "temporary"}
+            and a.kind in {"scratch", "temporary", "download_cache"}
             and still_owned(a.kind)
             and self.ownership in self.paths[a.kind].parents
             and not any(
@@ -480,7 +494,6 @@ class StorageSession:
                     "models",
                     "docker",
                     "evidence",
-                    "results",
                 )
             )
         ]

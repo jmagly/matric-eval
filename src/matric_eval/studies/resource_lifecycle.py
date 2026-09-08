@@ -471,11 +471,8 @@ class ResourceLifecycle:
                         self.broker.call("heartbeat", token=token)
                     except (OSError, ValueError, RuntimeError):
                         heartbeat_failed.set()
-                        if child is not None and child.poll() is None:
-                            try:
-                                os.killpg(child.pid, signal.SIGTERM)
-                            except ProcessLookupError:
-                                pass
+                        if not heartbeat_stop.is_set():
+                            signal.raise_signal(signal.SIGTERM)
                         return
 
             heartbeat_worker = threading.Thread(target=keep_lease, daemon=True)
@@ -565,13 +562,16 @@ class ResourceLifecycle:
             heartbeat_stop.set()
             if heartbeat_worker is not None:
                 heartbeat_worker.join(timeout=11)
-            for original_signum, handler in handlers.items():
-                signal.signal(original_signum, handler)
             if storage:
                 storage.before_cleanup()
+            for original_signum, handler in handlers.items():
+                signal.signal(original_signum, handler)
             resource_cleanup = self.reconcile()
             if storage:
-                storage.finish(resource_cleanup)
+                try:
+                    storage.finish(resource_cleanup)
+                finally:
+                    storage.restore_environment()
             if not resource_cleanup:
                 raise RuntimeError("resource cleanup pending; run reconcile before new allocation")
             if child is not None:

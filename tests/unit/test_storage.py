@@ -122,9 +122,16 @@ def test_cleanup_preview_excludes_shared_evidence_and_escape(tmp_path):
     run = session(tmp_path)
     assert run.cleanup_preview() == []
     run.claim_empty_scratch()
-    assert {Path(item["path"]).name for item in run.cleanup_preview()} == {"scratch", "temporary"}
+    assert {Path(item["path"]).name for item in run.cleanup_preview()} == {
+        "scratch",
+        "temporary",
+        "download_cache",
+    }
     run.paths["scratch"] = tmp_path.parent
-    assert {Path(item["path"]).name for item in run.cleanup_preview()} == {"temporary"}
+    assert {Path(item["path"]).name for item in run.cleanup_preview()} == {
+        "temporary",
+        "download_cache",
+    }
 
 
 def test_mount_change_is_typed_blocker(tmp_path, monkeypatch):

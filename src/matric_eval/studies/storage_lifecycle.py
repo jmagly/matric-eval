@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -122,11 +123,21 @@ class ResidentStorage:
         self.worker: threading.Thread | None = None
         self.receipt_path: Path | None = None
         self.log: BinaryIO | None = None
+        self.environment: dict[str, str | None] = {}
+        self.previous_tempdir = tempfile.tempdir
 
     def admit(self) -> None:
         self.session.admit(reserve=True)
         self.session.bind_resource(self.resource.path)
         self.session.claim_empty_scratch()
+        for key, value in {
+            "TMPDIR": str(self.session.paths["temporary"]),
+            "HOME": str(self.session.paths["download_cache"]),
+            "XDG_CACHE_HOME": str(self.session.paths["download_cache"]),
+        }.items():
+            self.environment[key] = os.environ.get(key)
+            os.environ[key] = value
+        tempfile.tempdir = None
         self.session.check("before-preflight")
         publish_run_status(self.session, "admission")
         self.resource.save(
@@ -162,12 +173,10 @@ class ResidentStorage:
                     publish_run_status(self.session, self.resource.record["state"])
                 except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
                     self.failure = error
-                    launcher = self.resource.record.get("launcher")
-                    if launcher:
-                        try:
-                            os.killpg(launcher["pid"], signal.SIGTERM)
-                        except ProcessLookupError:
-                            pass
+                    # This worker belongs to the controller process. Deliver its
+                    # installed cancellation handler without addressing a stale PID/group.
+                    if not self.stop.is_set():
+                        signal.raise_signal(signal.SIGTERM)
                     return
 
         self.worker = threading.Thread(target=monitor, daemon=True)
@@ -176,6 +185,14 @@ class ResidentStorage:
     def check_failure(self) -> None:
         if self.failure:
             raise StorageBlocker("storage_runtime", str(self.failure))
+
+    def restore_environment(self) -> None:
+        for key, value in self.environment.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        tempfile.tempdir = self.previous_tempdir
 
     def before_cleanup(self) -> None:
         self.stop.set()
