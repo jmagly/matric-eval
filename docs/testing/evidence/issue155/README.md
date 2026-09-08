@@ -42,3 +42,22 @@ Fresh admission validation passed immediately afterward. No target model was
 acquired or loaded, and no task was scored. This receipt qualifies the pre-target
 admission boundary in that observed service context; target-resident qualification
 and lifecycle ownership remain separate gates.
+
+## Final dependency-bound qualification
+
+`supported-preflight-final.json` supersedes the earlier successful receipt for
+release review. It qualifies preflight source `398e156` with client source
+`685f3e5` and the broker/runtime-bound simulator and embedder profiles. All ten
+checks passed in 36.35 seconds, including three independent official Tau launcher
+repetitions. Immediate admission revalidation also passed after rehashing the
+external benchmark source/data trees, patch blob, Git state and the configured
+interpreter's dependency metadata. Both live probes verified the observed broker
+runtime identity and retained their own request correlation; execution-digest
+binding remains explicitly unverified. No target model was loaded or task scored.
+
+The six additional mutation regressions cover patch bytes, external source edits,
+new source files, task data, runtime METADATA versions and runtime RECORD changes.
+The final focused A100 suite passed 87 tests (20 preflight plus 67 Tau), with Ruff
+and strict module mypy clean. The original failure fixture still demonstrates
+zero target acquisitions after independent blockers; no frozen inputs or original
+benchmark environments were altered.
