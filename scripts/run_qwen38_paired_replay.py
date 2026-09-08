@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
-OUT = STUDY / "replay-20260908-r5"
+OUT = STUDY / "replay-20260908-r6"
 TAU = Path("/srv/matric-eval/benchmarks/tau2-qwen38-simulator-guard-v3")
 HARBOR = Path("/srv/matric-eval/benchmarks/harbor-qwen38-terminal-runtime-guard")
 TERMINAL = Path("/srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1")
@@ -236,7 +236,7 @@ def main():
         for entry in schedule:
             check_space()
             prefix = entry["prefix"]
-            unit = f"matric-eval-replay-20260908-{prefix}"
+            unit = f"matric-eval-{OUT.name}-{prefix}"
             receipt = OUT / f"{prefix}-server.json"
             execute(
                 f"{prefix}-server-launch",
@@ -270,7 +270,7 @@ def main():
                     "--server-receipt",
                     receipt,
                     "--ready-base",
-                    STUDY / f"run-control/replay-20260908-{prefix}",
+                    STUDY / f"run-control/{OUT.name}-{prefix}",
                     "--container-name",
                     unit,
                 ],
