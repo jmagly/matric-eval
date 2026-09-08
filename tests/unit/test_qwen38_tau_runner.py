@@ -467,6 +467,9 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
         receipt=tmp_path / "receipt.json",
     )
     objects = {
+        args.manifest: {
+            "allocations": [{"allocation_id": "tau3-bench", "selected_ids": ["airline:3"]}]
+        },
         args.inputs_summary: {
             "protocol_sha256": digest,
             "scored_samples": {"tau3-bench": 1},
@@ -638,3 +641,35 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
         tau_runner.run_tau(args)
     assert len(captured) == 1
     assert all(path.read_bytes() == payload for path, payload in preserved.items())
+
+
+def test_grouped_ids_restore_interleaved_manifest_order(tmp_path):
+    selected = ["retail:43", "airline:3", "retail:47"]
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        json.dumps({"allocations": [{"allocation_id": "tau3-bench", "selected_ids": selected}]})
+    )
+    grouped = tau_runner._flatten_scored_ids({"airline": ["3"], "retail": ["43", "47"]})
+    assert tau_runner._manifest_ordered_scored_ids(path, grouped) == selected
+    for invalid in (
+        grouped[:-1],
+        grouped + ["airline:4"],
+        grouped + [grouped[0]],
+        ["airline:4", "retail:43", "retail:47"],
+    ):
+        with pytest.raises(ValueError, match="membership"):
+            tau_runner._manifest_ordered_scored_ids(path, invalid)
+    path.write_text(
+        json.dumps(
+            {
+                "allocations": [
+                    {
+                        "allocation_id": "tau3-bench",
+                        "selected_ids": ["retail:43", "retail:43", "airline:3"],
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="membership"):
+        tau_runner._manifest_ordered_scored_ids(path, grouped)

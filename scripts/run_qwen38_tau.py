@@ -157,6 +157,26 @@ def _flatten_scored_ids(scored_by_domain: JsonObject) -> list[str]:
     return flattened
 
 
+def _manifest_ordered_scored_ids(manifest_path: Path, scored_ids: list[str]) -> list[str]:
+    """Restore selection order lost by the domain-grouped input representation."""
+    manifest = _load_object(manifest_path, "study manifest")
+    allocations = manifest.get("allocations", [])
+    matches = [
+        a for a in allocations if isinstance(a, dict) and a.get("allocation_id") == "tau3-bench"
+    ]
+    selected = matches[0].get("selected_ids") if len(matches) == 1 else None
+    if (
+        not isinstance(selected, list)
+        or not all(isinstance(value, str) for value in selected)
+        or len(selected) != len(set(selected))
+        or len(scored_ids) != len(set(scored_ids))
+        or len(selected) != len(scored_ids)
+        or set(selected) != set(scored_ids)
+    ):
+        raise ValueError("tau scored IDs do not exactly match the study manifest membership")
+    return list(selected)
+
+
 def _verify_manifest(
     manifest_path: Path,
     summary: JsonObject,
@@ -573,6 +593,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     scored_samples = summary.get("scored_samples")
     if not isinstance(scored_samples, dict) or len(scored_ids) != scored_samples.get("tau3-bench"):
         raise ValueError("tau scored sample count does not match the agentic input summary")
+    scored_ids = _manifest_ordered_scored_ids(args.manifest, scored_ids)
     manifest_sha256 = _verify_manifest(args.manifest, summary, scored_ids, str(study["id"]))
     server_receipt = _load_object(args.server_receipt, "model server receipt")
     if (
