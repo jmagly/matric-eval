@@ -1,12 +1,15 @@
 # matric-eval Delivery Plan
 
-**Status**: Active 0.2.0 release planning
+**Status**: CalVer release preparation (2026.9.0)
 
-**Last reconciled**: 2026-08-03
+**Release policy updated**: 2026-09-08
 
 This is the current delivery plan. The original week-based construction plans
 under `.aiwg/planning/` are archived project history; their issue numbers,
 estimates, and completion states must not be used for current scheduling.
+
+Current distribution policy is [Gitea release downloads](releasing.md), with
+registry publication disabled. Historical 0.2.0 tracker titles remain below.
 
 ## Delivery Sources Of Truth
 
@@ -20,22 +23,22 @@ estimates, and completion states must not be used for current scheduling.
 
 The Reliability & CI Hardening milestone closed on 2026-08-03 with issues #87
 through #90 complete. The repository is now in the Release 0.2 & Ecosystem
-Adoption milestone. Source packages are staged at version 0.2.0; Gitea Releases
-and package registries remain authoritative for publication status.
+Adoption milestone. Source packages are staged at CalVer 2026.9.0; Gitea Releases
+is authoritative for download availability; package registry publishing is disabled.
 
 ## Ordered Work
 
 | Stage | Tracker item | State | Required outcome |
 |---|---|---|---|
 | Documentation baseline | [#91](https://git.integrolabs.net/roctinam/matric-eval/issues/91) | Complete in this revision | Public docs, planning, traceability, protocols, and historical records agree with current evidence |
-| Release candidate | [#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) | Next | Consistent 0.2.0 versions, changelog/release notes, wheel, sdist, TypeScript package, SBOM, license report, and vulnerability audit |
+| Release candidate | [#92](https://git.integrolabs.net/roctinam/matric-eval/issues/92) | Next | Consistent CalVer versions, changelog/release notes, wheel, sdist, TypeScript package, SBOM, license report, and vulnerability audit |
 | Clean validation | [#93](https://git.integrolabs.net/roctinam/matric-eval/issues/93) | Coordinates with #92 | Install and exercise candidate artifacts in every supported clean environment; attach hashes and results before final publication |
 | Ecosystem adoption | [#94](https://git.integrolabs.net/roctinam/matric-eval/issues/94) | Blocked by package candidate | Validate the TypeScript client in matric-cli, including streaming, cancellation, errors, migration, and rollback |
 
 Release preparation and clean validation are iterative: #92 produces immutable
 candidate artifacts, #93 validates those exact hashes, and #92 publishes the tag
 and final release only after that evidence passes. #94 validates the supported
-consumer path and must not assume that a source-tree build proves registry
+consumer path and must not assume that a source-tree build proves downloaded-artifact
 installation or consumer compatibility.
 
 ## Release Gates
@@ -73,7 +76,7 @@ installation or consumer compatibility.
 
 ## Deferred Work
 
-Issues #95 through #97 are excluded from the 0.2.0 sequence. Their issue bodies
+Issues #95 through #97 are excluded from this release sequence. Their issue bodies
 contain explicit promotion triggers. Do not bundle leaderboard/reporting, Rust
 bindings, or normalized token/cost accounting into release work without changing
 tracker state and reviewing the resulting scope.

@@ -1,4 +1,4 @@
-name: Release Candidate
+name: Release Artifacts
 
 on:
   workflow_dispatch:
@@ -9,12 +9,16 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  UV_LOCKED: "1"
+  UV_PYTHON: "3.11"
+
 jobs:
   release:
-    name: Build, Audit, and Publish
+    name: Build, Audit, and Attach Release Downloads
     runs-on: ubuntu-latest
     container: python:3.11
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Install system dependencies
         run: |
@@ -27,14 +31,24 @@ jobs:
           git init .
           git remote add origin \
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
-          git fetch --depth 1 origin ${{ github.sha }}
-          git checkout --detach FETCH_HEAD
+          git fetch origin ${{ github.sha }} refs/heads/main:refs/remotes/origin/main
+          git checkout --detach "${{ github.sha }}"
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
+
+      - name: Verify tagged source and exact-commit CI
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          python scripts/publish_forge_release.py verify \
+            --tag "${GITHUB_REF#refs/tags/}" --commit "$GITHUB_SHA" \
+            --root . --wait-seconds 900
 
       - name: Install locked build environment
         run: |
           python -m pip install uv==0.9.26
-          uv sync --all-extras --no-extra dev --no-dev --frozen
+          uv sync --all-extras --no-extra dev --no-dev --locked
           npm ci --prefix bindings/typescript
 
       - name: Verify version contract
@@ -79,7 +93,7 @@ jobs:
 
       - name: Review dependency licenses
         run: |
-          python scripts/release_contract.py licenses \
+          uv run --no-sync python scripts/release_contract.py licenses \
             --npm-sbom release-artifacts/evidence/typescript-sbom.cdx.json \
             --policy release/license-policy.json \
             --json-output release-artifacts/evidence/dependency-licenses.json \
@@ -88,7 +102,7 @@ jobs:
       - name: Audit dependencies
         run: |
           uv export --format requirements.txt --all-extras --no-extra dev --no-dev --locked \
-            --no-emit-project \
+            --no-emit-project --no-hashes \
             --output-file release-artifacts/evidence/python-requirements.txt
           set +e
           uvx --from pip-audit==2.10.0 pip-audit \
@@ -108,6 +122,7 @@ jobs:
         run: |
           python scripts/release_contract.py vulnerabilities \
             --python-audit release-artifacts/evidence/python-vulnerabilities.json \
+            --audit-exit-codes release-artifacts/evidence/audit-exit-codes.json \
             --npm-audit release-artifacts/evidence/typescript-vulnerabilities.json \
             --policy release/vulnerability-policy.json \
             --json-output release-artifacts/evidence/vulnerability-review.json \
@@ -140,67 +155,19 @@ jobs:
           tar -czf "matric-eval-${version}-release-bundle.tar.gz" \
             -C release-artifacts .
 
-      - name: Verify publication credential
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: test -n "$RELEASE_TOKEN"
-
-      - name: Publish Python packages
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          uv publish \
-            --publish-url https://git.integrolabs.net/api/packages/roctinam/pypi/ \
-            --username "${{ github.actor }}" \
-            --password "$RELEASE_TOKEN" \
-            release-artifacts/packages/python/*
-
-      - name: Publish TypeScript package
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          npm config set \
-            //git.integrolabs.net/api/packages/roctinam/npm/:_authToken \
-            "$RELEASE_TOKEN" --location=user
-          npm publish release-artifacts/packages/typescript/*.tgz \
-            --registry https://git.integrolabs.net/api/packages/roctinam/npm/
-
-      - name: Create Gitea release and attach evidence
+      # No Python or npm registry upload exists in this workflow.
+      - name: Attach verified Gitea release downloads
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           version="${tag#v}"
-          notes_path="docs/releases/${version}.md"
-          test -f "$notes_path"
-          jq -n \
-            --arg tag "$tag" \
-            --arg name "matric-eval ${version}" \
-            --rawfile body "$notes_path" \
-            '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}' \
-            > /tmp/gitea-release.json
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Authorization: token ${RELEASE_TOKEN}" \
-            --header "Content-Type: application/json" \
-            --data @/tmp/gitea-release.json \
-            "https://git.integrolabs.net/api/v1/repos/${GITHUB_REPOSITORY}/releases" \
-            > /tmp/gitea-release-response.json
-          release_id=$(jq --exit-status --raw-output '.id' /tmp/gitea-release-response.json)
-          { find release-artifacts -type f -print; find . -maxdepth 1 -name 'matric-eval-*-release-bundle.tar.gz' -print; } |
-            while IFS= read -r asset; do
-              asset_name=$(basename "$asset")
-              curl --fail-with-body --silent --show-error \
-                --request POST \
-                --header "Authorization: token ${RELEASE_TOKEN}" \
-                --form "attachment=@${asset}" \
-                "https://git.integrolabs.net/api/v1/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${asset_name}" \
-                > /dev/null
-            done
+          python scripts/publish_forge_release.py publish \
+            --tag "$tag" --commit "$GITHUB_SHA" --root . \
+            --artifact-root release-artifacts \
+            --bundle "matric-eval-${version}-release-bundle.tar.gz" \
+            --notes "docs/releases/${version}.md" --wait-seconds 900
 
       - name: Retain release bundle
         if: always()

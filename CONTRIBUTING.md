@@ -16,7 +16,7 @@ uv sync --locked --extra dev --extra study
 uv run pytest tests/ -q
 
 # Run tests with coverage
-uv run pytest tests/ --cov=src/matric_eval --cov-fail-under=80
+make test-coverage-fail
 ```
 
 The full test suite exercises the official IFEval study scorer, so development
@@ -46,7 +46,7 @@ findings may be removed, but a new finding or an increased count fails
 `make type-check-update` only when a reviewed change reduces the baseline.
 
 Mainline protection should require the `Quality Gates`, `Test and Coverage`,
-and `Build Package` checks. Do not merge while any required check is pending,
+`Smoke Tests`, and `Build Package` checks. Do not merge while any required check is pending,
 failed, skipped unexpectedly, or absent.
 
 ## Testing
@@ -75,3 +75,13 @@ failed, skipped unexpectedly, or absent.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
+
+## Versioning and Releases
+
+Use CalVer `YYYY.M.PATCH`, with an unpadded month and a counter starting at zero
+for each UTC month. Run `make version-check` before review; use `make version-bump`
+to update Python, TypeScript and lock versions together. Result/protocol schema
+versions are independent and must not be changed by a package bump.
+
+Follow [the release guide](docs/development/releasing.md). Distribution is through
+verified Gitea release downloads; PyPI and npm registry publishing are disabled.

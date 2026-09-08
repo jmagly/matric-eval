@@ -1,15 +1,18 @@
 # CI/CD Pipeline for matric-eval
 # Runs tests, linting, and coverage checks on every push and PR
-# Package publication is handled by release.yml after candidate validation.
+# Gitea release downloads are handled by release.yml; registry publishing is disabled.
 
 name: CI
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
+
+env:
+  UV_LOCKED: "1"
+  UV_PYTHON: "3.11"
 
 jobs:
   quality:
@@ -28,16 +31,19 @@ jobs:
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
           git fetch --depth 1 origin ${{ github.sha }}
           git checkout --detach FETCH_HEAD
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install uv==0.9.26
 
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+          uv sync --locked --extra dev
+
+      - name: Verify CalVer surfaces
+        run: python scripts/release_contract.py versions
 
       - name: Run lint
         run: |
@@ -71,16 +77,16 @@ jobs:
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
           git fetch --depth 1 origin ${{ github.sha }}
           git checkout --detach FETCH_HEAD
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install uv==0.9.26
 
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev --extra study
+          uv sync --locked --extra dev --extra study
 
       - name: Run all tests with coverage
         run: |
@@ -120,29 +126,23 @@ jobs:
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
           git fetch --depth 1 origin ${{ github.sha }}
           git checkout --detach FETCH_HEAD
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install uv==0.9.26
 
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev --extra study
+          uv sync --locked --extra dev --extra study
 
-      - name: Run smoke tests
+      - name: Verify installed CLI without model services
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv run pytest tests/unit/ \
-            -v --tb=short \
-            --maxfail=5 \
-            -x
-
-      - name: Verify CLI help
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv run python -m matric_eval.cli --help
+          uv run matric-eval --version
+          uv run matric-eval --help
+          uv run matric-eval list-providers
+          uv run matric-eval list-benchmarks
 
   build:
     name: Build Package
@@ -163,11 +163,11 @@ jobs:
             https://oauth2:${{ github.token }}@git.integrolabs.net/${{ github.repository }}.git
           git fetch --depth 1 origin ${{ github.sha }}
           git checkout --detach FETCH_HEAD
+          git remote set-url origin https://git.integrolabs.net/${{ github.repository }}.git
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install uv==0.9.26
 
       - name: Verify release versions
         run: |
@@ -183,12 +183,15 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           ls -la dist/
-          pip install dist/*.whl
-          python -c "import matric_eval; print('Version:', matric_eval.__version__)"
+          wheel=$(realpath dist/*.whl)
+          cd /tmp
+          uv run --isolated --no-project --with "$wheel" python -I -c "import matric_eval; print('Version:', matric_eval.__version__)"
 
       - name: Build and test TypeScript package
         working-directory: bindings/typescript
         run: |
+          uv sync --locked --project ../..
+          export MATRIC_EVAL_TEST_PYTHON="$(cd ../.. && pwd)/.venv/bin/python"
           npm ci
           npm run build
           npm test
