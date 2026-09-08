@@ -2,6 +2,7 @@
 
 import json
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,29 @@ def test_filesystems_are_counted_once_and_unknown_demand_explicit(tmp_path):
     assert next(iter(plan["filesystems"].values()))["reserved_bytes"] == 16384 + DIAGNOSTIC_BYTES
     assert all(item["demand"] == "unknown" for item in plan["classes"])
     assert not run.active
+
+
+def test_emergency_receipt_is_private_and_cannot_overwrite_evidence(tmp_path):
+    run = session(tmp_path)
+    path = run.write_diagnostics({"failure_class": "storage_budget_exceeded"})
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    with pytest.raises(StorageBlocker, match="storage_diagnostic_io"):
+        run.write_diagnostics({"failure_class": "replacement"})
+    assert json.loads(path.read_text())["failure_class"] == "storage_budget_exceeded"
+
+
+def test_directory_sync_failure_cannot_claim_durable_diagnostics(tmp_path, monkeypatch):
+    run = session(tmp_path)
+    real_fsync = os.fsync
+
+    def failing_directory_sync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError("injected directory durability failure")
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", failing_directory_sync)
+    with pytest.raises(StorageBlocker, match="storage_diagnostic_io"):
+        run.write_diagnostics({"failure_class": "storage_budget_exceeded"})
 
 
 def test_production_refuses_unenforced_scratch_before_load(tmp_path):

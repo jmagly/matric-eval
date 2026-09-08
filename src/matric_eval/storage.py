@@ -459,10 +459,16 @@ class StorageSession:
             raise StorageBlocker("storage_diagnostic_budget", "receipt exceeds reserved 1 MiB")
         path = self.ledger / f"{self.token}.receipt.json"
         try:
-            with path.open("x") as output:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, "w") as output:
                 output.write(encoded)
                 output.flush()
                 os.fsync(output.fileno())
+            directory_fd = os.open(self.ledger, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         except OSError as exc:
             raise StorageBlocker("storage_diagnostic_io", str(exc)) from exc
         return path

@@ -45,7 +45,9 @@ group, escalating from TERM to KILL after five seconds, retains artifacts, and
 returns 75. The ledger device reserves an additional 1 MiB and four inodes per run
 for emergency diagnostics and ledger updates, apart from configured headroom.
 Before releasing capacity, the supervisor writes an exclusive owner-named JSON
-receipt there and fsyncs it. The final receipt also goes to stdout. Ledger-release
+receipt there with mode 0600 and fsyncs both the file and directory entry before
+reporting durable diagnostic success. A directory-sync failure remains a typed
+storage error. The final receipt also goes to stdout. Ledger-release
 errors retain the original failure and report cleanup errors with the active
 reservation; they cannot suppress output. The durable receipt reflects the state
 before release; the stdout receipt includes the release outcome.
