@@ -1,7 +1,7 @@
 """Manual A100 fixture: run inside a private mount namespace with bounded scratch.
 
-Usage: python tests/unit/storage_bounded_fixture.py OWNED_ROOT bytes|inodes
-The caller mounts OWNED_ROOT/scratch as tmpfs size=1M,nr_inodes=32.
+Usage: python tests/unit/storage_bounded_fixture.py OWNED_ROOT bytes|inodes|evidence
+Mount OWNED_ROOT/scratch (or /evidence for that mode) as tmpfs size=1M,nr_inodes=32.
 """
 
 import errno
@@ -13,6 +13,7 @@ from matric_eval.storage import CLASSES, Allocation, StorageBlocker, StorageSess
 
 root = Path(sys.argv[1])
 mode = sys.argv[2]
+growth_kind = "evidence" if mode == "evidence" else "scratch"
 allocations = []
 for kind in sorted(CLASSES):
     path = root / kind
@@ -21,8 +22,8 @@ for kind in sorted(CLASSES):
         Allocation(
             kind,
             str(path),
-            1048576 if kind == "scratch" else 0,
-            32 if kind == "scratch" else 0,
+            1048576 if kind == growth_kind else 0,
+            32 if kind == growth_kind else 0,
             disposable=True,
         )
     )
@@ -33,7 +34,7 @@ run.check("fixture:before")
 try:
     for index in range(1024):
         try:
-            (root / "scratch" / str(index)).write_bytes(b"x" * 65536 if mode == "bytes" else b"")
+            (root / growth_kind / str(index)).write_bytes(b"x" * 65536 if mode != "inodes" else b"")
         except OSError as exc:
             assert exc.errno == errno.ENOSPC
             break
@@ -44,11 +45,9 @@ try:
     except StorageBlocker as exc:
         assert exc.code == "storage_bound_exhausted"
         receipt = {"blocker": exc.code, "mode": mode, **run.receipt()}
-        # The exhausted scratch filesystem cannot consume the evidence device.
-        (root / "evidence" / "diagnostics.json").write_text(json.dumps(receipt, indent=2))
-        assert (
-            json.loads((root / "evidence" / "diagnostics.json").read_text())["blocker"] == exc.code
-        )
+        # Even exhausted evidence cannot consume the emergency diagnostic device.
+        diagnostic = run.write_diagnostics(receipt)
+        assert json.loads(diagnostic.read_text())["blocker"] == exc.code
         print(json.dumps(receipt))
     else:
         raise AssertionError("Storage exhaustion was not classified")

@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from matric_eval.storage import CLASSES, Allocation, StorageBlocker, StorageSession
+from matric_eval.storage import (
+    CLASSES,
+    DIAGNOSTIC_BYTES,
+    Allocation,
+    StorageBlocker,
+    StorageSession,
+)
 
 
 def session(tmp_path, **kwargs):
@@ -36,7 +42,7 @@ def test_filesystems_are_counted_once_and_unknown_demand_explicit(tmp_path):
     run = session(tmp_path)
     plan = run.admit()
     assert len(plan["filesystems"]) == 1
-    assert next(iter(plan["filesystems"].values()))["reserved_bytes"] == 16384
+    assert next(iter(plan["filesystems"].values()))["reserved_bytes"] == 16384 + DIAGNOSTIC_BYTES
     assert all(item["demand"] == "unknown" for item in plan["classes"])
     assert not run.active
 
@@ -77,7 +83,7 @@ def test_concurrent_reservation_and_identity_recovery(tmp_path):
     other = session(tmp_path)
     plan = other.plan()
     volume = next(iter(plan["filesystems"].values()))
-    volume["free_bytes"] = 16384
+    volume["free_bytes"] = volume["reserved_bytes"]
     with other.locked() as state:
         with pytest.raises(StorageBlocker, match="storage_insufficient_bytes"):
             other._admit(plan, state)
@@ -140,7 +146,10 @@ def test_cli_configuration_failure_is_typed(tmp_path, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["failure_class"] == "storage_configuration"
 
 
-def test_supervisor_stops_owned_writer_and_retains_receipt(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("release_failure", [False, True])
+def test_supervisor_stops_owned_writer_and_retains_receipt(
+    tmp_path, monkeypatch, capsys, release_failure
+):
     import sys
     import time
     from dataclasses import asdict
@@ -162,6 +171,12 @@ def test_supervisor_stops_owned_writer_and_retains_receipt(tmp_path, monkeypatch
     )
     # Only this bounded fixture bypasses production enforcement to exercise polling.
     monkeypatch.setattr(StorageSession, "verify_bounds", lambda self, plan: None)
+    if release_failure:
+
+        def failed_release(self):
+            raise StorageBlocker("storage_ledger_io", "fixture release failure")
+
+        monkeypatch.setattr(StorageSession, "release", failed_release)
     script = (
         "from pathlib import Path; import time; "
         f"root=Path({str(tmp_path / 'scratch')!r}); "
@@ -176,4 +191,140 @@ def test_supervisor_stops_owned_writer_and_retains_receipt(tmp_path, monkeypatch
     assert "storage_budget_exceeded" in output
     assert "storage_receipt" in output
     assert not (tmp_path / "scratch" / "should-not-exist").exists()
-    assert json.loads((tmp_path / "reservations.json").read_text()) == {}
+    retained = json.loads(next(tmp_path.glob("*.receipt.json")).read_text())
+    assert retained["failure"]["failure_class"] == "storage_budget_exceeded"
+    if release_failure:
+        assert "fixture release failure" in output
+        assert json.loads((tmp_path / "reservations.json").read_text())
+    else:
+        assert json.loads((tmp_path / "reservations.json").read_text()) == {}
+
+
+@pytest.mark.parametrize("unit", ["bytes", "inodes"])
+def test_existing_headroom_cannot_be_spent_by_new_run(tmp_path, unit):
+    first = session(tmp_path, **{f"headroom_{unit}": 100})
+    first.admit(reserve=True)
+    other = session(tmp_path)
+    plan = other.plan()
+    volume = next(iter(plan["filesystems"].values()))
+    volume[f"free_{unit}"] = 2 * volume[f"reserved_{unit}"] + 50
+    with other.locked() as state:
+        assert next(iter(state[first.token]["volumes"].values()))[f"headroom_{unit}"] == 100
+        with pytest.raises(StorageBlocker, match=f"storage_insufficient_{unit}"):
+            other._admit(plan, state)
+    first.release()
+
+
+def test_capacity_is_refreshed_inside_reservation_lock(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    run = session(tmp_path)
+    real_lock, real_plan = run.locked, run.plan
+    locked = False
+
+    @contextmanager
+    def lock():
+        nonlocal locked
+        with real_lock() as state:
+            locked = True
+            try:
+                yield state
+            finally:
+                locked = False
+
+    def plan():
+        assert locked, "free capacity was sampled outside the reservation lock"
+        return real_plan()
+
+    monkeypatch.setattr(run, "locked", lock)
+    monkeypatch.setattr(run, "plan", plan)
+    run.admit(reserve=True)
+    run.release()
+
+
+def test_release_retains_surviving_descendant_until_reaped(tmp_path):
+    import ctypes
+    import signal
+    import subprocess
+    import sys
+
+    libc = ctypes.CDLL(None)
+    previous = ctypes.c_int()
+    assert libc.prctl(37, ctypes.byref(previous), 0, 0, 0) == 0
+    assert libc.prctl(36, 1, 0, 0, 0) == 0
+    child = None
+    run = session(tmp_path)
+    leader = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os,sys,time; input(); child=os.fork(); "
+            "os._exit(0) if child else None; print(os.getpid(),flush=True); time.sleep(60)",
+        ],
+        start_new_session=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        run.admit(reserve=True)
+        run.attach_process_group(leader.pid)
+        leader.stdin.write("\n")
+        leader.stdin.flush()
+        child = int(leader.stdout.readline())
+        leader.wait(timeout=5)
+        run.release()
+        assert run.active
+        assert run.token in json.loads((tmp_path / "reservations.json").read_text())
+        os.kill(child, signal.SIGKILL)
+        os.waitpid(child, 0)
+        child = None
+        run.release()
+        assert not run.active
+        assert json.loads((tmp_path / "reservations.json").read_text()) == {}
+    finally:
+        if child is not None:
+            os.kill(child, signal.SIGKILL)
+            os.waitpid(child, 0)
+        if leader.poll() is None:
+            leader.kill()
+            leader.wait()
+        leader.stdin.close()
+        leader.stdout.close()
+        run.release()
+        assert libc.prctl(36, previous.value, 0, 0, 0) == 0
+
+
+def test_unknown_group_state_retains_reservation(tmp_path, monkeypatch):
+    import errno
+
+    import matric_eval.storage as storage
+
+    run = session(tmp_path)
+    run.admit(reserve=True)
+    with run.locked() as state:
+        state[run.token]["process_group"] = 12345
+
+    def unknown(group, sig):
+        raise OSError(errno.EIO, "cannot establish liveness")
+
+    monkeypatch.setattr(os, "killpg", unknown)
+    assert storage.group_alive(12345)
+    run.release()
+    assert run.active
+    assert run.token in json.loads((tmp_path / "reservations.json").read_text())
+
+
+def test_evidence_growth_also_requires_kernel_bounds(tmp_path):
+    from dataclasses import replace
+
+    run = session(tmp_path)
+    run.allocations = [
+        replace(a, budget_bytes=4096, budget_inodes=2)
+        if a.kind == "evidence"
+        else replace(a, budget_bytes=0, budget_inodes=0)
+        for a in run.allocations
+    ]
+    run.require_enforced_bounds = True
+    with pytest.raises(StorageBlocker, match="evidence: require"):
+        run.admit(reserve=True)

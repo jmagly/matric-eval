@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 CLASSES = {"models", "download_cache", "docker", "scratch", "temporary", "logs", "evidence"}
+DIAGNOSTIC_BYTES = 1024 * 1024
 
 
 class StorageBlocker(RuntimeError):
@@ -106,7 +107,7 @@ def group_alive(group: int) -> bool:
         return True
     except ProcessLookupError:
         return False
-    except PermissionError:
+    except OSError:
         return True
 
 
@@ -132,6 +133,7 @@ class StorageSession:
             raise ValueError("Headroom must be nonnegative")
         self.allocations = allocations
         self.ledger = ledger.resolve(strict=True)
+        self.ledger_mount = filesystem(self.ledger)
         self.ownership = ownership.resolve(strict=True)
         self.headroom_bytes = headroom_bytes
         self.headroom_inodes = headroom_inodes
@@ -140,6 +142,7 @@ class StorageSession:
         self.active = False
         self.started = time.monotonic()
         self.samples: list[dict[str, Any]] = []
+        self.peak_scratch_bytes = 0
         self.paths: dict[str, Path] = {}
         self.baselines: dict[str, tuple[int, int]] = {}
         self.mounts: dict[str, dict[str, Any]] = {}
@@ -217,6 +220,11 @@ class StorageSession:
             volume = volumes.setdefault(
                 current["device"], {**current, "reserved_bytes": 0, "reserved_inodes": 0}
             )
+            protect = (
+                not self.require_enforced_bounds or current["device"] == self.ledger_mount["device"]
+            )
+            volume["headroom_bytes"] = self.headroom_bytes if protect else 0
+            volume["headroom_inodes"] = self.headroom_inodes if protect else 0
             baseline = self.baselines[allocation.kind]
             volume["reserved_bytes"] += min(
                 allocation.budget_bytes, max(0, current["capacity_bytes"] - baseline[0])
@@ -231,16 +239,41 @@ class StorageSession:
                     "demand": "unknown" if allocation.estimated_bytes is None else "estimated",
                 }
             )
-        return {"classes": classes, "filesystems": volumes}
+        diagnostic = filesystem(self.ledger)
+        if any(
+            diagnostic[key] != self.ledger_mount[key] for key in ("device", "mount_id", "mount")
+        ):
+            raise StorageBlocker("storage_mount_changed", "emergency diagnostics ledger")
+        volume = volumes.setdefault(
+            diagnostic["device"], {**diagnostic, "reserved_bytes": 0, "reserved_inodes": 0}
+        )
+        volume["reserved_bytes"] += DIAGNOSTIC_BYTES
+        volume["reserved_inodes"] += 4
+        volume["headroom_bytes"] = self.headroom_bytes
+        volume["headroom_inodes"] = self.headroom_inodes
+        return {
+            "classes": classes,
+            "filesystems": volumes,
+            "emergency_diagnostics": {
+                "path": str(self.ledger),
+                "reserved_bytes": DIAGNOSTIC_BYTES,
+                "reserved_inodes": 4,
+            },
+        }
 
     def _admit(self, plan: dict[str, Any], state: dict[str, Any]) -> None:
         for device, volume in plan["filesystems"].items():
-            for unit, headroom in (
-                ("bytes", self.headroom_bytes),
-                ("inodes", self.headroom_inodes),
-            ):
-                if self.require_enforced_bounds and device != self.mounts["evidence"]["device"]:
-                    headroom = 0
+            for unit in ("bytes", "inodes"):
+                # The shared free-space floor is the strictest live run's floor;
+                # budgets are additive, while one free byte satisfies all floors.
+                headroom = max(
+                    [volume[f"headroom_{unit}"]]
+                    + [
+                        record["volumes"].get(device, {}).get(f"headroom_{unit}", 0)
+                        for key, record in state.items()
+                        if key != self.token
+                    ]
+                )
                 reserved = sum(
                     record["volumes"].get(device, {}).get(f"reserved_{unit}", 0)
                     for key, record in state.items()
@@ -253,8 +286,8 @@ class StorageSession:
                     )
 
     def admit(self, reserve: bool = False) -> dict[str, Any]:
-        plan = self.plan()
         with self.locked() as state:
+            plan = self.plan()
             self._admit(plan, state)
             if reserve:
                 if self.require_enforced_bounds:
@@ -278,22 +311,22 @@ class StorageSession:
         """Fail closed unless volatile writers have kernel-bounded filesystems.
 
         A configured byte allowance alone is not proof of an enforced quota.
-        Evidence lives on a different device so scratch bursts cannot consume it.
+        Emergency diagnostics use a different device from all growing allocations.
         This implementation supports bounded filesystems, not quota attestations.
         """
-        evidence_device = self.mounts["evidence"]["device"]
+        diagnostic_device = self.ledger_mount["device"]
         for item in plan["classes"]:
-            if item["kind"] == "evidence" or not (item["budget_bytes"] or item["budget_inodes"]):
+            if not (item["budget_bytes"] or item["budget_inodes"]):
                 continue
             if (
-                item["device"] == evidence_device
+                item["device"] == diagnostic_device
                 or item["capacity_bytes"] > item["budget_bytes"]
                 or not item["capacity_inodes"]
                 or item["capacity_inodes"] > item["budget_inodes"]
             ):
                 raise StorageBlocker(
                     "storage_enforcement_required",
-                    f"{item['kind']}: require a byte/inode bounded filesystem on a different device from evidence; configured budgets are not kernel quotas",
+                    f"{item['kind']}: require a byte/inode bounded filesystem on a different device from emergency diagnostics; configured budgets are not kernel quotas",
                 )
 
     def check(self, phase: str, pid: int | None = None) -> dict[str, Any]:
@@ -325,11 +358,11 @@ class StorageSession:
             "process_io": process_io,
         }
         self.samples.append(sample)
+        self.peak_scratch_bytes = max(self.peak_scratch_bytes, measured["scratch"]["bytes"])
+        if len(self.samples) > 64:
+            del self.samples[1]
         for volume in plan["filesystems"].values():
-            if (
-                self.require_enforced_bounds
-                and volume["device"] != self.mounts["evidence"]["device"]
-            ):
+            if self.require_enforced_bounds and volume["device"] != self.ledger_mount["device"]:
                 if volume["free_bytes"] == 0 or volume["free_inodes"] == 0:
                     blocker = StorageBlocker("storage_bound_exhausted", str(volume))
                 continue
@@ -393,21 +426,43 @@ class StorageSession:
                     and record["pid"] == os.getpid()
                     and record["identity"] == process_identity(os.getpid())
                 ):
+                    if record.get("process_group") and group_alive(record["process_group"]):
+                        return
                     del state[self.token]
+                elif record:
+                    # An ownership mismatch cannot authorize releasing capacity.
+                    return
             self.active = False
 
     def receipt(self) -> dict[str, Any]:
         return {
             "owner": self.token,
+            "reservation_active": self.active,
             "before": self.before,
             "samples": self.samples,
-            "peak_scratch_bytes": max(
-                (s["usage"]["scratch"]["bytes"] for s in self.samples), default=0
-            ),
+            "peak_scratch_bytes": self.peak_scratch_bytes,
             "cleanup_preview": self.cleanup_preview(),
             "elapsed_seconds": time.monotonic() - self.started,
             "measurement_scope": "sampled allocated blocks/inodes and named PID I/O; descendants and between-sample peaks are not included; no throughput claim",
         }
+
+    def write_diagnostics(self, receipt: dict[str, Any]) -> Path:
+        """Write within the separately reserved emergency area, never a fallback path."""
+        current = filesystem(self.ledger)
+        if any(current[key] != self.ledger_mount[key] for key in ("device", "mount_id", "mount")):
+            raise StorageBlocker("storage_mount_changed", "emergency diagnostics ledger")
+        encoded = json.dumps(receipt)
+        if len(encoded.encode()) > DIAGNOSTIC_BYTES:
+            raise StorageBlocker("storage_diagnostic_budget", "receipt exceeds reserved 1 MiB")
+        path = self.ledger / f"{self.token}.receipt.json"
+        try:
+            with path.open("x") as output:
+                output.write(encoded)
+                output.flush()
+                os.fsync(output.fileno())
+        except OSError as exc:
+            raise StorageBlocker("storage_diagnostic_io", str(exc)) from exc
+        return path
 
 
 def main() -> int:
@@ -433,6 +488,8 @@ def main() -> int:
     if command[:1] == ["--"]:
         command = command[1:]
     process = None
+    failure = None
+    cleanup_errors: list[str] = []
     try:
         plan = session.admit(reserve=bool(command))
         if not command:
@@ -462,6 +519,7 @@ def main() -> int:
         session.check("finished")
         return int(process.returncode)
     except StorageBlocker as exc:
+        failure = {"failure_class": exc.code, "detail": str(exc)}
         print(json.dumps({"failure_class": exc.code, "detail": str(exc)}), flush=True)
         return 75
     finally:
@@ -480,8 +538,20 @@ def main() -> int:
                 except ProcessLookupError:
                     pass
                 process.wait()
-        session.release()
-        print(json.dumps({"storage_receipt": session.receipt()}), flush=True)
+        receipt = {**session.receipt(), "failure": failure, "cleanup_errors": cleanup_errors}
+        if process is not None or failure:
+            try:
+                session.write_diagnostics(receipt)
+            except (StorageBlocker, OSError) as exc:
+                cleanup_errors.append(str(exc))
+        try:
+            session.release()
+        except (StorageBlocker, OSError) as exc:
+            cleanup_errors.append(str(exc))
+        receipt["reservation_active"] = session.active
+        print(json.dumps({"storage_receipt": receipt}), flush=True)
+        if cleanup_errors or session.active:
+            return 75
 
 
 if __name__ == "__main__":

@@ -9,11 +9,15 @@ imports pools, or deletes artifacts.
 Every cooperating run must use the **same ledger directory on the same host**.
 Reservations contain boot ID, PID, process start time, and an unguessable owner ID.
 Dead process identities are recovered under the lock; a reused PID is insufficient
-proof of ownership. Reservations are conservative until released. This is not a
+proof of ownership. Attached process groups must also be gone; surviving or
+unobservable groups retain their reservations even after their leaders exit.
+Each reservation records its per-device headroom: admission preserves the largest
+live headroom floor in addition to the sum of all live allocations. Capacity is
+sampled inside the reservation lock. Reservations are conservative until released. This is not a
 cross-host/distributed allocator. Production reservation additionally verifies
-kernel bounds: every growing class except evidence must reside on a filesystem
+kernel bounds: every growing class, including evidence, must reside on a filesystem
 whose total byte and inode capacities fit its budgets, on a different device from
-evidence. Admission returns `storage_enforcement_required` when this proof is
+the emergency diagnostics ledger. Admission returns `storage_enforcement_required` when this proof is
 absent. This version supports bounded filesystems (for example an operator-created
 tmpfs); project-quota attestations are not yet supported. It never creates mounts.
 
@@ -38,8 +42,13 @@ The command starts only after atomic reservation and enforced-bound verification
 allocated blocks and unique inodes, detects changed mounts, and reports typed
 `storage_*` infrastructure blockers. Budget failure terminates the owned process
 group, escalating from TERM to KILL after five seconds, retains artifacts, and
-returns 75. The JSON receipt goes to stdout, so arrange durable capture in the
-reserved evidence path through the calling lifecycle before starting work.
+returns 75. The ledger device reserves an additional 1 MiB and four inodes per run
+for emergency diagnostics and ledger updates, apart from configured headroom.
+Before releasing capacity, the supervisor writes an exclusive owner-named JSON
+receipt there and fsyncs it. The final receipt also goes to stdout. Ledger-release
+errors retain the original failure and report cleanup errors with the active
+reservation; they cannot suppress output. The durable receipt reflects the state
+before release; the stdout receipt includes the release outcome.
 Capacity, phase elapsed times, named process `/proc/PID/io`, and sampled peak
 scratch are retained. For integration, use `StorageSession.admit(reserve=True)`,
 `check(phase, pid)`, `phase(name, pid)`, `receipt()`, and `release()` in a finally
@@ -47,9 +56,10 @@ block. A model-loader PID must be supplied to attribute model-load I/O; supervis
 I/O is not model-load I/O.
 
 Kernel filesystem limits bound bursts between checks. Headroom is reserved on the
-evidence device; bounded scratch is allowed to reach its kernel limit and is then
+emergency diagnostics device; bounded scratch or evidence may reach its kernel limit and is then
 classified `storage_bound_exhausted`, while diagnostics remain writable on the
-separate evidence device. The library's `require_enforced_bounds=False` supports
+separate emergency device. Retained samples are bounded to the first and latest
+63 observations; the peak scratch counter covers all observations. The library's `require_enforced_bounds=False` supports
 small controlled monitoring fixtures only; the production CLI never disables
 enforcement. This does not sandbox commands: callers must constrain their writable
 paths to the declared allocations and size their evidence output allowance.
@@ -70,14 +80,15 @@ fixtures use small owned directories and never load a model or alter shared asse
 
 On September 8, 2026, `tests/unit/storage_bounded_fixture.py` ran on Basilisk with
 private mount namespaces, each containing a 1 MiB tmpfs with 32 inodes in the
-isolated `issue160-storage-20260908` checkout. Both aggregate multi-file byte
-exhaustion and empty-file inode exhaustion hit kernel ENOSPC, produced typed
+isolated `issue160-storage-20260908` checkout. Aggregate multi-file byte
+exhaustion, empty-file inode exhaustion, and evidence-volume exhaustion hit kernel ENOSPC, produced typed
 `storage_bound_exhausted`, released their reservations, and successfully retained
-diagnostics on the separate evidence device. The mount namespaces disappeared
+diagnostics on the separate emergency device. The mount namespaces disappeared
 when their fixture processes exited. No shared mount, model, or protected asset
-was changed. Raw [byte](evidence/issue160/bytes-receipt.json) and
-[inode](evidence/issue160/inodes-receipt.json) receipts retain before/after capacity,
-sampled peak scratch, elapsed times, and fixture process I/O. Eleven focused unit
+was changed. Raw [byte](evidence/issue160/bytes-receipt.json),
+[inode](evidence/issue160/inodes-receipt.json), and
+[evidence exhaustion](evidence/issue160/evidence-receipt.json) receipts retain before/after capacity,
+sampled peak scratch, elapsed times, and fixture process I/O. Eighteen focused unit
 tests, Ruff, and strict mypy also passed on Python 3.11.15 on A100.
 
 These are bounded no-model qualifications. Actual model-load I/O and paired
