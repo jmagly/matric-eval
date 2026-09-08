@@ -232,4 +232,6 @@ def verify_public_lane(profile: Any, evidence: dict[str, Any]) -> dict[str, Any]
             "allocation_binding": "response_lane_and_current_public_mapping",
         }
     except Exception:
-        raise ConformanceError("public_broker_lane_unverified") from None
+        failure = ConformanceError("public_broker_lane_unverified")
+        failure.broker_evidence = dict(evidence)
+        raise failure from None

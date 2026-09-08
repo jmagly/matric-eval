@@ -13,6 +13,7 @@ import os
 import socket
 import uuid
 from pathlib import Path
+from typing import Any
 
 from matric_eval.studies.client_conformance import (
     ClientProfile,
@@ -64,13 +65,21 @@ def main() -> None:
         else None
     )
     failure = None
+    receipt: dict[str, Any] = {
+        "schema": profile.schema,
+        "profile_sha256": profile.fingerprint(),
+        "request_id": request_id,
+    }
     try:
         before = verify_public_model_metadata(profile, request_id + "-before")
-        receipt = qualify_completion(
-            profile,
-            request_id,
-            [{"role": "user", "content": "Call ping." if tools else "Reply exactly OK."}],
-            tools=tools,
+        receipt["public_model_metadata"] = {"before": before}
+        receipt.update(
+            qualify_completion(
+                profile,
+                request_id,
+                [{"role": "user", "content": "Call ping." if tools else "Reply exactly OK."}],
+                tools=tools,
+            )
         )
         if args.public_broker_admission:
             from matric_eval.studies.broker_admission import verify_public_lane
@@ -80,14 +89,15 @@ def main() -> None:
         receipt["public_model_metadata"] = {"before": before, "after": after}
     except ConformanceError as exc:
         failure = str(exc)
-        receipt = {
-            "schema": profile.schema,
-            "profile_sha256": profile.fingerprint(),
-            "request_id": request_id,
-            "client_response": "failed",
-            "reason": failure,
-            "broker_admission": exc.broker_evidence,
-        }
+        receipt.update(
+            {
+                "client_response": "failed",
+                "reason": failure,
+            }
+        )
+        if exc.broker_evidence:
+            receipt["broker_admission"] = exc.broker_evidence
+
     if lease_digest is not None:
         receipt["lease_receipt_sha256"] = lease_digest
         receipt["allocation_binding"] = "unverified_external_artifact_hash"

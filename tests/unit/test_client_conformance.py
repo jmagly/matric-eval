@@ -374,7 +374,18 @@ def test_public_metadata_digest_is_not_execution_attestation():
 
 
 @pytest.mark.parametrize(
-    "scenario", ["replay", "expired", "changed_ticket", "budget", "hidden_replay"]
+    "scenario",
+    [
+        "replay",
+        "expired",
+        "changed_ticket",
+        "budget",
+        "hidden_replay",
+        "reasoning_response",
+        "wrong_model_response",
+        "empty_response",
+        "unexpected_tool_response",
+    ],
 )
 def test_actual_client_body_free_broker_resume(scenario):
     pytest.importorskip("litellm")
@@ -388,7 +399,9 @@ def test_actual_client_body_free_broker_resume(scenario):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             calls.append((self.path, body, dict(self.headers)))
             first = len(calls) == 1
-            success = not first and scenario in ("replay", "hidden_replay")
+            success = not first and (
+                scenario in ("replay", "hidden_replay") or scenario.endswith("_response")
+            )
             reason = "queue_admission_timeout" if first else "logical_request_expired"
             if scenario == "budget":
                 reason = "logical_request_in_progress"
@@ -414,6 +427,16 @@ def test_actual_client_body_free_broker_resume(scenario):
                     "prompt_eval_count": 1,
                     "created_at": "2026-09-08T00:00:00Z",
                 }
+            if success and scenario == "reasoning_response":
+                payload["message"]["thinking"] = "private hidden reasoning"
+            if success and scenario == "wrong_model_response":
+                payload["model"] = "wrong"
+            if success and scenario == "empty_response":
+                payload["message"]["content"] = ""
+            if success and scenario == "unexpected_tool_response":
+                payload["message"]["tool_calls"] = [
+                    {"function": {"name": "unrequested", "arguments": {}}}
+                ]
             encoded = json.dumps(payload).encode()
             self.send_response(200 if success else 503 if first else 409)
             self.send_header("Content-Type", "application/json")
@@ -454,6 +477,23 @@ def test_actual_client_body_free_broker_resume(scenario):
                     [{"role": "user", "content": "OK"}],
                     completion=duplicate_client,
                 )
+        elif scenario.endswith("_response"):
+            expected = {
+                "reasoning_response": "thinking_off_violated",
+                "wrong_model_response": "response_model_mismatch",
+                "empty_response": "empty_output",
+                "unexpected_tool_response": "unexpected_tool_call",
+            }[scenario]
+            with pytest.raises(ConformanceError, match=expected) as caught:
+                qualify_completion(p, "resume-fixture", [{"role": "user", "content": "OK"}])
+            evidence = caught.value.broker_evidence
+            assert evidence["logical_request_id"] == "resume-fixture"
+            assert evidence["broker_request_id"] == "broker-1"
+            assert evidence["queue_ticket"] == "7"
+            assert evidence["lane"] == "lane-1"
+            assert evidence["http_attempts"] == 2
+            assert "private" not in json.dumps(evidence)
+            assert "must-not-retain" not in json.dumps(evidence)
         elif scenario == "replay":
             receipt = qualify_completion(p, "resume-fixture", [{"role": "user", "content": "OK"}])
             assert receipt["broker_admission"]["http_attempts"] == 2
@@ -534,3 +574,74 @@ def test_public_admitted_lane_mapping(selected):
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+@pytest.mark.parametrize("failure_stage", ["lane", "after_metadata"])
+def test_canary_later_failure_preserves_admission(tmp_path, monkeypatch, failure_stage):
+    import importlib.util
+    import sys
+    from dataclasses import asdict
+    from pathlib import Path
+
+    import matric_eval.studies.broker_admission as broker
+
+    spec = importlib.util.spec_from_file_location(
+        "qualification_cli",
+        Path(__file__).resolve().parents[2] / "scripts/qualify_auxiliary_client.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    evidence = {
+        "logical_request_id": "logical",
+        "broker_request_id": "broker",
+        "queue_ticket": "7",
+        "lane": "own",
+        "execution_digest_binding": "unverified",
+    }
+    p = replace(profile(), admission_protocol="ollama-unify-body-free-resume/1")
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(asdict(p)))
+    output = tmp_path / "receipt.json"
+    monkeypatch.setattr(module.socket, "gethostname", lambda: "basilisk")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qualify",
+            "--profile",
+            str(profile_path),
+            "--receipt",
+            str(output),
+            "--public-broker-admission",
+            "--authorized-live-canary",
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "qualify_completion",
+        lambda *a, **kw: {
+            "client_response": "passed",
+            "broker_admission": evidence,
+        },
+    )
+
+    def metadata(profile, request_id):
+        if request_id.endswith("-after"):
+            raise ConformanceError("public_metadata_unavailable")
+        return {"kind": "public_metadata_tag", "execution_digest_binding": "unverified"}
+
+    def lane(profile, evidence):
+        if failure_stage == "lane":
+            raise ConformanceError("public_broker_lane_unverified")
+        return {"kind": "public_broker_lane_observation"}
+
+    monkeypatch.setattr(module, "verify_public_model_metadata", metadata)
+    monkeypatch.setattr(broker, "verify_public_lane", lane)
+    with pytest.raises(SystemExit):
+        module.main()
+    receipt = json.loads(output.read_text())
+    assert receipt["client_response"] == "failed"
+    assert receipt["broker_admission"] == evidence
+    assert receipt["public_model_metadata"]["before"]["kind"] == "public_metadata_tag"
+    if failure_stage == "after_metadata":
+        assert receipt["allocation"]["kind"] == "public_broker_lane_observation"

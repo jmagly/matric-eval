@@ -295,67 +295,78 @@ def qualify_completion(
     finally:
         if http_client is not None:
             http_client.close()
-    if profile.route == "native":
-        if wire_failures or len(wire_models) != 1:
-            raise ConformanceError("wire_identity_unavailable_or_duplicate")
-        if normalize_model(wire_models[0]) != normalize_model(profile.model):
-            raise ConformanceError("response_model_mismatch")
     try:
-        message = response.choices[0].message.model_dump()
-    except (AttributeError, IndexError, TypeError):
-        raise ConformanceError("model_invalid_output") from None
-    if normalize_model(str(getattr(response, "model", ""))) != normalize_model(profile.model):
-        raise ConformanceError("response_model_mismatch")
-    reasoning = any(message.get(key) for key in ("reasoning", "reasoning_content", "thinking"))
-    provider_fields = message.get("provider_specific_fields") or {}
-    reasoning = reasoning or any(
-        provider_fields.get(key) for key in ("reasoning", "reasoning_content", "thinking")
-    )
-    content = message.get("content")
-    if not profile.thinking and (reasoning or (isinstance(content, str) and "<think>" in content)):
-        raise ConformanceError("thinking_off_violated")
-    tool_calls = message.get("tool_calls")
-    if profile.tools and not tool_calls:
-        raise ConformanceError("tool_call_missing")
-    if not profile.tools and tool_calls:
-        raise ConformanceError("unexpected_tool_call")
-    if tool_calls:
-        requested = {
-            tool["function"]["name"]: tool["function"].get("parameters", {}) for tool in tools or []
-        }
+        if profile.route == "native":
+            if wire_failures or len(wire_models) != 1:
+                raise ConformanceError("wire_identity_unavailable_or_duplicate")
+            if normalize_model(wire_models[0]) != normalize_model(profile.model):
+                raise ConformanceError("response_model_mismatch")
         try:
-            validate = importlib.import_module("jsonschema").validate
+            message = response.choices[0].message.model_dump()
+        except (AttributeError, IndexError, TypeError):
+            raise ConformanceError("model_invalid_output") from None
+        if normalize_model(str(getattr(response, "model", ""))) != normalize_model(profile.model):
+            raise ConformanceError("response_model_mismatch")
+        reasoning = any(message.get(key) for key in ("reasoning", "reasoning_content", "thinking"))
+        provider_fields = message.get("provider_specific_fields") or {}
+        reasoning = reasoning or any(
+            provider_fields.get(key) for key in ("reasoning", "reasoning_content", "thinking")
+        )
+        content = message.get("content")
+        if not profile.thinking and (
+            reasoning or (isinstance(content, str) and "<think>" in content)
+        ):
+            raise ConformanceError("thinking_off_violated")
+        tool_calls = message.get("tool_calls")
+        if profile.tools and not tool_calls:
+            raise ConformanceError("tool_call_missing")
+        if not profile.tools and tool_calls:
+            raise ConformanceError("unexpected_tool_call")
+        if tool_calls:
+            requested = {
+                tool["function"]["name"]: tool["function"].get("parameters", {})
+                for tool in tools or []
+            }
+            try:
+                validate = importlib.import_module("jsonschema").validate
 
-            for call in tool_calls:
-                function = call["function"]
-                if function["name"] not in requested:
-                    raise ValueError("unrequested function")
-                arguments_value = function["arguments"]
-                decoded = (
-                    json.loads(arguments_value)
-                    if isinstance(arguments_value, str)
-                    else arguments_value
-                )
-                if not isinstance(decoded, dict):
-                    raise ValueError("non-object arguments")
-                validate(decoded, requested[function["name"]])
-        except Exception:
-            raise ConformanceError("tool_name_or_arguments_invalid") from None
-    if not tool_calls and (not isinstance(content, str) or not content.strip()):
-        raise ConformanceError("empty_output")
-    return {
-        "schema": SCHEMA,
-        "profile_sha256": profile.fingerprint(),
-        "request_id": request_id,
-        "client_response": "passed",
-        "live_qualification": "pending_broker_evidence",
-        "retry_policy": "one_client_call_no_body_replay",
-        "broker_admission": broker_evidence,
-        "reasoning_present": bool(reasoning),
-        "tool_calls_present": bool(tool_calls),
-        "response_model_check": "client_reported_identity_only",
-        "execution_digest_binding": "unverified",
-    }
+                for call in tool_calls:
+                    function = call["function"]
+                    if function["name"] not in requested:
+                        raise ValueError("unrequested function")
+                    arguments_value = function["arguments"]
+                    decoded = (
+                        json.loads(arguments_value)
+                        if isinstance(arguments_value, str)
+                        else arguments_value
+                    )
+                    if not isinstance(decoded, dict):
+                        raise ValueError("non-object arguments")
+                    validate(decoded, requested[function["name"]])
+            except Exception:
+                raise ConformanceError("tool_name_or_arguments_invalid") from None
+        if not tool_calls and (not isinstance(content, str) or not content.strip()):
+            raise ConformanceError("empty_output")
+        return {
+            "schema": SCHEMA,
+            "profile_sha256": profile.fingerprint(),
+            "request_id": request_id,
+            "client_response": "passed",
+            "live_qualification": "pending_broker_evidence",
+            "retry_policy": "one_client_call_no_body_replay",
+            "broker_admission": broker_evidence,
+            "reasoning_present": bool(reasoning),
+            "tool_calls_present": bool(tool_calls),
+            "response_model_check": "client_reported_identity_only",
+            "execution_digest_binding": "unverified",
+        }
+    except ConformanceError as exc:
+        exc.broker_evidence = dict(broker_evidence)
+        raise
+    except Exception:
+        failure = ConformanceError("model_invalid_output")
+        failure.broker_evidence = dict(broker_evidence)
+        raise failure from None
 
 
 def validate_wire(
