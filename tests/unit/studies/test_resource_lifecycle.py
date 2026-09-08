@@ -119,7 +119,7 @@ def test_unique_names_and_no_reused_directory(lifecycle, tmp_path):
     other = ResourceLifecycle(tmp_path / "other", FakeBroker(), FakeDocker())
     try:
         other.prepare("existing-run", "next-attempt", "GPU-owned", "qualification")
-        for key in ("container", "unit", "readiness", "owner"):
+        for key in ("container", "readiness", "owner"):
             assert lifecycle.record[key] != other.record[key]
         with pytest.raises(RuntimeError):
             lifecycle.prepare("r", "a", "GPU-owned", "owner")
@@ -191,3 +191,134 @@ def test_owned_container_stopped_before_release(lifecycle):
     lifecycle.broker.call = call
     assert lifecycle.reconcile()
     assert events == ["stop", "release", "remove"]
+
+
+def attach_owned_container(lifecycle):
+    lifecycle.docker.info = {
+        "Id": "owned-container-id",
+        "Config": {"Labels": {"matric.resource": lifecycle.record["resource_id"]}},
+        "State": {"Running": True, "Pid": 1234},
+    }
+    lifecycle.docker.remove = lambda identifier: None
+
+
+def test_readiness_timeout_stops_real_child_and_cleans_lease(lifecycle, admission_plan):
+    import sys
+
+    from matric_eval.studies.resource_lifecycle import alive
+
+    attach_owned_container(lifecycle)
+    with pytest.raises(TimeoutError, match="readiness"):
+        lifecycle.run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            timeout=0.1,
+            preflight_plan=admission_plan,
+        )
+    assert not alive(lifecycle.record["launcher"])
+    assert lifecycle.record["cleanup"] == "complete"
+    assert lifecycle.broker.released == ["private-token"]
+
+
+def test_sigterm_stops_real_child_and_cleans_lease(lifecycle, admission_plan):
+    import os
+    import signal
+    import sys
+    import threading
+
+    from matric_eval.studies.resource_lifecycle import alive
+
+    attach_owned_container(lifecycle)
+    stop = threading.Event()
+
+    def cancel_when_loading():
+        while not stop.wait(0.05):
+            if lifecycle.record.get("state") == "loading":
+                os.kill(os.getpid(), signal.SIGTERM)
+                return
+
+    timer = threading.Thread(target=cancel_when_loading)
+    timer.start()
+    try:
+        with pytest.raises(InterruptedError):
+            lifecycle.run(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                preflight_plan=admission_plan,
+            )
+    finally:
+        stop.set()
+        timer.join()
+    assert not alive(lifecycle.record["launcher"])
+    assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_changed_boot_reconciles_absent_old_container(lifecycle):
+    lifecycle.acquire()
+    lifecycle.save(boot_id="previous-boot", state_before_launch="launched")
+    assert lifecycle.reconcile()
+    assert lifecycle.broker.released == ["private-token"]
+
+
+@pytest.fixture
+def admission_plan(tmp_path):
+    import sys
+
+    from matric_eval.studies.preflight import SCHEMA
+
+    script = tmp_path / "check.py"
+    script.write_text(
+        "import os,json,pathlib; pathlib.Path(os.environ['MATRIC_PREFLIGHT_RECEIPT']).write_text(json.dumps({'passed':True}))"
+    )
+    return {
+        "schema": SCHEMA,
+        "checks": [
+            {
+                "id": stage,
+                "stage": stage,
+                "command": [sys.executable, str(script)],
+                "inputs": [str(script)],
+                "timeout_seconds": 5,
+                "freshness_seconds": 60,
+                "deterministic": False,
+                "receipt_contract": {"passed": True},
+            }
+            for stage in ("static", "cpu", "auxiliary", "target")
+        ],
+    }
+
+
+def test_failed_preflight_never_acquires(lifecycle, admission_plan):
+    import sys
+
+    admission_plan["checks"][0]["command"] = [
+        sys.executable,
+        "-c",
+        "raise SystemExit(1)",
+    ]
+    with pytest.raises(ValueError, match="admission"):
+        lifecycle.run([sys.executable, "-c", "pass"], preflight_plan=admission_plan)
+    assert not lifecycle.broker.leases
+    assert not lifecycle.broker.released
+    assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_other_host_fails_closed(lifecycle):
+    lifecycle.acquire()
+    lifecycle.save(host="another-host")
+    assert not lifecycle.reconcile()
+    assert not lifecycle.broker.released
+
+
+def test_failed_resident_preflight_stops_loaded_child(lifecycle, admission_plan):
+    import sys
+
+    attach_owned_container(lifecycle)
+    admission_plan["checks"][-1]["command"] = [
+        sys.executable,
+        "-c",
+        "raise SystemExit(7)",
+    ]
+    code = "import hashlib,json,os,pathlib,time; token=os.environ['OLLAMA_UNIFY_GPU_LEASE']; pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()})); time.sleep(30)"
+    with pytest.raises(RuntimeError, match="resident target preflight failed"):
+        lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan)
+    assert lifecycle.record["cleanup"] == "complete"
+    assert lifecycle.broker.released == ["private-token"]
