@@ -87,19 +87,28 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           make test-coverage-fail
 
+      - name: Test isolated incident client transport
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv sync --locked --project tests/profiles/client-conformance
+          uv run --locked --project tests/profiles/client-conformance \
+            python scripts/run_client_conformance_tests.py
+
       - name: Audit public benchmark sources
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run matric-eval audit-benchmarks --live --output-format json \
             --output benchmark-freshness.json
 
-      - name: Retain benchmark freshness report
+      - name: Retain benchmark freshness and client conformance reports
         if: always()
         # v3.2.2-node20 retains GHES/Gitea artifact backend compatibility.
         uses: actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de
         with:
           name: benchmark-freshness
-          path: benchmark-freshness.json
+          path: |
+            benchmark-freshness.json
+            client-conformance-junit.xml
 
   smoke:
     name: Smoke Tests
