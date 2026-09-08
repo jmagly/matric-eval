@@ -160,6 +160,30 @@ wheels = [
 ]
 
 [[package]]
+name = "coverage"
+version = "7.15.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/45/78dbf9604ee5b3db24efbf26bed1cb58862fb40480cba821963c69348751/coverage-7.15.3.tar.gz", hash = "sha256:ae7ea5a4614acf399ef0483c4cb34f8f8f01df848d8fcbe7d3ce0865733f1c4d", size = 935592, upload-time = "2026-08-02T18:50:17.006Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/9c/c8a3a923c24f631695cea2d5e2f02e776bc0af6e03800626e13a6c05a615/coverage-7.15.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5f3f854ab4599d98f7799ac9b91e34e8ec9ebc9a6372ee8c1f3413a68cc8b5e9", size = 222328, upload-time = "2026-08-02T18:47:49.228Z" },
+    { url = "https://files.pythonhosted.org/packages/92/51/dda77f34cbd2513d6ffb898c901d19e9ca55f48c0cbc4a1eb173a97d157a/coverage-7.15.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:75268348fee1f199653b8a846262aec5581c6bb008c4f58824959fb708cc688f", size = 222832, upload-time = "2026-08-02T18:47:51.219Z" },
+    { url = "https://files.pythonhosted.org/packages/78/59/e0faafc4c6e23bd76c76148875ee9ec5781b8f1cd62cea2bc4ca0f0f0e5d/coverage-7.15.3-cp311-cp311-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:21081739f6264cc594cad2d42b62befbd17633824022866c68720eb0c4b8d6b4", size = 253250, upload-time = "2026-08-02T18:47:52.737Z" },
+    { url = "https://files.pythonhosted.org/packages/14/e2/4b1e0eeb727ffb471e411c1bd3402184b5dd54a77a762b0e55e87cdf9ae3/coverage-7.15.3-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:718d366251b060c10731c7dd359de6caea72250036eb94576aa56dacbf830a11", size = 255160, upload-time = "2026-08-02T18:47:54.404Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/9e/a602d2d48f9db9f795e578a86aa914f7b20008e9330902defcfb73d17b3a/coverage-7.15.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:fa1bbaa502a6e877f3ee67cbac3eba2bb637f623e454e6c37b81b38896dbd48f", size = 257269, upload-time = "2026-08-02T18:47:56.157Z" },
+    { url = "https://files.pythonhosted.org/packages/22/fa/bf6db13df2fcee00d2671849fe58c99232ee79a01fec7478c2bf7839b9e1/coverage-7.15.3-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:494880c9e60782610683f4eb9b65cce4f886673596b8f3cb2dfa079fc551c743", size = 259231, upload-time = "2026-08-02T18:47:57.76Z" },
+    { url = "https://files.pythonhosted.org/packages/89/37/8118f13b17fa7d9a3aa2c301d93f2d5ffeef70fa7e27e639a74bdacd3fea/coverage-7.15.3-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:3db264ea689f9e8f9fa4fb9005fee4048c3bff4a547f4cfa27f5086cb0804ec0", size = 253357, upload-time = "2026-08-02T18:47:59.261Z" },
+    { url = "https://files.pythonhosted.org/packages/97/6d/c7b94fb03962f4d6f0fe13d01c4eb9c4c6e2e714a20d074516ec7582b110/coverage-7.15.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:4e869d4799674d67778e76ddbe2e26cf1673369262e231a8ec259421b1015fea", size = 254961, upload-time = "2026-08-02T18:48:00.901Z" },
+    { url = "https://files.pythonhosted.org/packages/87/f9/fe0bd415fa56e36b62b649017c8fc98330858be4c7593789efb78cd24178/coverage-7.15.3-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:696fc7a28bbf717aba8d2c6963d26702945c7832cb313ba3b323aa5b1afb3156", size = 253024, upload-time = "2026-08-02T18:48:02.745Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/7c/ffa53506d63ba8a77f5b9557dd6f5a5a5ad85adc680d7857410138f82bd9/coverage-7.15.3-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:3fe9be1c527497d047f770d88a0110189714c36383bb88384508f750c302bffa", size = 256792, upload-time = "2026-08-02T18:48:04.377Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/c6/df42458e72c18a49fe87e40ccd3fb0314210915256cf4a5593e1b3250e04/coverage-7.15.3-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:2400591f4b2e33746c70846388f8bb4c7e33b820e31cb8c6cb2f25305310438b", size = 252744, upload-time = "2026-08-02T18:48:06.154Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/14/8bf18a4b10a44f8ba5f604b00e102f37daf49d581d66a37dc33fa267e1a6/coverage-7.15.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:2e557178799282269412a672e5753f2179edfe1b3f0f19b0c98f8e72d482326a", size = 253652, upload-time = "2026-08-02T18:48:07.955Z" },
+    { url = "https://files.pythonhosted.org/packages/27/e6/e530c9bb94e4155817cbd149034105b062a6913bc356ae08f454d155de53/coverage-7.15.3-cp311-cp311-win32.whl", hash = "sha256:68ea6c947375982ae907e19e9d2ef156bd6e68e11f3566dd568d7f4ec974e715", size = 224428, upload-time = "2026-08-02T18:48:09.845Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/98/0050c692d120988f1973a15196f52dee4ae221848b760281461a2005b613/coverage-7.15.3-cp311-cp311-win_amd64.whl", hash = "sha256:28743dad31622e8c474b17446118037361f5b1f4f2ecdf72d4f6fde246d64446", size = 224906, upload-time = "2026-08-02T18:48:11.611Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/ae/c0ef3e2ba3f35fc1c6985811a40edd9331e5b8978c9ecf84699de3edacbe/coverage-7.15.3-cp311-cp311-win_arm64.whl", hash = "sha256:c4398918c4fda32718191239e451fd86ac5ad1e8979b592f1921ee2d1f038965", size = 224448, upload-time = "2026-08-02T18:48:13.304Z" },
+    { url = "https://files.pythonhosted.org/packages/37/e7/7069b3d6c018917f49ba2e1c5fb910e498c7fefa3a1b78cb1b79e61ff45d/coverage-7.15.3-py3-none-any.whl", hash = "sha256:da78fa6fc7dafe4212839173133ee85afcf42c5cd5f3e47fa7c1c210453b445e", size = 214297, upload-time = "2026-08-02T18:50:14.709Z" },
+]
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -445,6 +469,7 @@ name = "matric-eval-client-conformance-tests"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "coverage" },
     { name = "httpx" },
     { name = "litellm" },
     { name = "openai" },
@@ -455,6 +480,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "coverage", specifier = "==7.15.3" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "litellm", specifier = "==1.81.11" },
     { name = "openai", specifier = "==2.20.0" },

@@ -87,13 +87,6 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           make test-coverage-fail
 
-      - name: Test isolated incident client transport
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv sync --locked --project tests/profiles/client-conformance
-          uv run --locked --project tests/profiles/client-conformance \
-            python scripts/run_client_conformance_tests.py
-
       - name: Audit public benchmark sources
         run: |
           export PATH="$HOME/.local/bin:$PATH"
