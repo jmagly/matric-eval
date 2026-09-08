@@ -229,6 +229,24 @@ def test_run_attested_server_writes_content_free_receipt(
     chat_template = tmp_path / "chat-template.jinja"
     chat_template.write_text("test template", encoding="utf-8")
     created_commands: list[list[str]] = []
+    from matric_eval.studies.run_status import RunStatus
+
+    status = RunStatus.create(
+        tmp_path / "status",
+        run_id=study.id,
+        attempt_id="a",
+        tasks=[{"model_id": model.id, "suite_id": "terminal-bench", "task_id": "frozen"}],
+    )
+    monkeypatch.setenv("MATRIC_RUN_STATUS_DIR", str(status.directory))
+    observed_phases = []
+    original_phase = RunStatus.model_phase
+
+    def observe_phase(self, model_id, phase, **kwargs):
+        original_phase(self, model_id, phase, **kwargs)
+        observed_phases.append(phase)
+        assert self.read()["counts"]["valid"] == 0
+
+    monkeypatch.setattr(RunStatus, "model_phase", observe_phase)
 
     monkeypatch.setattr(
         server_cli.StudyProtocol, "from_yaml", staticmethod(lambda *args, **kwargs: study)
@@ -291,6 +309,7 @@ def test_run_attested_server_writes_content_free_receipt(
         "matric_eval_architecture_registry"
     )
     assert "completion" not in json.dumps(payload)
+    assert observed_phases == ["loading", "ready", "stopped"]
     assert created_commands[0][0] == sys.executable
     assert not marker.exists()
 

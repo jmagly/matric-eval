@@ -28,6 +28,8 @@ from qwen38_tau_context import (
     verify_tau_checkout,
 )
 
+from matric_eval.studies.run_status import AdapterStatus, adapter_main
+
 TAU_PACKAGE_VERSION = "1.0.1"
 TAU_SOURCE_REVISION = "672227c6b6676edc20d57ea53b7000262aae77b9"
 SANDBOX_RUNTIME_PACKAGE_VERSION = "0.0.23"
@@ -293,7 +295,9 @@ def _knowledge_dependency_evidence() -> JsonObject:
         with SandboxManager(base_temp_dir=base) as sandbox:
             code, stdout, stderr = sandbox.run_command("printf sandbox-canary")
     if code != 0 or stdout != "sandbox-canary" or stderr:
-        raise RuntimeError("tau banking sandbox execution canary failed")
+        raise subprocess.CalledProcessError(
+            code, "tau banking sandbox execution canary", output=stdout, stderr=stderr
+        )
     return {
         "binaries": binaries,
         "sandbox_runtime_npm_version": npm_version,
@@ -539,7 +543,9 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     records: list[JsonObject] = []
     terminations: Counter[str] = Counter()
     analytic_statuses: Counter[str] = Counter()
+    status = AdapterStatus(args.model_id, "tau3-bench")
     for canonical_id in scored_ids:
+        status.start(canonical_id)
         domain, task_id = canonical_id.split(":", 1)
         seed = _generation_seed(root_seed, canonical_id)
         task = task_inventory[domain][task_id]
@@ -608,6 +614,15 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             if external_api_key in json.dumps(raw_payload, sort_keys=True):
                 raise RuntimeError("external API key escaped invalid evidence redaction")
             raw_sha256 = _write_private_json(output_path, raw_payload)
+            status.result(
+                canonical_id,
+                reward=None,
+                valid=False,
+                reason="context_runtime_invalid",
+                native_failure=failure,
+                evidence_uri=str(output_path),
+                evidence_sha256=raw_sha256,
+            )
             analytic_statuses["invalid"] += 1
             records.append(
                 {
@@ -639,6 +654,14 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         terminations[termination] += 1
         analytic_statuses["valid"] += 1
         reward = simulation.reward_info.reward if simulation.reward_info is not None else None
+        status.result(
+            canonical_id,
+            reward=reward,
+            valid=True,
+            reason=None,
+            evidence_uri=str(output_path),
+            evidence_sha256=raw_sha256,
+        )
         records.append(
             {
                 "canonical_id": canonical_id,
@@ -757,4 +780,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(adapter_main(main))

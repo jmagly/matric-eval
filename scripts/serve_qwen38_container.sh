@@ -145,6 +145,7 @@ sudo docker gpu run \
     --env CUDA_VISIBLE_DEVICES \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
+    --env MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" \
     --env MATRIC_EVAL_EVIDENCE_UID="$evidence_uid" \
     --env MATRIC_EVAL_EVIDENCE_GID="$evidence_gid" \
     --env MATRIC_EVAL_GPU_BROKER_SOCKET="$study_broker_socket" \
