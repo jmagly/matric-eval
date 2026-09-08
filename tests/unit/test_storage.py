@@ -139,7 +139,11 @@ def test_mount_change_is_typed_blocker(tmp_path, monkeypatch):
     import matric_eval.storage as storage
 
     real = storage.filesystem
-    monkeypatch.setattr(storage, "filesystem", lambda path: {**real(path), "mount_id": "changed"})
+    monkeypatch.setattr(
+        storage,
+        "filesystem",
+        lambda path, **kwargs: {**real(path, **kwargs), "mount_id": "changed"},
+    )
     with pytest.raises(StorageBlocker, match="storage_mount_changed"):
         run.check("load")
 
@@ -459,3 +463,25 @@ def test_docker_backing_usage_does_not_count_mounted_image_view(tmp_path, monkey
         (tmp_path.stat().st_blocks + backing.stat().st_blocks) * 512,
         2,
     )
+
+
+def test_read_only_model_allocation_with_zero_growth_is_usable(tmp_path, monkeypatch):
+    real = os.statvfs
+
+    class ReadOnly:
+        f_flag = os.ST_RDONLY
+
+        def __init__(self, path):
+            self.actual = real(path)
+
+        def __getattr__(self, name):
+            return getattr(self.actual, name)
+
+    monkeypatch.setattr(
+        os, "statvfs", lambda path: ReadOnly(path) if Path(path).name == "models" else real(path)
+    )
+    run = session(tmp_path)
+    run.admit(reserve=True)
+    run.check("immutable-model-validation")
+    run.release()
+    assert not run.active

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import signal
+import socket
+import struct
 import subprocess
 import tempfile
 import threading
@@ -12,6 +14,29 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from matric_eval.storage import Allocation, StorageBlocker, StorageSession, publish_run_status
+
+
+def require_daemon_mount_namespace(host: str) -> None:
+    """Client filesystem bounds must describe the actual local Docker daemon view."""
+    if not host.startswith("unix:///"):
+        raise StorageBlocker("storage_docker_contract", "local Unix Docker socket required")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(2)
+            connection.connect(host.removeprefix("unix://"))
+            pid, _, _ = struct.unpack(
+                "3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+            )
+        if Path(f"/proc/{pid}/comm").read_text().strip() != "dockerd" or os.readlink(
+            f"/proc/{pid}/ns/mnt"
+        ) != os.readlink("/proc/self/ns/mnt"):
+            raise StorageBlocker(
+                "storage_docker_contract", "Docker daemon and controller mount views differ"
+            )
+    except OSError as error:
+        raise StorageBlocker(
+            "storage_docker_contract", "Docker daemon mount identity unavailable"
+        ) from error
 
 
 def docker_control_contract(
@@ -127,6 +152,7 @@ def docker_control_contract(
         raise StorageBlocker(
             "storage_docker_contract", "all application writer paths require bounded binds"
         )
+    require_daemon_mount_namespace(docker.host)
     metadata = json.loads(
         subprocess.check_output(docker.command("image", "inspect", image), text=True, timeout=15)
     )[0]

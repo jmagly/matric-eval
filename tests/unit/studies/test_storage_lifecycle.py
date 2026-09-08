@@ -10,6 +10,9 @@ from matric_eval.studies.storage_lifecycle import docker_control_contract
 
 @pytest.fixture
 def fixture(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "matric_eval.studies.storage_lifecycle.require_daemon_mount_namespace", lambda host: None
+    )
     path = tmp_path / "scratch"
     path.mkdir()
     config = {
@@ -179,3 +182,16 @@ def test_crash_reconciliation_retries_storage_projection_failure(
         assert set(json.loads(ledger_path.read_text())) == {"unrelated"}
     finally:
         resource.close()
+
+
+def test_private_client_mount_view_is_not_a_daemon_storage_bound(fixture, monkeypatch):
+    command, config, docker = fixture
+
+    def reject(host):
+        raise StorageBlocker("storage_docker_contract", "mount views differ")
+
+    monkeypatch.setattr(
+        "matric_eval.studies.storage_lifecycle.require_daemon_mount_namespace", reject
+    )
+    with pytest.raises(StorageBlocker, match="mount views differ"):
+        docker_control_contract(command, config, docker)

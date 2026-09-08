@@ -45,7 +45,7 @@ class Allocation:
     disposable: bool = False
 
 
-def filesystem(path: Path) -> dict[str, Any]:
+def filesystem(path: Path, *, allow_read_only: bool = False) -> dict[str, Any]:
     """Resolve the real Linux mount, including bind mounts, without creating paths."""
     try:
         resolved = path.resolve(strict=True)
@@ -59,7 +59,7 @@ def filesystem(path: Path) -> dict[str, Any]:
                 split = fields.index("-")
                 mounts.append((len(target), fields[0], target, fields[split + 2]))
         _, mount_id, target, source = max(mounts)
-        if capacity.f_flag & os.ST_RDONLY:
+        if capacity.f_flag & os.ST_RDONLY and not allow_read_only:
             raise StorageBlocker("storage_read_only", str(resolved))
         return {
             "device": str(stat.st_dev),
@@ -170,7 +170,9 @@ class StorageSession:
             if not path.is_dir():
                 raise ValueError(f"Storage path must be an existing directory: {path}")
             self.paths[allocation.kind] = path
-            self.mounts[allocation.kind] = filesystem(path)
+            self.mounts[allocation.kind] = filesystem(
+                path, allow_read_only=not (allocation.budget_bytes or allocation.budget_inodes)
+            )
             self.baselines[allocation.kind] = usage(
                 path, backing_device_only=bool(self.docker_control and allocation.kind == "docker")
             )
@@ -235,7 +237,10 @@ class StorageSession:
         volumes: dict[str, dict[str, Any]] = {}
         classes = []
         for allocation in self.allocations:
-            current = filesystem(self.paths[allocation.kind])
+            current = filesystem(
+                self.paths[allocation.kind],
+                allow_read_only=not (allocation.budget_bytes or allocation.budget_inodes),
+            )
             initial = self.mounts[allocation.kind]
             if any(current[key] != initial[key] for key in ("device", "mount_id", "mount")):
                 raise StorageBlocker("storage_mount_changed", allocation.kind)
