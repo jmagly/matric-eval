@@ -50,6 +50,12 @@ for the primary result.
 
 ## Sampling plan
 
+The versioned [calibration-v2 execution contract](calibration-v2.md) adds fixed
+100→300→600→1,200 release gates without modifying this base protocol. Its
+[machine-validated plan](calibration-v2-plan.yaml) pins validity thresholds,
+model-independent canaries, failure attribution, and all-model amendment/replay
+rules. A valid plan is not evidence that execution gates have passed.
+
 Seed `1790783388` is immutable. For each allocation, canonical sample IDs are ranked
 by `SHA256("{seed}\\0{allocation_id}\\0{canonical_sample_id}")`. The first `n`
 IDs form the cohort. This makes selection independent of upstream row order and makes
