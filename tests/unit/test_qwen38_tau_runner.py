@@ -186,6 +186,47 @@ def test_context_overflow_has_typed_nonretryable_attribution() -> None:
 
 
 @pytest.mark.parametrize(
+    ("actor", "stage", "reason", "owner"),
+    [
+        ("target-model", "target-sampling", "sampling_failure", "target-model"),
+        ("user-simulator", "simulator-sampling", "html_response_body", "simulator"),
+        ("evaluator", "nl-evaluation", "truncated_json_response", "evaluator"),
+        (
+            "harness-interface",
+            "llm-sampling",
+            "empty_response_body",
+            "harness-interface",
+        ),
+    ],
+)
+def test_typed_tau_runtime_failures_are_analytic_invalid_attributions(
+    actor: str, stage: str, reason: str, owner: str
+) -> None:
+    class RuntimeInvalid(RuntimeError):
+        def __init__(self) -> None:
+            self.evidence = {
+                "actor": actor,
+                "stage": stage,
+                "reason": reason,
+                "http_attempted": True,
+                "retryable": True,
+                "side_effect_retry_attempted": False,
+                "recovery_attempted": True,
+            }
+            super().__init__("content-free typed failure")
+
+    failure = tau_runner._runtime_invalid_failure(RuntimeInvalid())
+    assert failure["owner"] == owner
+    assert failure["actor"] == actor
+    assert failure["stage"] == stage
+    assert failure["reason"] == reason
+    assert failure["retryable"] is False
+    assert failure["side_effect_retry_attempted"] is False
+    assert failure["recovery_attempted"] is True
+    assert len(failure["exception_chain"]) == 1
+
+
+@pytest.mark.parametrize(
     "field", ["input_tokens", "output_tokens", "context_limit", "safety_margin"]
 )
 @pytest.mark.parametrize(
@@ -372,18 +413,31 @@ def test_target_counter_requires_exact_server_template_context_and_parsers(
 
 def test_tau_worktree_requires_content_addressed_patch(monkeypatch: pytest.MonkeyPatch) -> None:
     contract = SimpleNamespace(upstream_revision=tau_runner.TAU_SOURCE_REVISION)
+    simulator_contract = SimpleNamespace(context_contract=contract)
     monkeypatch.setattr(tau_runner, "load_patch_contract", lambda _: contract)
     monkeypatch.setattr(
         tau_runner,
-        "verify_tau_checkout",
-        lambda checkout, loaded: {"checkout": str(checkout), "verified": loaded is contract},
+        "load_simulator_patch_contract",
+        lambda _: simulator_contract,
     )
-    evidence = tau_runner._tau_worktree_evidence(Path("/tau"), Path("/patch.json"))
+    monkeypatch.setattr(
+        tau_runner,
+        "verify_tau_simulator_checkout",
+        lambda checkout, loaded: {
+            "checkout": str(checkout),
+            "verified": loaded is simulator_contract,
+        },
+    )
+    evidence = tau_runner._tau_worktree_evidence(
+        Path("/tau"), Path("/context.json"), Path("/simulator.json")
+    )
     assert evidence == {"checkout": "/tau", "verified": True}
 
     contract.upstream_revision = "0" * 40
     with pytest.raises(RuntimeError, match="protocol-pinned revision"):
-        tau_runner._tau_worktree_evidence(Path("/tau"), Path("/patch.json"))
+        tau_runner._tau_worktree_evidence(
+            Path("/tau"), Path("/context.json"), Path("/simulator.json")
+        )
 
 
 @pytest.mark.parametrize("overflow", [False, True])
@@ -399,6 +453,7 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
         model_path=Path("/fixture/model"),
         tau_checkout=Path("/fixture/tau"),
         tau_patch_manifest=Path("/fixture/patch.json"),
+        tau_simulator_patch_manifest=Path("/fixture/simulator-patch.json"),
         chat_template=Path("/fixture/chat-template.jinja"),
         inputs_summary=tmp_path / "summary",
         scored_ids=tmp_path / "ids",
@@ -439,6 +494,11 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
         tau_runner,
         "load_patch_contract",
         lambda _: SimpleNamespace(transformers_version="5.14.1"),
+    )
+    monkeypatch.setattr(
+        tau_runner,
+        "load_simulator_patch_contract",
+        lambda _: SimpleNamespace(patch_sha256=digest),
     )
     monkeypatch.setattr(tau_runner, "_tau_worktree_evidence", lambda *args: {})
     monkeypatch.setattr(tau_runner, "_load_object", lambda path, _: objects[path])
@@ -516,6 +576,23 @@ def test_receipt_distinguishes_requested_context_and_thinking_from_effective_beh
             active_guard.pop()
 
     modules["tau2.utils.llm_utils"].scoped_llm_request_guard = scoped_guard
+
+    class TauRuntimeInvalid(RuntimeError):
+        pass
+
+    @contextmanager
+    def scoped_runtime() -> Any:
+        yield SimpleNamespace(
+            as_dict=lambda: {
+                "environment_call_count": 0,
+                "simulator_sampling_attempts": 0,
+                "simulator_recovery_attempts": 0,
+                "side_effect_retry_attempted": False,
+            }
+        )
+
+    modules["tau2.utils.llm_utils"].TauRuntimeInvalid = TauRuntimeInvalid
+    modules["tau2.utils.llm_utils"].scoped_simulation_runtime_evidence = scoped_runtime
 
     receipt = tau_runner.run_tau(args)
 

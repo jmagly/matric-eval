@@ -20,20 +20,29 @@ from qwen38_tau_context import (
     TokenCounter,
     load_attested_tokenizer,
     load_patch_contract,
-    verify_tau_checkout,
+)
+from qwen38_tau_simulator import (
+    load_simulator_patch_contract,
+    verify_tau_simulator_checkout,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = (
     ROOT / "studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-context-guard.json"
 )
+DEFAULT_SIMULATOR_MANIFEST = (
+    ROOT / "studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-simulator-interface-guard.json"
+)
 STUDY_ID = "qwen38-obliteration-2026-09"
 RECEIPT_SCHEMA = "matric-eval.qwen38-tau-context-canary-receipt/1"
 SOURCE_PATHS = (
     Path("scripts/canary_qwen38_tau_context.py"),
     Path("scripts/qwen38_tau_context.py"),
+    Path("scripts/qwen38_tau_simulator.py"),
     Path("studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-context-guard.json"),
     Path("studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-context-guard.patch"),
+    Path("studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-simulator-interface-guard.json"),
+    Path("studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-simulator-interface-guard.patch"),
 )
 
 
@@ -115,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--chat-template", type=Path, required=True)
     parser.add_argument("--server-receipt", type=Path, required=True)
     parser.add_argument("--patch-manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--simulator-patch-manifest", type=Path, default=DEFAULT_SIMULATOR_MANIFEST)
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
@@ -187,7 +197,10 @@ def _base_receipt() -> dict[str, Any]:
 
 def _run_canary(args: argparse.Namespace) -> dict[str, Any]:
     contract = load_patch_contract(args.patch_manifest)
-    patch_evidence = verify_tau_checkout(args.tau_checkout, contract)
+    simulator_contract = load_simulator_patch_contract(args.simulator_patch_manifest)
+    if simulator_contract.context_contract != contract:
+        raise RuntimeError("context canary manifests do not describe one patch chain")
+    patch_evidence = verify_tau_simulator_checkout(args.tau_checkout, simulator_contract)
     server_receipt = json.loads(args.server_receipt.read_text(encoding="utf-8"))
     runtime = server_receipt.get("runtime", {})
     versions = runtime.get("versions", {}) if isinstance(runtime, dict) else {}

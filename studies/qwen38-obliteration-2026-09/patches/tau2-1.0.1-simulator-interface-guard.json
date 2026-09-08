@@ -1,0 +1,20 @@
+{
+  "changed_paths": [
+    "pyproject.toml",
+    "src/tau2/evaluator/evaluator_nl_assertions.py",
+    "src/tau2/orchestrator/orchestrator.py",
+    "src/tau2/user/user_simulator.py",
+    "src/tau2/utils/llm_utils.py",
+    "uv.lock"
+  ],
+  "context_diff_sha256": "71bd8bbdded3dfac6e2cff06b541c4fc27dd7ab24a98687371890e9e1f446919",
+  "context_manifest_file": "tau2-1.0.1-context-guard.json",
+  "context_manifest_sha256": "15bfee76fa753cd7c09479eb60c30cf664674211328f12ef3d4e1f7008f92029",
+  "context_patch_sha256": "71bd8bbdded3dfac6e2cff06b541c4fc27dd7ab24a98687371890e9e1f446919",
+  "cumulative_diff_sha256": "d77057329f05853b3e0c3a51760ecd2d1571326c4726c6a5c715990b2ec117f9",
+  "layer_diff_sha256": "843b4b56b29f8f4eb4fe59c9385cc903f2baf57f710d64b5e710027b4da690d6",
+  "patch_file": "tau2-1.0.1-simulator-interface-guard.patch",
+  "patch_sha256": "843b4b56b29f8f4eb4fe59c9385cc903f2baf57f710d64b5e710027b4da690d6",
+  "schema_version": "1",
+  "upstream_revision": "672227c6b6676edc20d57ea53b7000262aae77b9"
+}

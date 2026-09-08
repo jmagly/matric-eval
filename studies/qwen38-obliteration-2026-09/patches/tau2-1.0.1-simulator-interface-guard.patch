@@ -1,0 +1,477 @@
+diff --git a/src/tau2/evaluator/evaluator_nl_assertions.py b/src/tau2/evaluator/evaluator_nl_assertions.py
+index 1f5397c..a01442c 100644
+--- a/src/tau2/evaluator/evaluator_nl_assertions.py
++++ b/src/tau2/evaluator/evaluator_nl_assertions.py
+@@ -10,7 +10,11 @@ from tau2.data_model.message import Message, SystemMessage, Tick, UserMessage
+ from tau2.data_model.simulation import NLAssertionCheck, RewardInfo
+ from tau2.data_model.tasks import RewardType, Task
+ from tau2.evaluator.evaluator_base import EvaluatorBase
+-from tau2.utils.llm_utils import generate
++from tau2.utils.llm_utils import (
++    LLMBoundaryRuntimeInvalid,
++    generate,
++    record_runtime_failure,
++)
+ 
+ 
+ class NLAssertionsEvaluator(EvaluatorBase[Message]):
+@@ -124,15 +128,33 @@ class NLAssertionsEvaluator(EvaluatorBase[Message]):
+             call_name="nl_assertions_eval",
+             **DEFAULT_LLM_NL_ASSERTIONS_ARGS,
+         )
+-        result_data = json.loads(assistant_message.content)
+-        return [
+-            NLAssertionCheck(
+-                nl_assertion=result["expectedOutcome"],
+-                met=result["metExpectation"],
+-                justification=result["reasoning"],
+-            )
+-            for result in result_data.get("results", [])
+-        ]
++        try:
++            result_data = json.loads(assistant_message.content)
++            if not isinstance(result_data, dict) or not isinstance(
++                result_data.get("results"), list
++            ):
++                raise ValueError("NL evaluator output has no results list")
++            return [
++                NLAssertionCheck(
++                    nl_assertion=result["expectedOutcome"],
++                    met=result["metExpectation"],
++                    justification=result["reasoning"],
++                )
++                for result in result_data["results"]
++            ]
++        except (TypeError, ValueError, KeyError) as exc:
++            failure = {
++                "actor": "evaluator",
++                "stage": "nl-evaluation",
++                "reason": "malformed_evaluator_output",
++                "http_attempted": True,
++                "retryable": False,
++                "side_effect_retry_attempted": False,
++            }
++            record_runtime_failure(failure)
++            raise LLMBoundaryRuntimeInvalid(
++                failure, "NL evaluator returned malformed structured output"
++            ) from exc
+ 
+ 
+ class FullDuplexNLAssertionsEvaluator(EvaluatorBase[Tick]):
+diff --git a/src/tau2/orchestrator/orchestrator.py b/src/tau2/orchestrator/orchestrator.py
+index da03014..996ce4d 100644
+--- a/src/tau2/orchestrator/orchestrator.py
++++ b/src/tau2/orchestrator/orchestrator.py
+@@ -34,7 +34,7 @@ from tau2.user.user_simulator_base import (
+     UserError,
+     is_valid_user_history_message,
+ )
+-from tau2.utils.llm_utils import get_cost
++from tau2.utils.llm_utils import get_cost, mark_environment_call
+ from tau2.utils.utils import format_time, get_now
+ 
+ 
+@@ -322,6 +322,7 @@ class BaseOrchestrator(ABC, Generic[BaseAgentT, BaseUserT, TrajectoryItemT]):
+         """
+         tool_results = []
+         for tool_call in tool_calls:
++            mark_environment_call()
+             tool_result = self.environment.get_response(tool_call)
+             if tool_result.error:
+                 self.num_errors += 1
+diff --git a/src/tau2/user/user_simulator.py b/src/tau2/user/user_simulator.py
+index 51ef4bb..b50c56b 100644
+--- a/src/tau2/user/user_simulator.py
++++ b/src/tau2/user/user_simulator.py
+@@ -24,7 +24,15 @@ from tau2.user.user_simulator_base import (
+     is_valid_user_history_message,
+ )
+ from tau2.utils import DATA_DIR
+-from tau2.utils.llm_utils import generate
++from tau2.utils.llm_utils import (
++    LLMBoundaryRuntimeInvalid,
++    SimulatorOutputRuntimeInvalid,
++    generate,
++    record_runtime_failure,
++    record_simulator_attempt,
++    record_simulator_recovery,
++    simulator_recovery_allowed,
++)
+ 
+ GLOBAL_USER_SIM_GUIDELINES_DIR = DATA_DIR / "tau2" / "user_simulator"
+ 
+@@ -231,14 +239,57 @@ class UserSimulator(
+             state.messages.append(message)
+         messages = state.system_messages + state.flip_roles()
+ 
+-        # Generate response
+-        assistant_message = generate(
+-            model=self.llm,
+-            messages=messages,
+-            tools=self.tools,
+-            call_name="user_simulator_response",
+-            **self.llm_args,
+-        )
++        # Generate and validate before constructing a UserMessage. One replay is
++        # allowed only while no environment/tool boundary has been crossed.
++        recovery_attempted = False
++        while True:
++            record_simulator_attempt()
++            try:
++                assistant_message = generate(
++                    model=self.llm,
++                    messages=messages,
++                    tools=self.tools,
++                    call_name="user_simulator_response",
++                    **self.llm_args,
++                )
++                content_valid = isinstance(assistant_message.content, str) and bool(
++                    assistant_message.content.strip()
++                )
++                tool_calls_valid = bool(assistant_message.tool_calls) and all(
++                    isinstance(tool_call.id, str)
++                    and bool(tool_call.id.strip())
++                    and isinstance(tool_call.name, str)
++                    and bool(tool_call.name.strip())
++                    and isinstance(tool_call.arguments, dict)
++                    for tool_call in assistant_message.tool_calls or []
++                )
++                if content_valid == tool_calls_valid:
++                    reason = (
++                        "mixed_simulator_output"
++                        if content_valid
++                        else "empty_simulator_output"
++                    )
++                    failure = {
++                        "actor": "user-simulator",
++                        "stage": "simulator-output-validation",
++                        "reason": reason,
++                        "http_attempted": True,
++                        "retryable": True,
++                        "side_effect_retry_attempted": False,
++                    }
++                    record_runtime_failure(failure)
++                    raise SimulatorOutputRuntimeInvalid(
++                        failure, "invalid user-simulator output"
++                    )
++            except (LLMBoundaryRuntimeInvalid, SimulatorOutputRuntimeInvalid) as exc:
++                if not recovery_attempted and simulator_recovery_allowed():
++                    recovery_attempted = True
++                    record_simulator_recovery()
++                    continue
++                exc.evidence["retryable"] = False
++                exc.evidence["recovery_attempted"] = recovery_attempted
++                raise
++            break
+ 
+         user_response = assistant_message.content
+         logger.debug(f"Response: {user_response}")
+diff --git a/src/tau2/utils/llm_utils.py b/src/tau2/utils/llm_utils.py
+index e2353ef..6b497ae 100644
+--- a/src/tau2/utils/llm_utils.py
++++ b/src/tau2/utils/llm_utils.py
+@@ -8,6 +8,7 @@ import warnings
+ from collections.abc import Callable, Iterator
+ from contextlib import contextmanager
+ from contextvars import ContextVar
++from dataclasses import dataclass, field
+ from datetime import datetime
+ from pathlib import Path
+ from typing import Any, Optional
+@@ -62,7 +63,14 @@ llm_log_dir: ContextVar[Optional[Path]] = ContextVar("llm_log_dir", default=None
+ llm_log_mode: ContextVar[str] = ContextVar("llm_log_mode", default="latest")
+ 
+ LLMRequestGuard = Callable[
+-    [str, list[dict], Optional[list[dict]], Optional[str], Optional[str], dict[str, Any]],
++    [
++        str,
++        list[dict],
++        Optional[list[dict]],
++        Optional[str],
++        Optional[str],
++        dict[str, Any],
++    ],
+     None,
+ ]
+ 
+@@ -73,6 +81,48 @@ llm_request_guard: ContextVar[Optional[LLMRequestGuard]] = ContextVar(
+     "llm_request_guard", default=None
+ )
+ 
++
++class TauRuntimeInvalid(RuntimeError):
++    """Typed failure that must be excluded from capability scoring."""
++
++    def __init__(self, evidence: dict[str, Any], message: str):
++        self.evidence = dict(evidence)
++        super().__init__(message)
++
++
++class LLMBoundaryRuntimeInvalid(TauRuntimeInvalid):
++    """Sampling, transport, or response-decoding failure at one LLM boundary."""
++
++
++class SimulatorOutputRuntimeInvalid(TauRuntimeInvalid):
++    """Invalid user-simulator output rejected before constructing a UserMessage."""
++
++
++@dataclass
++class SimulationRuntimeEvidence:
++    """Content-free counters scoped to exactly one simulation attempt."""
++
++    environment_call_count: int = 0
++    simulator_sampling_attempts: int = 0
++    simulator_recovery_attempts: int = 0
++    side_effect_retry_attempted: bool = False
++    failures: list[dict[str, Any]] = field(default_factory=list)
++
++    def as_dict(self) -> dict[str, Any]:
++        """Return stable evidence without prompts, completions, or tool arguments."""
++        return {
++            "environment_call_count": self.environment_call_count,
++            "simulator_sampling_attempts": self.simulator_sampling_attempts,
++            "simulator_recovery_attempts": self.simulator_recovery_attempts,
++            "side_effect_retry_attempted": self.side_effect_retry_attempted,
++            "failures": [dict(item) for item in self.failures],
++        }
++
++
++simulation_runtime_evidence: ContextVar[Optional[SimulationRuntimeEvidence]] = (
++    ContextVar("simulation_runtime_evidence", default=None)
++)
++
+ # litellm._turn_on_debug()
+ 
+ logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+@@ -291,6 +341,143 @@ def scoped_llm_request_guard(guard: LLMRequestGuard) -> Iterator[None]:
+         llm_request_guard.reset(token)
+ 
+ 
++@contextmanager
++def scoped_simulation_runtime_evidence() -> Iterator[SimulationRuntimeEvidence]:
++    """Scope side-effect and simulator-recovery evidence to one trajectory."""
++    evidence = SimulationRuntimeEvidence()
++    token = simulation_runtime_evidence.set(evidence)
++    try:
++        yield evidence
++    finally:
++        simulation_runtime_evidence.reset(token)
++
++
++def mark_environment_call() -> None:
++    """Mark the boundary immediately before an environment tool execution."""
++    evidence = simulation_runtime_evidence.get()
++    if evidence is not None:
++        evidence.environment_call_count += 1
++
++
++def simulator_recovery_allowed() -> bool:
++    """Return whether the study scope can safely replay a simulator sample."""
++    evidence = simulation_runtime_evidence.get()
++    return evidence is not None and evidence.environment_call_count == 0
++
++
++def record_simulator_attempt() -> None:
++    """Record one simulator HTTP sampling attempt in the current study scope."""
++    evidence = simulation_runtime_evidence.get()
++    if evidence is not None:
++        evidence.simulator_sampling_attempts += 1
++
++
++def record_simulator_recovery() -> None:
++    """Record the one bounded, pre-side-effect simulator recovery."""
++    evidence = simulation_runtime_evidence.get()
++    if evidence is not None:
++        evidence.simulator_recovery_attempts += 1
++
++
++def record_runtime_failure(failure: dict[str, Any]) -> None:
++    """Retain only typed, content-free failure metadata in the current scope."""
++    evidence = simulation_runtime_evidence.get()
++    if evidence is not None:
++        evidence.failures.append(dict(failure))
++
++
++def _sampling_boundary(call_name: Optional[str]) -> tuple[str, str]:
++    if call_name == "agent_response":
++        return "target-model", "target-sampling"
++    if call_name == "user_simulator_response":
++        return "user-simulator", "simulator-sampling"
++    if call_name == "nl_assertions_eval":
++        return "evaluator", "nl-evaluation"
++    return "harness-interface", "llm-sampling"
++
++
++def _transport_failure_reason(exc: BaseException) -> str:
++    """Classify response-shape failures without retaining response content."""
++    fragments: list[str] = []
++    current: BaseException | None = exc
++    seen: set[int] = set()
++    json_decode = False
++    empty_body = False
++    while current is not None and id(current) not in seen and len(seen) < 8:
++        seen.add(id(current))
++        fragments.extend((type(current).__name__, str(current)))
++        json_decode = json_decode or isinstance(current, json.JSONDecodeError)
++        response = getattr(current, "response", None)
++        if response is not None:
++            body = getattr(response, "text", getattr(response, "content", None))
++            if body is not None:
++                body_text = (
++                    body.decode(errors="replace")
++                    if isinstance(body, bytes)
++                    else str(body)
++                )
++                fragments.append(body_text)
++                empty_body = empty_body or not body_text.strip()
++            headers = getattr(response, "headers", None)
++            if headers is not None:
++                get_header = getattr(headers, "get", None)
++                if callable(get_header):
++                    fragments.append(str(get_header("content-type", "")))
++        current = current.__cause__ or current.__context__
++    normalized = " ".join(fragments).strip().lower()
++    json_position = re.search(r"column\s+(\d+)\s+\(char\s+(\d+)\)", normalized)
++    nonempty_json_prefix = json_position is not None and (
++        int(json_position.group(1)) > 1 or int(json_position.group(2)) > 0
++    )
++    if (
++        "text/html" in normalized
++        or "<!doctype html" in normalized
++        or "<html" in normalized
++    ):
++        return "html_response_body"
++    if nonempty_json_prefix:
++        return "truncated_json_response"
++    if empty_body or any(
++        marker in normalized
++        for marker in ("empty response", "empty body", "no response body")
++    ):
++        return "empty_response_body"
++    if json_decode or any(
++        marker in normalized
++        for marker in (
++            "jsondecode",
++            "json decode",
++            "expecting value",
++            "unterminated",
++            "unexpected eof",
++        )
++    ):
++        return "truncated_json_response"
++    if not normalized:
++        return "empty_response_body"
++    return "sampling_failure"
++
++
++def _boundary_invalid(
++    *,
++    call_name: Optional[str],
++    reason: str,
++    http_attempted: bool,
++    message: str,
++) -> LLMBoundaryRuntimeInvalid:
++    actor, stage = _sampling_boundary(call_name)
++    failure = {
++        "actor": actor,
++        "stage": stage,
++        "reason": reason,
++        "http_attempted": http_attempted,
++        "retryable": actor == "user-simulator",
++        "side_effect_retry_attempted": False,
++    }
++    record_runtime_failure(failure)
++    return LLMBoundaryRuntimeInvalid(failure, message)
++
++
+ def _format_messages_for_logging(messages: list[dict]) -> list[dict]:
+     """
+     Format messages for debug logging by splitting content on newlines.
+@@ -448,34 +635,65 @@ def generate(
+             tool_choice=tool_choice,
+             **kwargs,
+         )
+-    except Exception as e:
+-        logger.error(e)
+-        raise e
++    except TauRuntimeInvalid:
++        raise
++    except Exception as exc:
++        logger.error(exc)
++        raise _boundary_invalid(
++            call_name=call_name,
++            reason=_transport_failure_reason(exc),
++            http_attempted=True,
++            message="LLM sampling or transport failed at a typed runtime boundary",
++        ) from exc
+     generation_time_seconds = time.perf_counter() - start_time
+-    cost = get_response_cost(response)
+-    usage = get_response_usage(response)
+-
+-    response_choice = response.choices[0]
+     try:
++        cost = get_response_cost(response)
++        usage = get_response_usage(response)
++        response_choice = response.choices[0]
+         finish_reason = response_choice.finish_reason
+         if finish_reason == "length":
+             logger.warning("Output might be incomplete due to token limit!")
+-    except Exception as e:
+-        logger.error(e)
+-        raise e
+-    assert response_choice.message.role == "assistant", (
+-        "The response should be an assistant message"
+-    )
+-    content = response_choice.message.content
+-    raw_tool_calls = response_choice.message.tool_calls or []
+-    tool_calls = [
+-        ToolCall(
+-            id=tool_call.id,
+-            name=tool_call.function.name,
+-            arguments=json.loads(tool_call.function.arguments),
++        if response_choice.message.role != "assistant":
++            raise ValueError("response role is not assistant")
++        content = response_choice.message.content
++        raw_tool_calls = response_choice.message.tool_calls or []
++    except Exception as exc:
++        logger.error(exc)
++        raise _boundary_invalid(
++            call_name=call_name,
++            reason="malformed_response_envelope",
++            http_attempted=True,
++            message="LLM returned a malformed response envelope",
++        ) from exc
++    tool_calls = []
++    for tool_call in raw_tool_calls:
++        try:
++            arguments = json.loads(tool_call.function.arguments)
++        except (TypeError, json.JSONDecodeError) as exc:
++            raise _boundary_invalid(
++                call_name=call_name,
++                reason="malformed_tool_arguments",
++                http_attempted=True,
++                message="LLM returned malformed tool-call arguments",
++            ) from exc
++        if (
++            not isinstance(arguments, dict)
++            or not isinstance(tool_call.function.name, str)
++            or not tool_call.function.name.strip()
++        ):
++            raise _boundary_invalid(
++                call_name=call_name,
++                reason="malformed_tool_arguments",
++                http_attempted=True,
++                message="LLM returned an invalid tool-call object",
++            )
++        tool_calls.append(
++            ToolCall(
++                id=tool_call.id,
++                name=tool_call.function.name,
++                arguments=arguments,
++            )
+         )
+-        for tool_call in raw_tool_calls
+-    ]
+     tool_calls = tool_calls or None
+ 
+     message = AssistantMessage(

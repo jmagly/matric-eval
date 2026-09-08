@@ -661,13 +661,17 @@ unprivileged-user-namespace restriction and install a narrowly scoped AppArmor p
 for `/usr/bin/bwrap` containing `userns,`; verify an actual sandbox command, not only
 binary presence. Install the Python knowledge extra with `uv sync --extra knowledge
 --frozen`. Before any calibration run, create a fresh checkout at the pinned revision
-and apply the repository's content-addressed request-guard patch exactly once.
+and apply the repository's two content-addressed patch layers exactly once. The first
+layer is the immutable target context guard; the second adds simulator/interface
+validation and pins the first manifest and patch by SHA-256 as prerequisites.
 Run these commands from the matric-eval repository root. Set `QWEN38_TAU_CHECKOUT`
 to a new absolute checkout path, and set `QWEN38_MODEL_PATH`,
 `QWEN38_CHAT_TEMPLATE`, and `QWEN38_SERVER_RECEIPT` to the approved local model
 snapshot, forced template, and matching server receipt. None is a credential.
 Set `QWEN38_CANARY_OUTPUT` to a new absolute receipt path outside the Git checkout;
 the canary creates it exclusively with mode 0600 and refuses existing files.
+Set `QWEN38_TAU_SIMULATOR_CANARY_OUTPUT` to a second new absolute receipt path for
+the simulator/interface loopback canary under the same evidence directory.
 
 ```bash
 git clone https://github.com/sierra-research/tau2-bench.git "$QWEN38_TAU_CHECKOUT"
@@ -691,8 +695,21 @@ model; the only completion endpoint is a scripted loopback server:
   --output "$QWEN38_CANARY_OUTPUT"
 ```
 
-The patch adds the server-matched Transformers tokenizer and a scoped hook after Tau's
-message/tool serialization but before LiteLLM can issue HTTP. The bridge rechecks the
+Run the second canary against the same patched interpreter. It exercises only a
+scripted loopback OpenAI-compatible endpoint and writes a separate exclusive receipt:
+
+```bash
+"$QWEN38_TAU_CHECKOUT/.venv/bin/python" \
+  scripts/canary_qwen38_tau_simulator.py \
+  --tau-checkout "$QWEN38_TAU_CHECKOUT" \
+  --output "$QWEN38_TAU_SIMULATOR_CANARY_OUTPUT"
+```
+
+The first patch adds the server-matched tokenizer hook after Tau's message/tool
+serialization but before LiteLLM can issue HTTP. The second validates simulator
+responses before `UserMessage`, permits at most one recovery before any environment
+tool execution, and raises typed analytic-invalid failures at target, simulator,
+transport/interface, and NL-evaluator boundaries. The bridge rechecks the
 exact patch and worktree diff, package versions, forced template and tokenizer assets,
 the AppArmor-dependent execution
 canary, the selected tasks, and the recorded tau source worktree before every run.
