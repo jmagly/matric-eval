@@ -359,7 +359,7 @@ def test_error_and_partial_audit_payloads_fail_closed(contract, audit_inputs, pr
 def test_skipped_python_dependency_fails_even_with_success_status(contract, audit_inputs):
     python, npm, exits = audit_inputs
     python["dependencies"].append({"name": "local", "skip_reason": "not on PyPI"})
-    with pytest.raises(ValueError, match="skipped"):
+    with pytest.raises(ValueError, match="skipped or failed dependency: local"):
         contract.validate_audit_reports(python, npm, exits)
 
 

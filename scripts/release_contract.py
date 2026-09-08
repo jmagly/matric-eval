@@ -432,8 +432,13 @@ def validate_audit_reports(
     python_findings = 0
     seen = set()
     for dependency in dependencies:
-        if not isinstance(dependency, dict) or error_fields.intersection(dependency):
-            raise ValueError("Python audit contains an invalid or skipped dependency")
+        if not isinstance(dependency, dict):
+            raise ValueError("Python audit contains an invalid dependency record")
+        if error_fields.intersection(dependency):
+            raise ValueError(
+                f"Python audit skipped or failed dependency: {dependency.get('name', '<unknown>')}; "
+                "see the retained producer report; complete audit evidence is required"
+            )
         for field in ("name", "version"):
             if not isinstance(dependency.get(field), str) or not dependency[field]:
                 raise ValueError(f"Python audit dependency is missing {field}")
