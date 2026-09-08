@@ -31,6 +31,7 @@ from matric_eval.providers import get_provider, list_providers
 from matric_eval.providers.base import ProviderConfig, ProviderConnectionError
 from matric_eval.state import StateManager
 from matric_eval.state.manager import Status
+from matric_eval.studies.status_cli import study_run
 from matric_eval.version import __version__
 
 console = Console()
@@ -2130,6 +2131,7 @@ def trend_series_command(
 
 
 cli.add_command(datasets)
+cli.add_command(study_run)
 
 
 if __name__ == "__main__":

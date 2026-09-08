@@ -27,6 +27,7 @@ from matric_eval.studies.batch import (
     verify_runtime_environment,
 )
 from matric_eval.studies.protocol import StudyProtocol
+from matric_eval.studies.run_status import RunStatus, adapter_main
 from matric_eval.studies.vllm_plugin import PLUGIN_NAME, REGISTRATIONS_ENV
 
 JsonObject = dict[str, Any]
@@ -255,6 +256,10 @@ def run_attested_server(
         "--",
         *arguments,
     ]
+    status_dir = os.environ.get("MATRIC_RUN_STATUS_DIR")
+    status = RunStatus(Path(status_dir)) if status_dir else None
+    if status:
+        status.model_phase(model_id, "loading")
     initialization_started = time.time()
     process = process_factory(child_command)
 
@@ -299,12 +304,16 @@ def run_attested_server(
             },
         }
         _write_private_json(server_receipt_path, receipt)
+        if status:
+            status.model_phase(model_id, "ready", evidence=str(server_receipt_path))
         returncode = process.wait()
         if returncode:
             raise RuntimeError(f"vLLM server exited with status {returncode}")
         return 0
     finally:
         _terminate_child(process)
+        if status:
+            status.model_phase(model_id, "stopped")
         for signum_value, handler in previous_handlers.items():
             signal.signal(signum_value, handler)
 
@@ -357,4 +366,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(adapter_main(main))

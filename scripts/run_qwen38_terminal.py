@@ -29,6 +29,8 @@ from qwen38_terminal_runtime import (
     verify_harbor_checkout,
 )
 
+from matric_eval.studies.run_status import AdapterStatus, adapter_main
+
 HARBOR_PACKAGE_VERSION = "0.22.0"
 TERMINAL_SOURCE_REVISION = "5c8eadf1f393183288fa08b8f73ca9a469cc5e00"
 CONTEXT_SAFETY_MARGIN_TOKENS = 32
@@ -679,7 +681,9 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
     exceptions: Counter[str] = Counter()
     recovered_tasks = 0
     invocation_started = time.monotonic()
+    status = AdapterStatus(args.model_id, "terminal-bench")
     for sample_id in scored_ids:
+        status.start(sample_id)
         seed = _generation_seed(int(study["seed"]), sample_id)
         job_name = _result_name(sample_id)
         config = _job_config(
@@ -826,6 +830,18 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
                 "exception_chain": ([{"type": exception_type}] if exception_type else []),
             }
         official_reward = rewards.get("reward") if rewards is not None else None
+        status.result(
+            sample_id,
+            reward=official_reward,
+            valid=analytic["status"] == "valid",
+            reason=analytic.get("reason"),
+            native_failure=analytic,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            exit_code=harbor_exit_code,
+            evidence_uri=str(job_result_path),
+            evidence_sha256=_sha256_file(job_result_path) if job_result_path.is_file() else None,
+        )
         records.append(
             {
                 "canonical_id": sample_id,
@@ -983,4 +999,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(adapter_main(main))
