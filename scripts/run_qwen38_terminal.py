@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import subprocess
@@ -19,6 +21,13 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import yaml
+from qwen38_terminal_runtime import (
+    classify_trial,
+    load_patch_contract,
+    run_with_watchdog,
+    timing_summary,
+    verify_harbor_checkout,
+)
 
 HARBOR_PACKAGE_VERSION = "0.22.0"
 TERMINAL_SOURCE_REVISION = "5c8eadf1f393183288fa08b8f73ca9a469cc5e00"
@@ -29,6 +38,10 @@ DOCKER_DATA_ROOT = "/srv/obliteratus/matric-eval/docker/data"
 DEFAULT_DOCKER_CONFIG_ASSET = (
     Path(__file__).resolve().parents[1]
     / "studies/qwen38-obliteration-2026-09/host/matric-eval-docker-daemon.json"
+)
+DEFAULT_HARBOR_PATCH_MANIFEST = (
+    Path(__file__).resolve().parents[1]
+    / "studies/qwen38-obliteration-2026-09/patches/harbor-0.22.0-terminal-runtime-guard.json"
 )
 JsonObject = dict[str, Any]
 
@@ -276,11 +289,53 @@ def _context_budget(context_limit: int, output_tokens: int) -> JsonObject:
     }
 
 
-def _agent_kwargs(endpoint: str, sampler: JsonObject, seed: int, context_limit: int) -> JsonObject:
+def _validate_runtime_controls(
+    *,
+    watchdog_seconds: float,
+    teardown_grace_seconds: float,
+    llm_response_timeout_seconds: float,
+    max_turns: int,
+) -> None:
+    durations = {
+        "watchdog_seconds": watchdog_seconds,
+        "teardown_grace_seconds": teardown_grace_seconds,
+        "llm_response_timeout_seconds": llm_response_timeout_seconds,
+    }
+    for label, value in durations.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{label} must be a finite positive number")
+        if not math.isfinite(float(value)) or value <= 0:
+            raise ValueError(f"{label} must be a finite positive number")
+    if llm_response_timeout_seconds >= watchdog_seconds:
+        raise ValueError("LLM response timeout must be shorter than the parent watchdog")
+    if teardown_grace_seconds >= watchdog_seconds:
+        raise ValueError("teardown grace must be shorter than the parent watchdog")
+    if type(max_turns) is not int or max_turns < 2:
+        raise ValueError("max_turns must be an integer of at least 2")
+
+
+def _agent_kwargs(
+    endpoint: str,
+    sampler: JsonObject,
+    seed: int,
+    context_limit: int,
+    *,
+    llm_response_timeout_seconds: float,
+    max_turns: int,
+) -> JsonObject:
     context_budget = _context_budget(context_limit, sampler["max_tokens"])
+    if llm_response_timeout_seconds <= 0:
+        raise ValueError("LLM response timeout must be positive")
+    if type(max_turns) is not int or max_turns < 2:
+        raise ValueError("max_turns must be an integer of at least 2")
     return {
         "api_base": endpoint,
         "temperature": float(sampler["temperature"]),
+        "max_turns": max_turns,
+        "enable_summarize": True,
+        "proactive_summarization_threshold": 0,
+        "max_recovery_attempts": 1,
+        "suppress_max_turns_warning": True,
         "model_info": {
             "max_input_tokens": context_budget["max_input_tokens"],
             "max_output_tokens": context_budget["max_output_tokens"],
@@ -289,7 +344,11 @@ def _agent_kwargs(endpoint: str, sampler: JsonObject, seed: int, context_limit: 
             "cache_creation_input_token_cost": 0.0,
             "cache_read_input_token_cost": 0.0,
         },
-        "llm_kwargs": {"api_key": "EMPTY"},
+        "llm_kwargs": {
+            "api_key": "EMPTY",
+            "timeout": llm_response_timeout_seconds,
+            "num_retries": 0,
+        },
         "llm_call_kwargs": {
             "top_p": float(sampler["top_p"]),
             "presence_penalty": float(sampler["presence_penalty"]),
@@ -346,12 +405,68 @@ def _result_name(sample_id: str) -> str:
 
 
 def _write_private_json(path: Path, payload: Any) -> str:
-    with path.open("x", encoding="utf-8") as handle:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
     path.chmod(0o600)
+    directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     return _sha256_file(path)
+
+
+def _job_result_hashes(job_dir: Path) -> JsonObject:
+    """Bind both Harbor's summary and nested official results to one attempt."""
+    hashes: JsonObject = {}
+    for path in sorted(job_dir.rglob("result.json")):
+        if path.is_symlink():
+            raise RuntimeError("Harbor result evidence contains a symbolic link")
+        if path.is_file():
+            hashes[path.relative_to(job_dir).as_posix()] = _sha256_file(path)
+    return hashes
+
+
+def _load_execution_outcome(
+    path: Path,
+    config_sha256: str,
+    result_hashes: JsonObject,
+    runtime_controls: JsonObject | None = None,
+) -> JsonObject:
+    """Fail closed unless retained timing/status belongs to these exact result bytes."""
+    if path.is_symlink():
+        raise ValueError("parent execution outcome must not be a symbolic link")
+    payload = _load_object(path, "parent execution outcome")
+    if (
+        payload.get("schema_version") != "1"
+        or payload.get("config_sha256") != config_sha256
+        or payload.get("result_sha256") != result_hashes
+        or type(payload.get("harbor_exit_code")) is not int
+        or (runtime_controls is not None and payload.get("runtime_controls") != runtime_controls)
+    ):
+        raise ValueError("parent execution outcome identity or status is invalid")
+    duration = payload.get("task_wall_seconds")
+    if (
+        isinstance(duration, bool)
+        or not isinstance(duration, (int, float))
+        or not math.isfinite(float(duration))
+        or duration < 0
+    ):
+        raise ValueError("parent execution outcome timing is invalid")
+    watchdog = payload.get("watchdog")
+    fields = {"timed_out", "sent_sigterm", "sent_sigkill"}
+    if not isinstance(watchdog, dict) or set(watchdog) != fields:
+        raise ValueError("parent execution watchdog fields are invalid")
+    if any(type(watchdog[field]) is not bool for field in fields):
+        raise ValueError("parent execution watchdog flags must be booleans")
+    if watchdog["timed_out"] != watchdog["sent_sigterm"] or (
+        watchdog["sent_sigkill"] and not watchdog["sent_sigterm"]
+    ):
+        raise ValueError("parent execution watchdog flags are inconsistent")
+    return payload
 
 
 def _file_manifest(root: Path) -> list[JsonObject]:
@@ -374,7 +489,9 @@ def _seal_private_tree(root: Path) -> None:
         path.chmod(0o750 if path.is_dir() else 0o600)
 
 
-def _parse_job_result(path: Path) -> tuple[JsonObject, JsonObject | None, str | None]:
+def _parse_job_result(
+    path: Path,
+) -> tuple[JsonObject, JsonObject, JsonObject | None, str | None]:
     result = _load_object(path, "Harbor job result")
     trials = result.get("trial_results")
     if isinstance(trials, list):
@@ -400,12 +517,21 @@ def _parse_job_result(path: Path) -> tuple[JsonObject, JsonObject | None, str | 
             raise RuntimeError("Harbor job result must contain exactly one nested trial result")
         trial = _load_object(nested_results[0], "Harbor trial result")
     verifier = trial.get("verifier_result")
+    if verifier is not None and not isinstance(verifier, dict):
+        raise RuntimeError("Harbor verifier result must be an object")
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
     if rewards is not None and not isinstance(rewards, dict):
         raise RuntimeError("Harbor verifier rewards must be an object")
     exception = trial.get("exception_info")
+    if exception is not None and not isinstance(exception, dict):
+        raise RuntimeError("Harbor exception information must be an object")
     exception_type = exception.get("exception_type") if isinstance(exception, dict) else None
-    return result, rewards, exception_type if isinstance(exception_type, str) else None
+    return (
+        result,
+        trial,
+        verifier,
+        exception_type if isinstance(exception_type, str) else None,
+    )
 
 
 def _result_duration_seconds(result: JsonObject) -> float:
@@ -439,6 +565,13 @@ def _job_configs_match(actual: JsonObject, expected: JsonObject) -> bool:
     return normalized[0] == normalized[1]
 
 
+def _agent_runtime_control(trial: JsonObject) -> JsonObject | None:
+    agent_result = trial.get("agent_result")
+    metadata = agent_result.get("metadata") if isinstance(agent_result, dict) else None
+    control = metadata.get("runtime_control") if isinstance(metadata, dict) else None
+    return control if isinstance(control, dict) else None
+
+
 def run_terminal(args: argparse.Namespace) -> JsonObject:
     if platform.node() != "basilisk":
         raise RuntimeError("Terminal-Bench study execution requires host basilisk")
@@ -448,10 +581,30 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
         allow_existing=args.resume_existing,
     )
     _private_path(args.receipt, "Terminal-Bench receipt")
+    _validate_runtime_controls(
+        watchdog_seconds=args.watchdog_seconds,
+        teardown_grace_seconds=args.teardown_grace_seconds,
+        llm_response_timeout_seconds=args.llm_response_timeout_seconds,
+        max_turns=args.max_turns,
+    )
     if importlib.metadata.version("harbor") != HARBOR_PACKAGE_VERSION:
         raise RuntimeError("installed Harbor version does not match the study contract")
     if Path(sys.executable).resolve() != args.harbor_python.resolve():
         raise RuntimeError("runner must execute inside the declared Harbor environment")
+    harbor_contract = load_patch_contract(args.harbor_patch_manifest)
+    if harbor_contract.package_version != HARBOR_PACKAGE_VERSION:
+        raise RuntimeError("Harbor patch package version differs from the runner contract")
+    harbor_patch = verify_harbor_checkout(args.harbor_checkout, harbor_contract)
+    harbor_module = importlib.import_module("harbor")
+    harbor_source = Path(str(harbor_module.__file__)).resolve()
+    if not harbor_source.is_relative_to(args.harbor_checkout.resolve()):
+        raise RuntimeError("runner did not import Harbor from the patched checkout")
+    if (
+        not args.harbor_executable.is_file()
+        or not os.access(args.harbor_executable, os.X_OK)
+        or not args.harbor_executable.resolve().is_relative_to(args.harbor_checkout.resolve())
+    ):
+        raise RuntimeError("Harbor executable is outside the patched checkout")
     if _git_revision(args.terminal_checkout) != TERMINAL_SOURCE_REVISION:
         raise RuntimeError("Terminal-Bench checkout revision does not match the contract")
     _require_clean_checkout(args.terminal_checkout)
@@ -519,10 +672,13 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
         args.result_dir.chmod(0o750)
         control_dir.mkdir(mode=0o750)
     records: list[JsonObject] = []
+    parent_controls = {
+        "watchdog_seconds": args.watchdog_seconds,
+        "teardown_grace_seconds": args.teardown_grace_seconds,
+    }
     exceptions: Counter[str] = Counter()
     recovered_tasks = 0
-    recovered_execution_seconds = 0.0
-    started = time.time()
+    invocation_started = time.monotonic()
     for sample_id in scored_ids:
         seed = _generation_seed(int(study["seed"]), sample_id)
         job_name = _result_name(sample_id)
@@ -532,7 +688,14 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             tasks_dir=tasks_dir,
             task_id=sample_id,
             model_id=args.model_id,
-            agent_kwargs=_agent_kwargs(args.endpoint, sampler, seed, runtime["context_limit"]),
+            agent_kwargs=_agent_kwargs(
+                args.endpoint,
+                sampler,
+                seed,
+                runtime["context_limit"],
+                llm_response_timeout_seconds=args.llm_response_timeout_seconds,
+                max_turns=args.max_turns,
+            ),
         )
         validated = JobConfig.model_validate(config)
         config_payload = validated.model_dump(
@@ -543,9 +706,17 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
         config_path = control_dir / f"{job_name}.json"
         stdout_path = control_dir / f"{job_name}.stdout.log"
         stderr_path = control_dir / f"{job_name}.stderr.log"
+        execution_path = control_dir / f"{job_name}.execution.json"
         job_dir = args.result_dir / job_name
         job_result_path = job_dir / "result.json"
         recovered = job_dir.exists()
+        watchdog_timed_out = False
+        watchdog_evidence: JsonObject | None = None
+        trial: JsonObject = {}
+        verifier: JsonObject | None = None
+        rewards: JsonObject | None = None
+        exception_type: str | None = None
+        parent_outcome_missing = False
         if recovered:
             if not args.resume_existing:
                 raise RuntimeError("existing Harbor job requires --resume-existing")
@@ -556,16 +727,34 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
                 raise RuntimeError("retained Harbor job configuration differs from the study")
             if not stdout_path.is_file() or not stderr_path.is_file():
                 raise RuntimeError("retained Harbor job omits its control logs")
-            result, rewards, exception_type = _parse_job_result(job_result_path)
-            duration_seconds = _result_duration_seconds(result)
+            try:
+                result, trial, verifier, exception_type = _parse_job_result(job_result_path)
+                rewards = verifier.get("rewards") if verifier is not None else None
+            except (OSError, ValueError, RuntimeError) as error:
+                exception_type = type(error).__name__
             harbor_exit_code: int | None = None
+            task_wall_seconds: float | None = None
+            try:
+                execution = _load_execution_outcome(
+                    execution_path,
+                    _sha256_file(config_path),
+                    _job_result_hashes(job_dir),
+                    parent_controls,
+                )
+                harbor_exit_code = execution["harbor_exit_code"]
+                task_wall_seconds = execution["task_wall_seconds"]
+                watchdog_evidence = execution["watchdog"]
+                watchdog_timed_out = execution["watchdog"]["timed_out"]
+            except (OSError, ValueError, RuntimeError):
+                parent_outcome_missing = True
             recovered_tasks += 1
-            recovered_execution_seconds += duration_seconds
         else:
-            if config_path.exists() or stdout_path.exists() or stderr_path.exists():
+            if any(
+                path.exists() or path.is_symlink()
+                for path in (config_path, stdout_path, stderr_path, execution_path)
+            ):
                 raise RuntimeError("orphaned Harbor control evidence prevents a clean trial")
             _write_private_json(config_path, config_payload)
-            task_started = time.time()
             env = dict(os.environ)
             env["OPENAI_API_KEY"] = "EMPTY"
             env["DOCKER_HOST"] = DOCKER_HOST
@@ -575,7 +764,7 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             ):
                 stdout_path.chmod(0o600)
                 stderr_path.chmod(0o600)
-                completed = subprocess.run(
+                watchdog = run_with_watchdog(
                     [
                         str(args.harbor_executable),
                         "run",
@@ -587,16 +776,56 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
                     env=env,
                     stdout=stdout,
                     stderr=stderr,
-                    text=True,
-                    timeout=None,
+                    timeout_seconds=args.watchdog_seconds,
+                    teardown_grace_seconds=args.teardown_grace_seconds,
                 )
-            if not job_result_path.is_file():
-                raise RuntimeError(f"Harbor omitted the job result for {sample_id}")
-            _, rewards, exception_type = _parse_job_result(job_result_path)
-            duration_seconds = time.time() - task_started
-            harbor_exit_code = completed.returncode
+            watchdog_timed_out = watchdog.timed_out
+            watchdog_evidence = {
+                "timed_out": watchdog.timed_out,
+                "sent_sigterm": watchdog.sent_sigterm,
+                "sent_sigkill": watchdog.sent_sigkill,
+            }
+            task_wall_seconds = watchdog.wall_seconds
+            harbor_exit_code = watchdog.returncode
+            _write_private_json(
+                execution_path,
+                {
+                    "schema_version": "1",
+                    "config_sha256": _sha256_file(config_path),
+                    "runtime_controls": parent_controls,
+                    "result_sha256": _job_result_hashes(job_dir),
+                    "harbor_exit_code": harbor_exit_code,
+                    "watchdog": watchdog_evidence,
+                    "task_wall_seconds": task_wall_seconds,
+                },
+            )
+            if job_result_path.is_file():
+                try:
+                    _, trial, verifier, exception_type = _parse_job_result(job_result_path)
+                    rewards = verifier.get("rewards") if verifier is not None else None
+                except (OSError, ValueError, RuntimeError) as error:
+                    exception_type = type(error).__name__
+            else:
+                exception_type = "HarborResultMissingError"
         if exception_type:
             exceptions[exception_type] += 1
+        analytic = classify_trial(
+            exception_type=exception_type,
+            rewards=rewards,
+            harbor_exit_code=harbor_exit_code,
+            watchdog_timed_out=watchdog_timed_out,
+        )
+        if parent_outcome_missing:
+            analytic = {
+                "status": "invalid",
+                "reason": "missing_parent_outcome",
+                "detail": "retained parent outcome missing, invalid, or hash-mismatched",
+                "owner": "harness-interface",
+                "actor": "runner",
+                "stage": "result-ingest",
+                "exception_chain": ([{"type": exception_type}] if exception_type else []),
+            }
+        official_reward = rewards.get("reward") if rewards is not None else None
         records.append(
             {
                 "canonical_id": sample_id,
@@ -605,21 +834,42 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
                 "recovered_existing_trial": recovered,
                 "rewards": rewards,
                 "exception_type": exception_type,
-                "duration_seconds": duration_seconds,
+                "official_verifier": {
+                    "result": verifier,
+                    "reward": official_reward,
+                    "reward_present": isinstance(official_reward, (int, float))
+                    and not isinstance(official_reward, bool)
+                    and math.isfinite(float(official_reward)),
+                },
+                "analytic": analytic,
+                "task_wall_seconds": task_wall_seconds,
+                "watchdog": watchdog_evidence,
+                "execution_outcome_sha256": (
+                    _sha256_file(execution_path) if execution_path.is_file() else None
+                ),
                 "job_name": job_name,
-                "job_result_sha256": _sha256_file(job_result_path),
+                "job_result_sha256": (
+                    _sha256_file(job_result_path) if job_result_path.is_file() else None
+                ),
+                "agent_runtime_control": _agent_runtime_control(trial),
             }
         )
 
     _seal_private_tree(args.result_dir)
     primary_rewards = [
-        float(record["rewards"]["reward"])
+        float(record["official_verifier"]["reward"])
         for record in records
-        if isinstance(record.get("rewards"), dict)
-        and isinstance(record["rewards"].get("reward"), (int, float))
+        if record["analytic"]["status"] == "valid"
     ]
+    timing = timing_summary(records, time.monotonic() - invocation_started)
+    invalid_reasons = Counter(
+        str(record["analytic"]["reason"])
+        for record in records
+        if record["analytic"]["status"] == "invalid"
+    )
     receipt: JsonObject = {
-        "schema_version": "1",
+        "schema": "matric-eval.qwen38-terminal-runtime-receipt/2",
+        "schema_version": "2",
         "study_id": study["id"],
         "protocol_sha256": summary["protocol_sha256"],
         "manifest_sha256": manifest_sha256,
@@ -630,6 +880,7 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
         "runner": {
             "package": "harbor",
             "version": HARBOR_PACKAGE_VERSION,
+            "patch": harbor_patch,
             "terminal_bench_source_revision": TERMINAL_SOURCE_REVISION,
             "python": platform.python_version(),
             "matric_eval_revision": _git_revision(Path(__file__).resolve().parents[1]),
@@ -642,10 +893,15 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             "attempts_per_task": 1,
             "concurrency": 1,
             "retries": 0,
+            "llm_transport_retries": 0,
+            "terminal_recovery_max_attempts": 1,
+            "max_turns": args.max_turns,
+            "llm_response_timeout_seconds": args.llm_response_timeout_seconds,
+            "watchdog_seconds": args.watchdog_seconds,
+            "teardown_grace_seconds": args.teardown_grace_seconds,
             "timeout_multiplier": 1.0,
             "resume_existing": args.resume_existing,
             "recovered_tasks": recovered_tasks,
-            "recovered_execution_seconds": recovered_execution_seconds,
             "context_budget": context_budget,
             "context_budget_enforcement": "harbor-model-info-input-limit-requested-unverified",
             "target_thinking_mode_requested": "disabled",
@@ -658,7 +914,10 @@ def run_terminal(args: argparse.Namespace) -> JsonObject:
             sum(primary_rewards) / len(primary_rewards) if primary_rewards else None
         ),
         "exception_counts": dict(sorted(exceptions.items())),
-        "execution_seconds": recovered_execution_seconds + time.time() - started,
+        "analytic_invalid_count": sum(invalid_reasons.values()),
+        "analytic_invalid_reasons": dict(sorted(invalid_reasons.items())),
+        "timing": timing,
+        "execution_seconds": timing["invocation_wall_seconds"],
         "private_files": _file_manifest(args.result_dir),
     }
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
@@ -675,6 +934,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--server-receipt", type=Path, required=True)
     parser.add_argument("--endpoint", default="http://127.0.0.1:18083/v1")
     parser.add_argument("--terminal-checkout", type=Path, required=True)
+    parser.add_argument("--harbor-checkout", type=Path, required=True)
+    parser.add_argument("--harbor-patch-manifest", type=Path, default=DEFAULT_HARBOR_PATCH_MANIFEST)
     parser.add_argument("--harbor-python", type=Path, required=True)
     parser.add_argument("--harbor-executable", type=Path, required=True)
     parser.add_argument(
@@ -691,6 +952,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scored-ids", type=Path, required=True)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--watchdog-seconds", type=float, required=True)
+    parser.add_argument("--teardown-grace-seconds", type=float, default=30.0)
+    parser.add_argument("--llm-response-timeout-seconds", type=float, required=True)
+    parser.add_argument("--max-turns", type=int, required=True)
     parser.add_argument(
         "--resume-existing",
         action="store_true",

@@ -1,0 +1,435 @@
+diff --git a/src/harbor/agents/terminus_2/terminus_2.py b/src/harbor/agents/terminus_2/terminus_2.py
+index ad61cdea..f77e05fc 100644
+--- a/src/harbor/agents/terminus_2/terminus_2.py
++++ b/src/harbor/agents/terminus_2/terminus_2.py
+@@ -7,13 +7,6 @@ from datetime import datetime, timezone
+ from pathlib import Path
+ from typing import Any, Literal, override
+ 
+-from tenacity import (
+-    retry,
+-    retry_if_exception_type,
+-    retry_if_not_exception_type,
+-    stop_after_attempt,
+-)
+-
+ from harbor.agents.base import BaseAgent
+ from harbor.agents.terminus_2.terminus_json_plain_parser import (
+     TerminusJSONPlainParser,
+@@ -24,10 +17,15 @@ from harbor.agents.terminus_2.terminus_xml_plain_parser import (
+ from harbor.agents.terminus_2.tmux_session import TmuxSession
+ from harbor.environments.base import BaseEnvironment
+ from harbor.llms.base import (
++    AgentNoSubmitError,
+     BaseLLM,
++    CommandTimeoutError,
+     ContextLengthExceededError,
++    ContextPreflightError,
++    ContextRecoveryExhaustedError,
+     LLMBackend,
+     LLMResponse,
++    OutputRecoveryExhaustedError,
+     OutputLengthExceededError,
+ )
+ from harbor.llms.chat import Chat
+@@ -182,6 +180,7 @@ class Terminus2(BaseAgent):
+         llm_backend: LLMBackend | str = LLMBackend.LITELLM,
+         llm_kwargs: dict[str, Any] | None = None,
+         llm_call_kwargs: dict[str, Any] | None = None,
++        max_recovery_attempts: int = 1,
+         extra_env: dict[str, str] | None = None,
+         *args,
+         **kwargs,
+@@ -311,6 +310,18 @@ class Terminus2(BaseAgent):
+         self._trajectory_steps: list[Step] = []
+         self._record_terminal_session = record_terminal_session
+         self._llm_call_kwargs = dict(llm_call_kwargs) if llm_call_kwargs else {}
++        if (
++            type(max_recovery_attempts) is not int
++            or not 0 <= max_recovery_attempts <= 1
++        ):
++            raise ValueError("max_recovery_attempts must be exactly 0 or 1")
++        self._max_recovery_attempts = max_recovery_attempts
++        self._recovery_attempts = 0
++        self._context_recovery_attempts = 0
++        self._output_recovery_attempts = 0
++        self._parse_recovery_attempts = 0
++        self._command_timeouts = 0
++        self._submitted = False
+ 
+         self._summarization_count: int = (
+             0  # Track number of summarization subagents created
+@@ -980,18 +991,23 @@ so ask everything you need to know."""
+ 
+         return None
+ 
+-    @retry(
+-        stop=stop_after_attempt(3),
+-        # Do not retry since it is only raised when summarization is OFF, and we will
+-        # likely hit the context length limit again despite retrying.
+-        retry=(
+-            retry_if_not_exception_type(ContextLengthExceededError)
+-            # To avoid asyncio.CancelledError retries which inherits from BaseException
+-            # rather than Exception
+-            & retry_if_exception_type(Exception)
+-        ),
+-        reraise=True,
+-    )
++    def _claim_recovery(self, kind: str) -> None:
++        if self._recovery_attempts >= self._max_recovery_attempts:
++            if kind == "context":
++                raise ContextRecoveryExhaustedError(
++                    "serialized context still exceeds the configured input limit"
++                )
++            raise OutputRecoveryExhaustedError(
++                "structured output did not recover within the configured bound"
++            )
++        self._recovery_attempts += 1
++        if kind == "context":
++            self._context_recovery_attempts += 1
++        elif kind == "output":
++            self._output_recovery_attempts += 1
++        else:
++            self._parse_recovery_attempts += 1
++
+     async def _query_llm(
+         self,
+         chat: Chat,
+@@ -1011,78 +1027,33 @@ so ask everything you need to know."""
+ 
+             return llm_response
+ 
+-        except ContextLengthExceededError:
+-            # First, we check whether we want to summarize or not
++        except ContextLengthExceededError as error:
++            if not chat.messages:
++                raise ContextPreflightError(
++                    "initial serialized request exceeds the configured input limit"
++                ) from error
+             if not self._enable_summarize:
+-                self.logger.debug("Context length exceeded and summarization is OFF.")
+-                raise
+-
+-            self.logger.debug("Context length exceeded. Using fallback summarization.")
+-
++                raise ContextRecoveryExhaustedError(
++                    "context recovery is disabled for an over-limit request"
++                ) from error
++            try:
++                self._claim_recovery("context")
++            except ContextRecoveryExhaustedError as exhausted:
++                raise exhausted from error
+             if session is None:
+                 raise RuntimeError("Cannot handle context length error without session")
+-
+             self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)
+-
+-            summary_prompt = None
+-            # Fallback 1: Try full summary
+-            try:
+-                self.logger.debug("SUMMARIZATION: Attempting full summary")
+-                summary_prompt, subagent_trajectory_refs = await self._summarize(
+-                    chat, original_instruction, session
+-                )
+-                # Store subagent_refs to include in the trajectory
+-                self._pending_subagent_refs = subagent_trajectory_refs
+-                # Store handoff prompt to add as a user step
+-                self._pending_handoff_prompt = summary_prompt
+-                self.logger.debug("SUMMARIZATION: Full summary succeeded")
+-            except Exception as e:
+-                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")
+-
+-            # Fallback 2: Try short summary
+-            if summary_prompt is None:
+-                try:
+-                    self.logger.debug("SUMMARIZATION: Attempting short summary")
+-                    current_screen = await session.capture_pane(capture_entire=False)
+-                    limited_screen = current_screen[-1000:] if current_screen else ""
+-
+-                    short_prompt = f"Briefly continue this task: {original_instruction}\n\nCurrent state: {limited_screen}\n\nNext steps (2-3 sentences):"
+-
+-                    short_llm_response: LLMResponse = await self._llm.call(
+-                        prompt=short_prompt,
+-                        **self._llm_call_kwargs,
+-                    )
+-                    summary_prompt = f"{original_instruction}\n\nSummary: {short_llm_response.content}"
+-                    self.logger.debug("SUMMARIZATION: Short summary succeeded")
+-                except Exception as e:
+-                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")
+-
+-            # Fallback 3: Ultimate fallback (no LLM calls)
+-            if summary_prompt is None:
+-                self.logger.debug("SUMMARIZATION: Using ultimate fallback")
+-                current_screen = await session.capture_pane(capture_entire=False)
+-                limited_screen = current_screen[-1000:] if current_screen else ""
+-                summary_prompt = (
+-                    f"{original_instruction}\n\nCurrent state: {limited_screen}"
+-                )
+-
+-            try:
+-                start_time = time.time()
+-                llm_response = await chat.chat(
+-                    summary_prompt,
+-                    **self._llm_call_kwargs,
+-                )
+-                end_time = time.time()
+-                request_time_ms = (end_time - start_time) * 1000
+-                self._api_request_times.append(request_time_ms)
+-
+-            except Exception as e:
+-                self.logger.error(f"Even fallback chat failed: {e}")
+-                llm_response = LLMResponse(
+-                    content="Technical difficulties. Please continue with the task."
+-                )
+-
+-            return llm_response
++            current_screen = await session.capture_pane(capture_entire=False)
++            limited_screen = current_screen[-1000:] if current_screen else ""
++            recovery_prompt = (
++                f"{original_instruction}\n\nCurrent state: {limited_screen}"
++            )
++            return await self._query_llm(
++                chat=chat,
++                prompt=recovery_prompt,
++                original_instruction=original_instruction,
++                session=session,
++            )
+ 
+         except OutputLengthExceededError as e:
+             self.logger.debug(f"Output length exceeded: {e}")
+@@ -1139,6 +1110,10 @@ so ask everything you need to know."""
+             if warnings_text:
+                 error_msg += warnings_text
+ 
++            try:
++                self._claim_recovery("output")
++            except OutputRecoveryExhaustedError as exhausted:
++                raise exhausted from e
+             chat.messages.append({"role": "user", "content": prompt})
+             chat.messages.append({"role": "assistant", "content": truncated_response})
+             chat.reset_response_chain()
+@@ -1167,6 +1142,9 @@ so ask everything you need to know."""
+ 
+         result = self._parser.parse_response(llm_response.content)
+ 
++        if result.error:
++            self._claim_recovery("parse")
++
+         feedback = ""
+         if result.error:
+             feedback += f"ERROR: {result.error}"
+@@ -1254,8 +1232,9 @@ so ask everything you need to know."""
+         for episode in range(self._max_episodes):
+             self._n_episodes = episode + 1
+             if not await self._session.is_session_alive():
+-                self.logger.debug("Session has ended, breaking out of agent loop")
+-                return
++                raise AgentNoSubmitError(
++                    "terminal session ended before task submission"
++                )
+ 
+             if original_instruction and self._enable_summarize:
+                 proactive_summary_result = await self._check_proactive_summarization(
+@@ -1400,6 +1379,11 @@ so ask everything you need to know."""
+                 commands,
+                 self._session,
+             )
++            if timeout_occurred:
++                self._command_timeouts += 1
++                raise CommandTimeoutError(
++                    "terminal command timed out; retry is unsafe without idempotency proof"
++                )
+ 
+             # Capture the pending completion state before potentially modifying it
+             was_pending_completion = self._pending_completion
+@@ -1531,6 +1515,7 @@ so ask everything you need to know."""
+             if is_task_complete:
+                 if was_pending_completion:
+                     # Task is confirmed complete (this is the second time task_complete was True), return
++                    self._submitted = True
+                     return
+                 else:
+                     # First completion attempt - ask for confirmation and continue
+@@ -1539,6 +1524,10 @@ so ask everything you need to know."""
+ 
+             prompt = observation
+ 
++        raise AgentNoSubmitError(
++            "agent exhausted its configured turns without submission"
++        )
++
+     def _reset_per_run_state(self) -> None:
+         """Reset all per-run state. The same Terminus2 instance is reused
+         across multiple `run()` invocations in multi-step trials, so any
+@@ -1554,6 +1543,12 @@ so ask everything you need to know."""
+         self._pending_subagent_refs = None
+         self._pending_handoff_prompt = None
+         self._session_id = self._user_provided_session_id or str(uuid.uuid4())
++        self._recovery_attempts = 0
++        self._context_recovery_attempts = 0
++        self._output_recovery_attempts = 0
++        self._parse_recovery_attempts = 0
++        self._command_timeouts = 0
++        self._submitted = False
+ 
+     @override
+     async def run(
+@@ -1635,6 +1630,15 @@ so ask everything you need to know."""
+                 "n_episodes": self._n_episodes,
+                 "api_request_times_msec": self._api_request_times,
+                 "summarization_count": self._summarization_count,
++                "runtime_control": {
++                    "max_recovery_attempts": self._max_recovery_attempts,
++                    "recovery_attempts": self._recovery_attempts,
++                    "context_recovery_attempts": self._context_recovery_attempts,
++                    "output_recovery_attempts": self._output_recovery_attempts,
++                    "parse_recovery_attempts": self._parse_recovery_attempts,
++                    "command_timeouts": self._command_timeouts,
++                    "submitted": self._submitted,
++                },
+             }
+             if self._store_all_messages:
+                 context.metadata["all_messages"] = self._chat.messages
+diff --git a/src/harbor/llms/base.py b/src/harbor/llms/base.py
+index 6aae2154..2ed21ab1 100644
+--- a/src/harbor/llms/base.py
++++ b/src/harbor/llms/base.py
+@@ -51,6 +51,30 @@ class OutputLengthExceededError(Exception):
+         self.truncated_response = truncated_response
+ 
+ 
++class LLMResponseTimeoutError(Exception):
++    """Raised when one model response exceeds its configured transport timeout."""
++
++
++class ContextPreflightError(Exception):
++    """Raised when the first serialized agent request cannot fit the context."""
++
++
++class ContextRecoveryExhaustedError(Exception):
++    """Raised when the single bounded context recovery does not fit."""
++
++
++class OutputRecoveryExhaustedError(Exception):
++    """Raised when the single bounded output/parse recovery does not succeed."""
++
++
++class CommandTimeoutError(Exception):
++    """Raised when a terminal command times out and cannot safely be retried."""
++
++
++class AgentNoSubmitError(Exception):
++    """Raised when the agent terminates or exhausts turns without submission."""
++
++
+ class BaseLLM(ABC):
+     def __init__(self, **kwargs):
+         super().__init__(**kwargs)
+diff --git a/src/harbor/llms/lite_llm.py b/src/harbor/llms/lite_llm.py
+index d790e5d1..53cdbfea 100644
+--- a/src/harbor/llms/lite_llm.py
++++ b/src/harbor/llms/lite_llm.py
+@@ -14,22 +14,17 @@ from litellm.exceptions import (
+ from litellm.exceptions import (
+     ContextWindowExceededError as LiteLLMContextWindowExceededError,
+ )
++from litellm.exceptions import Timeout as LiteLLMTimeout
+ from litellm.litellm_core_utils.get_supported_openai_params import (
+     get_supported_openai_params,
+ )
+ from litellm.utils import get_model_info
+ from pydantic import BaseModel
+-from tenacity import (
+-    retry,
+-    retry_if_exception_type,
+-    retry_if_not_exception_type,
+-    stop_after_attempt,
+-    wait_exponential,
+-)
+ 
+ from harbor.llms.base import (
+     BaseLLM,
+     ContextLengthExceededError,
++    LLMResponseTimeoutError,
+     LLMResponse,
+     OutputLengthExceededError,
+ )
+@@ -254,23 +249,6 @@ class LiteLLM(BaseLLM):
+ 
+         return logger_fn
+ 
+-    @retry(
+-        stop=stop_after_attempt(3),
+-        wait=wait_exponential(multiplier=1, min=4, max=15),
+-        retry=(
+-            # To avoid asyncio.CancelledError retries which inherits from BaseException
+-            # rather than Exception
+-            retry_if_exception_type(Exception)
+-            & retry_if_not_exception_type(
+-                (
+-                    ContextLengthExceededError,
+-                    OutputLengthExceededError,
+-                    LiteLLMAuthenticationError,
+-                )
+-            )
+-        ),
+-        reraise=True,
+-    )
+     @override
+     async def call(
+         self,
+@@ -366,42 +344,7 @@ class LiteLLM(BaseLLM):
+                 extra_headers: dict[str, Any] = completion_kwargs["extra_headers"]  # ty: ignore[invalid-assignment]
+                 extra_headers["X-Session-ID"] = self._session_id
+ 
+-            try:
+-                response = await litellm.acompletion(**completion_kwargs)
+-            except LiteLLMBadRequestError as e:
+-                # If provider (e.g., OpenAI) rejects extra_body parameters, retry without them
+-                # Some providers reject custom parameters like: return_token_ids, session_id, etc.
+-                error_msg = str(e)
+-                if (
+-                    "Unrecognized request argument" in error_msg
+-                    and "extra_body" in completion_kwargs
+-                ):
+-                    rejected_params = []
+-                    if "return_token_ids" in error_msg:
+-                        rejected_params.append("return_token_ids")
+-                    if "session_id" in error_msg:
+-                        rejected_params.append("session_id")
+-
+-                    if rejected_params:
+-                        self._logger.warning(
+-                            f"Provider {self._model_name} rejected extra_body parameters: {', '.join(rejected_params)}. "
+-                            f"Retrying without them. Token IDs will not be available."
+-                        )
+-                        extra_body_val = completion_kwargs.get("extra_body")
+-                        if extra_body_val and isinstance(extra_body_val, dict):
+-                            extra_body: dict[str, Any] = extra_body_val
+-                            for param in rejected_params:
+-                                if param in extra_body:
+-                                    del extra_body[param]
+-
+-                            if not extra_body:
+-                                del completion_kwargs["extra_body"]
+-
+-                        response = await litellm.acompletion(**completion_kwargs)
+-                    else:
+-                        raise e
+-                else:
+-                    raise e
++            response = await litellm.acompletion(**completion_kwargs)
+         except Exception as e:
+             self._handle_litellm_error(e)
+ 
+@@ -631,6 +574,10 @@ class LiteLLM(BaseLLM):
+ 
+         Always re-raises; never returns normally.
+         """
++        if isinstance(e, LiteLLMTimeout):
++            raise LLMResponseTimeoutError(
++                "model response exceeded transport timeout"
++            ) from e
+         if isinstance(e, LiteLLMContextWindowExceededError):
+             raise ContextLengthExceededError
+         if isinstance(e, LiteLLMAuthenticationError):
