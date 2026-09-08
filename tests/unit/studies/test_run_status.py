@@ -285,3 +285,15 @@ sys.exit(17)
         "Resources: cleanup-pending; cleanup: pending; record: /private/attempt/record.json"
         in result.output
     )
+
+
+def test_adapter_without_status_preserves_original_error(monkeypatch):
+    from matric_eval.studies.run_status import adapter_main
+
+    monkeypatch.setenv("MATRIC_RUN_STATUS_DIR", "")
+
+    def fail():
+        raise RuntimeError("original service failure")
+
+    with pytest.raises(RuntimeError, match="original service failure"):
+        adapter_main(fail)

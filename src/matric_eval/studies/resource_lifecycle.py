@@ -67,12 +67,15 @@ def boot() -> str:
 
 
 class Broker:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, acquire_timeout: float = 10) -> None:
+        if not 0 < acquire_timeout <= 300:
+            raise ValueError("broker acquire timeout must be in (0, 300] seconds")
         self.path = path
+        self.acquire_timeout = acquire_timeout
 
     def call(self, action: str, **fields: Any) -> dict[str, Any]:
         with socket.socket(socket.AF_UNIX) as client:
-            client.settimeout(10)
+            client.settimeout(self.acquire_timeout if action == "acquire" else 10)
             client.connect(self.path)
             client.sendall(json.dumps({"action": action, **fields}).encode() + b"\n")
             with client.makefile("rb") as stream:
@@ -181,7 +184,9 @@ class ResourceLifecycle:
     def save(self, **fields: Any) -> None:
         self.record.update(fields)
         atomic(self.path, self.record)
-        status_directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
+        status_directory = os.environ.get("MATRIC_RUN_STATUS_DIR") or self.record.get(
+            "status_directory"
+        )
         if status_directory:
             with RunStatus(Path(status_directory)).update() as status:
                 if (status["run_id"], status["attempt_id"]) != (
@@ -212,6 +217,7 @@ class ResourceLifecycle:
             owner=f"{owner}:{identity}",
             gpu_uuids=[gpu],
             container=f"matric-{identity}",
+            status_directory=os.environ.get("MATRIC_RUN_STATUS_DIR"),
             controller_type="process",
             controller=process_identity(os.getpid()),
             controller_unit=None,
@@ -349,13 +355,17 @@ class ResourceLifecycle:
                 return
         raise RuntimeError("owned launcher descendants remain alive")
 
-    def reconcile(self) -> bool:
+    def reconcile(self, *, recover_storage: bool = True) -> bool:
         if not self.record:
             return True
         try:
             if self.record.get("host", socket.gethostname()) != socket.gethostname():
                 raise RuntimeError("reconciliation requires the owning host")
             if self.record.get("cleanup") == "complete" and acquisition_settled(self.record):
+                if recover_storage:
+                    from matric_eval.studies.storage_lifecycle import recover_resource_storage
+
+                    recover_resource_storage(self)
                 return True
             self.save(state="cleanup-pending", cleanup="pending")
             self.stop_launcher()
@@ -428,6 +438,10 @@ class ResourceLifecycle:
             self.private.unlink(missing_ok=True)
             Path(self.record["readiness"]).unlink(missing_ok=True)
             self.save(state="stopped", cleanup="complete", reason=None)
+            if recover_storage:
+                from matric_eval.studies.storage_lifecycle import recover_resource_storage
+
+                recover_resource_storage(self)
             return True
         except (
             OSError,
@@ -450,8 +464,10 @@ class ResourceLifecycle:
         mib: int = 75000,
         *,
         preflight_plan: dict[str, Any],
+        storage_plan: dict[str, Any] | None = None,
     ) -> int:
         child = None
+        storage = None
         handlers: dict[int, Any] = {}
         heartbeat_stop = threading.Event()
         heartbeat_failed = threading.Event()
@@ -463,6 +479,12 @@ class ResourceLifecycle:
 
             for signum in (signal.SIGINT, signal.SIGTERM):
                 handlers[signum] = signal.signal(signum, cancel)
+            if storage_plan is not None:
+                from matric_eval.studies.storage_lifecycle import ResidentStorage
+
+                storage = ResidentStorage(storage_plan, self, command)
+                storage.admit()
+            receipt_directory = storage.session.paths["evidence"] if storage else self.directory
             preflight_plan = {
                 **preflight_plan,
                 "resource_binding": {
@@ -473,7 +495,7 @@ class ResourceLifecycle:
                 },
             }
             admission = execute_plan(
-                preflight_plan, self.directory / "preflight.json", launch=False
+                preflight_plan, receipt_directory / "preflight.json", launch=False
             )
             validate_admission(admission, preflight_plan, 300)
             self.save(
@@ -488,11 +510,8 @@ class ResourceLifecycle:
                         self.broker.call("heartbeat", token=token)
                     except (OSError, ValueError, RuntimeError):
                         heartbeat_failed.set()
-                        if child is not None and child.poll() is None:
-                            try:
-                                os.killpg(child.pid, signal.SIGTERM)
-                            except ProcessLookupError:
-                                pass
+                        if not heartbeat_stop.is_set():
+                            signal.raise_signal(signal.SIGTERM)
                         return
 
             heartbeat_worker = threading.Thread(target=keep_lease, daemon=True)
@@ -524,9 +543,15 @@ class ResourceLifecycle:
                     env=env,
                     start_new_session=True,
                     pass_fds=(read_fd,),
+                    stdout=storage.log if storage else None,
+                    stderr=subprocess.STDOUT if storage else None,
                 )
                 self.save(state="loading", launcher=process_identity(child.pid))
+                if storage:
+                    storage.session.check("before-target-load")
                 os.write(write_fd, b"1")
+                if storage:
+                    storage.start()
             finally:
                 os.close(read_fd)
                 os.close(write_fd)
@@ -535,6 +560,8 @@ class ResourceLifecycle:
             ready = False
             marker = Path(f"{self.record['readiness']}.{token}.ready")
             while child.poll() is None:
+                if storage:
+                    storage.check_failure()
                 if heartbeat_failed.is_set():
                     raise RuntimeError("lease heartbeat failed")
                 now = time.monotonic()
@@ -549,7 +576,7 @@ class ResourceLifecycle:
                     self.save(state="qualifying-target")
                     target = execute_target_checks(
                         preflight_plan,
-                        self.directory / "target-preflight.json",
+                        receipt_directory / "target-preflight.json",
                         admission,
                     )
                     if heartbeat_failed.is_set():
@@ -568,6 +595,8 @@ class ResourceLifecycle:
                 if not ready and now >= deadline:
                     raise TimeoutError("model readiness timeout")
                 time.sleep(0.2)
+            if storage:
+                storage.check_failure()
             if not ready:
                 raise RuntimeError("model exited before readiness")
             return child.returncode
@@ -575,9 +604,17 @@ class ResourceLifecycle:
             heartbeat_stop.set()
             if heartbeat_worker is not None:
                 heartbeat_worker.join(timeout=11)
+            if storage:
+                storage.before_cleanup()
             for original_signum, handler in handlers.items():
                 signal.signal(original_signum, handler)
-            if not self.reconcile():
+            resource_cleanup = self.reconcile(recover_storage=False)
+            if storage:
+                try:
+                    storage.finish(resource_cleanup)
+                finally:
+                    storage.restore_environment()
+            if not resource_cleanup:
                 raise RuntimeError("resource cleanup pending; run reconcile before new allocation")
             if child is not None:
                 child.wait(timeout=1)
@@ -590,6 +627,8 @@ def main() -> int:
     parser.add_argument("--broker-socket", default="/run/ollama-unify/gpu-negotiator.sock")
     parser.add_argument("--docker-host", default="unix:///run/matric-eval-docker.sock")
     parser.add_argument("--preflight-plan", type=Path)
+    parser.add_argument("--storage-plan", type=Path)
+    parser.add_argument("--broker-acquire-timeout", type=float, default=10)
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--owner", default="matric-eval")
@@ -598,7 +637,9 @@ def main() -> int:
     parser.add_argument("--memory-mib", type=int, default=75000)
     args, command = parser.parse_known_args()
     lifecycle = ResourceLifecycle(
-        args.directory, Broker(args.broker_socket), Docker(args.docker_host)
+        args.directory,
+        Broker(args.broker_socket, args.broker_acquire_timeout),
+        Docker(args.docker_host),
     )
     try:
         if args.action == "reconcile":
@@ -608,7 +649,13 @@ def main() -> int:
         plan = json.loads(args.preflight_plan.read_text())
         lifecycle.prepare(args.run_id, args.attempt_id, args.gpu, args.owner)
         command = command[1:] if command[:1] == ["--"] else command
-        return lifecycle.run(command, args.ready_timeout, args.memory_mib, preflight_plan=plan)
+        return lifecycle.run(
+            command,
+            args.ready_timeout,
+            args.memory_mib,
+            preflight_plan=plan,
+            storage_plan=json.loads(args.storage_plan.read_text()) if args.storage_plan else None,
+        )
     finally:
         lifecycle.close()
 

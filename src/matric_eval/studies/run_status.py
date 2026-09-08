@@ -528,11 +528,15 @@ def supervise(
                 failure["truncated"] |= any(totals[n] > LIMIT for n in buffers)
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)
-        resources = status.read(reconcile=False).get("resources", {})
-        if resources.get("cleanup") == "pending":
+        snapshot = status.read(reconcile=False)
+        if (
+            snapshot.get("storage", {}).get("reservation_active")
+            or snapshot.get("resources", {}).get("cleanup") == "pending"
+        ):
             cleanup = "pending"
             if failure is not None:
                 failure["cleanup_disposition"] = cleanup
+
         status.finish(phase, failure=failure, cleanup=cleanup)
     return code if status.read()["terminal_event"]["phase"] == "completed" else code or 1
 
@@ -653,7 +657,7 @@ def adapter_main(action: Callable[[], int]) -> int:
         if isinstance(error, SystemExit) and error.code in (None, 0):
             raise
         directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
-        if directory is None:
+        if not directory:
             raise
         status = RunStatus(Path(directory))
         current = status.read(reconcile=False)

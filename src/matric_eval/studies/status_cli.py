@@ -34,6 +34,11 @@ def status_command(directory: Path, json_output: bool, stale_seconds: float) -> 
     click.echo(
         f"Supervisor alive: {data['liveness']['supervisor_alive']}; heartbeat fresh: {data['liveness']['heartbeat_fresh']}; cleanup: {data['cleanup']}"
     )
+    if data.get("storage"):
+        storage = data["storage"]
+        click.echo(
+            f"Storage: {storage['stage']}; reservation active: {storage['reservation_active']}; receipt: {storage.get('diagnostic_receipt')}"
+        )
     if data.get("resources"):
         resource = data["resources"]
         click.echo(

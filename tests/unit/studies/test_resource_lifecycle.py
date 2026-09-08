@@ -536,6 +536,48 @@ def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycl
         other.close()
 
 
+@pytest.mark.parametrize("value", [0, -1, 301, float("inf"), float("nan")])
+def test_acquire_wait_is_finite_and_bounded(value):
+    from matric_eval.studies.resource_lifecycle import Broker
+
+    with pytest.raises(ValueError, match="acquire timeout"):
+        Broker("/unused.sock", acquire_timeout=value)
+
+
+def test_acquire_wait_configuration_does_not_shorten_status_timeout(tmp_path):
+    import socket
+    import threading
+    import time
+
+    from matric_eval.studies.resource_lifecycle import Broker
+
+    path = str(tmp_path / "broker.sock")
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(path)
+        server.listen()
+        server.settimeout(5)
+
+        def respond():
+            for _ in range(2):
+                client, _ = server.accept()
+                with client:
+                    client.recv(4096)
+                    time.sleep(0.15)
+                    try:
+                        client.sendall(b'{"ok":true,"leases":[]}\n')
+                    except BrokenPipeError:
+                        pass
+
+        worker = threading.Thread(target=respond)
+        worker.start()
+        broker = Broker(path, acquire_timeout=0.05)
+        assert broker.call("status")["leases"] == []
+        with pytest.raises(TimeoutError):
+            broker.call("acquire", owner="owned", requested_mib=1)
+        worker.join(timeout=5)
+        assert not worker.is_alive()
+
+
 @pytest.mark.parametrize("change", ["source", "expiry"])
 def test_admission_changes_during_acquire_prevent_dispatch(
     lifecycle, admission_plan, tmp_path, change
