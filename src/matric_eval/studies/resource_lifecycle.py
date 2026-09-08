@@ -192,6 +192,7 @@ class ResourceLifecycle:
             gpu_uuids=[gpu],
             container=f"matric-{identity}",
             controller_type="process",
+            controller=process_identity(os.getpid()),
             controller_unit=None,
             host=socket.gethostname(),
             readiness=str(self.directory / f"{identity}.ready"),
@@ -279,7 +280,9 @@ class ResourceLifecycle:
                 ):
                     raise RuntimeError("container ownership mismatch")
                 identifier = info["Id"]
-                self.save(container_id=identifier, container_pid=info["State"].get("Pid"))
+                if self.record.get("container_id") and self.record["container_id"] != identifier:
+                    raise RuntimeError("container identity changed")
+                self.save(container_id=identifier, stopped_container_pid=info["State"].get("Pid"))
                 # Capture actual per-process CUDA ownership before container teardown.
                 for gpu, pid in self.docker.cuda():
                     if gpu in self.record["gpu_uuids"] and identifier in self.docker.cgroup(pid):
@@ -319,8 +322,12 @@ class ResourceLifecycle:
                 self.save(lease_release_acknowledged_at=time.time())
                 if self.owned_lease() is not None:
                     raise RuntimeError("lease release not established")
-            if lease is not None:
-                Path(f"{self.record['readiness']}.{lease['token']}.ready").unlink(missing_ok=True)
+            private_token = (
+                json.loads(self.private.read_text()).get("token") if self.private.exists() else None
+            )
+            marker_token = lease["token"] if lease is not None else private_token
+            if marker_token:
+                Path(f"{self.record['readiness']}.{marker_token}.ready").unlink(missing_ok=True)
             if info is not None:
                 self.docker.remove(info["Id"])
             self.private.unlink(missing_ok=True)
@@ -334,7 +341,11 @@ class ResourceLifecycle:
             RuntimeError,
             subprocess.SubprocessError,
         ) as error:
-            self.save(state="cleanup-pending", cleanup="pending", reason=type(error).__name__)
+            self.save(
+                state="cleanup-pending",
+                cleanup="pending",
+                reason=str(error) if type(error) is RuntimeError else type(error).__name__,
+            )
             return False
 
     def run(
@@ -357,11 +368,23 @@ class ResourceLifecycle:
 
             for signum in (signal.SIGINT, signal.SIGTERM):
                 handlers[signum] = signal.signal(signum, cancel)
+            preflight_plan = {
+                **preflight_plan,
+                "resource_binding": {
+                    "run_id": self.record["run_id"],
+                    "attempt_id": self.record["attempt_id"],
+                    "gpu_uuids": self.record["gpu_uuids"],
+                    "command_sha256": hashlib.sha256(json.dumps(command).encode()).hexdigest(),
+                },
+            }
             admission = execute_plan(
                 preflight_plan, self.directory / "preflight.json", launch=False
             )
             validate_admission(admission, preflight_plan, 300)
-            self.save(preflight_fingerprint=admission["plan_fingerprint"])
+            self.save(
+                preflight_fingerprint=admission["plan_fingerprint"],
+                preflight_binding=preflight_plan["resource_binding"],
+            )
             token = self.acquire(mib)
 
             def keep_lease() -> None:

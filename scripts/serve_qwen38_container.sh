@@ -118,7 +118,7 @@ code_revision="$(git -C "$study_repo" rev-parse HEAD)"
 evidence_uid="$(id -u)"
 evidence_gid="$(id -g)"
 
-sudo env PYTHONPATH="$study_repo/src" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
+sudo env PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
   --directory "$resource_directory" --preflight-plan "$preflight_plan" \
   --run-id "$run_id" --attempt-id "$attempt_id" \
   --owner "$owner" --gpu "$gpu_uuid" \
