@@ -24,9 +24,11 @@ port="18083"
 run_id=""
 attempt_id=""
 resource_directory=""
+preflight_plan=""
 
 while (( $# )); do
   case "$1" in
+    --preflight-plan) preflight_plan="${2:-}"; shift 2 ;;
     --run-id) run_id="${2:-}"; shift 2 ;;
     --attempt-id) attempt_id="${2:-}"; shift 2 ;;
     --resource-directory) resource_directory="${2:-}"; shift 2 ;;
@@ -44,7 +46,7 @@ while (( $# )); do
   esac
 done
 
-for required in run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
+for required in preflight_plan run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
   if [[ -z "${!required}" ]]; then
     printf 'missing required option for %s\n' "$required" >&2
     exit 2
@@ -117,7 +119,7 @@ evidence_uid="$(id -u)"
 evidence_gid="$(id -g)"
 
 sudo env PYTHONPATH="$study_repo/src" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
-  --directory "$resource_directory" \
+  --directory "$resource_directory" --preflight-plan "$preflight_plan" \
   --run-id "$run_id" --attempt-id "$attempt_id" \
   --owner "$owner" --gpu "$gpu_uuid" \
   --ready-timeout 900 -- \

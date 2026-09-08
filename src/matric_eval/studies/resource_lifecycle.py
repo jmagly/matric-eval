@@ -12,10 +12,18 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+from matric_eval.studies.preflight import (
+    execute_plan,
+    execute_target_checks,
+    validate_admission,
+)
+from matric_eval.studies.run_status import RunStatus
 
 
 def process_identity(pid: int) -> dict[str, Any] | None:
@@ -154,6 +162,20 @@ class ResourceLifecycle:
     def save(self, **fields: Any) -> None:
         self.record.update(fields)
         atomic(self.path, self.record)
+        status_directory = os.environ.get("MATRIC_RUN_STATUS_DIR")
+        if status_directory:
+            with RunStatus(Path(status_directory)).update() as status:
+                if (status["run_id"], status["attempt_id"]) != (
+                    self.record["run_id"],
+                    self.record["attempt_id"],
+                ):
+                    raise ValueError("resource status run/attempt mismatch")
+                status["resources"] = {
+                    "resource_id": self.record["resource_id"],
+                    "record": str(self.path),
+                    "state": self.record["state"],
+                    "cleanup": self.record["cleanup"],
+                }
 
     def prepare(self, run_id: str, attempt_id: str, gpu: str, owner: str) -> None:
         if self.record:
@@ -171,7 +193,9 @@ class ResourceLifecycle:
             owner=f"{owner}:{identity}",
             gpu_uuids=[gpu],
             container=f"matric-{identity}",
-            unit=f"matric-{identity}.service",
+            controller_type="process",
+            controller_unit=None,
+            host=socket.gethostname(),
             readiness=str(self.directory / f"{identity}.ready"),
             boot_id=boot(),
             state="planned",
@@ -242,6 +266,8 @@ class ResourceLifecycle:
         if not self.record:
             return True
         try:
+            if self.record.get("host", socket.gethostname()) != socket.gethostname():
+                raise RuntimeError("reconciliation requires the owning host")
             if self.record.get("cleanup") == "complete":
                 return True
             self.save(state="cleanup-pending", cleanup="pending")
@@ -332,11 +358,48 @@ class ResourceLifecycle:
             )
             return False
 
-    def run(self, command: list[str], timeout: float = 900, mib: int = 75000) -> int:
+    def run(
+        self,
+        command: list[str],
+        timeout: float = 900,
+        mib: int = 75000,
+        *,
+        preflight_plan: dict[str, Any],
+    ) -> int:
         child = None
         handlers: dict[int, Any] = {}
+        heartbeat_stop = threading.Event()
+        heartbeat_failed = threading.Event()
+        heartbeat_worker = None
         try:
+
+            def cancel(signum: int, frame: Any) -> None:
+                raise InterruptedError(f"cancelled by signal {signum}")
+
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                handlers[signum] = signal.signal(signum, cancel)
+            admission = execute_plan(
+                preflight_plan, self.directory / "preflight.json", launch=False
+            )
+            validate_admission(admission, preflight_plan, 300)
+            self.save(preflight_fingerprint=admission["plan_fingerprint"])
             token = self.acquire(mib)
+
+            def keep_lease() -> None:
+                while not heartbeat_stop.wait(30):
+                    try:
+                        self.broker.call("heartbeat", token=token)
+                    except (OSError, ValueError, RuntimeError):
+                        heartbeat_failed.set()
+                        if child is not None and child.poll() is None:
+                            try:
+                                os.killpg(child.pid, signal.SIGTERM)
+                            except ProcessLookupError:
+                                pass
+                        return
+
+            heartbeat_worker = threading.Thread(target=keep_lease, daemon=True)
+            heartbeat_worker.start()
             env = {
                 **os.environ,
                 "OLLAMA_UNIFY_GPU_LEASE": token,
@@ -368,15 +431,12 @@ class ResourceLifecycle:
                 os.close(read_fd)
                 os.close(write_fd)
 
-            def cancel(signum: int, frame: Any) -> None:
-                raise InterruptedError(f"cancelled by signal {signum}")
-
-            for signum in (signal.SIGINT, signal.SIGTERM):
-                handlers[signum] = signal.signal(signum, cancel)
             deadline, heartbeat = time.monotonic() + timeout, 0.0
             ready = False
             marker = Path(f"{self.record['readiness']}.{token}.ready")
             while child.poll() is None:
+                if heartbeat_failed.is_set():
+                    raise RuntimeError("lease heartbeat failed")
                 now = time.monotonic()
                 if now >= heartbeat:
                     self.broker.call("heartbeat", token=token)
@@ -386,6 +446,18 @@ class ResourceLifecycle:
                     if value["lease_token_sha256"] != self.record["lease_sha256"]:
                         raise RuntimeError("readiness lease mismatch")
                     self.broker.call("ready", token=token)
+                    self.save(state="qualifying-target")
+                    target = execute_target_checks(
+                        preflight_plan,
+                        self.directory / "target-preflight.json",
+                        admission,
+                    )
+                    if heartbeat_failed.is_set():
+                        raise RuntimeError(
+                            "lease heartbeat failed during target qualification"
+                        )
+                    if not target["completed"]:
+                        raise RuntimeError("resident target preflight failed")
                     ready = True
                     info = self.docker.inspect(self.record["container"])
                     if info is None:
@@ -402,6 +474,9 @@ class ResourceLifecycle:
                 raise RuntimeError("model exited before readiness")
             return child.returncode
         finally:
+            heartbeat_stop.set()
+            if heartbeat_worker is not None:
+                heartbeat_worker.join(timeout=11)
             # Stop the docker client group before container cleanup. Docker stop
             # remains required because a daemon-owned container outlives its client.
             if child is not None and child.poll() is None:
@@ -427,6 +502,7 @@ def main() -> int:
         "--broker-socket", default="/run/ollama-unify/gpu-negotiator.sock"
     )
     parser.add_argument("--docker-host", default="unix:///run/matric-eval-docker.sock")
+    parser.add_argument("--preflight-plan", type=Path)
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--owner", default="matric-eval")
@@ -440,9 +516,14 @@ def main() -> int:
     try:
         if args.action == "reconcile":
             return 0 if lifecycle.reconcile() else 1
+        if args.preflight_plan is None:
+            raise ValueError("run requires --preflight-plan")
+        plan = json.loads(args.preflight_plan.read_text())
         lifecycle.prepare(args.run_id, args.attempt_id, args.gpu, args.owner)
         command = command[1:] if command[:1] == ["--"] else command
-        return lifecycle.run(command, args.ready_timeout, args.memory_mib)
+        return lifecycle.run(
+            command, args.ready_timeout, args.memory_mib, preflight_plan=plan
+        )
     finally:
         lifecycle.close()
 
