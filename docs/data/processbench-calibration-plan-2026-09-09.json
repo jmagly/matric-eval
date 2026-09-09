@@ -1,0 +1,59 @@
+{
+  "version": "1",
+  "status": "source_verified_selection_materialized",
+  "issue": 126,
+  "application": "Detect whether a mathematical solution contains an incorrect reasoning step.",
+  "positive_label": "reasoning_error_present",
+  "positive_mapping": "ProcessBench label >= 0; label -1 means every reasoning step is correct.",
+  "source": {
+    "id": "processbench",
+    "repository": "Qwen/ProcessBench",
+    "revision": "3bdcd5371ed567559a78f559c01c13a6deee7604",
+    "license": "Apache-2.0",
+    "acquisition_receipt_sha256": "340b1e094f941b867021171991b521b6b209efa98103b09beab3bd99754a25d9",
+    "records": 3400,
+    "reasoning_error_records": 2221,
+    "all_correct_records": 1179,
+    "independent_unit": "publisher solution ID, grouped by underlying problem where duplicates are detected",
+    "public_exposure": "Public labels may have been seen by a pretrained judge; local final_test allocation does not establish model non-exposure."
+  },
+  "selection": {
+    "request": "processbench-calibration-selection-request-2026-09-09.json",
+    "manifest_sha256": "559e154ebd022bb9f0661a35f162df580a2249ff1a4687a12d0c74b2a92a0486",
+    "protected_manifest": "/srv/matric-eval/results/ei-126-calibration/processbench-final-test-selection-2026-09-09.json",
+    "records": 400,
+    "independent_clusters": 333,
+    "allocation": {
+      "gsm8k": {"records": 53, "reasoning_error": 27, "all_correct": 26},
+      "math": {"records": 113, "reasoning_error": 74, "all_correct": 39},
+      "olympiadbench": {"records": 115, "reasoning_error": 83, "all_correct": 32},
+      "omnimath": {"records": 119, "reasoning_error": 97, "all_correct": 22}
+    },
+    "version": "1",
+    "seed": 126179,
+    "role": "final_test",
+    "sources": [
+      {
+        "source_id": "processbench",
+        "quota": 400,
+        "configurations": ["default"],
+        "splits": ["gsm8k", "math", "olympiadbench", "omnimath"],
+        "filters": {}
+      }
+    ]
+  },
+  "predeclared_qualification_criteria": {
+    "confidence": 0.95,
+    "minimum_positive_recall_lower": 0.70,
+    "maximum_false_positive_upper": 0.20,
+    "minimum_coverage_lower": 0.90,
+    "maximum_order_inconsistency_upper": 0.10,
+    "require_reversal": true,
+    "rationale": "A reusable error detector must reliably catch erroneous reasoning, avoid rejecting correct solutions, cover nearly all planned items, and remain stable to presentation order. Wilson bounds, not point estimates, govern qualification."
+  },
+  "authorization": "https://git.integrolabs.net/roctinam/matric-eval/issues/126#issuecomment-131524",
+  "pending_before_assessment": [
+    "Bind an exact judge/model/prompt/configuration snapshot.",
+    "Obtain a human-authored DomainReview receipt from the representative math-reasoning reviewer after assessment."
+  ]
+}

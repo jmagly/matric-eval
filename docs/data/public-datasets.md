@@ -301,6 +301,14 @@ machine reviews remain different evidence. Public benchmark exposure also means
 that withholding rows locally does not establish that a pretrained judge never
 saw them.
 
+The first authorized ProcessBench qualification plan is retained in
+[processbench-calibration-plan-2026-09-09.json](processbench-calibration-plan-2026-09-09.json).
+It freezes the binary mapping, deterministic final allocation and application
+criteria, but deliberately leaves judge identity and the human DomainReview
+receipt pending until those exact inputs exist.
+The exact replayable allocation input is
+[processbench-calibration-selection-request-2026-09-09.json](processbench-calibration-selection-request-2026-09-09.json).
+
 Store raw blobs, evidence JSONL, receipts and manifests outside the repository.
 Commit catalog metadata, reviewed configuration and synthetic tests, not raw
 public or gated data. The catalog originated in the September 2026 domain-source

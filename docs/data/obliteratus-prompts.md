@@ -128,4 +128,8 @@ roles. Any use there requires an explicit versioned protocol amendment.
 
 The retained public-source qualification summary is
 [obliteratus-qualification-2026-09-08.json](obliteratus-qualification-2026-09-08.json).
+The model publisher's separate Qwen3.8 lineage artifacts are summarized in
+[obliteratus-qwen38-publisher-lineage-2026-09-09.json](obliteratus-qwen38-publisher-lineage-2026-09-09.json),
+and the reviewed multi-axis evaluation guidance is in
+[obliteratus-adversarial-evaluation.md](obliteratus-adversarial-evaluation.md).
 Raw prompt content, cache blobs, and generated evidence remain outside Git.
