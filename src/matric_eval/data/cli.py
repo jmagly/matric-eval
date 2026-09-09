@@ -13,6 +13,17 @@ from matric_eval.data.acquisition import acquire_source
 from matric_eval.data.adapters import project_samples
 from matric_eval.data.catalog import DatasetSource, get_source, load_catalog
 from matric_eval.data.evidence import load_evidence, make_evidence_record, read_json, read_payloads
+from matric_eval.data.obliteratus import (
+    derive_obliteratus_legacy_pairs,
+    derive_obliteratus_views,
+    deterministic_limit,
+    get_obliteratus_source,
+    import_obliteratus_evidence,
+    load_obliteratus_manifest,
+    read_obliteratus_payloads,
+    resolve_obliteratus_artifact,
+    verify_obliteratus_artifact,
+)
 from matric_eval.data.roles import canonical, sha256
 from matric_eval.data.selection import (
     SelectionRequest,
@@ -134,6 +145,139 @@ def show_source(source: str) -> None:
         click.echo(canonical(get_source(source).model_dump()).decode())
     except (ValueError, OSError, TypeError):
         raise click.ClickException("dataset_source_unavailable") from None
+
+
+@datasets.command("obliteratus-sources")
+@click.argument("source", required=False)
+def obliteratus_sources(source: str | None) -> None:
+    """Show the reviewed OBLITERATUS source map or one independently addressable source."""
+    try:
+        document = (
+            get_obliteratus_source(source).model_dump()
+            if source is not None
+            else load_obliteratus_manifest().model_dump()
+        )
+        click.echo(canonical(document).decode())
+    except (ValueError, OSError, TypeError):
+        raise click.ClickException("obliteratus_source_unavailable") from None
+
+
+@datasets.command("prepare-obliteratus")
+@click.argument("source")
+@click.option("--cache", required=True, type=click.Path(path_type=Path))
+@click.option("--artifact", type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--offline", is_flag=True, help="Refuse network acquisition when no artifact exists.")
+@click.option(
+    "--reviewed-sha256",
+    help="Reviewed payload SHA-256 required for a manually supplied gated artifact.",
+)
+@click.option("--limit", type=click.IntRange(min=1), help="Optional deterministic view limit.")
+@click.option("--seed", type=click.IntRange(min=0), default=0, show_default=True)
+@click.option(
+    "--legacy-control-snapshot",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Verified OBLITERATUS prompts.py used to emit a separately named legacy pairing.",
+)
+@click.option("--output-dir", required=True, type=click.Path(path_type=Path))
+def prepare_obliteratus(
+    source: str,
+    cache: Path,
+    artifact: Path | None,
+    offline: bool,
+    reviewed_sha256: str | None,
+    limit: int | None,
+    seed: int,
+    legacy_control_snapshot: Path | None,
+    output_dir: Path,
+) -> None:
+    """Acquire/import one pinned source and emit raw evidence, views, and a receipt."""
+    try:
+        definition = get_obliteratus_source(source)
+        resolved, artifact_sha256, acquisition_receipt = resolve_obliteratus_artifact(
+            definition,
+            cache,
+            artifact=artifact,
+            offline=offline,
+            supplied_sha256=reviewed_sha256,
+        )
+        evidence, _ = import_obliteratus_evidence(
+            definition, resolved, artifact_sha256=artifact_sha256
+        )
+        all_views = derive_obliteratus_views(definition, evidence)
+        selected_views = deterministic_limit(all_views, limit, seed=seed)
+        legacy_views = []
+        control_sha256 = None
+        if legacy_control_snapshot is not None:
+            control_source = get_obliteratus_source("obliteratus-builtin")
+            control_sha256 = verify_obliteratus_artifact(control_source, legacy_control_snapshot)
+            _, controls = read_obliteratus_payloads(control_source, legacy_control_snapshot)
+            legacy_views = derive_obliteratus_legacy_pairs(
+                definition,
+                evidence,
+                controls,
+                control_source_revision=control_source.distribution.revision,
+                control_artifact_sha256=control_sha256,
+            )
+        evidence_bytes = b"".join(canonical(record.model_dump()) + b"\n" for record in evidence)
+        view_bytes = b"".join(canonical(view.model_dump()) + b"\n" for view in selected_views)
+        legacy_bytes = b"".join(canonical(view.model_dump()) + b"\n" for view in legacy_views)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        evidence_path = output_dir / f"{source}.evidence.jsonl"
+        views_path = output_dir / f"{source}.prompts.jsonl"
+        legacy_path = output_dir / f"{source}.obliteratus-legacy-pairs.jsonl"
+        receipt_path = output_dir / f"{source}.receipt.json"
+        receipt = {
+            "version": "1",
+            "source_id": definition.id,
+            "canonical_id": definition.canonical_id,
+            "source_revision": definition.distribution.revision,
+            "source_manifest_sha256": sha256(canonical(definition.model_dump())),
+            "artifact_path": definition.artifact.path,
+            "artifact_sha256": artifact_sha256,
+            "raw_records": len(evidence),
+            "accepted_prompt_views": len(all_views),
+            "selected_prompt_views": len(selected_views),
+            "selection": {
+                "algorithm": "sha256-seed-view-id/1" if limit is not None else "all/1",
+                "limit": limit,
+                "seed": seed if limit is not None else None,
+            },
+            "transformation_version": definition.transformation_version,
+            "role": definition.role,
+            "evidence_sha256": sha256(evidence_bytes),
+            "prompt_views_sha256": sha256(view_bytes),
+            "legacy_prompt_views": len(legacy_views),
+            "legacy_prompt_views_sha256": sha256(legacy_bytes) if legacy_views else None,
+            "legacy_control_artifact_sha256": control_sha256,
+            "acquisition_receipt_sha256": (
+                acquisition_receipt.get("receipt_sha256")
+                if acquisition_receipt is not None
+                else None
+            ),
+            "limitations": [
+                *definition.limitations,
+                "Dataset import does not establish model exposure or untouched holdout status.",
+                "Role remains unknown until a separate governed selection/use record exists.",
+            ],
+        }
+        _write_new(evidence_path, evidence_bytes)
+        _write_new(views_path, view_bytes)
+        if legacy_views:
+            _write_new(legacy_path, legacy_bytes)
+        _write_new(receipt_path, canonical(receipt) + b"\n")
+        click.echo(
+            canonical(
+                {
+                    "status": "prepared",
+                    "source": source,
+                    "raw_records": len(evidence),
+                    "prompt_views": len(selected_views),
+                    "receipt": str(receipt_path),
+                }
+            ).decode()
+        )
+    except Exception:
+        raise click.ClickException("obliteratus_preparation_refused") from None
 
 
 @datasets.command("acquire")

@@ -88,6 +88,7 @@ Background research and academic references.
 
 - [**Reproducibility and Freshness**](benchmarks/reproducibility.md) - Version and source policy
 - [**Reusable Public Datasets**](data/public-datasets.md) - 25 sources, lossless records and reproducible mixtures
+- [**OBLITERATUS Prompt Sources**](data/obliteratus-prompts.md) - Provenance-preserving safety and capability source preparation
 - [**2026-09-05 Dataset Freshness Review**](benchmarks/freshness-review-2026-09-05.md) - Source-tip audit and new agentic/AGI lanes
 - [**Wave 1 Protocols**](benchmarks/wave1-protocols.md) - Initial expansion decisions
 - [**Wave 2 Protocols**](benchmarks/wave2-protocols.md) - Successor and security benchmarks

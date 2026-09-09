@@ -1,0 +1,110 @@
+{
+  "version": "1",
+  "date": "2026-09-08",
+  "source_manifest": "matric/obliteratus-prompt-sources/1",
+  "method": "Fetched each public artifact from its manifest-pinned primary URL, verified exact bytes, and ran the production preparation command without a row limit. No model, training, benchmark, or scoring execution occurred.",
+  "sources": [
+    {
+      "source_id": "obliteratus-builtin",
+      "status": "complete",
+      "source_revision": "e39f908832405ccad89cb2a5111e7c2576741d94",
+      "artifact_sha256": "873726b92136d756529ab98e73eb2d1009b6ef5a86147bfc8f753f6bb1c01cfb",
+      "raw_records": 842,
+      "accepted_prompt_views": 1684,
+      "evidence_sha256": "922c7c7163b75a6e3bc0605bef74fc90cf8e60460d74d1bf617fc88ccf283d75",
+      "prompt_views_sha256": "419810560e1999b7c94e9556c2db55726d1f9d39035cd5ac62fec4decbc89e78"
+    },
+    {
+      "source_id": "advbench",
+      "status": "complete",
+      "source_revision": "098262edf85f807224e70ecd87b9d83716bf6b73",
+      "artifact_sha256": "6cd1a5c63c07610d7eb67307772ee5606017ee950b5770ab288a2c487489d3e1",
+      "raw_records": 520,
+      "accepted_prompt_views": 520,
+      "evidence_sha256": "b1582d669d2b3a12734883a5ab34e482aa841786e66c7e138a22b7ce25aa456a",
+      "prompt_views_sha256": "052a2fdc77eaf5b9a7bf49f22d7f7e8b29f14783c59de50b34f79b56f9ea95ba",
+      "legacy_prompt_views": 1040,
+      "legacy_prompt_views_sha256": "bdc296f95df90f5fe24d063ee7aec6016104b58eb378ff0d165f0bb63fda6711"
+    },
+    {
+      "source_id": "harmbench",
+      "status": "complete",
+      "source_revision": "8e1604d1171fe8a48d8febecd22f600e462bdcdd",
+      "artifact_sha256": "8d81accedd38eaaf8b760618622bb888417d1fd0c86eba65c427a16f1cbb4afc",
+      "raw_records": 400,
+      "accepted_prompt_views": 400,
+      "evidence_sha256": "82ec9a735d5f8c1b5d1ede43f15045065f9ab6df5ebd86791fee915bce9ff869",
+      "prompt_views_sha256": "7467a3b4769086fac11b88688537c0be9b93b7c9631d2166d23b69f0d176c914",
+      "legacy_prompt_views": 800,
+      "legacy_prompt_views_sha256": "b0feb73043af685f258bbe9ad9239d0d2df7497c32b309971bcb6b022f87e9ea"
+    },
+    {
+      "source_id": "anthropic-red-team",
+      "status": "complete",
+      "source_revision": "09be8c5bbc57cb3887f3a9732ad6aa7ec602a1fa",
+      "artifact_sha256": "4c7b0069991460f0064f279fd400b51f3f0095697d14d7793c49b0925f80814f",
+      "raw_records": 38961,
+      "accepted_prompt_views": 38284,
+      "unique_first_human_turns": 36944,
+      "evidence_sha256": "4bbab82bc29a4d9af913be9426409c2c32b9a01aefd42dd34d4abec4cc3d5302",
+      "prompt_views_sha256": "0455e4d579dbb47fb0d1791438728e6692e62a2df337c494b8d478c45e4f758b",
+      "legacy_prompt_views": 4000,
+      "legacy_prompt_views_sha256": "85ce4ca78acfd645c1333984f4f98f7269873b48384e796b22f99cb56bc0f0eb"
+    },
+    {
+      "source_id": "wildjailbreak-train",
+      "status": "metadata_complete_access_blocked",
+      "source_revision": "5ddc12a7894f842b0619b8e1c7ee496b198af009",
+      "repository_oid": "ab20d949ab888b444eaf4a95b679f3f462abf19e",
+      "artifact_sha256": "376719bfdb46ad1a19e7ba4f587f80cc7cb1368cc213ee647ef739c170550f7a",
+      "checksum_evidence": "publisher Git LFS metadata at the pinned revision",
+      "artifact_bytes": 530920110,
+      "reason": "Hugging Face returned GatedRepoError before payload access; no locally acquired checksum receipt or exact payload count is claimed."
+    },
+    {
+      "source_id": "wildjailbreak-eval",
+      "status": "blocked_access",
+      "source_revision": "5ddc12a7894f842b0619b8e1c7ee496b198af009",
+      "repository_oid": "dcac4fd2f18f810e1c79472fd87fbc0cb23f7f9a",
+      "artifact_bytes": 1742350,
+      "reason": "Hugging Face returned GatedRepoError before payload access; no payload checksum or count is claimed."
+    },
+    {
+      "source_id": "jailbreakbench-harmful",
+      "status": "complete",
+      "source_revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+      "artifact_sha256": "4a8ec6832056b631eb092dccc60d37a61c3d441268268888b3d006288afeffa1",
+      "raw_records": 100,
+      "accepted_prompt_views": 100,
+      "evidence_sha256": "cc595d5e0ddd74228168b6c20755a87f94f638708858aad0d9f701d783d48b64",
+      "prompt_views_sha256": "0ede5ff6c1dfa21e7652c1a0d3dcf0cfe355d9973edbdb42da7caf9860f5f34f"
+    },
+    {
+      "source_id": "jailbreakbench-benign",
+      "status": "complete",
+      "source_revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+      "artifact_sha256": "3cda234d21a991fa309bbfea4b6d9dae31ccdf8e9d452424b6a983e4fdc33468",
+      "raw_records": 100,
+      "accepted_prompt_views": 100,
+      "evidence_sha256": "21bbf70a178dc0348f5b15f4cc553bdc51a92c94bbb9a5df2965513415f9dc1c",
+      "prompt_views_sha256": "aa612139cd0ea74cce545d220fc3cff4105d03bc7a916de41a300751ccd70b38"
+    },
+    {
+      "source_id": "wikitext-2-raw-test",
+      "status": "complete",
+      "source_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+      "artifact_sha256": "5f1bea067869d04849c0f975a2b29c4ff47d867f484f5010ea5e861eab246d91",
+      "raw_records": 4358,
+      "accepted_prompt_views": 2891,
+      "evidence_sha256": "96e879420dd472165bdb6197f7df0f9c3f6eba104054636ab4120f0b87e74138",
+      "prompt_views_sha256": "3706b44c8041a3902694e7a1acf68a3a863f59c08cbea167e21ec810b654c54c"
+    }
+  ],
+  "limitations": [
+    "WildJailbreak metadata and immutable repository OIDs were verified, but gated payloads were not acquired.",
+    "The training payload SHA-256 is publisher Git LFS metadata. The evaluation repository OID is a Git SHA-1 and is not represented as a payload SHA-256.",
+    "Raw artifacts and generated evidence remain outside Git.",
+    "Counts are source records and prompt views, not proven independent statistical units.",
+    "No role authorization, overlap clearance, calibration qualification, model exposure, or benchmark validity is inferred."
+  ]
+}

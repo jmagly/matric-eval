@@ -1,0 +1,400 @@
+{
+  "schema_version": 1,
+  "manifest_id": "matric/obliteratus-prompt-sources/1",
+  "reviewed_at": "2026-09-08",
+  "sources": [
+    {
+      "id": "obliteratus-builtin",
+      "title": "OBLITERATUS built-in contrastive prompt pairs",
+      "canonical_id": "elder-plinius/OBLITERATUS-builtin-prompts",
+      "original_project": {
+        "kind": "github",
+        "repo": "elder-plinius/OBLITERATUS",
+        "revision": "e39f908832405ccad89cb2a5111e7c2576741d94",
+        "url": "https://github.com/elder-plinius/OBLITERATUS/tree/e39f908832405ccad89cb2a5111e7c2576741d94"
+      },
+      "distribution": {
+        "kind": "github",
+        "repo": "elder-plinius/OBLITERATUS",
+        "revision": "e39f908832405ccad89cb2a5111e7c2576741d94",
+        "url": "https://github.com/elder-plinius/OBLITERATUS/tree/e39f908832405ccad89cb2a5111e7c2576741d94"
+      },
+      "inspected_revision": "68ae2b20b67c604280cf1bb06ecfb3124cd2c14e",
+      "configuration": "builtin",
+      "split": null,
+      "access": "public",
+      "artifact": {
+        "path": "obliteratus/prompts.py",
+        "format": "python-ast-pairs",
+        "url": "https://raw.githubusercontent.com/elder-plinius/OBLITERATUS/e39f908832405ccad89cb2a5111e7c2576741d94/obliteratus/prompts.py",
+        "sha256": "873726b92136d756529ab98e73eb2d1009b6ef5a86147bfc8f753f6bb1c01cfb",
+        "checksum_unavailable_reason": null,
+        "repository_oid": null,
+        "size_bytes": 166364,
+        "raw_count": 842,
+        "accepted_count": 1684
+      },
+      "license": {
+        "identifier": "AGPL-3.0-or-later (repository); bundled prompt authorship not separately established",
+        "status": "review-required",
+        "url": "https://github.com/elder-plinius/OBLITERATUS/blob/e39f908832405ccad89cb2a5111e7c2576741d94/LICENSE",
+        "notes": "The repository license covers the bundled file; it does not establish a separate original project or per-prompt rights."
+      },
+      "required_fields": ["pair_index", "harmful", "harmless", "harmful_source_line", "harmless_source_line", "tier"],
+      "native_identity_field": "pair_index",
+      "transformation_version": "obliteratus-builtin-ast/1",
+      "role": "unknown",
+      "limitations": ["No separate original prompt project is established.", "Severity-tier assignments are not encoded beside the lists and remain unknown."]
+    },
+    {
+      "id": "advbench",
+      "title": "AdvBench harmful behaviors",
+      "canonical_id": "llm-attacks/advbench-harmful-behaviors",
+      "original_project": {
+        "kind": "github",
+        "repo": "llm-attacks/llm-attacks",
+        "revision": "098262edf85f807224e70ecd87b9d83716bf6b73",
+        "url": "https://github.com/llm-attacks/llm-attacks/tree/098262edf85f807224e70ecd87b9d83716bf6b73/data/advbench"
+      },
+      "distribution": {
+        "kind": "github",
+        "repo": "llm-attacks/llm-attacks",
+        "revision": "098262edf85f807224e70ecd87b9d83716bf6b73",
+        "url": "https://github.com/llm-attacks/llm-attacks/tree/098262edf85f807224e70ecd87b9d83716bf6b73/data/advbench"
+      },
+      "inspected_revision": null,
+      "configuration": "harmful_behaviors",
+      "split": "train",
+      "access": "public",
+      "artifact": {
+        "path": "data/advbench/harmful_behaviors.csv",
+        "format": "csv",
+        "url": "https://raw.githubusercontent.com/llm-attacks/llm-attacks/098262edf85f807224e70ecd87b9d83716bf6b73/data/advbench/harmful_behaviors.csv",
+        "sha256": "6cd1a5c63c07610d7eb67307772ee5606017ee950b5770ab288a2c487489d3e1",
+        "checksum_unavailable_reason": null,
+        "repository_oid": null,
+        "size_bytes": 82125,
+        "raw_count": 520,
+        "accepted_count": 520
+      },
+      "license": {
+        "identifier": "MIT (repository; incorporated prompt terms remain)",
+        "status": "publisher-stated",
+        "url": "https://github.com/llm-attacks/llm-attacks/blob/098262edf85f807224e70ecd87b9d83716bf6b73/LICENSE",
+        "notes": "The walledai/AdvBench Hugging Face distribution used by OBLITERATUS is separately recorded as gated at revision 9d4730540082fa4017450b65ca1c0e1d8d30446e; canonical authorship remains llm-attacks."
+      },
+      "required_fields": ["goal", "target"],
+      "native_identity_field": null,
+      "transformation_version": "advbench-goal/1",
+      "role": "unknown",
+      "limitations": ["The target is an affirmative response prefix, not a benign counterpart.", "Exposure in any particular model run is unknown."]
+    },
+    {
+      "id": "harmbench",
+      "title": "HarmBench text behaviors",
+      "canonical_id": "centerforaisafety/HarmBench-text-behaviors",
+      "original_project": {
+        "kind": "github",
+        "repo": "centerforaisafety/HarmBench",
+        "revision": "8e1604d1171fe8a48d8febecd22f600e462bdcdd",
+        "url": "https://github.com/centerforaisafety/HarmBench/tree/8e1604d1171fe8a48d8febecd22f600e462bdcdd"
+      },
+      "distribution": {
+        "kind": "github",
+        "repo": "centerforaisafety/HarmBench",
+        "revision": "8e1604d1171fe8a48d8febecd22f600e462bdcdd",
+        "url": "https://github.com/centerforaisafety/HarmBench/tree/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/behavior_datasets"
+      },
+      "inspected_revision": null,
+      "configuration": "text",
+      "split": "all",
+      "access": "public",
+      "artifact": {
+        "path": "data/behavior_datasets/harmbench_behaviors_text_all.csv",
+        "format": "csv",
+        "url": "https://raw.githubusercontent.com/centerforaisafety/HarmBench/8e1604d1171fe8a48d8febecd22f600e462bdcdd/data/behavior_datasets/harmbench_behaviors_text_all.csv",
+        "sha256": "8d81accedd38eaaf8b760618622bb888417d1fd0c86eba65c427a16f1cbb4afc",
+        "checksum_unavailable_reason": null,
+        "repository_oid": null,
+        "size_bytes": 198850,
+        "raw_count": 400,
+        "accepted_count": 400
+      },
+      "license": {
+        "identifier": "MIT (repository; incorporated content terms remain)",
+        "status": "publisher-stated",
+        "url": "https://github.com/centerforaisafety/HarmBench/blob/8e1604d1171fe8a48d8febecd22f600e462bdcdd/LICENSE",
+        "notes": "The inaccessible harmbench/behaviors Hugging Face locator used by OBLITERATUS is not substituted for this original-project artifact."
+      },
+      "required_fields": ["Behavior", "FunctionalCategory", "SemanticCategory", "Tags", "ContextString", "BehaviorID"],
+      "native_identity_field": "BehaviorID",
+      "transformation_version": "harmbench-text-behavior/1",
+      "role": "unknown",
+      "limitations": ["The 400 text behaviors exclude 110 multimodal behaviors.", "Context and source partitions remain in parent evidence."]
+    },
+    {
+      "id": "anthropic-red-team",
+      "title": "Anthropic HH-RLHF red-team attempts",
+      "canonical_id": "Anthropic/hh-rlhf-red-team-attempts",
+      "original_project": {
+        "kind": "github",
+        "repo": "anthropics/hh-rlhf",
+        "revision": "c72f5cee8eb7b4d2ea5617657f4430d5e333af07",
+        "url": "https://github.com/anthropics/hh-rlhf/tree/c72f5cee8eb7b4d2ea5617657f4430d5e333af07"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "Anthropic/hh-rlhf",
+        "revision": "09be8c5bbc57cb3887f3a9732ad6aa7ec602a1fa",
+        "url": "https://huggingface.co/datasets/Anthropic/hh-rlhf/tree/09be8c5bbc57cb3887f3a9732ad6aa7ec602a1fa/red-team-attempts"
+      },
+      "inspected_revision": null,
+      "configuration": "red-team-attempts",
+      "split": "train",
+      "access": "public",
+      "artifact": {
+        "path": "red-team-attempts/red_team_attempts.jsonl.gz",
+        "format": "json.gz",
+        "url": "https://huggingface.co/datasets/Anthropic/hh-rlhf/resolve/09be8c5bbc57cb3887f3a9732ad6aa7ec602a1fa/red-team-attempts/red_team_attempts.jsonl.gz",
+        "sha256": "4c7b0069991460f0064f279fd400b51f3f0095697d14d7793c49b0925f80814f",
+        "checksum_unavailable_reason": null,
+        "repository_oid": "d67ace48b43fc6b25f8cb42a5f79bc03db346e64",
+        "size_bytes": 15483307,
+        "raw_count": 38961,
+        "accepted_count": 38284
+      },
+      "license": {
+        "identifier": "MIT",
+        "status": "publisher-stated",
+        "url": "https://github.com/anthropics/hh-rlhf/blob/c72f5cee8eb7b4d2ea5617657f4430d5e333af07/LICENSE",
+        "notes": "The archived GitHub project points to Hugging Face for the data. Ratings and transcript metadata remain source evidence."
+      },
+      "required_fields": ["transcript", "min_harmlessness_score_transcript", "num_params", "model_type", "rating", "task_description", "task_descripton_harmlessness_score", "red_team_member_id", "is_upworker", "tags"],
+      "native_identity_field": null,
+      "transformation_version": "anthropic-first-human-turn/1",
+      "role": "unknown",
+      "limitations": ["First-turn extraction does not prove harmfulness or refusal.", "The 38284 accepted views retain duplicates; 36944 texts are unique.", "The general preference corpus is never used as a fallback."]
+    },
+    {
+      "id": "wildjailbreak-train",
+      "title": "WildJailbreak training configuration",
+      "canonical_id": "allenai/wildjailbreak-train",
+      "original_project": {
+        "kind": "github",
+        "repo": "allenai/wildteaming",
+        "revision": "0a94b909079cb6d59df2a6457251d0ff5bb6a026",
+        "url": "https://github.com/allenai/wildteaming/tree/0a94b909079cb6d59df2a6457251d0ff5bb6a026"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "allenai/wildjailbreak",
+        "revision": "5ddc12a7894f842b0619b8e1c7ee496b198af009",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak/tree/5ddc12a7894f842b0619b8e1c7ee496b198af009/train"
+      },
+      "inspected_revision": null,
+      "configuration": "train",
+      "split": "train",
+      "access": "gated",
+      "artifact": {
+        "path": "train/train.tsv",
+        "format": "tsv",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak/resolve/5ddc12a7894f842b0619b8e1c7ee496b198af009/train/train.tsv",
+        "sha256": "376719bfdb46ad1a19e7ba4f587f80cc7cb1368cc213ee647ef739c170550f7a",
+        "checksum_unavailable_reason": null,
+        "repository_oid": "ab20d949ab888b444eaf4a95b679f3f462abf19e",
+        "size_bytes": 530920110,
+        "raw_count": null,
+        "accepted_count": null
+      },
+      "license": {
+        "identifier": "ODC-By-1.0 plus publisher access conditions",
+        "status": "review-required",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak",
+        "notes": "Access is gated. The payload SHA-256 and size are publisher Git LFS metadata at the pinned revision; payload contents and counts still require accepted access."
+      },
+      "required_fields": ["data_type", "vanilla", "adversarial", "completion", "tactics"],
+      "native_identity_field": null,
+      "transformation_version": "wildjailbreak-semantic-pairs/1",
+      "role": "unknown",
+      "limitations": ["No payload count is claimed without accepted gated access; the checksum is publisher Git LFS metadata, not a local acquisition receipt.", "Training and evaluation configurations remain distinct."]
+    },
+    {
+      "id": "wildjailbreak-eval",
+      "title": "WildJailbreak evaluation configuration",
+      "canonical_id": "allenai/wildjailbreak-eval",
+      "original_project": {
+        "kind": "github",
+        "repo": "allenai/wildteaming",
+        "revision": "0a94b909079cb6d59df2a6457251d0ff5bb6a026",
+        "url": "https://github.com/allenai/wildteaming/tree/0a94b909079cb6d59df2a6457251d0ff5bb6a026"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "allenai/wildjailbreak",
+        "revision": "5ddc12a7894f842b0619b8e1c7ee496b198af009",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak/tree/5ddc12a7894f842b0619b8e1c7ee496b198af009/eval"
+      },
+      "inspected_revision": null,
+      "configuration": "eval",
+      "split": "eval",
+      "access": "gated",
+      "artifact": {
+        "path": "eval/eval.tsv",
+        "format": "tsv",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak/resolve/5ddc12a7894f842b0619b8e1c7ee496b198af009/eval/eval.tsv",
+        "sha256": null,
+        "checksum_unavailable_reason": "Publisher access conditions have not been accepted in the qualification environment.",
+        "repository_oid": "dcac4fd2f18f810e1c79472fd87fbc0cb23f7f9a",
+        "size_bytes": 1742350,
+        "raw_count": null,
+        "accepted_count": null
+      },
+      "license": {
+        "identifier": "ODC-By-1.0 plus publisher access conditions",
+        "status": "review-required",
+        "url": "https://huggingface.co/datasets/allenai/wildjailbreak",
+        "notes": "Access is gated. A reviewed checksum must accompany an operator-supplied artifact; the repository OID is not represented as a payload SHA-256."
+      },
+      "required_fields": ["data_type", "vanilla", "adversarial", "completion", "tactics"],
+      "native_identity_field": null,
+      "transformation_version": "wildjailbreak-semantic-pairs/1",
+      "role": "unknown",
+      "limitations": ["No payload count or checksum is claimed without accepted gated access.", "Training and evaluation configurations remain distinct."]
+    },
+    {
+      "id": "jailbreakbench-harmful",
+      "title": "JailbreakBench harmful behaviors",
+      "canonical_id": "JailbreakBench/JBB-Behaviors-harmful",
+      "original_project": {
+        "kind": "github",
+        "repo": "JailbreakBench/jailbreakbench",
+        "revision": "23dbdf6b19650521604456229bc1d9c4156c85c1",
+        "url": "https://github.com/JailbreakBench/jailbreakbench/tree/23dbdf6b19650521604456229bc1d9c4156c85c1"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "JailbreakBench/JBB-Behaviors",
+        "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/tree/886acc352a31533ffbcf4ef22c744658688086fc/data"
+      },
+      "inspected_revision": null,
+      "configuration": "behaviors",
+      "split": "harmful",
+      "access": "public",
+      "artifact": {
+        "path": "data/harmful-behaviors.csv",
+        "format": "csv",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/resolve/886acc352a31533ffbcf4ef22c744658688086fc/data/harmful-behaviors.csv",
+        "sha256": "4a8ec6832056b631eb092dccc60d37a61c3d441268268888b3d006288afeffa1",
+        "checksum_unavailable_reason": null,
+        "repository_oid": "5a7549cd9de9bb327914de0800606a1af1ec8849",
+        "size_bytes": 23116,
+        "raw_count": 100,
+        "accepted_count": 100
+      },
+      "license": {
+        "identifier": "MIT",
+        "status": "publisher-stated",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/blob/886acc352a31533ffbcf4ef22c744658688086fc/LICENSE",
+        "notes": "Source column preserves whether a row originated in HarmBench, AdvBench, TDC, or JBB."
+      },
+      "required_fields": ["Index", "Goal", "Target", "Behavior", "Category", "Source"],
+      "native_identity_field": "Index",
+      "transformation_version": "jailbreakbench-goal/1",
+      "role": "unknown",
+      "limitations": ["Official behavior source only; no package-artifact fallback or bundled representative substitute."]
+    },
+    {
+      "id": "jailbreakbench-benign",
+      "title": "JailbreakBench benign behaviors",
+      "canonical_id": "JailbreakBench/JBB-Behaviors-benign",
+      "original_project": {
+        "kind": "github",
+        "repo": "JailbreakBench/jailbreakbench",
+        "revision": "23dbdf6b19650521604456229bc1d9c4156c85c1",
+        "url": "https://github.com/JailbreakBench/jailbreakbench/tree/23dbdf6b19650521604456229bc1d9c4156c85c1"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "JailbreakBench/JBB-Behaviors",
+        "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/tree/886acc352a31533ffbcf4ef22c744658688086fc/data"
+      },
+      "inspected_revision": null,
+      "configuration": "behaviors",
+      "split": "benign",
+      "access": "public",
+      "artifact": {
+        "path": "data/benign-behaviors.csv",
+        "format": "csv",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/resolve/886acc352a31533ffbcf4ef22c744658688086fc/data/benign-behaviors.csv",
+        "sha256": "3cda234d21a991fa309bbfea4b6d9dae31ccdf8e9d452424b6a983e4fdc33468",
+        "checksum_unavailable_reason": null,
+        "repository_oid": "659647d082ec98df45fdeb3f334ebd7c04e61638",
+        "size_bytes": 20570,
+        "raw_count": 100,
+        "accepted_count": 100
+      },
+      "license": {
+        "identifier": "MIT",
+        "status": "publisher-stated",
+        "url": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors/blob/886acc352a31533ffbcf4ef22c744658688086fc/LICENSE",
+        "notes": "Benign split remains distinct from harmful behaviors and from OBLITERATUS's bundled fallback subset."
+      },
+      "required_fields": ["Index", "Goal", "Target", "Behavior", "Category", "Source"],
+      "native_identity_field": "Index",
+      "transformation_version": "jailbreakbench-goal/1",
+      "role": "unknown",
+      "limitations": ["Official behavior source only; no package-artifact fallback or bundled representative substitute."]
+    },
+    {
+      "id": "wikitext-2-raw-test",
+      "title": "WikiText-2 raw test split",
+      "canonical_id": "Salesforce/wikitext-2-raw-v1-test",
+      "original_project": {
+        "kind": "huggingface",
+        "repo": "Salesforce/wikitext",
+        "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+        "url": "https://huggingface.co/datasets/Salesforce/wikitext/tree/b08601e04326c79dfdd32d625aee71d232d685c3"
+      },
+      "distribution": {
+        "kind": "huggingface",
+        "repo": "Salesforce/wikitext",
+        "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+        "url": "https://huggingface.co/datasets/Salesforce/wikitext/tree/b08601e04326c79dfdd32d625aee71d232d685c3/wikitext-2-raw-v1"
+      },
+      "inspected_revision": null,
+      "configuration": "wikitext-2-raw-v1",
+      "split": "test",
+      "access": "public",
+      "artifact": {
+        "path": "wikitext-2-raw-v1/test-00000-of-00001.parquet",
+        "format": "parquet",
+        "url": "https://huggingface.co/datasets/Salesforce/wikitext/resolve/b08601e04326c79dfdd32d625aee71d232d685c3/wikitext-2-raw-v1/test-00000-of-00001.parquet",
+        "sha256": "5f1bea067869d04849c0f975a2b29c4ff47d867f484f5010ea5e861eab246d91",
+        "checksum_unavailable_reason": null,
+        "repository_oid": "6ba58cb2514e5816aa401f841c34a0e3a6b727b4",
+        "size_bytes": 732610,
+        "raw_count": 4358,
+        "accepted_count": 2891
+      },
+      "license": {
+        "identifier": "CC-BY-SA and GFDL; dataset card currently also states CC-BY-SA-4.0",
+        "status": "review-required",
+        "url": "https://huggingface.co/datasets/Salesforce/wikitext/blob/b08601e04326c79dfdd32d625aee71d232d685c3/README.md",
+        "notes": "Retain attribution/share-alike and source-article terms; this is ancillary capability data, not contrastive prompt training material."
+      },
+      "required_fields": ["text"],
+      "native_identity_field": null,
+      "transformation_version": "wikitext-nonblank-text/1",
+      "role": "unknown",
+      "limitations": ["1467 blank structural rows have no prompt view but remain in raw evidence.", "No benchmark registration or scorer is implied."]
+    }
+  ],
+  "limitations": [
+    "Import identity does not prove use in an OBLITERATUS training or abliteration run.",
+    "All imported rows begin with partition role unknown; downstream use must pass the shared role ledger.",
+    "Overlap diagnostics report evidence and never discount scores or certify an untouched holdout.",
+    "The locked study in issue 114 is unchanged; adding a source requires an explicit protocol revision."
+  ]
+}
