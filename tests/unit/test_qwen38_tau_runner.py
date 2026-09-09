@@ -673,3 +673,23 @@ def test_grouped_ids_restore_interleaved_manifest_order(tmp_path):
     )
     with pytest.raises(ValueError, match="membership"):
         tau_runner._manifest_ordered_scored_ids(path, grouped)
+
+
+def test_diagnostic_subset_preserves_manifest_order_and_is_not_official() -> None:
+    cohort = ["banking_knowledge:task_021", "retail:43", "airline:3"]
+    selected, scope = tau_runner._select_diagnostic_ids(
+        cohort, ["banking_knowledge:task_021", "airline:3"]
+    )
+    assert selected == ["banking_knowledge:task_021", "airline:3"]
+    assert scope == {
+        "kind": "diagnostic-subset",
+        "cohort_size": 3,
+        "selected_ids": selected,
+        "official_comparison": False,
+    }
+    with pytest.raises(ValueError, match="manifest order"):
+        tau_runner._select_diagnostic_ids(cohort, list(reversed(selected)))
+    with pytest.raises(ValueError, match="belong"):
+        tau_runner._select_diagnostic_ids(cohort, ["retail:missing"])
+    with pytest.raises(ValueError, match="unique"):
+        tau_runner._select_diagnostic_ids(cohort, ["retail:43", "retail:43"])

@@ -713,6 +713,11 @@ transport/interface, and NL-evaluator boundaries. The bridge rechecks the
 exact patch and worktree diff, package versions, forced template and tokenizer assets,
 the AppArmor-dependent execution
 canary, the selected tasks, and the recorded tau source worktree before every run.
+
+The r6 banking sandbox diagnosis and guarded r7 restart sequence are recorded in
+[`tau-replay-root-cause-2026-09-09.md`](tau-replay-root-cause-2026-09-09.md). In
+particular, sandbox bridge socket path length is now a pre-GPU admission condition,
+and a full paired replay requires a reviewed two-trajectory diagnostic receipt.
 The exact profile is retained at `host/bwrap.apparmor` and can be installed with
 `sudo install -o root -g root -m 0644` followed by `sudo apparmor_parser -r`.
 

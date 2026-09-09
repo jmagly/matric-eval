@@ -6,15 +6,23 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import signal
+import stat
 import subprocess
 import time
 import urllib.request
 from pathlib import Path
 
+from qwen38_tau_sandbox import sandbox_socket_path_evidence
+
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
-OUT = STUDY / "replay-20260908-r6"
+OUT = STUDY / "replay-20260909-r7"
+RUNTIME_TMP_ROOT = Path("/srv/matric-eval/runtime-tmp")
+RUNTIME_TMP = RUNTIME_TMP_ROOT / OUT.name
+ADMISSION_IDS = ("banking_knowledge:task_021", "airline:3")
+ADMISSION_RECEIPT = STUDY / "tau-admission-20260909/source-tau-receipt.json"
 TAU = Path("/srv/matric-eval/benchmarks/tau2-qwen38-simulator-guard-v3")
 HARBOR = Path("/srv/matric-eval/benchmarks/harbor-qwen38-terminal-runtime-guard")
 TERMINAL = Path("/srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1")
@@ -86,6 +94,67 @@ def check_space():
             raise RuntimeError(f"Free space below {floor} GiB at {path}")
 
 
+def prepare_runtime_tmp():
+    """Create a private short path whose SRT bridge sockets fit Linux ``sun_path``."""
+    RUNTIME_TMP_ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    root_stat = RUNTIME_TMP_ROOT.stat()
+    if root_stat.st_uid != os.getuid() or stat.S_IMODE(root_stat.st_mode) != 0o700:
+        raise RuntimeError("runtime temporary root must be private and owned by the runner")
+    if RUNTIME_TMP.exists() or RUNTIME_TMP.is_symlink():
+        raise RuntimeError("refusing to reuse a replay runtime temporary directory")
+    evidence = sandbox_socket_path_evidence(RUNTIME_TMP)
+    RUNTIME_TMP.mkdir(mode=0o700)
+    return evidence
+
+
+def cleanup_runtime_tmp():
+    """Remove only this replay's verified private runtime directory."""
+    if not RUNTIME_TMP.exists() and not RUNTIME_TMP.is_symlink():
+        return
+    if RUNTIME_TMP.is_symlink() or RUNTIME_TMP.parent.resolve() != RUNTIME_TMP_ROOT.resolve():
+        raise RuntimeError("refusing unsafe replay runtime temporary cleanup")
+    shutil.rmtree(RUNTIME_TMP)
+
+
+def validate_admission_receipt(expected_model_id):
+    """Require two valid bounded trajectories before scheduling the paired replay."""
+    if ADMISSION_RECEIPT.is_symlink() or not ADMISSION_RECEIPT.is_file():
+        raise RuntimeError("reviewed Tau admission receipt is missing")
+    payload = json.loads(ADMISSION_RECEIPT.read_text())
+    if not isinstance(payload, dict):
+        raise RuntimeError("Tau admission receipt must contain an object")
+    execution = payload.get("execution")
+    scope = execution.get("scope") if isinstance(execution, dict) else None
+    results = payload.get("scored_results") if isinstance(payload, dict) else None
+    if (
+        payload.get("model_id") != expected_model_id
+        or payload.get("scored_samples") != len(ADMISSION_IDS)
+        or payload.get("analytic_status_counts") != {"valid": len(ADMISSION_IDS)}
+        or not isinstance(scope, dict)
+        or scope.get("kind") != "diagnostic-subset"
+        or scope.get("official_comparison") is not False
+        or scope.get("selected_ids") != list(ADMISSION_IDS)
+        or not isinstance(results, list)
+        or [row.get("canonical_id") for row in results if isinstance(row, dict)]
+        != list(ADMISSION_IDS)
+        or any(
+            not isinstance(row, dict)
+            or row.get("analytic_status") != "valid"
+            or not isinstance(row.get("raw_result_sha256"), str)
+            or len(row["raw_result_sha256"]) != 64
+            or not set(row["raw_result_sha256"]) <= set("0123456789abcdef")
+            for row in results
+        )
+    ):
+        raise RuntimeError("Tau admission receipt does not prove two valid trajectories")
+    return {
+        "receipt_sha256": hashlib.sha256(ADMISSION_RECEIPT.read_bytes()).hexdigest(),
+        "model_id": expected_model_id,
+        "selected_ids": list(ADMISSION_IDS),
+        "valid_trajectories": len(ADMISSION_IDS),
+    }
+
+
 def stop_server(unit):
     subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
     containers = subprocess.check_output(
@@ -129,14 +198,14 @@ def main():
     if (OUT / "status.json").exists():
         raise RuntimeError("Refusing to reuse an existing replay")
     (OUT / "canaries").mkdir(mode=0o750, exist_ok=True)
-    (OUT / "tmp").mkdir(mode=0o750, exist_ok=True)
+    runtime_tmp_evidence = sandbox_socket_path_evidence(RUNTIME_TMP)
     os.environ.update(
         PYTHONDONTWRITEBYTECODE="1",
         HF_HUB_OFFLINE="1",
         TRANSFORMERS_OFFLINE="1",
         PYTHON_DOTENV_DISABLED="1",
         TOKENIZERS_PARALLELISM="false",
-        TMPDIR=str(OUT / "tmp"),
+        TMPDIR=str(RUNTIME_TMP),
         PYTHONPATH=str(ROOT / "src") + ":" + str(ROOT / "scripts"),
         TAU2_DATA_DIR=str(TAU / "data"),
         DOCKER_HOST="unix:///run/matric-eval-docker.sock",
@@ -171,14 +240,35 @@ def main():
             "official_task_budgets": "unchanged",
         },
         "tau_local": {"target_max_tokens": 4096, "native_broker_thinking": False},
+        "runtime_tmp": {
+            "strategy": "short-private-attempt-directory",
+            **runtime_tmp_evidence,
+        },
+        "admission": {
+            "required_before_gpu_allocation": True,
+            "selected_ids": list(ADMISSION_IDS),
+            "official_comparison": False,
+        },
         "known_limit": "Full calibration-v2 semantic/termination gates are not certified by this diagnostic replay.",
     }
     (OUT / "execution-plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     save(revision=revision, status="validating")
     unit = None
     try:
+        if prepare_runtime_tmp() != runtime_tmp_evidence:
+            raise RuntimeError("runtime temporary path evidence changed after validation")
         check_space()
         for rep in range(1, 4):
+            execute(
+                f"tau-sandbox-canary-{rep}",
+                [
+                    TAU / ".venv/bin/python",
+                    ROOT / "scripts/qwen38_tau_sandbox.py",
+                    "--receipt",
+                    OUT / f"canaries/tau-sandbox-{rep}.json",
+                ],
+                180,
+            )
             execute(
                 f"tau-interface-canary-{rep}",
                 [
@@ -233,6 +323,11 @@ def main():
             ],
             600,
         )
+        admission = validate_admission_receipt(schedule[0]["model_id"])
+        STATUS["operations"].append(
+            {"name": "source-tau-admission-receipt", "exit_code": 0, **admission}
+        )
+        save(admission=admission)
         for entry in schedule:
             check_space()
             prefix = entry["prefix"]
@@ -367,8 +462,11 @@ def main():
         save(status="failed", error=str(error), error_type=type(error).__name__)
         raise
     finally:
-        if unit:
-            stop_server(unit)
+        try:
+            if unit:
+                stop_server(unit)
+        finally:
+            cleanup_runtime_tmp()
 
 
 if __name__ == "__main__":

@@ -9,9 +9,7 @@ import importlib.metadata
 import json
 import os
 import platform
-import shutil
 import subprocess
-import tempfile
 import time
 import urllib.request
 from collections import Counter
@@ -27,6 +25,7 @@ from qwen38_tau_context import (
     load_attested_tokenizer,
     load_patch_contract,
 )
+from qwen38_tau_sandbox import knowledge_dependency_evidence
 from qwen38_tau_simulator import (
     load_simulator_patch_contract,
     verify_tau_simulator_checkout,
@@ -37,8 +36,6 @@ from matric_eval.studies.run_status import AdapterStatus, adapter_main
 
 TAU_PACKAGE_VERSION = "1.0.1"
 TAU_SOURCE_REVISION = "672227c6b6676edc20d57ea53b7000262aae77b9"
-SANDBOX_RUNTIME_PACKAGE_VERSION = "0.0.23"
-RANK_BM25_PACKAGE_VERSION = "0.2.2"
 TAU_EXTERNAL_MODEL = "gpt-4.1-2025-04-14"
 CONTEXT_SAFETY_MARGIN_TOKENS = 32
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
@@ -177,6 +174,32 @@ def _manifest_ordered_scored_ids(manifest_path: Path, scored_ids: list[str]) -> 
     return list(selected)
 
 
+def _select_diagnostic_ids(
+    cohort_ids: list[str], requested_ids: list[str] | None
+) -> tuple[list[str], JsonObject]:
+    """Select a manifest-ordered diagnostic subset without changing cohort identity."""
+    if not requested_ids:
+        return cohort_ids, {
+            "kind": "declared-cohort",
+            "cohort_size": len(cohort_ids),
+            "official_comparison": True,
+        }
+    if len(requested_ids) != len(set(requested_ids)):
+        raise ValueError("diagnostic IDs must be unique")
+    unknown = sorted(set(requested_ids) - set(cohort_ids))
+    if unknown:
+        raise ValueError("diagnostic IDs must belong to the declared cohort")
+    selected = [canonical_id for canonical_id in cohort_ids if canonical_id in requested_ids]
+    if selected != requested_ids:
+        raise ValueError("diagnostic IDs must preserve declared manifest order")
+    return selected, {
+        "kind": "diagnostic-subset",
+        "cohort_size": len(cohort_ids),
+        "selected_ids": selected,
+        "official_comparison": False,
+    }
+
+
 def _verify_manifest(
     manifest_path: Path,
     summary: JsonObject,
@@ -289,46 +312,7 @@ def _redact_sensitive(value: Any) -> Any:
 
 
 def _knowledge_dependency_evidence() -> JsonObject:
-    binaries = {name: shutil.which(name) for name in ("srt", "rg", "bwrap", "socat")}
-    missing = [name for name, path in binaries.items() if path is None]
-    if missing:
-        raise RuntimeError("tau banking sandbox dependencies are missing: " + ", ".join(missing))
-    npm = subprocess.run(
-        ["npm", "list", "-g", "--json", "@anthropic-ai/sandbox-runtime"],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    npm_payload = json.loads(npm.stdout)
-    dependencies = npm_payload.get("dependencies") if isinstance(npm_payload, dict) else None
-    package = (
-        dependencies.get("@anthropic-ai/sandbox-runtime")
-        if isinstance(dependencies, dict)
-        else None
-    )
-    npm_version = package.get("version") if isinstance(package, dict) else None
-    if npm_version != SANDBOX_RUNTIME_PACKAGE_VERSION:
-        raise RuntimeError("sandbox-runtime package version does not match the tau contract")
-    rank_bm25_version = importlib.metadata.version("rank-bm25")
-    if rank_bm25_version != RANK_BM25_PACKAGE_VERSION:
-        raise RuntimeError("rank-bm25 package version does not match the tau contract")
-
-    from tau2.knowledge.sandbox_manager import SandboxManager
-
-    with tempfile.TemporaryDirectory(prefix="tau-sandbox-canary-") as base:
-        with SandboxManager(base_temp_dir=base) as sandbox:
-            code, stdout, stderr = sandbox.run_command("printf sandbox-canary")
-    if code != 0 or stdout != "sandbox-canary" or stderr:
-        raise subprocess.CalledProcessError(
-            code, "tau banking sandbox execution canary", output=stdout, stderr=stderr
-        )
-    return {
-        "binaries": binaries,
-        "sandbox_runtime_npm_version": npm_version,
-        "rank_bm25_version": rank_bm25_version,
-        "execution_canary": "passed",
-    }
+    return knowledge_dependency_evidence()
 
 
 def _validate_context_allocation(
@@ -595,6 +579,9 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         raise ValueError("tau scored sample count does not match the agentic input summary")
     scored_ids = _manifest_ordered_scored_ids(args.manifest, scored_ids)
     manifest_sha256 = _verify_manifest(args.manifest, summary, scored_ids, str(study["id"]))
+    scored_ids, execution_scope = _select_diagnostic_ids(
+        scored_ids, getattr(args, "diagnostic_id", None)
+    )
     server_receipt = _load_object(args.server_receipt, "model server receipt")
     if (
         server_receipt.get("study_id") != study["id"]
@@ -874,6 +861,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             "simulator_output_validation": "non-whitespace-text-or-valid-tool-call",
             "simulator_max_pre_side_effect_recoveries": 1,
             "simulator_recovery_after_environment_call": "forbidden",
+            "scope": execution_scope,
         },
         "sampler": sampler,
         "user_simulator": {"model": args.user_model, "arguments": external_args},
@@ -921,6 +909,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--auxiliary-client-profile", type=Path)
     parser.add_argument("--auxiliary-amendment", type=Path)
     parser.add_argument("--local-simulator", action="store_true")
+    parser.add_argument(
+        "--diagnostic-id",
+        action="append",
+        help="run only this manifest member; repeat in manifest order",
+    )
     parser.add_argument("--external-api-key-fd", type=int, default=3)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
