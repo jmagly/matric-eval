@@ -138,7 +138,7 @@ def test_real_unix_transport_redacts_broker_error(tmp_path):
     import socket
     import threading
 
-    from matric_eval.studies.resource_lifecycle import Broker
+    from matric_eval.studies.resource_lifecycle import Broker, BrokerRejected
 
     path = str(tmp_path / "broker.sock")
     with socket.socket(socket.AF_UNIX) as server:
@@ -149,14 +149,133 @@ def test_real_unix_transport_redacts_broker_error(tmp_path):
             client, _ = server.accept()
             with client:
                 client.recv(4096)
-                client.sendall(b'{"ok":false,"error":"private-token"}\n')
+                client.sendall(
+                    b'{"ok":false,"error":"private-token","error_type":"CapacityError"}\n'
+                )
 
         worker = threading.Thread(target=respond)
         worker.start()
-        with pytest.raises(RuntimeError, match="broker release failed") as error:
+        with pytest.raises(BrokerRejected, match="broker release rejected") as error:
             Broker(path).call("release", token="private-token")
         assert "private-token" not in str(error.value)
         worker.join()
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        b'{"ok":false,"error":"denied"}\n',
+        b'{"ok":false,"error_type":"CapacityError"}\n',
+        b'{"ok":"false","error":"denied","error_type":"CapacityError"}\n',
+    ],
+)
+def test_incomplete_broker_rejection_is_not_terminal(tmp_path, response):
+    import socket
+    import threading
+
+    from matric_eval.studies.resource_lifecycle import Broker, BrokerRejected
+
+    path = str(tmp_path / "broker.sock")
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(path)
+        server.listen()
+
+        def respond():
+            client, _ = server.accept()
+            with client:
+                client.recv(4096)
+                client.sendall(response)
+
+        worker = threading.Thread(target=respond)
+        worker.start()
+        with pytest.raises(RuntimeError) as error:
+            Broker(path).call("acquire", owner="owned", requested_mib=1)
+        assert not isinstance(error.value, BrokerRejected)
+        worker.join()
+
+
+def test_structured_acquire_rejection_is_settled(lifecycle):
+    from matric_eval.studies.resource_lifecycle import BrokerRejected
+
+    original = lifecycle.broker.call
+
+    def reject(action, **fields):
+        if action == "acquire":
+            raise BrokerRejected("broker acquire rejected request")
+        return original(action, **fields)
+
+    lifecycle.broker.call = reject
+    with pytest.raises(BrokerRejected, match="acquire rejected"):
+        lifecycle.acquire()
+    assert lifecycle.record["acquisition_outcome"] == "rejected"
+    assert lifecycle.record["acquisition_rejection_acknowledged_at"] > 0
+    assert lifecycle.reconcile()
+    assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_real_unix_acquire_rejection_reconciles_without_lease(tmp_path):
+    import json
+    import socket
+    import threading
+
+    from matric_eval.studies.resource_lifecycle import Broker, BrokerRejected
+
+    path = str(tmp_path / "broker.sock")
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(path)
+        server.listen()
+
+        def respond():
+            for index in range(2):
+                client, _ = server.accept()
+                with client:
+                    request = json.loads(client.recv(4096))
+                    if index == 0:
+                        assert request["action"] == "acquire"
+                        response = {
+                            "ok": False,
+                            "error": "capacity unavailable",
+                            "error_type": "CapacityError",
+                        }
+                    else:
+                        assert request["action"] == "status"
+                        response = {"ok": True, "leases": []}
+                    client.sendall(json.dumps(response).encode() + b"\n")
+
+        worker = threading.Thread(target=respond)
+        worker.start()
+        value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
+        try:
+            value.prepare("run", "attempt", "GPU-owned", "test")
+            with pytest.raises(BrokerRejected):
+                value.acquire()
+            assert value.reconcile()
+            assert value.record["cleanup"] == "complete"
+            assert value.record["acquisition_outcome"] == "rejected"
+        finally:
+            value.close()
+            worker.join(timeout=5)
+        assert not worker.is_alive()
+
+
+def test_rejection_after_persisted_lease_is_recovered(lifecycle):
+    from matric_eval.studies.resource_lifecycle import BrokerRejected
+
+    original = lifecycle.broker.call
+
+    def reject_after_grant(action, **fields):
+        if action == "acquire":
+            original(action, **fields)
+            raise BrokerRejected("broker acquire rejected request")
+        return original(action, **fields)
+
+    lifecycle.broker.call = reject_after_grant
+    with pytest.raises(BrokerRejected, match="acquire rejected"):
+        lifecycle.acquire()
+    assert lifecycle.record["acquisition_outcome"] == "rejected"
+    assert lifecycle.reconcile()
+    assert lifecycle.record["acquisition_outcome"] == "acknowledged"
+    assert lifecycle.broker.released == ["private-token"]
 
 
 def test_owned_container_stopped_before_release(lifecycle):

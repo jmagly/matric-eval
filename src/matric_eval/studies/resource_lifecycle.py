@@ -27,6 +27,10 @@ from matric_eval.studies.preflight import (
 from matric_eval.studies.run_status import RunStatus
 
 
+class BrokerRejected(RuntimeError):
+    """The broker returned a well-formed, terminal rejection response."""
+
+
 def process_identity(pid: int) -> dict[str, Any] | None:
     try:
         fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
@@ -118,9 +122,20 @@ class Broker:
             client.sendall(json.dumps({"action": action, **fields}).encode() + b"\n")
             with client.makefile("rb") as stream:
                 result = json.loads(stream.readline(1024 * 1024))
-        if not isinstance(result, dict) or result.get("ok") is not True:
-            # Broker errors may echo lease tokens. Never persist or print them.
-            raise RuntimeError(f"broker {action} failed")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"broker {action} returned an invalid response")
+        if result.get("ok") is False:
+            # A structured response is a terminal acknowledgment from the
+            # synchronous control request. Error details may echo lease tokens,
+            # so distinguish the outcome without persisting or printing them.
+            if not all(
+                isinstance(result.get(field), str) and result[field].strip()
+                for field in ("error", "error_type")
+            ):
+                raise RuntimeError(f"broker {action} returned an invalid rejection")
+            raise BrokerRejected(f"broker {action} rejected request")
+        if result.get("ok") is not True:
+            raise RuntimeError(f"broker {action} returned an invalid response")
         return result
 
 
@@ -188,7 +203,7 @@ def acquisition_settled(record: dict[str, Any]) -> bool:
     """
     outcome = record.get("acquisition_outcome")
     if outcome is not None:
-        return outcome in {"not-sent", "acknowledged"}
+        return outcome in {"not-sent", "acknowledged", "rejected"}
     return bool(record.get("lease_sha256") or record.get("lease_release_acknowledged_at"))
 
 
@@ -287,13 +302,21 @@ class ResourceLifecycle:
         # Persist before sending: timeout, cancellation, malformed responses and
         # process death all leave an unresolved, possibly still running request.
         self.save(state="acquiring", acquisition_outcome="unknown")
-        response = self.broker.call(
-            "acquire",
-            owner=self.record["owner"],
-            requested_mib=mib,
-            ttl=300,
-            gpu_uuids=self.record["gpu_uuids"],
-        )
+        try:
+            response = self.broker.call(
+                "acquire",
+                owner=self.record["owner"],
+                requested_mib=mib,
+                ttl=300,
+                gpu_uuids=self.record["gpu_uuids"],
+            )
+        except BrokerRejected:
+            self.save(
+                state="acquisition-rejected",
+                acquisition_outcome="rejected",
+                acquisition_rejection_acknowledged_at=time.time(),
+            )
+            raise
         lease = response["lease"]
         self.accept_lease(lease)
         return str(lease["token"])
