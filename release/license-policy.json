@@ -5,14 +5,19 @@
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSD-3-Clause-Open-MPI",
     "CC0-1.0",
     "CNRI-Python",
+    "GPL-3.0-or-later WITH GCC-exception-3.1",
     "ISC",
     "LGPL-2.0-only",
+    "LGPL-2.1-or-later",
     "MIT",
+    "MIT-0",
     "MIT-CMU",
     "MPL-2.0",
     "PSF-2.0",
+    "Qhull",
     "Zlib"
   ],
   "prohibited_licenses": [
@@ -22,6 +27,122 @@
   ],
   "notes": {
     "LGPL-2.0-only": "Accepted for dynamically installed transitive tooling; it is not bundled into matric-eval wheels or npm archives.",
-    "MPL-2.0": "Accepted for unmodified dependencies distributed separately under their original terms."
-  }
+    "MPL-2.0": "Accepted for unmodified dependencies distributed separately under their original terms.",
+    "MIT-0": "MIT No Attribution, identified by the cffi 2.1.0 License-Expression and upstream LICENSE. This is not the MIT license with a missing notice.",
+    "BSD-3-Clause-Open-MPI": "Accepted for the separately installed, unmodified LAPACK bundled inside the reviewed SciPy wheel; preserve its patent disclaimer and notices.",
+    "GPL-3.0-or-later WITH GCC-exception-3.1": "Accepted only as the complete GCC runtime exception expression documented by the reviewed SciPy libgfortran component. The exception is not a waiver of unqualified GPL, nor permission to remove the runtime license. Dependencies are installed separately; matric-eval release archives do not bundle these libraries.",
+    "LGPL-2.1-or-later": "Accepted for separately installed, unmodified runtime dependencies including libquadmath in the reviewed SciPy wheel. This does not authorize bundling, static linking, or removing the upstream license/source obligations.",
+    "Qhull": "Accepted for separately installed, unmodified Qhull distributed with SciPy, retaining the copyright, license and original-source notices. Qhull is not relicensed as BSD."
+  },
+  "reviewed_distributions": [
+    {
+      "name": "stop-sequencer",
+      "version": "1.2.3",
+      "license_expression": "Apache-2.0",
+      "normalized_licenses": [
+        "Apache-2.0"
+      ],
+      "license_files": [],
+      "evidence_files": [
+        {
+          "path": "stop_sequencer-1.2.3.dist-info/METADATA",
+          "sha256": "9892f2148e4f0c8c4d985d574839a039c30cfda221a26d26a11af94e6fdc2506"
+        },
+        {
+          "path": "stop_sequencer/stop_sequencer.py",
+          "sha256": "d0d735653ac98639e639d6aa7a0ebf9d1c3b62629557cdcaa498988767162893"
+        }
+      ],
+      "artifact": {
+        "filename": "stop-sequencer-1.2.3.tar.gz",
+        "sha256": "2eb719ff4cb57a79cf0ddc87b4bf7da11fc9e7a170005eaed17311b015b71d02",
+        "url": "https://files.pythonhosted.org/packages/ec/23/f76e528167d4e98bdcb1a96c311de6a55817c1d93206cbb3173d56637111/stop-sequencer-1.2.3.tar.gz"
+      },
+      "reviewed_at": "2026-09-09",
+      "source_urls": [
+        "https://pypi.org/project/stop-sequencer/1.2.3/",
+        "https://files.pythonhosted.org/packages/ec/23/f76e528167d4e98bdcb1a96c311de6a55817c1d93206cbb3173d56637111/stop-sequencer-1.2.3.tar.gz"
+      ],
+      "rationale": "The exact released sdist README and PKG-INFO and installed METADATA include the author's Apache License 2.0 declaration although the License field and classifiers are empty. The installed source file equals the hash-verified sdist member. This resolves missing structured metadata without assuming MIT."
+    },
+    {
+      "name": "wget",
+      "version": "3.2",
+      "license_expression": "MIT",
+      "normalized_licenses": [
+        "MIT"
+      ],
+      "license_files": [],
+      "evidence_files": [
+        {
+          "path": "wget-3.2.dist-info/METADATA",
+          "sha256": "b6f51d8060127c28c284fc78b704cbc5611b83e9afc4ee87406e067bdcb08526"
+        },
+        {
+          "path": "wget.py",
+          "sha256": "17e1e138d89005e6d0c487878f0489f9ec60d7f0c632135627e4efb26a0c115f"
+        }
+      ],
+      "artifact": {
+        "filename": "wget-3.2.zip",
+        "sha256": "35e630eca2aa50ce998b9b1a127bb26b30dfee573702782aa982f875e3f16061",
+        "url": "https://files.pythonhosted.org/packages/47/6a/62e288da7bcda82b935ff0c6cfe542970f04e29c756b0e147251b2fb251f/wget-3.2.zip"
+      },
+      "reviewed_at": "2026-09-09",
+      "source_urls": [
+        "https://pypi.org/project/wget/3.2/",
+        "https://files.pythonhosted.org/packages/47/6a/62e288da7bcda82b935ff0c6cfe542970f04e29c756b0e147251b2fb251f/wget-3.2.zip"
+      ],
+      "rationale": "The exact released wget.py header expressly offers MIT as an alternative to public domain. Select the MIT option; do not map Public Domain to CC0 or confuse this Python module with GNU Wget. The installed module equals the hash-verified sdist member."
+    },
+    {
+      "name": "scipy",
+      "version": "1.17.1",
+      "license_expression": "BSD-3-Clause AND BSD-3-Clause-Open-MPI AND (GPL-3.0-or-later WITH GCC-exception-3.1) AND LGPL-2.1-or-later AND Qhull",
+      "normalized_licenses": [
+        "BSD-3-Clause",
+        "BSD-3-Clause-Open-MPI",
+        "GPL-3.0-or-later WITH GCC-exception-3.1",
+        "LGPL-2.1-or-later",
+        "Qhull"
+      ],
+      "license_files": [
+        {
+          "path": "scipy-1.17.1.dist-info/LICENSE.txt",
+          "sha256": "4daf14e37432e7026165979ecb7a39930707a3e89bef4876cfaf9dad36ed364a"
+        },
+        {
+          "path": "scipy/_lib/_uarray/LICENSE",
+          "sha256": "c80c39b5fce06ba4897e14e0b0a88b54458334d951eb1361402ffad2cfb863b4"
+        },
+        {
+          "path": "scipy/fft/_pocketfft/LICENSE.md",
+          "sha256": "c254b2b5fd30ae3c89d36ba061730563b9760fca04f1b746a1b2c3157da2c789"
+        },
+        {
+          "path": "scipy/integrate/LICENSE_DOP",
+          "sha256": "ed9bf58c6d74d3fad9d92d1d67d9bff8141d8ab60de784516b0711364fd43357"
+        },
+        {
+          "path": "scipy/spatial/qhull_src/COPYING_QHULL.txt",
+          "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+        }
+      ],
+      "evidence_files": [
+        {
+          "path": "scipy-1.17.1.dist-info/METADATA",
+          "sha256": "7cdd5544eb610b86e000b6f0a21e86f84423faf0aacbb99990f3d41f25e1f314"
+        }
+      ],
+      "reviewed_at": "2026-09-09",
+      "source_urls": [
+        "https://github.com/scipy/scipy/blob/v1.17.1/LICENSE.txt",
+        "https://github.com/scipy/scipy/blob/v1.17.1/tools/wheels/LICENSE_linux.txt",
+        "https://spdx.org/licenses/GCC-exception-3.1.html",
+        "https://spdx.org/licenses/BSD-3-Clause-Open-MPI.html",
+        "https://spdx.org/licenses/Qhull.html"
+      ],
+      "rationale": "Review is bound to the complete installed license-file inventory and metadata of the Linux CPython 3.11 SciPy 1.17.1 wheel. SciPy, OpenBLAS, uarray, pocketfft and DOP use BSD-3-Clause; LAPACK uses the Open MPI variant; libgfortran has GPL-3.0-or-later WITH GCC-exception-3.1; libquadmath is LGPL-2.1-or-later; bundled Qhull retains its own license. Full GPL text mentions AGPL and other GPL versions without licensing SciPy under them. Do not infer those example/reference licenses or discard the runtime exception. Dependencies remain unmodified and separately installed, not bundled into matric-eval release packages."
+    }
+  ]
 }
