@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,8 +26,9 @@ def test_release_has_no_registry_publication() -> None:
                     assert "gh-action-pypi-publish" not in step.get("uses", "")
 
 
-def test_only_tagged_release_can_mutate_the_forge() -> None:
-    document = workflow(".gitea/workflows/release.yml")
+@pytest.mark.parametrize("provider", ["gitea", "github"])
+def test_only_tagged_release_can_mutate_the_forge(provider: str) -> None:
+    document = workflow(f".{provider}/workflows/release.yml")
     assert "workflow_dispatch" in document["on"]
     steps = document["jobs"]["release"]["steps"]
     publication = [
@@ -71,8 +73,9 @@ def test_ci_locks_dependencies_and_retains_mandatory_client_evidence() -> None:
                     assert "--locked" in line
 
 
-def test_release_audits_use_runtime_inventory_and_producer_status() -> None:
-    steps = workflow(".gitea/workflows/release.yml")["jobs"]["release"]["steps"]
+@pytest.mark.parametrize("provider", ["gitea", "github"])
+def test_release_audits_use_runtime_inventory_and_producer_status(provider: str) -> None:
+    steps = workflow(f".{provider}/workflows/release.yml")["jobs"]["release"]["steps"]
     licenses = next(step for step in steps if step["name"] == "Review dependency licenses")
     assert "uv run --no-sync python scripts/release_contract.py licenses" in licenses["run"]
     vulnerabilities = next(
@@ -143,8 +146,11 @@ def test_tag_wrapper_checks_clean_main_and_never_pushes(tmp_path: Path) -> None:
     assert git("tag", "--list") == ""
 
 
-def test_python_audit_export_preserves_vcs_pins_without_incompatible_hash_mode() -> None:
-    steps = workflow(".gitea/workflows/release.yml")["jobs"]["release"]["steps"]
+@pytest.mark.parametrize("provider", ["gitea", "github"])
+def test_python_audit_export_preserves_vcs_pins_without_incompatible_hash_mode(
+    provider: str,
+) -> None:
+    steps = workflow(f".{provider}/workflows/release.yml")["jobs"]["release"]["steps"]
     audit = next(step for step in steps if step["name"] == "Audit dependencies")["run"]
     assert "--locked" in audit
     assert "--no-emit-project --no-hashes" in audit
@@ -152,3 +158,86 @@ def test_python_audit_export_preserves_vcs_pins_without_incompatible_hash_mode()
     assert "--requirement release-artifacts/evidence/python-requirements.txt" in audit
     assert "--ignore-vuln" not in audit
     assert "--skip-editable" not in audit
+
+
+def test_github_release_uses_native_token_and_same_candidate_gates() -> None:
+    github = workflow(".github/workflows/release.yml")
+    gitea = workflow(".gitea/workflows/release.yml")
+    job = github["jobs"]["release"]
+    assert job["if"] == "github.repository == 'jmagly/matric-eval'"
+    assert job["permissions"] == {"contents": "write", "actions": "read"}
+    assert github["on"] == gitea["on"]
+    steps = {step["name"]: step for step in job["steps"]}
+    for step in gitea["jobs"]["release"]["steps"]:
+        if step["name"] in {
+            "Checkout exact source",
+            "Verify tagged source and exact-commit CI",
+            "Attach verified Gitea release downloads",
+            "Retain release bundle",
+        }:
+            continue
+        assert steps[step["name"]] == step
+    for name in (
+        "Verify tagged source and exact-commit CI",
+        "Attach verified GitHub release downloads",
+    ):
+        assert steps[name]["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}
+        assert "--forge github" in steps[name]["run"]
+        assert '--commit "$RELEASE_COMMIT"' in steps[name]["run"]
+    assert "https://github.com/jmagly/matric-eval.git" in steps["Checkout exact source"]["run"]
+    checkout = steps["Checkout exact source"]["run"]
+    assert 'git rev-parse "${GITHUB_SHA}^{commit}"' in checkout
+    assert 'safe.directory "$GITHUB_WORKSPACE"' in checkout
+    assert '"$GITHUB_ENV"' in checkout
+    assert steps["Retain release bundle"]["uses"] == (
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    )
+
+
+@pytest.mark.parametrize("tag_object", [False, True])
+def test_github_checkout_resolves_exact_event_to_commit(tmp_path: Path, tag_object: bool) -> None:
+    import os
+    import shlex
+    import subprocess
+
+    source, checkout = tmp_path / "source", tmp_path / "checkout"
+    source.mkdir()
+    checkout.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=source, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git("init", "-b", "main")
+    git("config", "user.name", "Fixture")
+    git("config", "user.email", "fixture@example.invalid")
+    git("config", "commit.gpgsign", "false")
+    git("config", "tag.gpgsign", "false")
+    git("commit", "--allow-empty", "-m", "release source")
+    commit = git("rev-parse", "HEAD")
+    git("tag", "-a", "v2026.9.0", "-m", "fixture")
+    event = git("rev-parse", "v2026.9.0") if tag_object else commit
+    steps = workflow(".github/workflows/release.yml")["jobs"]["release"]["steps"]
+    command = next(step["run"] for step in steps if step["name"] == "Checkout exact source")
+    command = command.replace("https://github.com/jmagly/matric-eval.git", shlex.quote(str(source)))
+    command = command.replace("${{ github.sha }}", event)
+    environment_file = tmp_path / "github-env"
+    subprocess.run(
+        ["sh", "-e", "-c", command],
+        cwd=checkout,
+        env={
+            **os.environ,
+            "GITHUB_SHA": event,
+            "GITHUB_WORKSPACE": str(checkout),
+            "GITHUB_ENV": str(environment_file),
+            "GIT_CONFIG_GLOBAL": str(tmp_path / "gitconfig"),
+        },
+        check=True,
+        capture_output=True,
+    )
+    assert environment_file.read_text() == f"RELEASE_COMMIT={commit}\n"
+    assert (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout, text=True).strip()
+        == commit
+    )

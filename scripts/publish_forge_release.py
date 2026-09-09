@@ -23,6 +23,9 @@ from typing import Any
 SERVER = "https://git.integrolabs.net"
 REPOSITORY = "roctinam/matric-eval"
 API = f"/api/v1/repos/{REPOSITORY}"
+GITHUB_SERVER = "https://api.github.com"
+GITHUB_UPLOADS = "https://uploads.github.com"
+GITHUB_REPOSITORY = "jmagly/matric-eval"
 MAX_ASSET = 128 * 1024 * 1024
 MAX_TOTAL = 1024 * 1024 * 1024
 PAGE_SIZE = 50
@@ -55,20 +58,52 @@ def version_for(tag: str, commit: str) -> str:
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self, origin: str = SERVER, *, asset: bool = False) -> None:
+        self.origin = origin
+        self.asset = asset
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        destination = urllib.parse.urlsplit(newurl)
+        same = (destination.scheme, destination.netloc) == (
+            urllib.parse.urlsplit(self.origin).scheme,
+            urllib.parse.urlsplit(self.origin).netloc,
+        )
+        signed_asset = (
+            self.asset
+            and req.get_method() == "GET"
+            and destination.scheme == "https"
+            and destination.netloc == "release-assets.githubusercontent.com"
+            and bool(destination.query)
+        )
         require(
-            urllib.parse.urlsplit(newurl).netloc == urllib.parse.urlsplit(SERVER).netloc
-            and urllib.parse.urlsplit(newurl).scheme == urllib.parse.urlsplit(SERVER).scheme,
+            (same or signed_asset)
+            and not destination.username
+            and not destination.password
+            and not destination.fragment,
             "cross-origin redirect refused",
         )
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and not same:
+            # urllib otherwise copies Authorization when following the signed asset URL.
+            redirected.remove_header("Authorization")
+            redirected.remove_header("Cookie")
+        return redirected
 
 
 class Forge:
-    def __init__(self, token: str) -> None:
-        require(bool(token), "RELEASE_TOKEN is required")
+    def __init__(self, token: str, kind: str = "gitea") -> None:
+        require(kind in ("gitea", "github"), "unsupported forge")
+        self.github = kind == "github"
+        require(bool(token), f"{'GITHUB_TOKEN' if self.github else 'RELEASE_TOKEN'} is required")
         self.token = token
-        self.opener = urllib.request.build_opener(SafeRedirect())
+        self.server = GITHUB_SERVER if self.github else SERVER
+        self.repository = GITHUB_REPOSITORY if self.github else REPOSITORY
+        self.api = f"/repos/{self.repository}" if self.github else API
+        self.host = "github.com" if self.github else "git.integrolabs.net"
+        self.workflow_paths = (
+            (".github/workflows/ci.yml",) if self.github else ("ci.yml", ".gitea/workflows/ci.yml")
+        )
+        self.opener = urllib.request.build_opener(SafeRedirect(self.server))
 
     def request(
         self,
@@ -79,11 +114,17 @@ class Forge:
         *,
         missing: bool = False,
         maximum: int = MAX_ASSET,
+        asset: bool = False,
     ) -> bytes | None:
-        url = path if path.startswith(("https://", "http://")) else SERVER + path
-        parsed, canonical = urllib.parse.urlsplit(url), urllib.parse.urlsplit(SERVER)
+        url = path if path.startswith(("https://", "http://")) else self.server + path
+        parsed, canonical = urllib.parse.urlsplit(url), urllib.parse.urlsplit(self.server)
+        upload = (
+            self.github
+            and method == "POST"
+            and url.startswith(GITHUB_UPLOADS + self.api + "/releases/")
+        )
         require(
-            (parsed.scheme, parsed.netloc) == (canonical.scheme, canonical.netloc)
+            ((parsed.scheme, parsed.netloc) == (canonical.scheme, canonical.netloc) or upload)
             and not parsed.username
             and not parsed.password
             and not parsed.fragment,
@@ -94,13 +135,21 @@ class Forge:
             data=body,
             method=method,
             headers={
-                "Authorization": f"token {self.token}",
+                "Authorization": f"Bearer {self.token}" if self.github else f"token {self.token}",
                 "Content-Type": content_type,
-                "Accept": "application/json",
+                "Accept": "application/octet-stream"
+                if asset
+                else ("application/vnd.github+json" if self.github else "application/json"),
+                **({"X-GitHub-Api-Version": "2022-11-28"} if self.github else {}),
             },
         )
         try:
-            with self.opener.open(request, timeout=30) as response:
+            opener = (
+                urllib.request.build_opener(SafeRedirect(self.server, asset=True))
+                if asset and self.github
+                else self.opener
+            )
+            with opener.open(request, timeout=30) as response:
                 data = response.read(maximum + 1)
                 require(len(data) <= maximum, "response exceeds bound")
                 return data
@@ -130,7 +179,9 @@ class Forge:
                 "GET",
                 path
                 + ("&" if "?" in path else "?")
-                + urllib.parse.urlencode({"limit": PAGE_SIZE, "page": page}),
+                + urllib.parse.urlencode(
+                    {"per_page" if self.github else "limit": PAGE_SIZE, "page": page}
+                ),
             )
             values = result[key] if key else result
             require(isinstance(values, list), "invalid paginated response")
@@ -143,21 +194,65 @@ class Forge:
                 return rows
         raise Refused("canonical API pagination bound exceeded")
 
+    def release_for_tag(self, tag: str) -> Any:
+        found = self.json(
+            "GET", f"{self.api}/releases/tags/{urllib.parse.quote(tag, safe='')}", missing=True
+        )
+        if self.github:
+            # GitHub's by-tag endpoint excludes drafts, including interrupted uploads.
+            matches = [row for row in self.pages(f"{self.api}/releases") if row["tag_name"] == tag]
+            require(len(matches) <= 1, "duplicate releases for tag")
+            if matches:
+                require(found is None or found["id"] == matches[0]["id"], "release lookup mismatch")
+                found = matches[0]
+        return found
+
+    def upload(self, path: str, name: str, data: bytes) -> Any:
+        endpoint = path + "/assets?" + urllib.parse.urlencode({"name": name})
+        if self.github:
+            response = self.request(
+                "POST", GITHUB_UPLOADS + endpoint, data, "application/octet-stream"
+            )
+        else:
+            boundary = "matric-" + uuid.uuid4().hex
+            payload = (
+                f'--{boundary}\r\nContent-Disposition: form-data; name="attachment"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode()
+                + data
+                + f"\r\n--{boundary}--\r\n".encode()
+            )
+            response = self.request(
+                "POST", endpoint, payload, f"multipart/form-data; boundary={boundary}"
+            )
+        return json.loads(response or b"null")
+
+    def download(self, item: dict[str, Any], maximum: int) -> bytes:
+        endpoint = (
+            f"{self.api}/releases/assets/{int(item['id'])}"
+            if self.github
+            else item["browser_download_url"]
+        )
+        return self.request("GET", endpoint, maximum=maximum, asset=self.github) or b""
+
 
 def git(root: Path, *args: str) -> str:
     environment = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    token = os.environ.get("RELEASE_TOKEN")
-    if token:
-        header = "Authorization: Basic " + base64.b64encode(("oauth2:" + token).encode()).decode()
-        environment.update(
-            GIT_CONFIG_COUNT="3",
-            GIT_CONFIG_KEY_0="http.https://git.integrolabs.net/.extraheader",
-            GIT_CONFIG_VALUE_0=header,
-            GIT_CONFIG_KEY_1="http.followRedirects",
-            GIT_CONFIG_VALUE_1="false",
-            GIT_CONFIG_KEY_2="credential.helper",
-            GIT_CONFIG_VALUE_2="",
-        )
+    settings = [("http.followRedirects", "false"), ("credential.helper", "")]
+    for variable, host, username in (
+        ("RELEASE_TOKEN", "git.integrolabs.net", "oauth2"),
+        ("GITHUB_TOKEN", "github.com", "x-access-token"),
+    ):
+        token = os.environ.get(variable)
+        if token:
+            header = (
+                "Authorization: Basic "
+                + base64.b64encode((username + ":" + token).encode()).decode()
+            )
+            settings.insert(0, (f"http.https://{host}/.extraheader", header))
+    if len(settings) > 2:
+        environment["GIT_CONFIG_COUNT"] = str(len(settings))
+        for index, (key, value) in enumerate(settings):
+            environment[f"GIT_CONFIG_KEY_{index}"] = key
+            environment[f"GIT_CONFIG_VALUE_{index}"] = value
     try:
         return subprocess.run(
             ["git", "-C", str(root), *args],
@@ -181,12 +276,15 @@ def verify_source(forge: Forge, tag: str | None, commit: str, root: Path) -> Non
     origin = git(root, "remote", "get-url", "origin")
     parsed = urllib.parse.urlsplit(origin)
     require(
-        origin == f"git@git.integrolabs.net:{REPOSITORY}.git"
+        origin == f"git@{forge.host}:{forge.repository}.git"
         or (
             parsed.scheme == "https"
-            and parsed.hostname == "git.integrolabs.net"
+            and parsed.hostname == forge.host
             and parsed.port in (None, 443)
-            and parsed.path == f"/{REPOSITORY}.git"
+            and (
+                parsed.path == f"/{forge.repository}.git"
+                or (forge.github and parsed.path == f"/{forge.repository}")
+            )
             and not parsed.query
             and not parsed.fragment
         ),
@@ -200,11 +298,28 @@ def verify_source(forge: Forge, tag: str | None, commit: str, root: Path) -> Non
     git(root, *arguments, "origin", "+refs/heads/main:refs/remotes/origin/main")
     git(root, "merge-base", "--is-ancestor", commit, "refs/remotes/origin/main")
     if tag is not None:
-        remote = forge.json("GET", f"{API}/tags/{urllib.parse.quote(tag, safe='')}")
-        require(
-            remote["name"] == tag and remote["commit"]["sha"] == commit,
-            "remote tag does not identify source SHA",
-        )
+        if forge.github:
+            remote = forge.json(
+                "GET", f"{forge.api}/git/ref/tags/{urllib.parse.quote(tag, safe='')}"
+            )
+            require(remote["ref"] == f"refs/tags/{tag}", "remote tag ref mismatch")
+            obj = remote["object"]
+            for _ in range(8):
+                require(bool(re.fullmatch(r"[0-9a-f]{40}", obj["sha"])), "invalid tag object SHA")
+                if obj["type"] == "commit":
+                    break
+                require(obj["type"] == "tag", "tag does not reference a commit")
+                obj = forge.json("GET", f"{forge.api}/git/tags/{obj['sha']}")["object"]
+            require(
+                obj["type"] == "commit" and obj["sha"] == commit,
+                "remote tag does not identify source SHA",
+            )
+        else:
+            remote = forge.json("GET", f"{forge.api}/tags/{urllib.parse.quote(tag, safe='')}")
+            require(
+                remote["name"] == tag and remote["commit"]["sha"] == commit,
+                "remote tag does not identify source SHA",
+            )
 
 
 def verify(
@@ -214,23 +329,22 @@ def verify(
     verify_source(forge, tag, commit, root)
     deadline = time.monotonic() + wait_seconds
     while True:
-        runs = forge.pages(f"{API}/actions/runs?head_sha={commit}", "workflow_runs")
+        runs = forge.pages(f"{forge.api}/actions/runs?head_sha={commit}", "workflow_runs")
         candidates = [
             row
             for row in runs
             if row.get("head_sha") == commit
-            and str(row.get("path", "")).split("@", 1)[0] in ("ci.yml", ".gitea/workflows/ci.yml")
+            and str(row.get("path", "")).split("@", 1)[0] in forge.workflow_paths
         ]
         if candidates:
             latest = max(
                 candidates,
                 key=lambda row: (int(row["id"]), int(row.get("run_attempt", 0))),
             )
-            latest = forge.json("GET", f"{API}/actions/runs/{int(latest['id'])}")
+            latest = forge.json("GET", f"{forge.api}/actions/runs/{int(latest['id'])}")
             require(
                 latest.get("head_sha") == commit
-                and str(latest.get("path", "")).split("@", 1)[0]
-                in ("ci.yml", ".gitea/workflows/ci.yml"),
+                and str(latest.get("path", "")).split("@", 1)[0] in forge.workflow_paths,
                 "CI detail source/workflow mismatch",
             )
             status = latest.get("status")
@@ -238,9 +352,9 @@ def verify(
                 status = latest.get("conclusion")
             if status == "success":
                 require(
-                    latest.get("repository", {}).get("full_name") == REPOSITORY
-                    and latest.get("head_repository", {}).get("full_name", REPOSITORY)
-                    == REPOSITORY,
+                    latest.get("repository", {}).get("full_name") == forge.repository
+                    and latest.get("head_repository", {}).get("full_name", forge.repository)
+                    == forge.repository,
                     "CI repository identity mismatch",
                 )
                 verify_source(forge, tag, commit, root)
@@ -465,12 +579,11 @@ def publish(
         "release notes differ from tagged source",
     )
     gate = verify(forge, tag, commit, root, wait_seconds)
-    release_path = f"{API}/releases/tags/{urllib.parse.quote(tag, safe='')}"
-    release = forge.json("GET", release_path, missing=True)
+    release = forge.release_for_tag(tag)
     if release is None:
         release = forge.json(
             "POST",
-            f"{API}/releases",
+            f"{forge.api}/releases",
             {
                 "tag_name": tag,
                 "target_commitish": commit,
@@ -488,7 +601,7 @@ def publish(
         and release["prerelease"] is False,
         "existing release content/source mismatch",
     )
-    path = f"{API}/releases/{int(release['id'])}"
+    path = f"{forge.api}/releases/{int(release['id'])}"
     existing = forge.pages(path + "/assets")
     by_name = {item["name"]: item for item in existing}
     require(
@@ -502,24 +615,12 @@ def publish(
                 release["draft"] is True,
                 "published release is incomplete; mutation refused",
             )
-            boundary = "matric-" + uuid.uuid4().hex
-            upload = (
-                f'--{boundary}\r\nContent-Disposition: form-data; name="attachment"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode()
-                + data
-                + f"\r\n--{boundary}--\r\n".encode()
-            )
-            response = forge.request(
-                "POST",
-                path + "/assets?" + urllib.parse.urlencode({"name": name}),
-                upload,
-                f"multipart/form-data; boundary={boundary}",
-            )
-            item = json.loads(response or b"null")
+            item = forge.upload(path, name, data)
         require(
             item["name"] == name and item["size"] == len(data),
             "release asset metadata mismatch",
         )
-        downloaded = forge.request("GET", item["browser_download_url"], maximum=len(data))
+        downloaded = forge.download(item, len(data))
         require(
             downloaded is not None and digest(downloaded) == digest(data),
             "release asset content mismatch",
@@ -536,11 +637,10 @@ def publish(
         data = assets[item["name"]]
         require(
             item["size"] == len(data)
-            and digest(forge.request("GET", item["browser_download_url"], maximum=len(data)) or b"")
-            == digest(data),
+            and digest(forge.download(item, len(data)) or b"") == digest(data),
             "final release asset content mismatch",
         )
-    current = forge.json("GET", release_path)
+    current = forge.json("GET", path) if forge.github else forge.release_for_tag(tag)
     require(
         all(
             current.get(key) == release.get(key)
@@ -570,6 +670,7 @@ def publish(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("verify-source", "verify", "publish"))
+    parser.add_argument("--forge", choices=("gitea", "github"), default="gitea")
     parser.add_argument("--tag")
     parser.add_argument("--commit", required=True)
     parser.add_argument("--root", type=Path, default=Path("."))
@@ -579,7 +680,10 @@ def main() -> int:
     parser.add_argument("--notes", type=Path)
     args = parser.parse_args()
     try:
-        forge = Forge(os.environ.get("RELEASE_TOKEN", ""))
+        forge = Forge(
+            os.environ.get("GITHUB_TOKEN" if args.forge == "github" else "RELEASE_TOKEN", ""),
+            args.forge,
+        )
         require(args.command == "verify-source" or args.tag is not None, "tag is required")
         require(
             args.command != "verify-source" or args.tag is None,

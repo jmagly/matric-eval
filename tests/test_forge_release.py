@@ -68,8 +68,22 @@ def source(tmp_path, monkeypatch):
     return root, commit, notes
 
 
-@pytest.fixture
-def forge(source, monkeypatch):
+@pytest.fixture(params=["gitea", "github"])
+def forge(source, monkeypatch, request):
+    github = request.param == "github"
+    if github:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(source[0]),
+                "remote",
+                "set-url",
+                "origin",
+                "https://github.com/jmagly/matric-eval.git",
+            ],
+            check=True,
+        )
     state = {
         "release": None,
         "assets": {},
@@ -77,6 +91,8 @@ def forge(source, monkeypatch):
         "drop": None,
         "commit": source[1],
         "runs": [],
+        "annotated": github,
+        "requests": [],
     }
     state["runs"] = [
         {
@@ -85,9 +101,15 @@ def forge(source, monkeypatch):
             "head_sha": source[1],
             "status": "completed",
             "conclusion": "success",
-            "path": "ci.yml@refs/heads/main",
-            "repository": {"full_name": release.REPOSITORY},
-            "head_repository": {"full_name": release.REPOSITORY},
+            "path": ".github/workflows/ci.yml@refs/heads/main"
+            if github
+            else "ci.yml@refs/heads/main",
+            "repository": {
+                "full_name": release.GITHUB_REPOSITORY if github else release.REPOSITORY
+            },
+            "head_repository": {
+                "full_name": release.GITHUB_REPOSITORY if github else release.REPOSITORY
+            },
         }
     ]
 
@@ -104,10 +126,26 @@ def forge(source, monkeypatch):
 
         def do_GET(self):
             path, query = urlsplit(self.path).path, parse_qs(urlsplit(self.path).query)
-            if "/tags/" in path and "/releases/" not in path:
+            state["requests"].append((path, query, self.headers.get("Accept")))
+            if "/git/ref/tags/" in path:
+                self.reply(
+                    {
+                        "ref": "refs/tags/" + TAG,
+                        "object": {
+                            "type": "tag" if state["annotated"] else "commit",
+                            "sha": "a" * 40 if state["annotated"] else state["commit"],
+                        },
+                    }
+                )
+            elif "/git/tags/" in path:
+                self.reply({"object": {"type": "commit", "sha": state["commit"]}})
+            elif "/tags/" in path and "/releases/" not in path:
                 self.reply({"name": TAG, "commit": {"sha": state["commit"]}})
             elif path.endswith("/actions/runs"):
-                page, limit = int(query["page"][0]), int(query["limit"][0])
+                page, limit = (
+                    int(query["page"][0]),
+                    int(query["per_page" if github else "limit"][0]),
+                )
                 self.reply(
                     {
                         "workflow_runs": state["runs"][(page - 1) * limit : page * limit],
@@ -119,12 +157,20 @@ def forge(source, monkeypatch):
                     next(row for row in state["runs"] if row["id"] == int(path.rsplit("/", 1)[1]))
                 )
             elif "/releases/tags/" in path:
+                found = state["release"]
+                self.reply(found or {}, 200 if found and not (github and found["draft"]) else 404)
+            elif path.endswith("/releases"):
+                self.reply([state["release"]] if state["release"] else [])
+            elif path.endswith("/releases/1"):
                 self.reply(state["release"] or {}, 200 if state["release"] else 404)
             elif path.endswith("/assets"):
                 items = [item[0] for item in state["assets"].values()]
-                page, limit = int(query["page"][0]), int(query["limit"][0])
+                page, limit = (
+                    int(query["page"][0]),
+                    int(query["per_page" if github else "limit"][0]),
+                )
                 self.reply(items[(page - 1) * limit : page * limit])
-            elif path.startswith("/attachments/"):
+            elif path.startswith("/attachments/") or "/releases/assets/" in path:
                 self.reply(
                     next(
                         data
@@ -153,7 +199,9 @@ def forge(source, monkeypatch):
                     + b"\r\n\r\n"
                     + payload
                 )
-                data = message.get_payload()[0].get_payload(decode=True)
+                data = payload if github else message.get_payload()[0].get_payload(decode=True)
+                if github:
+                    assert self.headers["Content-Type"] == "application/octet-stream"
                 name = parse_qs(urlsplit(self.path).query)["name"][0]
                 assert name not in state["assets"]
                 item = {
@@ -186,9 +234,11 @@ def forge(source, monkeypatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     monkeypatch.setattr(release, "SERVER", f"http://127.0.0.1:{server.server_port}")
+    monkeypatch.setattr(release, "GITHUB_SERVER", release.SERVER)
+    monkeypatch.setattr(release, "GITHUB_UPLOADS", release.SERVER)
     monkeypatch.setattr(release, "PAGE_SIZE", 2)
     try:
-        yield release.Forge("fixture-not-a-live-token"), state
+        yield release.Forge("fixture-not-a-live-token", request.param), state
     finally:
         server.shutdown()
         server.server_close()
@@ -431,6 +481,10 @@ def test_noncanonical_asset_url_refused_before_credential_request(forge, artifac
     client, state = forge
     release.publish(client, **artifacts)
     item, _ = next(iter(state["assets"].values()))
+    if client.github:
+        with pytest.raises(release.Refused, match="noncanonical"):
+            client.request("GET", "https://example.invalid/attachment", asset=True)
+        return
     item["browser_download_url"] = "https://example.invalid/attachment"
     before = list(state["events"])
     with pytest.raises(release.Refused, match="noncanonical"):
@@ -537,3 +591,114 @@ def test_git_auth_is_ephemeral_environment_not_argv_or_saved_config(tmp_path, mo
     assert captured["env"]["GIT_CONFIG_VALUE_0"].startswith("Authorization: Basic ")
     assert captured["env"]["GIT_CONFIG_KEY_1"] == "http.followRedirects"
     assert captured["env"]["GIT_CONFIG_VALUE_1"] == "false"
+
+
+def test_github_lightweight_tag_and_binary_asset_api(forge, artifacts):
+    client, state = forge
+    if not client.github:
+        return
+    state["annotated"] = False
+    release.publish(client, **artifacts)
+    assert any("/git/ref/tags/" in path for path, _, _ in state["requests"])
+    assert not any("/git/tags/" in path for path, _, _ in state["requests"])
+    assert all(
+        "per_page" in query for path, query, _ in state["requests"] if path.endswith("/assets")
+    )
+    assert all(
+        accept == "application/octet-stream"
+        for path, _, accept in state["requests"]
+        if "/releases/assets/" in path
+    )
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "http://release-assets.githubusercontent.com/file?sig=x",
+        "https://release-assets.githubusercontent.com.evil.invalid/file?sig=x",
+        "https://user@release-assets.githubusercontent.com/file?sig=x",
+        "https://release-assets.githubusercontent.com/file",
+        "https://example.invalid/file?sig=x",
+    ],
+)
+def test_github_download_redirect_rejects_untrusted_destinations(destination):
+    request = release.urllib.request.Request(
+        "https://api.github.com/repos/jmagly/matric-eval/releases/assets/1",
+        headers={"Authorization": "Bearer private"},
+    )
+    with pytest.raises(release.Refused):
+        release.SafeRedirect("https://api.github.com", asset=True).redirect_request(
+            request, None, 302, "", {}, destination
+        )
+
+
+def test_github_signed_asset_redirect_strips_credentials_and_never_restores_them():
+    request = release.urllib.request.Request(
+        "https://api.github.com/repos/jmagly/matric-eval/releases/assets/1",
+        headers={"Authorization": "Bearer private", "Cookie": "private"},
+    )
+    handler = release.SafeRedirect("https://api.github.com", asset=True)
+    redirected = handler.redirect_request(
+        request, None, 302, "", {}, "https://release-assets.githubusercontent.com/file?sig=x"
+    )
+    assert redirected.get_header("Authorization") is None
+    assert redirected.get_header("Cookie") is None
+    returned = handler.redirect_request(redirected, None, 302, "", {}, request.full_url)
+    assert returned.get_header("Authorization") is None
+    with pytest.raises(release.Refused):
+        release.SafeRedirect("https://api.github.com").redirect_request(
+            request, None, 302, "", {}, "https://release-assets.githubusercontent.com/file?sig=x"
+        )
+
+
+@pytest.mark.parametrize("identity", ["repository", "head_repository"])
+def test_foreign_ci_repository_cannot_authorize_publication(forge, artifacts, identity):
+    client, state = forge
+    state["runs"][0][identity] = {"full_name": "attacker/matric-eval"}
+    with pytest.raises(release.Refused, match="repository identity"):
+        release.publish(client, **artifacts)
+    assert state["events"] == []
+
+
+def test_cli_github_selects_only_native_token(monkeypatch, capsys):
+    import sys
+
+    observed = {}
+    monkeypatch.setenv("RELEASE_TOKEN", "must-not-use-this-token")
+    monkeypatch.setenv("GITHUB_TOKEN", "native-fixture-token")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["publish_forge_release.py", "verify-source", "--forge", "github", "--commit", "a" * 40],
+    )
+
+    def verified(client, *args):
+        observed.update(token=client.token, repository=client.repository, api=client.api)
+        return {"verified": True}
+
+    monkeypatch.setattr(release, "verify", verified)
+    assert release.main() == 0
+    assert observed == {
+        "token": "native-fixture-token",
+        "repository": "jmagly/matric-eval",
+        "api": "/repos/jmagly/matric-eval",
+    }
+    assert "token" not in capsys.readouterr().out
+
+
+def test_github_git_auth_is_scoped_and_ephemeral(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    captured = {}
+    monkeypatch.delenv("RELEASE_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "native-fixture-token")
+
+    def invoked(command, **kwargs):
+        captured.update(command=command, **kwargs)
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(release.subprocess, "run", invoked)
+    release.git(tmp_path, "fetch", "origin")
+    assert "native-fixture-token" not in repr(captured["command"])
+    assert captured["env"]["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    assert captured["env"]["GIT_CONFIG_VALUE_0"].startswith("Authorization: Basic ")

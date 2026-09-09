@@ -90,7 +90,10 @@ The `github` remote is a public mirror. Follow the delivery policy in
 [AIWG configuration](.aiwg/aiwg.config): changes require a pull request to `main`,
 green CI, and no force pushes. CalVer `YYYY.M.PATCH` versions are synchronized by `make version-bump` and checked
 by `make version-check`. The validated [release workflow](.gitea/workflows/release.yml)
-attaches Gitea release downloads; Python and npm registry publishing are disabled.
+attaches Gitea release downloads; the equivalent
+[GitHub workflow](.github/workflows/release.yml) attaches GitHub release downloads
+when the checked tag is pushed to the mirror. Python and npm registry publishing
+are disabled.
 See [the release guide](docs/development/releasing.md).
 
 <!-- AIWG:workspace-operator:end -->

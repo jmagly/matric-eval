@@ -10,7 +10,7 @@ The patch counter starts at zero each UTC month; historical SemVer tags remain u
 
 - Adopted synchronized CalVer versions for Python, TypeScript and their lockfiles,
   with one checked bump command and strict tag/package agreement.
-- Changed release distribution to verified Gitea downloads. Python and npm
+- Changed release distribution to verified Gitea and GitHub downloads. Python and npm
   registry publication is disabled.
 - Require the tagged source to belong to main and pass exact-commit CI before
   release uploads. Draft staging and digest checks make retries safe.
