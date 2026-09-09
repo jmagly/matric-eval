@@ -1,0 +1,648 @@
+{
+  "errors": [],
+  "generated_at": "2026-09-09T01:49:14Z",
+  "metrics": {
+    "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/evaluation.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 124,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py": {
+      "CONFIDENCE.HIGH": 27,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 27,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1223,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions_registry.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 120,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions_util.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1639,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "_totals": {
+      "CONFIDENCE.HIGH": 28,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 28,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 3108,
+      "nosec": 0,
+      "skipped_tests": 0
+    }
+  },
+  "results": [
+    {
+      "code": "147         if self._language is None:\n148             self._language = random.choice(list(_LANGUAGES.keys()))\n149         # TODO(tianjianlu): opens the description generation to more choices.\n",
+      "col_offset": 29,
+      "end_col_offset": 67,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 148,
+      "line_range": [
+        148
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "172         \"\"\"\n173         assert isinstance(value, str)\n174 \n",
+      "col_offset": 8,
+      "end_col_offset": 37,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+      "line_number": 173,
+      "line_range": [
+        173
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html",
+      "test_id": "B101",
+      "test_name": "assert_used"
+    },
+    {
+      "code": "205         if self._num_sentences_threshold is None or self._num_sentences_threshold < 0:\n206             self._num_sentences_threshold = random.randint(1, _MAX_NUM_SENTENCES)\n207 \n",
+      "col_offset": 44,
+      "end_col_offset": 81,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 206,
+      "line_range": [
+        206
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "208         if relation is None:\n209             self._comparison_relation = random.choice(_COMPARISON_RELATION)\n210         elif relation not in _COMPARISON_RELATION:\n",
+      "col_offset": 40,
+      "end_col_offset": 75,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 209,
+      "line_range": [
+        209
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "271         if self._num_placeholders is None or self._num_placeholders < 0:\n272             self._num_placeholders = random.randint(1, _NUM_PLACEHOLDERS)\n273         self._description_pattern = (\n",
+      "col_offset": 37,
+      "end_col_offset": 73,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 272,
+      "line_range": [
+        272
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "316         if self._num_bullets is None or self._num_bullets < 0:\n317             self._num_bullets = random.randint(1, _NUM_BULLETS)\n318         self._description_pattern = (\n",
+      "col_offset": 32,
+      "end_col_offset": 63,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 317,
+      "line_range": [
+        317
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "404         if self._starter is None:\n405             self._starter = random.choice(_STARTER_OPTIONS)\n406         self._description_pattern = (\n",
+      "col_offset": 28,
+      "end_col_offset": 59,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 405,
+      "line_range": [
+        405
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "451         if self._num_highlights is None or self._num_highlights < 0:\n452             self._num_highlights = random.randint(1, _NUM_HIGHLIGHTED_SECTIONS)\n453 \n",
+      "col_offset": 35,
+      "end_col_offset": 79,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 452,
+      "line_range": [
+        452
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "512         if self._section_spliter is None:\n513             self._section_spliter = random.choice(_SECTION_SPLITER)\n514 \n",
+      "col_offset": 36,
+      "end_col_offset": 67,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 513,
+      "line_range": [
+        513
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "516         if self._num_sections is None or self._num_sections < 0:\n517             self._num_sections = random.randint(1, _NUM_SECTIONS)\n518 \n",
+      "col_offset": 33,
+      "end_col_offset": 65,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 517,
+      "line_range": [
+        517
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "575         if self._num_paragraphs is None or self._num_paragraphs < 0:\n576             self._num_paragraphs = random.randint(1, _NUM_PARAGRAPHS)\n577 \n",
+      "col_offset": 35,
+      "end_col_offset": 69,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 576,
+      "line_range": [
+        576
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "635         if self._postscript_marker is None:\n636             self._postscript_marker = random.choice(_POSTSCRIPT_MARKER)\n637 \n",
+      "col_offset": 38,
+      "end_col_offset": 71,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 636,
+      "line_range": [
+        636
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "810         if self._frequency is None or self._frequency < 0:\n811             self._frequency = random.randint(1, _KEYWORD_FREQUENCY)\n812 \n",
+      "col_offset": 30,
+      "end_col_offset": 67,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 811,
+      "line_range": [
+        811
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "813         if relation is None:\n814             self._comparison_relation = random.choice(_COMPARISON_RELATION)\n815         elif relation not in _COMPARISON_RELATION:\n",
+      "col_offset": 40,
+      "end_col_offset": 75,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 814,
+      "line_range": [
+        814
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "876         if self._num_words is None or self._num_words < 0:\n877             self._num_words = random.randint(\n878                 _NUM_WORDS_LOWER_LIMIT, _NUM_WORDS_UPPER_LIMIT\n879             )\n880 \n",
+      "col_offset": 30,
+      "end_col_offset": 13,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 877,
+      "line_range": [
+        877,
+        878,
+        879
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "881         if relation is None:\n882             self._comparison_relation = random.choice(_COMPARISON_RELATION)\n883         elif relation not in _COMPARISON_RELATION:\n",
+      "col_offset": 40,
+      "end_col_offset": 75,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 882,
+      "line_range": [
+        882
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "970         if self._num_paragraphs is None or self._num_paragraphs < 0:\n971             self._num_paragraphs = random.randint(1, _NUM_PARAGRAPHS)\n972 \n",
+      "col_offset": 35,
+      "end_col_offset": 69,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 971,
+      "line_range": [
+        971
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "978         ):\n979             self._nth_paragraph = random.randint(1, self._num_paragraphs + 1)\n980 \n",
+      "col_offset": 34,
+      "end_col_offset": 77,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 979,
+      "line_range": [
+        979
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1079         if not num_sentences:\n1080             self._num_sentences = random.randint(1, len(self._key_sentences))\n1081         else:\n",
+      "col_offset": 34,
+      "end_col_offset": 77,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1080,
+      "line_range": [
+        1080
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1311         if self._end_phrase is None:\n1312             self._end_phrase = random.choice(_ENDING_OPTIONS)\n1313         self._description_pattern = (\n",
+      "col_offset": 31,
+      "end_col_offset": 61,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1312,
+      "line_range": [
+        1312
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1387         ):\n1388             self._letter = random.choice(list(string.ascii_letters))\n1389         else:\n",
+      "col_offset": 27,
+      "end_col_offset": 68,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1388,
+      "line_range": [
+        1388
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1394         if self._frequency is None or self._frequency < 0:\n1395             self._frequency = random.randint(1, _LETTER_FREQUENCY)\n1396 \n",
+      "col_offset": 30,
+      "end_col_offset": 66,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1395,
+      "line_range": [
+        1395
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1397         if let_relation is None:\n1398             self._comparison_relation = random.choice(_COMPARISON_RELATION)\n1399         elif let_relation not in _COMPARISON_RELATION:\n",
+      "col_offset": 40,
+      "end_col_offset": 75,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1398,
+      "line_range": [
+        1398
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1459         \"\"\"Checks that the response is in English and in all capital letters.\"\"\"\n1460         assert isinstance(value, str)\n1461 \n",
+      "col_offset": 8,
+      "end_col_offset": 37,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+      "line_number": 1460,
+      "line_range": [
+        1460
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html",
+      "test_id": "B101",
+      "test_name": "assert_used"
+    },
+    {
+      "code": "1491         \"\"\"Checks that the response is in English and in all lowercase letters.\"\"\"\n1492         assert isinstance(value, str)\n1493 \n",
+      "col_offset": 8,
+      "end_col_offset": 37,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+      "line_number": 1492,
+      "line_range": [
+        1492
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html",
+      "test_id": "B101",
+      "test_name": "assert_used"
+    },
+    {
+      "code": "1546         if self._frequency is None:\n1547             self._frequency = random.randint(1, _ALL_CAPITAL_WORD_FREQUENCY)\n1548 \n",
+      "col_offset": 30,
+      "end_col_offset": 76,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1547,
+      "line_range": [
+        1547
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1550         if capital_relation is None:\n1551             self._comparison_relation = random.choice(_COMPARISON_RELATION)\n1552         elif capital_relation not in _COMPARISON_RELATION:\n",
+      "col_offset": 40,
+      "end_col_offset": 75,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1551,
+      "line_range": [
+        1551
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1671     \"\"\"Randomly generates a few keywords.\"\"\"\n1672     return random.sample(WORD_LIST, k=num_keywords)\n",
+      "col_offset": 11,
+      "end_col_offset": 51,
+      "filename": "/srv/matric-eval/cache/uv-calver-final/git-v0/checkouts/18674cd99ef1c97a/0c495b2/instruction_following_eval/instructions_util.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 330,
+        "link": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+      "line_number": 1672,
+      "line_range": [
+        1672
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random",
+      "test_id": "B311",
+      "test_name": "blacklist"
+    }
+  ]
+}

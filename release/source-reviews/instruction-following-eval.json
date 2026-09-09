@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "name": "instruction-following-eval",
+  "version": "0.1.0",
+  "repository": "https://github.com/josejg/instruction_following_eval.git",
+  "commit": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2",
+  "reviewed_at": "2026-09-09",
+  "expires": "2026-10-09",
+  "disposition": "accepted-scoped-source-review",
+  "scope": "Exact noneditable VCS payload used by Inspect IFEval with trusted pinned benchmark instruction metadata and bounded model responses; not an internet-facing arbitrary-input service or a general NLTK security attestation.",
+  "installed_direct_url": {
+    "url": "https://github.com/josejg/instruction_following_eval.git",
+    "vcs_info": {
+      "vcs": "git",
+      "commit_id": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2",
+      "requested_revision": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2"
+    }
+  },
+  "installed_files": [
+    {
+      "path": "instruction_following_eval/__init__.py",
+      "sha256": "3da75c2bf93dd2d80fe64d8c0f8554d53fb524a91074d99ec3a0923aa6fba9e0"
+    },
+    {
+      "path": "instruction_following_eval/data/input_data.jsonl",
+      "sha256": "67ffeee0fcb87c317c5b08a2de85557b4a7e96ada6178aa645b4954fe4b53d49"
+    },
+    {
+      "path": "instruction_following_eval/evaluation.py",
+      "sha256": "b0c840ded13a982a1d0f037a7016964a125524f8efb810e7c834a1b794389e67"
+    },
+    {
+      "path": "instruction_following_eval/instructions.py",
+      "sha256": "78384a06c7bd4c1c1acb0078b502f0407fc15115e94b1b56f55bc64f19034603"
+    },
+    {
+      "path": "instruction_following_eval/instructions_registry.py",
+      "sha256": "7871d6d079c3becda2a11fedfe97ad15101428673a538926230636fb213bc375"
+    },
+    {
+      "path": "instruction_following_eval/instructions_util.py",
+      "sha256": "0547a73759455669b762779333330899800cafc0a8884d983ad2015ff98e0dbc"
+    }
+  ],
+  "source_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "5e2c671ddc9e301dafc241ad1a7c07aa85a91fef560a17721b41977b9eddba17"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "README.md",
+      "sha256": "9654ebd17a23e699ca5afff918aae7bee353817e400fe978a9d511c7495d1ae5"
+    },
+    {
+      "path": "instruction_following_eval/__init__.py",
+      "sha256": "3da75c2bf93dd2d80fe64d8c0f8554d53fb524a91074d99ec3a0923aa6fba9e0"
+    },
+    {
+      "path": "instruction_following_eval/data/input_data.jsonl",
+      "sha256": "67ffeee0fcb87c317c5b08a2de85557b4a7e96ada6178aa645b4954fe4b53d49"
+    },
+    {
+      "path": "instruction_following_eval/evaluation.py",
+      "sha256": "b0c840ded13a982a1d0f037a7016964a125524f8efb810e7c834a1b794389e67"
+    },
+    {
+      "path": "instruction_following_eval/instructions.py",
+      "sha256": "78384a06c7bd4c1c1acb0078b502f0407fc15115e94b1b56f55bc64f19034603"
+    },
+    {
+      "path": "instruction_following_eval/instructions_registry.py",
+      "sha256": "7871d6d079c3becda2a11fedfe97ad15101428673a538926230636fb213bc375"
+    },
+    {
+      "path": "instruction_following_eval/instructions_util.py",
+      "sha256": "0547a73759455669b762779333330899800cafc0a8884d983ad2015ff98e0dbc"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "3736ffa7d7fc270daa44ef5b2d400312f7a58b141ecbf005ca521cec84892cd6"
+    },
+    {
+      "path": "test/instructions_test.py",
+      "sha256": "28d0e59113866fb593baff002216121655e82d2bb9bd5efbe5a9bd37236ea02a"
+    },
+    {
+      "path": "test/instructions_util_test.py",
+      "sha256": "f18c8a8e1b6b1e13a765ebc0da7d400088718d605d5e3ebee6be6e4f8230fd00"
+    }
+  ],
+  "source_payload_sha256": "fd8cea5320c97129bbdd0f5d431326a9cadeca9230e8adefa506fdb5dd71eaa4",
+  "source_payload_hash_algorithm": "sha256(JSON UTF-8 source_files array, sorted object keys, separators comma/colon)",
+  "runtime_dependencies": {
+    "nltk": "3.10.3"
+  },
+  "runtime_review": {
+    "inspect-evals": "0.19.0",
+    "nltk_data_sha256": "cda75896c3639541f3c3b811d647354dc5829774c2f201a7c942896f5cb99dc8"
+  },
+  "license": {
+    "identifier": "Apache-2.0",
+    "source": "LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  "findings": [
+    {
+      "id": "B311",
+      "count": 25,
+      "severity": "LOW",
+      "status": "resolved",
+      "resolution": "Context review: random selections generate benchmark instruction defaults/keywords, not secrets, authorization tokens or cryptographic material. No cryptographic suitability claim; reproducibility still requires explicit benchmark arguments/seeds."
+    },
+    {
+      "id": "B101",
+      "count": 3,
+      "severity": "LOW",
+      "status": "resolved",
+      "resolution": "Context review: assertions check response string type, not an authorization boundary. Supported caller supplies strings; optimized Python is not relied upon for hostile-input validation."
+    }
+  ],
+  "checks": [
+    {
+      "name": "installed-payload-binding",
+      "status": "passed",
+      "detail": "All six installed package payload files, including data/input_data.jsonl, equal tracked source bytes; direct_url is noneditable and names exact commit."
+    },
+    {
+      "name": "manual-runtime-and-build-review",
+      "status": "completed",
+      "detail": "Read runtime modules and declarative setuptools build configuration; AST call inventory covers all Python runtime and test files. No eval/exec/subprocess or dynamic code import from response strings found. Dataset JSON and word/language constants are data."
+    },
+    {
+      "name": "bandit",
+      "version": "1.8.6",
+      "status": "reviewed-findings",
+      "exit_code": 1,
+      "summary": {
+        "B311": 25,
+        "B101": 3
+      },
+      "errors": [],
+      "metrics": {
+        "CONFIDENCE.HIGH": 28,
+        "CONFIDENCE.LOW": 0,
+        "CONFIDENCE.MEDIUM": 0,
+        "CONFIDENCE.UNDEFINED": 0,
+        "SEVERITY.HIGH": 0,
+        "SEVERITY.LOW": 28,
+        "SEVERITY.MEDIUM": 0,
+        "SEVERITY.UNDEFINED": 0,
+        "loc": 3108,
+        "nosec": 0,
+        "skipped_tests": 0
+      },
+      "evidence": "instruction-following-eval-bandit.json"
+    },
+    {
+      "name": "bounded-runtime-checks",
+      "status": "passed",
+      "detail": {
+        "hardcoded_pickle_path_redirects_without_open": true,
+        "response_python_text_remains_data": true,
+        "models_loaded": 0
+      },
+      "evidence": "instruction-following-eval-inventory.json"
+    },
+    {
+      "name": "OSV-commit-query",
+      "status": "no-indexed-matches",
+      "http_status": 200,
+      "response": {},
+      "query": {
+        "commit": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2"
+      },
+      "evidence": "instruction-following-eval-osv.json",
+      "limitation": "Empty response does not establish repository/commit indexing coverage or absence of vulnerabilities."
+    },
+    {
+      "name": "upstream-published-advisories",
+      "status": "none-published-observed",
+      "url": "https://github.com/josejg/instruction_following_eval/security/advisories",
+      "observed_text": "There aren't any published security advisories",
+      "limitation": "Public maintainer advisories only; not a complete vulnerability database or independent audit."
+    }
+  ],
+  "limitations": [
+    "pip-audit cannot audit this VCS distribution as a PyPI release. Preserve its raw skip reason; this source review is separate evidence, never a clean PyPI audit result. Other dependency audit failures remain fatal.",
+    "NLTK helper downloads punkt and punkt_tab into ~/.cache/nltk_data when absent, including through inspect_evals. These external resource bytes are not pinned by this VCS receipt. Preprovision/review resources separately for offline or reproducible studies; this review does not attest their integrity.",
+    "The source names english.pickle, but locked NLTK3.10.3 redirects that hardcoded path to pickle-free PunktTokenizer before opening it. A bounded monkeypatched check verifies this control flow only; it does not validate every NLTK parser/resource or later NLTK versions.",
+    "Several regex patterns incorporate benchmark kwargs without escaping. Instruction metadata is trusted pinned input, not model output; arbitrary user-controlled metadata is outside this review. Responses are treated as text/JSON, but the evaluator has no intrinsic CPU/memory/response-length limit. Callers must bound responses and isolate hostile workloads.",
+    "Language detection errors log response text and return true in three checkers. Do not treat benchmark responses/logs as secret-safe or these quality scores as authorization decisions.",
+    "Build uses declarative setuptools.build_meta with unbounded upstream setuptools>=61 and wheel requirements. No custom setup.py/backend code is present; build-tool and transitive dependency advisories are separate release gates.",
+    "Bandit is a heuristic scan, not proof of exploit absence. No full fuzzing, proof of regex complexity, upstream functional test suite, live model scoring or NLTK downloads were performed for this review.",
+    "Changing repository, commit, installed payload, NLTK version or accepted input scope invalidates this review. Expiry is 30 days from review date."
+  ],
+  "references": [
+    "https://github.com/josejg/instruction_following_eval/tree/0c495b2f95155e8b10acb919ae283bfb4d5be6e2",
+    "https://raw.githubusercontent.com/josejg/instruction_following_eval/0c495b2f95155e8b10acb919ae283bfb4d5be6e2/LICENSE",
+    "https://github.com/josejg/instruction_following_eval/security/advisories",
+    "https://api.osv.dev/v1/query"
+  ],
+  "evidence_files": [
+    {
+      "path": "instruction-following-eval-bandit.json",
+      "sha256": "e0f1cd2e7c8a2ba6ed55c4b87cccfd71b911209de6b0f60c9dbb4eb8b43b13a5"
+    },
+    {
+      "path": "instruction-following-eval-inventory.json",
+      "sha256": "847d6b89104f274e2794d8201d3bd08e67e95ce0994e7cdd190401f0760e8c64"
+    },
+    {
+      "path": "instruction-following-eval-osv.json",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "path": "instruction-following-eval-osv.headers",
+      "sha256": "2cfab36d95c5c0f6b00d378fea01cbdb400a1bc4811fead9cb0768fe7b121771"
+    },
+    {
+      "path": "instruction-following-eval-review.py",
+      "sha256": "85e4136bff74ff6e1a097a3412900bda6568353166ecf11c82eff446f31fe779"
+    }
+  ]
+}
