@@ -158,6 +158,12 @@ def main() -> int:
     parser.add_argument("--scored-ids", type=Path, required=True)
     parser.add_argument("--tau-checkout", type=Path, required=True)
     parser.add_argument("--tau-patch-manifest", type=Path, default=tau.DEFAULT_TAU_PATCH_MANIFEST)
+    parser.add_argument(
+        "--tau-simulator-patch-manifest",
+        type=Path,
+        default=tau.DEFAULT_TAU_SIMULATOR_PATCH_MANIFEST,
+    )
+    parser.add_argument("--receipt", type=Path)
     args = parser.parse_args()
     result: dict[str, object] = {
         "schema": "matric-eval.tau-preflight/1",
@@ -181,7 +187,11 @@ def main() -> int:
         result["manifest_sha256"] = tau._verify_manifest(args.manifest, summary, ids, study["id"])
         result["ordered_ids"] = ids
     elif args.mode == "patch":
-        result["patch"] = tau._tau_worktree_evidence(args.tau_checkout, args.tau_patch_manifest)
+        result["patch"] = tau._tau_worktree_evidence(
+            args.tau_checkout,
+            args.tau_patch_manifest,
+            args.tau_simulator_patch_manifest,
+        )
     elif args.mode == "dependencies":
         versions = {}
         missing = []
@@ -222,7 +232,13 @@ def main() -> int:
         result["launcher"] = launcher_smoke(args)
     else:
         result["sandbox"] = tau._knowledge_dependency_evidence()
-    write_receipt(Path(os.environ["MATRIC_PREFLIGHT_RECEIPT"]), result)
+    receipt = args.receipt
+    if receipt is None:
+        configured_receipt = os.environ.get("MATRIC_PREFLIGHT_RECEIPT")
+        if not configured_receipt:
+            raise ValueError("preflight receipt path is required")
+        receipt = Path(configured_receipt)
+    write_receipt(receipt, result)
     return 0
 
 

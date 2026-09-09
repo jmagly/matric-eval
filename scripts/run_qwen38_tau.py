@@ -9,9 +9,7 @@ import importlib.metadata
 import json
 import os
 import platform
-import shutil
 import subprocess
-import tempfile
 import time
 import urllib.request
 from collections import Counter
@@ -26,7 +24,11 @@ from qwen38_tau_context import (
     exception_chain,
     load_attested_tokenizer,
     load_patch_contract,
-    verify_tau_checkout,
+)
+from qwen38_tau_sandbox import knowledge_dependency_evidence
+from qwen38_tau_simulator import (
+    load_simulator_patch_contract,
+    verify_tau_simulator_checkout,
 )
 
 from matric_eval.studies.preflight import manifest_order
@@ -34,14 +36,16 @@ from matric_eval.studies.run_status import AdapterStatus, adapter_main
 
 TAU_PACKAGE_VERSION = "1.0.1"
 TAU_SOURCE_REVISION = "672227c6b6676edc20d57ea53b7000262aae77b9"
-SANDBOX_RUNTIME_PACKAGE_VERSION = "0.0.23"
-RANK_BM25_PACKAGE_VERSION = "0.2.2"
 TAU_EXTERNAL_MODEL = "gpt-4.1-2025-04-14"
 CONTEXT_SAFETY_MARGIN_TOKENS = 32
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TAU_PATCH_MANIFEST = (
     REPOSITORY_ROOT / "studies/qwen38-obliteration-2026-09/patches/tau2-1.0.1-context-guard.json"
+)
+DEFAULT_TAU_SIMULATOR_PATCH_MANIFEST = (
+    REPOSITORY_ROOT / "studies/qwen38-obliteration-2026-09/patches/"
+    "tau2-1.0.1-simulator-interface-guard.json"
 )
 JsonObject = dict[str, Any]
 SENSITIVE_FRAGMENTS = ("key", "token", "secret", "password", "credential")
@@ -76,11 +80,16 @@ def _git_revision(checkout: Path) -> str:
     return revision
 
 
-def _tau_worktree_evidence(checkout: Path, manifest_path: Path) -> JsonObject:
-    contract = load_patch_contract(manifest_path)
-    if contract.upstream_revision != TAU_SOURCE_REVISION:
+def _tau_worktree_evidence(
+    checkout: Path, context_manifest_path: Path, simulator_manifest_path: Path
+) -> JsonObject:
+    context_contract = load_patch_contract(context_manifest_path)
+    simulator_contract = load_simulator_patch_contract(simulator_manifest_path)
+    if context_contract.upstream_revision != TAU_SOURCE_REVISION:
         raise RuntimeError("Tau patch manifest does not match the protocol-pinned revision")
-    return verify_tau_checkout(checkout, contract)
+    if simulator_contract.context_contract != context_contract:
+        raise RuntimeError("Tau patch-chain prerequisite differs from the context manifest")
+    return verify_tau_simulator_checkout(checkout, simulator_contract)
 
 
 def _generation_seed(root_seed: int, sample_id: str) -> int:
@@ -143,6 +152,52 @@ def _flatten_scored_ids(scored_by_domain: JsonObject) -> list[str]:
     if len(flattened) != len(set(flattened)):
         raise ValueError("tau scored IDs must be unique")
     return flattened
+
+
+def _manifest_ordered_scored_ids(manifest_path: Path, scored_ids: list[str]) -> list[str]:
+    """Restore selection order lost by the domain-grouped input representation."""
+    manifest = _load_object(manifest_path, "study manifest")
+    allocations = manifest.get("allocations", [])
+    matches = [
+        a for a in allocations if isinstance(a, dict) and a.get("allocation_id") == "tau3-bench"
+    ]
+    selected = matches[0].get("selected_ids") if len(matches) == 1 else None
+    if (
+        not isinstance(selected, list)
+        or not all(isinstance(value, str) for value in selected)
+        or len(selected) != len(set(selected))
+        or len(scored_ids) != len(set(scored_ids))
+        or len(selected) != len(scored_ids)
+        or set(selected) != set(scored_ids)
+    ):
+        raise ValueError("tau scored IDs do not exactly match the study manifest membership")
+    return list(selected)
+
+
+def _select_diagnostic_ids(
+    cohort_ids: list[str], requested_ids: list[str] | None
+) -> tuple[list[str], JsonObject]:
+    """Select a manifest-ordered diagnostic subset without changing cohort identity."""
+    if not requested_ids:
+        return cohort_ids, {
+            "kind": "declared-cohort",
+            "cohort_size": len(cohort_ids),
+            "official_comparison": True,
+        }
+    if len(requested_ids) != len(set(requested_ids)):
+        raise ValueError("diagnostic IDs must be unique")
+    unknown = sorted(set(requested_ids) - set(cohort_ids))
+    if unknown:
+        raise ValueError("diagnostic IDs must belong to the declared cohort")
+    selected = [canonical_id for canonical_id in cohort_ids if canonical_id in requested_ids]
+    if selected != requested_ids:
+        raise ValueError("diagnostic IDs must preserve declared manifest order")
+    return selected, {
+        "kind": "diagnostic-subset",
+        "cohort_size": len(cohort_ids),
+        "selected_ids": selected,
+        "official_comparison": False,
+    }
 
 
 def _verify_manifest(
@@ -257,46 +312,7 @@ def _redact_sensitive(value: Any) -> Any:
 
 
 def _knowledge_dependency_evidence() -> JsonObject:
-    binaries = {name: shutil.which(name) for name in ("srt", "rg", "bwrap", "socat")}
-    missing = [name for name, path in binaries.items() if path is None]
-    if missing:
-        raise RuntimeError("tau banking sandbox dependencies are missing: " + ", ".join(missing))
-    npm = subprocess.run(
-        ["npm", "list", "-g", "--json", "@anthropic-ai/sandbox-runtime"],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    npm_payload = json.loads(npm.stdout)
-    dependencies = npm_payload.get("dependencies") if isinstance(npm_payload, dict) else None
-    package = (
-        dependencies.get("@anthropic-ai/sandbox-runtime")
-        if isinstance(dependencies, dict)
-        else None
-    )
-    npm_version = package.get("version") if isinstance(package, dict) else None
-    if npm_version != SANDBOX_RUNTIME_PACKAGE_VERSION:
-        raise RuntimeError("sandbox-runtime package version does not match the tau contract")
-    rank_bm25_version = importlib.metadata.version("rank-bm25")
-    if rank_bm25_version != RANK_BM25_PACKAGE_VERSION:
-        raise RuntimeError("rank-bm25 package version does not match the tau contract")
-
-    from tau2.knowledge.sandbox_manager import SandboxManager
-
-    with tempfile.TemporaryDirectory(prefix="tau-sandbox-canary-") as base:
-        with SandboxManager(base_temp_dir=base) as sandbox:
-            code, stdout, stderr = sandbox.run_command("printf sandbox-canary")
-    if code != 0 or stdout != "sandbox-canary" or stderr:
-        raise subprocess.CalledProcessError(
-            code, "tau banking sandbox execution canary", output=stdout, stderr=stderr
-        )
-    return {
-        "binaries": binaries,
-        "sandbox_runtime_npm_version": npm_version,
-        "rank_bm25_version": rank_bm25_version,
-        "execution_canary": "passed",
-    }
+    return knowledge_dependency_evidence()
 
 
 def _validate_context_allocation(
@@ -446,6 +462,34 @@ def _context_invalid_failure(exc: TargetContextRuntimeInvalid) -> JsonObject:
     }
 
 
+def _runtime_invalid_failure(exc: BaseException) -> JsonObject:
+    if isinstance(exc, TargetContextRuntimeInvalid):
+        return _context_invalid_failure(exc)
+    evidence = getattr(exc, "evidence", None)
+    if not isinstance(evidence, dict):
+        raise TypeError("typed Tau runtime failure omitted its evidence object")
+    actor = evidence.get("actor")
+    if not isinstance(actor, str):
+        raise TypeError("typed Tau runtime failure omitted its actor")
+    owner = {
+        "target-model": "target-model",
+        "user-simulator": "simulator",
+        "evaluator": "evaluator",
+        "harness-interface": "harness-interface",
+    }.get(actor, "mixed-uncertain")
+    return {
+        "owner": owner,
+        "actor": actor,
+        "stage": evidence.get("stage"),
+        "reason": evidence.get("reason"),
+        "retryable": False,
+        "http_attempted": evidence.get("http_attempted"),
+        "side_effect_retry_attempted": evidence.get("side_effect_retry_attempted", False),
+        "recovery_attempted": evidence.get("recovery_attempted", False),
+        "exception_chain": [{"type": type(exc).__name__, "message": str(exc)[:500]}],
+    }
+
+
 def run_tau(args: argparse.Namespace) -> JsonObject:
     if platform.node() != "basilisk":
         raise RuntimeError("tau study execution requires host basilisk")
@@ -456,10 +500,21 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     if _git_revision(args.tau_checkout) != TAU_SOURCE_REVISION:
         raise RuntimeError("tau source checkout revision does not match the study contract")
     patch_contract = load_patch_contract(args.tau_patch_manifest)
-    tau_worktree = _tau_worktree_evidence(args.tau_checkout, args.tau_patch_manifest)
+    simulator_patch_contract = load_simulator_patch_contract(args.tau_simulator_patch_manifest)
+    tau_worktree = _tau_worktree_evidence(
+        args.tau_checkout,
+        args.tau_patch_manifest,
+        args.tau_simulator_patch_manifest,
+    )
 
     study, model, sampler = _load_protocol(args.protocol, args.model_id)
     runtime = model["runtime"]
+    local_amendment = None
+    if getattr(args, "local_simulator", False):
+        from qwen38_tau_local import configure_local
+
+        local_amendment = configure_local()
+        sampler = {**sampler, "max_tokens": 4096}
     context_budget = _context_budget(runtime["context_limit"], sampler["max_tokens"])
     target_names = {
         args.model_id,
@@ -471,6 +526,11 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
         raise ValueError("a target model may not score tau natural-language assertions")
     auxiliary_profile = None
     auxiliary_amendment = None
+    if local_amendment and (
+        getattr(args, "auxiliary_client_profile", None)
+        or getattr(args, "auxiliary_amendment", None)
+    ):
+        raise ValueError("local simulator and auxiliary client modes are mutually exclusive")
     if getattr(args, "auxiliary_amendment", None) and not getattr(
         args, "auxiliary_client_profile", None
     ):
@@ -493,8 +553,15 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             raise ValueError("external models must match the declared auxiliary amendment")
         if auxiliary_profile.target_model not in target_names:
             raise ValueError("auxiliary amendment target identity does not match this run")
-    elif args.user_model != TAU_EXTERNAL_MODEL or args.nl_evaluator_model != TAU_EXTERNAL_MODEL:
-        raise ValueError(f"tau external models must use fixed snapshot {TAU_EXTERNAL_MODEL}")
+    expected_external = (
+        local_amendment["simulator_model"]
+        if local_amendment
+        else auxiliary_profile.model
+        if auxiliary_profile is not None
+        else TAU_EXTERNAL_MODEL
+    )
+    if args.user_model != expected_external or args.nl_evaluator_model != expected_external:
+        raise ValueError(f"tau external models must use fixed snapshot {expected_external}")
     if os.environ.get("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY must not be exported; use --external-api-key-fd")
 
@@ -510,7 +577,11 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     scored_samples = summary.get("scored_samples")
     if not isinstance(scored_samples, dict) or len(scored_ids) != scored_samples.get("tau3-bench"):
         raise ValueError("tau scored sample count does not match the agentic input summary")
+    scored_ids = _manifest_ordered_scored_ids(args.manifest, scored_ids)
     manifest_sha256 = _verify_manifest(args.manifest, summary, scored_ids, str(study["id"]))
+    scored_ids, execution_scope = _select_diagnostic_ids(
+        scored_ids, getattr(args, "diagnostic_id", None)
+    )
     server_receipt = _load_object(args.server_receipt, "model server receipt")
     if (
         server_receipt.get("study_id") != study["id"]
@@ -527,7 +598,14 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     )
     _validate_endpoint(args.endpoint, args.model_id, args.model_path)
 
-    external_args = _load_external_args(args.external_llm_args)
+    if local_amendment:
+        from qwen38_tau_local import external_arguments
+
+        if args.external_llm_args is not None:
+            raise ValueError("Local simulator uses sealed arguments, not an override file")
+        external_args = external_arguments()
+    else:
+        external_args = _load_external_args(args.external_llm_args)
     if auxiliary_profile is not None:
         from matric_eval.studies.auxiliary_runtime import external_arguments
 
@@ -545,7 +623,11 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
     from tau2.data_model.simulation import TextRunConfig
     from tau2.evaluator.evaluator import EvaluationType
     from tau2.run import get_tasks, run_single_task
-    from tau2.utils.llm_utils import scoped_llm_request_guard
+    from tau2.utils.llm_utils import (
+        TauRuntimeInvalid,
+        scoped_llm_request_guard,
+        scoped_simulation_runtime_evidence,
+    )
 
     knowledge_dependencies = (
         _knowledge_dependency_evidence() if "banking_knowledge" in scored_by_domain else None
@@ -559,7 +641,11 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             raise RuntimeError(f"official tau task loader omitted selected IDs for {domain}")
 
     external_api_key = (
-        _read_secret_fd(args.external_api_key_fd) if auxiliary_profile is None else None
+        "LOCAL_NO_CREDENTIAL"
+        if local_amendment
+        else None
+        if auxiliary_profile is not None
+        else _read_secret_fd(args.external_api_key_fd)
     )
     runtime_external_args = dict(external_args)
     if external_api_key is not None:
@@ -614,6 +700,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             budget=context_budget,
             count_tokens=target_counter,
         )
+        runtime_evidence: Any = None
         try:
             auxiliary_scope: AbstractContextManager[None] = nullcontext()
             if auxiliary_profile is not None:
@@ -624,7 +711,11 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                 auxiliary_scope = scoped_auxiliary_client(
                     tau_llm, auxiliary_profile, args.result_dir / "auxiliary-client", seed=seed
                 )
-            with auxiliary_scope, scoped_llm_request_guard(target_guard):
+            with (
+                auxiliary_scope,
+                scoped_llm_request_guard(target_guard),
+                scoped_simulation_runtime_evidence() as runtime_evidence,
+            ):
                 simulation = run_single_task(
                     config,
                     task,
@@ -633,9 +724,12 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                     verbose_logs=False,
                     auto_review=False,
                 )
-        except TargetContextRuntimeInvalid as exc:
+        except (TargetContextRuntimeInvalid, TauRuntimeInvalid) as exc:
             output_path = args.result_dir / _result_filename(canonical_id)
-            failure = _context_invalid_failure(exc)
+            failure = _runtime_invalid_failure(exc)
+            runtime_observation = (
+                runtime_evidence.as_dict() if runtime_evidence is not None else None
+            )
             raw_payload = _redact_sensitive(
                 {
                     "schema_version": "1",
@@ -645,6 +739,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                     "official_reward": None,
                     "official_termination_reason": None,
                     "partial_trace": {"target_request": target_guard.last_request},
+                    "runtime_evidence": runtime_observation,
                     "failure_attribution": failure,
                 }
             )
@@ -669,6 +764,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                     "termination_reason": None,
                     "analytic_status": "invalid",
                     "failure_attribution": failure,
+                    "runtime_evidence": runtime_observation,
                     "duration_seconds": time.time() - task_started,
                     "fresh_attempt_count": 1,
                     "recovered_attempt_count": 0,
@@ -707,6 +803,7 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
                 "termination_reason": termination,
                 "analytic_status": "valid",
                 "failure_attribution": None,
+                "runtime_evidence": runtime_evidence.as_dict(),
                 "duration_seconds": time.time() - task_started,
                 "fresh_attempt_count": 1,
                 "recovered_attempt_count": 0,
@@ -732,6 +829,10 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             "source_revision": TAU_SOURCE_REVISION,
             "source_worktree": tau_worktree,
             "source_patch_manifest_sha256": _sha256_file(args.tau_patch_manifest),
+            "source_simulator_patch_manifest_sha256": _sha256_file(
+                args.tau_simulator_patch_manifest
+            ),
+            "source_simulator_patch_sha256": simulator_patch_contract.patch_sha256,
             "python": platform.python_version(),
             "matric_eval_revision": _git_revision(Path(__file__).resolve().parents[1]),
             "api": "tau2.run.run_single_task",
@@ -748,12 +849,19 @@ def run_tau(args: argparse.Namespace) -> JsonObject:
             "hallucination_retries": 0,
             "banking_retrieval_config": "alltools",
             "banking_knowledge_dependencies": knowledge_dependencies,
-            "external_credential_transport": "inherited-file-descriptor",
+            "external_credential_transport": (
+                "none-local-broker" if local_amendment else "inherited-file-descriptor"
+            ),
+            "local_simulator_amendment": local_amendment,
             "context_budget": context_budget,
             "context_budget_enforcement": "exact-serialized-target-pre-http",
             "tokenizer_attestation": tokenizer_attestation,
             "target_thinking_mode_requested": "disabled",
             "target_transport_retries": 0,
+            "simulator_output_validation": "non-whitespace-text-or-valid-tool-call",
+            "simulator_max_pre_side_effect_recoveries": 1,
+            "simulator_recovery_after_environment_call": "forbidden",
+            "scope": execution_scope,
         },
         "sampler": sampler,
         "user_simulator": {"model": args.user_model, "arguments": external_args},
@@ -787,6 +895,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--endpoint", default="http://127.0.0.1:18083/v1")
     parser.add_argument("--tau-checkout", type=Path, required=True)
     parser.add_argument("--tau-patch-manifest", type=Path, default=DEFAULT_TAU_PATCH_MANIFEST)
+    parser.add_argument(
+        "--tau-simulator-patch-manifest",
+        type=Path,
+        default=DEFAULT_TAU_SIMULATOR_PATCH_MANIFEST,
+    )
     parser.add_argument("--chat-template", type=Path, required=True)
     parser.add_argument("--inputs-summary", type=Path, required=True)
     parser.add_argument("--scored-ids", type=Path, required=True)
@@ -795,6 +908,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--external-llm-args", type=Path)
     parser.add_argument("--auxiliary-client-profile", type=Path)
     parser.add_argument("--auxiliary-amendment", type=Path)
+    parser.add_argument("--local-simulator", action="store_true")
+    parser.add_argument(
+        "--diagnostic-id",
+        action="append",
+        help="run only this manifest member; repeat in manifest order",
+    )
     parser.add_argument("--external-api-key-fd", type=int, default=3)
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
