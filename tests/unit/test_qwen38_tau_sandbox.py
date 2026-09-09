@@ -121,3 +121,42 @@ def test_paired_replay_requires_two_valid_noncomparative_admission_trajectories(
     receipt.write_text(json.dumps(payload))
     with pytest.raises(RuntimeError, match="does not prove"):
         supervisor.validate_admission_receipt("source-model")
+
+
+def test_paired_replay_requires_current_bounded_launch_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    study = tmp_path / "study"
+    out = study / "replay-r7"
+    attempt = study / "run-control" / "replay-r7-source"
+    evidence = attempt / "volumes" / "evidence"
+    evidence.mkdir(parents=True)
+    (attempt / "preflight-plan.json").write_text("{}")
+    (attempt / "storage.json").write_text(
+        json.dumps(
+            {
+                "allocations": [
+                    {"kind": "evidence", "path": str(evidence)},
+                ]
+            }
+        )
+    )
+    monkeypatch.setattr(supervisor, "STUDY", study)
+    monkeypatch.setattr(supervisor, "OUT", out)
+
+    contract = supervisor.load_launch_contract("source")
+    assert contract["server_receipt"] == evidence / "server.json"
+    assert contract["lease_receipt"] == evidence / "lease.private.json"
+    assert contract["resource_directory"] == attempt / "resources"
+
+    (attempt / "storage.json").write_text(
+        json.dumps(
+            {
+                "allocations": [
+                    {"kind": "evidence", "path": str(tmp_path / "unbounded")},
+                ]
+            }
+        )
+    )
+    with pytest.raises(RuntimeError, match="evidence allocation does not match"):
+        supervisor.load_launch_contract("source")

@@ -155,6 +155,38 @@ def validate_admission_receipt(expected_model_id):
     }
 
 
+def load_launch_contract(prefix):
+    """Require a fresh bounded-storage and preflight contract for one model load."""
+    attempt = STUDY / "run-control" / f"{OUT.name}-{prefix}"
+    storage_plan = attempt / "storage.json"
+    preflight_plan = attempt / "preflight-plan.json"
+    evidence = attempt / "volumes" / "evidence"
+    for path in (storage_plan, preflight_plan):
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"reviewed {prefix} launch contract is missing")
+    storage = json.loads(storage_plan.read_text())
+    allocations = storage.get("allocations") if isinstance(storage, dict) else None
+    if not isinstance(allocations, list):
+        raise RuntimeError(f"reviewed {prefix} storage plan is malformed")
+    declared_evidence = [
+        row.get("path")
+        for row in allocations
+        if isinstance(row, dict) and row.get("kind") == "evidence"
+    ]
+    if declared_evidence != [str(evidence)]:
+        raise RuntimeError(f"reviewed {prefix} evidence allocation does not match")
+    if not evidence.is_dir() or evidence.is_symlink():
+        raise RuntimeError(f"reviewed {prefix} evidence allocation is unavailable")
+    return {
+        "attempt": attempt,
+        "storage_plan": storage_plan,
+        "preflight_plan": preflight_plan,
+        "resource_directory": attempt / "resources",
+        "lease_receipt": evidence / "lease.private.json",
+        "server_receipt": evidence / "server.json",
+    }
+
+
 def stop_server(unit):
     subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
     containers = subprocess.check_output(
@@ -332,7 +364,8 @@ def main():
             check_space()
             prefix = entry["prefix"]
             unit = f"matric-eval-{OUT.name}-{prefix}"
-            receipt = OUT / f"{prefix}-server.json"
+            launch = load_launch_contract(prefix)
+            receipt = launch["server_receipt"]
             execute(
                 f"{prefix}-server-launch",
                 [
@@ -350,6 +383,16 @@ def main():
                     "--setenv=PYTHONDONTWRITEBYTECODE=1",
                     "/bin/bash",
                     ROOT / "scripts/serve_qwen38_container.sh",
+                    "--run-id",
+                    OUT.name,
+                    "--attempt-id",
+                    launch["attempt"].name,
+                    "--resource-directory",
+                    launch["resource_directory"],
+                    "--preflight-plan",
+                    launch["preflight_plan"],
+                    "--storage-plan",
+                    launch["storage_plan"],
                     "--gpu",
                     GPU,
                     "--owner",
@@ -361,7 +404,7 @@ def main():
                     "--qualification",
                     STUDY / f"{prefix}-model-qualification.json",
                     "--lease-receipt",
-                    OUT / f"{prefix}-lease.json",
+                    launch["lease_receipt"],
                     "--server-receipt",
                     receipt,
                     "--ready-base",
