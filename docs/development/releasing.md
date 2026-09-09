@@ -19,7 +19,9 @@ PyPI, TestPyPI, the Gitea Python index, or the Gitea npm registry. `pip` may sti
 install a downloaded wheel and its dependencies; package installation is not
 registry publication.
 
-The canonical distribution channel is [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases).
+Release downloads are available through
+[Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) and
+[GitHub Releases](https://github.com/jmagly/matric-eval/releases).
 Each release contains wheel/sdist and TypeScript archives, checksums, source
 identity, SBOMs, license/vulnerability review and clean-install evidence. A source
 version or prepared release note does not establish that a release is available.
@@ -53,12 +55,13 @@ Canonical CI also checks the actual wheel import and TypeScript build/tests.
 The full main and mandatory client test lanes share the 80% coverage floor.
 CLI smoke checks do not load models. Live public benchmark auditing remains a
 required check; external rate limiting is a failure to retry, not a successful
-source verification. GitHub CI is a mirror and has no release credentials or
-publishing workflow.
+source verification. Gitea remains the canonical development repository. GitHub
+checks the mirrored source and publishes downloads through its own release workflow.
 
 ## Validate a candidate
 
-Manually dispatch `.gitea/workflows/release.yml` at the intended commit. A branch
+Manually dispatch `.gitea/workflows/release.yml` or `.github/workflows/release.yml`
+at the intended commit on the corresponding forge. A branch
 dispatch builds and retains the candidate bundle without creating a release or
 uploading to a registry. The workflow checks synchronized versions, archive
 contents, both SBOMs, license policy, vulnerability policy, and clean consumers
@@ -77,6 +80,9 @@ file committed to git, or release notes.
 tools/release/cut-tag.sh 2026.9.0 --check
 tools/release/cut-tag.sh 2026.9.0
 git push origin refs/tags/v2026.9.0
+# Sync the reviewed source to GitHub and wait for its exact-commit CI to pass:
+git push github refs/remotes/origin/main:refs/heads/main
+git push github refs/tags/v2026.9.0
 ```
 
 The wrapper requires exact current `origin/main`, matching versions and notes,
@@ -88,12 +94,27 @@ exact commit. Tags do not duplicate the complete CI suite.
 
 Before building a tagged release, and again before upload, the release helper
 checks the canonical origin, remote tag/commit, main ancestry and latest exact-SHA
-`ci.yml` run. A newer pending attempt is awaited within a deadline; a failed
-attempt or unverifiable source blocks publication.
+`ci.yml` run. The GitHub workflow checks the same conditions against the fixed
+`jmagly/matric-eval` mirror, including annotated or lightweight tag resolution.
+A newer pending attempt is awaited within a deadline; a failed attempt or
+unverifiable source blocks publication. Push the same checked tag to both forges;
+pushing only to Gitea does not trigger GitHub Actions.
+
+GitHub uses its built-in `GITHUB_TOKEN`, with `contents: write` for release assets
+and `actions: read` for CI verification. No personal access token or package
+registry permission is required. See GitHub's
+[workflow token documentation](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token).
+The workflow runs only in the configured mirror and passes its token only to the
+verification and publication commands.
+
+Both workflows apply the same package, SBOM, license, vulnerability and supported
+consumer checks. Each forge builds and retains its own candidate, so timestamps
+and audit evidence can differ. Checksums belong to the bundle from that forge;
+byte-for-byte equivalence between independently built releases is not claimed.
 
 ## Publication and retries
 
-The publisher verifies the local manifest/checksums, then stages a **draft** Gitea
+The publisher verifies the local manifest/checksums, then stages a **draft** forge
 release. It uploads the complete evidence set and verifies remote asset bytes
 before making the release public. Partial uploads remain a draft. Existing assets
 must match exactly; conflicting bytes are never overwritten. A retry against an
@@ -103,12 +124,15 @@ Resume with the **same retained bundle**, source commit and notes. A workflow
 rebuild can produce different audit timestamps or dependency evidence; those
 bytes must not replace an existing candidate. Retrieve the original bundle from
 the workflow artifacts and invoke `scripts/publish_forge_release.py publish`
-with its `--artifact-root`, `--bundle`, `--notes`, `--tag` and `--commit`. If an
+with its `--artifact-root`, `--bundle`, `--notes`, `--tag` and `--commit`. For
+GitHub, add `--forge github` and supply `GITHUB_TOKEN`; Gitea remains the default
+and uses `RELEASE_TOKEN`. The helper verifies the selected forge's source and CI
+before publication. If an
 already published release needs a correction, prepare the next CalVer patch.
 
 ## Install verified downloads
 
-Download the bundle from the selected Gitea release, extract it into an empty
+Download the bundle from the selected Gitea or GitHub release, extract it into an empty
 directory, and check its contents before installation:
 
 ```bash

@@ -24,7 +24,7 @@ Use it to compare code generation, math, reasoning, instruction following, knowl
 
 ## Status
 
-The Python package and TypeScript client source versions are **2026.9.0**, using CalVer `YYYY.M.PATCH`. Check [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. Package registry publishing is disabled; a source version alone does not establish release availability.
+The Python package and TypeScript client source versions are **2026.9.0**, using CalVer `YYYY.M.PATCH`. Check [GitHub Releases](https://github.com/jmagly/matric-eval/releases) or [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. Package registry publishing is disabled; a source version alone does not establish release availability.
 
 The [roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md) records support boundaries and deferred work. Benchmark inventories change independently of release notes; inspect the current checkout with `matric-eval list-benchmarks` and `matric-eval audit-benchmarks`.
 
@@ -48,7 +48,7 @@ Use `uv run matric-eval` for commands from a source checkout. Examples below use
 
 ### From verified release downloads
 
-Download and verify the desired bundle from Gitea Releases as described in the [release guide](docs/development/releasing.md), then install its wheel into a virtual environment:
+Download and verify the desired bundle from GitHub or Gitea Releases as described in the [release guide](docs/development/releasing.md), then install its wheel into a virtual environment:
 
 ```bash
 python3 -m venv .venv
@@ -206,7 +206,7 @@ Follow the [study index](https://github.com/jmagly/matric-eval/blob/main/studies
 
 ## TypeScript Client
 
-The client requires Node.js 18 or newer and a separately installed Python `matric-eval` executable. Install the verified tarball from a Gitea release bundle:
+The client requires Node.js 18 or newer and a separately installed Python `matric-eval` executable. Install the verified tarball from a GitHub or Gitea release bundle:
 
 ```bash
 npm install ./packages/typescript/matric-eval-client-2026.9.0.tgz
@@ -289,7 +289,7 @@ uv build
 
 - **Engineering issues and pull requests:** [Gitea tracker](https://git.integrolabs.net/roctinam/matric-eval/issues)
 - **Source mirror:** [GitHub](https://github.com/jmagly/matric-eval)
-- **Release artifacts:** [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases)
+- **Release artifacts:** [GitHub Releases](https://github.com/jmagly/matric-eval/releases), [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases)
 - **Vulnerabilities:** Follow [SECURITY.md](https://github.com/jmagly/matric-eval/blob/main/SECURITY.md); avoid public disclosure of sensitive details.
 - **Integro Labs:** [integrolabs.io](https://integrolabs.io)
 

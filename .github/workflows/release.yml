@@ -1,0 +1,188 @@
+name: GitHub Release Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UV_LOCKED: "1"
+  UV_PYTHON: "3.11"
+
+jobs:
+  release:
+    name: Build, Audit, and Attach GitHub Release Downloads
+    if: github.repository == 'jmagly/matric-eval'
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-latest
+    container: python:3.11
+    timeout-minutes: 60
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl git jq nodejs npm
+          npm install --global npm@10.9.4
+
+      - name: Checkout exact source
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin \
+            https://github.com/jmagly/matric-eval.git
+          git fetch origin ${{ github.sha }} refs/heads/main:refs/remotes/origin/main
+          commit=$(git rev-parse "${GITHUB_SHA}^{commit}")
+          git checkout --detach "$commit"
+          test "$(git rev-parse HEAD)" = "$commit"
+          printf 'RELEASE_COMMIT=%s\n' "$commit" >> "$GITHUB_ENV"
+
+      - name: Verify tagged source and exact-commit CI
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/publish_forge_release.py verify --forge github \
+            --tag "${GITHUB_REF#refs/tags/}" --commit "$RELEASE_COMMIT" \
+            --root . --wait-seconds 900
+
+      - name: Install locked build environment
+        run: |
+          python -m pip install uv==0.9.26
+          uv sync --all-extras --no-extra dev --no-dev --locked
+          npm ci --prefix bindings/typescript
+
+      - name: Verify version contract
+        run: |
+          case "${GITHUB_REF}" in
+            refs/tags/v*)
+              python scripts/release_contract.py versions \
+                --expected "${GITHUB_REF#refs/tags/v}" \
+                --output release-artifacts/evidence/version-surfaces.json
+              ;;
+            *)
+              python scripts/release_contract.py versions \
+                --output release-artifacts/evidence/version-surfaces.json
+              ;;
+          esac
+
+      - name: Build Python packages
+        run: |
+          uv build --out-dir release-artifacts/packages/python
+          rm -f release-artifacts/packages/python/.gitignore
+
+      - name: Build and test TypeScript package
+        working-directory: bindings/typescript
+        run: |
+          npm run build
+          npm test
+          mkdir -p ../../release-artifacts/packages/typescript
+          npm pack --pack-destination ../../release-artifacts/packages/typescript
+
+      - name: Verify package contents
+        run: |
+          python scripts/release_contract.py artifacts \
+            --artifact-root release-artifacts
+
+      - name: Generate CycloneDX SBOMs
+        run: |
+          uv export --format cyclonedx1.5 --preview-features sbom-export \
+            --all-extras --no-extra dev --no-dev --locked \
+            --output-file release-artifacts/evidence/python-sbom.cdx.json
+          npm sbom --prefix bindings/typescript --sbom-format cyclonedx \
+            > release-artifacts/evidence/typescript-sbom.cdx.json
+
+      - name: Review dependency licenses
+        run: |
+          uv run --no-sync python scripts/release_contract.py licenses \
+            --npm-sbom release-artifacts/evidence/typescript-sbom.cdx.json \
+            --policy release/license-policy.json \
+            --json-output release-artifacts/evidence/dependency-licenses.json \
+            --markdown-output release-artifacts/evidence/dependency-licenses.md
+
+      - name: Audit dependencies
+        run: |
+          uv export --format requirements.txt --all-extras --no-extra dev --no-dev --locked \
+            --no-emit-project --no-hashes \
+            --output-file release-artifacts/evidence/python-requirements.txt
+          set +e
+          uvx --from pip-audit==2.10.0 pip-audit \
+            --requirement release-artifacts/evidence/python-requirements.txt \
+            --format json \
+            --output release-artifacts/evidence/python-vulnerabilities.json
+          python_status=$?
+          npm audit --prefix bindings/typescript --json --audit-level=critical \
+            > release-artifacts/evidence/typescript-vulnerabilities.json
+          npm_status=$?
+          set -e
+          printf '{"python": %s, "typescript": %s}\n' \
+            "$python_status" "$npm_status" \
+            > release-artifacts/evidence/audit-exit-codes.json
+
+      - name: Review vulnerability findings
+        run: |
+          python scripts/release_contract.py vulnerabilities \
+            --python-audit release-artifacts/evidence/python-vulnerabilities.json \
+            --audit-exit-codes release-artifacts/evidence/audit-exit-codes.json \
+            --npm-audit release-artifacts/evidence/typescript-vulnerabilities.json \
+            --policy release/vulnerability-policy.json \
+            --json-output release-artifacts/evidence/vulnerability-review.json \
+            --markdown-output release-artifacts/evidence/vulnerability-review.md
+
+      - name: Validate clean package consumers
+        run: |
+          version=$(python -c 'import json; print(json.load(open("release-artifacts/evidence/version-surfaces.json"))["version"])')
+          python scripts/validate_release_candidate.py \
+            --artifact-root release-artifacts \
+            --output release-artifacts/evidence/clean-install-validation.json \
+            --expected "$version" \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
+            --python-version 3.14
+
+      - name: Generate manifest and checksums
+        run: |
+          python scripts/release_contract.py manifest \
+            --artifact-root release-artifacts \
+            --output release-artifacts/release-manifest.json \
+            --sums-output release-artifacts/SHA256SUMS
+          cd release-artifacts
+          sha256sum --check SHA256SUMS
+
+      - name: Package release bundle
+        run: |
+          version=$(python -c 'import json; print(json.load(open("release-artifacts/evidence/version-surfaces.json"))["version"])')
+          tar -czf "matric-eval-${version}-release-bundle.tar.gz" \
+            -C release-artifacts .
+
+      # No Python or npm registry upload exists in this workflow.
+      - name: Attach verified GitHub release downloads
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version="${tag#v}"
+          python scripts/publish_forge_release.py publish --forge github \
+            --tag "$tag" --commit "$RELEASE_COMMIT" --root . \
+            --artifact-root release-artifacts \
+            --bundle "matric-eval-${version}-release-bundle.tar.gz" \
+            --notes "docs/releases/${version}.md" --wait-seconds 900
+
+      - name: Retain release bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-candidate-${{ github.run_id }}
+          path: |
+            release-artifacts
+            matric-eval-*-release-bundle.tar.gz
