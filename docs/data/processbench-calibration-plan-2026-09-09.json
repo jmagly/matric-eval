@@ -54,6 +54,7 @@
   "authorization": "https://git.integrolabs.net/roctinam/matric-eval/issues/126#issuecomment-131524",
   "pending_before_assessment": [
     "Bind an exact judge/model/prompt/configuration snapshot.",
+    "Derive and freeze one deterministic representative row per selected problem cluster; repeated solutions cannot inflate Wilson denominators.",
     "Obtain a human-authored DomainReview receipt from the representative math-reasoning reviewer after assessment."
   ]
 }

@@ -305,7 +305,10 @@ The first authorized ProcessBench qualification plan is retained in
 [processbench-calibration-plan-2026-09-09.json](processbench-calibration-plan-2026-09-09.json).
 It freezes the binary mapping, deterministic final allocation and application
 criteria, but deliberately leaves judge identity and the human DomainReview
-receipt pending until those exact inputs exist.
+receipt pending until those exact inputs exist. The allocation contains whole
+problem clusters; the assessment contract still requires a frozen deterministic
+one-row-per-problem projection so repeated solutions cannot inflate its Wilson
+denominators.
 The exact replayable allocation input is
 [processbench-calibration-selection-request-2026-09-09.json](processbench-calibration-selection-request-2026-09-09.json).
 
