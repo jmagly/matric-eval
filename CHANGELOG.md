@@ -28,6 +28,11 @@ The patch counter starts at zero each UTC month; historical SemVer tags remain u
 - Actual client/broker conformance and bounded storage/model-load qualification.
   Deferred TAU scoring and frozen study protocols remain unchanged.
 
+### Fixed
+
+- Handle launcher exit during ownership inspection without reporting a false
+  cleanup failure; live processes still require verified ownership.
+
 ## [0.2.0] - 2026-08-03
 
 ### Added
