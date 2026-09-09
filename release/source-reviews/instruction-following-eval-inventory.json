@@ -1,0 +1,326 @@
+{
+  "source_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "5e2c671ddc9e301dafc241ad1a7c07aa85a91fef560a17721b41977b9eddba17"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "README.md",
+      "sha256": "9654ebd17a23e699ca5afff918aae7bee353817e400fe978a9d511c7495d1ae5"
+    },
+    {
+      "path": "instruction_following_eval/__init__.py",
+      "sha256": "3da75c2bf93dd2d80fe64d8c0f8554d53fb524a91074d99ec3a0923aa6fba9e0"
+    },
+    {
+      "path": "instruction_following_eval/data/input_data.jsonl",
+      "sha256": "67ffeee0fcb87c317c5b08a2de85557b4a7e96ada6178aa645b4954fe4b53d49"
+    },
+    {
+      "path": "instruction_following_eval/evaluation.py",
+      "sha256": "b0c840ded13a982a1d0f037a7016964a125524f8efb810e7c834a1b794389e67"
+    },
+    {
+      "path": "instruction_following_eval/instructions.py",
+      "sha256": "78384a06c7bd4c1c1acb0078b502f0407fc15115e94b1b56f55bc64f19034603"
+    },
+    {
+      "path": "instruction_following_eval/instructions_registry.py",
+      "sha256": "7871d6d079c3becda2a11fedfe97ad15101428673a538926230636fb213bc375"
+    },
+    {
+      "path": "instruction_following_eval/instructions_util.py",
+      "sha256": "0547a73759455669b762779333330899800cafc0a8884d983ad2015ff98e0dbc"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "3736ffa7d7fc270daa44ef5b2d400312f7a58b141ecbf005ca521cec84892cd6"
+    },
+    {
+      "path": "test/instructions_test.py",
+      "sha256": "28d0e59113866fb593baff002216121655e82d2bb9bd5efbe5a9bd37236ea02a"
+    },
+    {
+      "path": "test/instructions_util_test.py",
+      "sha256": "f18c8a8e1b6b1e13a765ebc0da7d400088718d605d5e3ebee6be6e4f8230fd00"
+    }
+  ],
+  "installed_files": [
+    {
+      "path": "instruction_following_eval/__init__.py",
+      "sha256": "3da75c2bf93dd2d80fe64d8c0f8554d53fb524a91074d99ec3a0923aa6fba9e0"
+    },
+    {
+      "path": "instruction_following_eval/data/input_data.jsonl",
+      "sha256": "67ffeee0fcb87c317c5b08a2de85557b4a7e96ada6178aa645b4954fe4b53d49"
+    },
+    {
+      "path": "instruction_following_eval/evaluation.py",
+      "sha256": "b0c840ded13a982a1d0f037a7016964a125524f8efb810e7c834a1b794389e67"
+    },
+    {
+      "path": "instruction_following_eval/instructions.py",
+      "sha256": "78384a06c7bd4c1c1acb0078b502f0407fc15115e94b1b56f55bc64f19034603"
+    },
+    {
+      "path": "instruction_following_eval/instructions_registry.py",
+      "sha256": "7871d6d079c3becda2a11fedfe97ad15101428673a538926230636fb213bc375"
+    },
+    {
+      "path": "instruction_following_eval/instructions_util.py",
+      "sha256": "0547a73759455669b762779333330899800cafc0a8884d983ad2015ff98e0dbc"
+    }
+  ],
+  "direct_url": {
+    "url": "https://github.com/josejg/instruction_following_eval.git",
+    "vcs_info": {
+      "vcs": "git",
+      "commit_id": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2",
+      "requested_revision": "0c495b2f95155e8b10acb919ae283bfb4d5be6e2"
+    }
+  },
+  "runtime_versions": {
+    "nltk": "3.10.3",
+    "inspect-evals": "0.19.0",
+    "instruction-following-eval": "0.1.0"
+  },
+  "nltk_data_sha256": "cda75896c3639541f3c3b811d647354dc5829774c2f201a7c942896f5cb99dc8",
+  "source_payload_sha256": "fd8cea5320c97129bbdd0f5d431326a9cadeca9230e8adefa506fdb5dd71eaa4",
+  "bandit_summary": {
+    "B311": 25,
+    "B101": 3
+  },
+  "bandit_errors": [],
+  "bandit_metrics": {
+    "CONFIDENCE.HIGH": 28,
+    "CONFIDENCE.LOW": 0,
+    "CONFIDENCE.MEDIUM": 0,
+    "CONFIDENCE.UNDEFINED": 0,
+    "SEVERITY.HIGH": 0,
+    "SEVERITY.LOW": 28,
+    "SEVERITY.MEDIUM": 0,
+    "SEVERITY.UNDEFINED": 0,
+    "loc": 3108,
+    "nosec": 0,
+    "skipped_tests": 0
+  },
+  "bounded_checks": {
+    "hardcoded_pickle_path_redirects_without_open": true,
+    "response_python_text_remains_data": true,
+    "models_loaded": 0
+  },
+  "ast_calls": {
+    "instruction_following_eval/__init__.py": [],
+    "instruction_following_eval/evaluation.py": [
+      "'\\n'.join",
+      "'\\n'.join(response.split('\\n')[1:-1]).strip",
+      "'\\n'.join(response.split('\\n')[1:]).strip",
+      "'\\n'.join(response.split('\\n')[:-1]).strip",
+      "(pathlib.Path.home() / '.cache/nltk_data').absolute",
+      "InputExample",
+      "OutputExample",
+      "ValueError",
+      "all",
+      "any",
+      "dict_to_input_example",
+      "ensure_nltk_resource",
+      "enumerate",
+      "evaluate_instruction_following",
+      "get_examples",
+      "inputs.append",
+      "instruction.build_description",
+      "instruction.check_following",
+      "instruction.get_instruction_args",
+      "instruction_cls",
+      "instruction_mean",
+      "is_following_list.append",
+      "isinstance",
+      "json.dump",
+      "json.loads",
+      "len",
+      "mean",
+      "nltk.data.find",
+      "nltk.data.path.append",
+      "nltk.download",
+      "open",
+      "os.path.join",
+      "pathlib.Path.home",
+      "print",
+      "print_report",
+      "r.replace",
+      "r.strip",
+      "resources.files",
+      "response.replace",
+      "response.split",
+      "results.items",
+      "str",
+      "sum",
+      "test_instruction_following",
+      "typer.Option",
+      "typer.run",
+      "zip"
+    ],
+    "instruction_following_eval/instructions.py": [
+      "NotImplementedError",
+      "ValueError",
+      "_LANGUAGES.keys",
+      "collections.Counter",
+      "end_phrase.strip",
+      "enumerate",
+      "highlight.removeprefix",
+      "highlight.removeprefix('**').removesuffix",
+      "highlight.removeprefix('**').removesuffix('**').strip",
+      "highlight.strip",
+      "highlight.strip('*').strip",
+      "instructions_util.count_sentences",
+      "instructions_util.count_words",
+      "instructions_util.generate_keywords",
+      "instructions_util.nltk.word_tokenize",
+      "instructions_util.split_into_sentences",
+      "isinstance",
+      "json.loads",
+      "keyword.strip",
+      "langdetect.detect",
+      "len",
+      "letter.lower",
+      "letter.strip",
+      "list",
+      "log.error",
+      "logging.getLogger",
+      "min",
+      "ord",
+      "paragraph.split",
+      "paragraph.split()[0].strip",
+      "paragraph.strip",
+      "paragraphs[self._nth_paragraph - 1].strip",
+      "postscript_marker.strip",
+      "random.choice",
+      "random.randint",
+      "re.compile",
+      "re.findall",
+      "re.search",
+      "re.split",
+      "re.sub",
+      "response.strip",
+      "section_spliter.strip",
+      "self._description.format",
+      "self._description_pattern.format",
+      "self._end_phrase.strip",
+      "self._end_phrase.strip().lower",
+      "self._first_word.lower",
+      "self._letter.lower",
+      "self._original_paragraph.lower",
+      "self._postscript_marker.lower",
+      "self._prompt_to_repeat.strip",
+      "self._prompt_to_repeat.strip().lower",
+      "self.is_change",
+      "self.strip_changes",
+      "set",
+      "sorted",
+      "starter.strip",
+      "title.lstrip",
+      "title.lstrip('<').rstrip",
+      "title.lstrip('<').rstrip('>').strip",
+      "valid_responses.append",
+      "valid_responses[0].strip",
+      "valid_responses[1].strip",
+      "value.endswith",
+      "value.islower",
+      "value.isupper",
+      "value.lower",
+      "value.split",
+      "value.strip",
+      "value.strip().lower",
+      "value.strip().lower().startswith",
+      "value.strip().removeprefix",
+      "value.strip().removeprefix('```json').removeprefix",
+      "value.strip().removeprefix('```json').removeprefix('```Json').removeprefix",
+      "value.strip().removeprefix('```json').removeprefix('```Json').removeprefix('```JSON').removeprefix",
+      "value.strip().removeprefix('```json').removeprefix('```Json').removeprefix('```JSON').removeprefix('```').removesuffix",
+      "value.strip().removeprefix('```json').removeprefix('```Json').removeprefix('```JSON').removeprefix('```').removesuffix('```').strip",
+      "value.strip().strip",
+      "value.strip().strip('\"').lower",
+      "word.isupper",
+      "word.lstrip"
+    ],
+    "instruction_following_eval/instructions_registry.py": [
+      "INSTRUCTION_DICT.keys",
+      "conflicts[k].add",
+      "conflicts[key].add",
+      "set",
+      "set(INSTRUCTION_DICT.keys()).difference"
+    ],
+    "instruction_following_eval/instructions_util.py": [
+      "_get_sentence_tokenizer",
+      "functools.lru_cache",
+      "immutabledict.immutabledict",
+      "len",
+      "match.group",
+      "nltk.data.load",
+      "nltk.tokenize.RegexpTokenizer",
+      "random.sample",
+      "re.sub",
+      "s.strip",
+      "text.replace",
+      "text.split",
+      "tokenizer.tokenize"
+    ],
+    "test/instructions_test.py": [
+      "absltest.main",
+      "inst_cls",
+      "instruction.build_description",
+      "instruction.check_following",
+      "instruction.get_instruction_args",
+      "instructions.BulletListChecker",
+      "instructions.CapitalLettersEnglishChecker",
+      "instructions.CapitalWordFrequencyChecker",
+      "instructions.CommaChecker",
+      "instructions.ConstrainedResponseChecker",
+      "instructions.ConstrainedStartChecker",
+      "instructions.EndChecker",
+      "instructions.ForbiddenWords",
+      "instructions.HighlightSectionChecker",
+      "instructions.KeySentenceChecker",
+      "instructions.KeywordChecker",
+      "instructions.KeywordFrequencyChecker",
+      "instructions.LetterFrequencyChecker",
+      "instructions.LowercaseLettersEnglishChecker",
+      "instructions.NumberOfSentences",
+      "instructions.NumberOfWords",
+      "instructions.ParagraphChecker",
+      "instructions.ParagraphFirstWordCheck",
+      "instructions.PlaceholderChecker",
+      "instructions.PostscriptChecker",
+      "instructions.QuotationChecker",
+      "instructions.RepeatPromptThenAnswer",
+      "instructions.RephraseChecker",
+      "instructions.RephraseParagraph",
+      "instructions.ResponseLanguageChecker",
+      "instructions.SectionChecker",
+      "instructions.TitleChecker",
+      "instructions.TwoResponsesChecker",
+      "parameterized.named_parameters",
+      "self.INSTRUCTION_DICT.items",
+      "self.assertEqual",
+      "self.assertFalse",
+      "self.assertRaises",
+      "self.assertTrue",
+      "self.subTest"
+    ],
+    "test/instructions_util_test.py": [
+      "absltest.main",
+      "instructions_util.count_sentences",
+      "instructions_util.count_words",
+      "instructions_util.generate_keywords",
+      "instructions_util.split_into_sentences",
+      "parameterized.named_parameters",
+      "self.assertEqual",
+      "self.assertLen",
+      "self.subTest"
+    ]
+  }
+}

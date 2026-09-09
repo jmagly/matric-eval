@@ -13,7 +13,7 @@ import tarfile
 import tomllib
 import zipfile
 from datetime import date, datetime, timezone
-from importlib.metadata import Distribution, distributions
+from importlib.metadata import Distribution, distribution, distributions
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -303,22 +303,22 @@ def _infer_license_ids(values: list[str], license_texts: list[str]) -> set[str]:
 
 def _python_license_records() -> list[dict[str, Any]]:
     records: dict[tuple[str, str], dict[str, Any]] = {}
-    for distribution in distributions():
-        name = distribution.metadata.get("Name", "unknown")
-        expression = distribution.metadata.get("License-Expression", "")
-        declared = distribution.metadata.get("License", "")
+    for installed in distributions():
+        name = installed.metadata.get("Name", "unknown")
+        expression = installed.metadata.get("License-Expression", "")
+        declared = installed.metadata.get("License", "")
         classifiers = [
             value
-            for value in distribution.metadata.get_all("Classifier", [])
+            for value in installed.metadata.get_all("Classifier", [])
             if value.startswith("License ::")
         ]
-        files = _license_file_texts(distribution)
+        files = _license_file_texts(installed)
         values = [expression, declared, *classifiers]
         identifiers = _infer_license_ids(values, [text for _, text in files])
-        records[(name.lower(), distribution.version)] = {
+        records[(name.lower(), installed.version)] = {
             "ecosystem": "PyPI",
             "name": name,
-            "version": distribution.version,
+            "version": installed.version,
             "license_expression": expression or None,
             "declared_license": declared or None,
             "classifiers": classifiers,
@@ -355,6 +355,171 @@ def _npm_license_records(sbom: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(records, key=lambda item: (item["name"].lower(), item["version"]))
 
 
+def _package_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _verify_installed_files(installed: Distribution, files: list[dict[str, str]]) -> None:
+    """Bind a reviewed declaration or source payload to distribution-owned bytes."""
+    owned = {str(path) for path in installed.files or ()}
+    seen: set[str] = set()
+    if not files:
+        raise ValueError("A distribution review must bind installed evidence files")
+    for item in files:
+        path = PurePosixPath(item["path"])
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or str(path) not in owned
+            or str(path) in seen
+            or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+        ):
+            raise ValueError("Invalid or duplicate reviewed distribution path")
+        actual = Path(installed.locate_file(str(path)))
+        base = Path(installed.locate_file(""))
+        symlink = any(
+            (base.joinpath(*path.parts[:index])).is_symlink()
+            for index in range(1, len(path.parts) + 1)
+        )
+        if (
+            symlink
+            or not actual.resolve().is_relative_to(base.resolve())
+            or _sha256(actual) != item["sha256"]
+        ):
+            raise ValueError(f"Reviewed distribution evidence changed: {path}")
+        seen.add(str(path))
+
+
+def _apply_license_review(record: dict[str, Any], review: dict[str, Any]) -> None:
+    from packaging.licenses import canonicalize_license_expression
+
+    installed = distribution(record["name"])
+    if installed.version != review["version"]:
+        raise ValueError("Installed license review version mismatch")
+    observed = sorted(record["license_files"], key=lambda item: item["path"])
+    expected = sorted(review["license_files"], key=lambda item: item["path"])
+    if observed != expected:
+        raise ValueError(f"Reviewed license inventory changed: {record['name']}")
+    _verify_installed_files(installed, [*expected, *review["evidence_files"]])
+    identifiers = review["normalized_licenses"]
+    expression = canonicalize_license_expression(review["license_expression"])
+    terms = {
+        term
+        for term in re.findall(r"[^()\s]+(?: WITH [^()\s]+)?", expression)
+        if term not in {"AND", "OR"}
+    }
+    if (
+        not identifiers
+        or not all(isinstance(value, str) and value for value in identifiers)
+        or len(set(identifiers)) != len(identifiers)
+        or not review["rationale"]
+        or not review["source_urls"]
+        or set(identifiers) != terms
+    ):
+        raise ValueError("Incomplete distribution license review")
+    if artifact := review.get("artifact"):
+        lock = tomllib.loads((Path(__file__).resolve().parents[1] / "uv.lock").read_text())
+        packages = [
+            package
+            for package in lock["package"]
+            if _package_name(package["name"]) == _package_name(record["name"])
+            and package["version"] == record["version"]
+        ]
+        if (
+            len(packages) != 1
+            or packages[0].get("sdist", {}).get("hash") != ("sha256:" + artifact["sha256"])
+            or packages[0]["sdist"]["url"] != artifact["url"]
+        ):
+            raise ValueError("Reviewed license source archive differs from lock")
+    record["inferred_licenses"] = record["normalized_licenses"]
+    record["normalized_licenses"] = identifiers
+    record["license_review"] = review
+
+
+def verify_source_reviews(directory: Path | None) -> dict[tuple[str, str], dict[str, Any]]:
+    """Verify explicit, expiring source reviews for non-indexed VCS dependencies."""
+    verified: dict[tuple[str, str], dict[str, Any]] = {}
+    if directory is None:
+        return verified
+    paths = [directory] if directory.is_file() else sorted(directory.glob("*.review.json"))
+    if not paths:
+        raise ValueError("Source review directory has no receipts")
+    today = datetime.now(timezone.utc).date()
+    for path in paths:
+        review = _read_json(path)
+        if (
+            review["schema_version"] != 1
+            or review["disposition"] != "accepted-scoped-source-review"
+            or not isinstance(review["findings"], list)
+            or any(item.get("status") != "resolved" for item in review["findings"])
+            or not review["references"]
+            or not review["limitations"]
+            or not date.fromisoformat(review["reviewed_at"])
+            <= today
+            <= date.fromisoformat(review["expires"])
+            or not re.fullmatch(r"[0-9a-f]{40}", review["commit"])
+        ):
+            raise ValueError("Unaccepted, incomplete or expired source review")
+        installed = distribution(review["name"])
+        lock = tomllib.loads((Path(__file__).resolve().parents[1] / "uv.lock").read_text())
+        locked = [
+            package
+            for package in lock["package"]
+            if _package_name(package["name"]) == _package_name(review["name"])
+            and package["version"] == review["version"]
+        ]
+        expected_git = f"{review['repository']}?rev={review['commit']}#{review['commit']}"
+        if len(locked) != 1 or locked[0].get("source", {}).get("git") != expected_git:
+            raise ValueError("Source review differs from locked VCS identity")
+        direct = json.loads(installed.read_text("direct_url.json") or "null")
+        if (
+            installed.version != review["version"]
+            or not isinstance(direct, dict)
+            or direct.get("url") != review["repository"]
+            or direct.get("vcs_info", {}).get("vcs") != "git"
+            or direct.get("vcs_info", {}).get("commit_id") != review["commit"]
+            or direct.get("dir_info", {}).get("editable")
+        ):
+            raise ValueError("Installed source differs from reviewed VCS identity")
+        files = review["installed_files"]
+        _verify_installed_files(installed, files)
+        payload = {
+            str(item)
+            for item in installed.files or ()
+            if not any(
+                part.endswith((".dist-info", ".egg-info"))
+                for part in PurePosixPath(str(item)).parts
+            )
+            and "__pycache__" not in PurePosixPath(str(item)).parts
+            and not str(item).endswith(".pyc")
+        }
+        actual_payload: set[str] = set()
+        base = Path(installed.locate_file(""))
+        for name in {PurePosixPath(item).parts[0] for item in payload}:
+            location = base / name
+            children = location.rglob("*") if location.is_dir() else [location]
+            for child in children:
+                relative = child.relative_to(base)
+                if "__pycache__" in relative.parts or child.suffix == ".pyc":
+                    continue
+                if child.is_symlink():
+                    raise ValueError("Reviewed source payload contains a symlink")
+                if child.is_file():
+                    actual_payload.add(relative.as_posix())
+        if actual_payload != payload:
+            raise ValueError("Unrecorded files in reviewed source payload")
+        if payload != {item["path"] for item in files}:
+            raise ValueError("Reviewed installed source payload is incomplete")
+        for name, version in review["runtime_dependencies"].items():
+            if distribution(name).version != version:
+                raise ValueError(f"Reviewed source runtime changed: {name}")
+        identity = (_package_name(review["name"]), review["version"])
+        if identity in verified:
+            raise ValueError("Duplicate source review identity")
+        verified[identity] = {**review, "receipt_sha256": _sha256(path)}
+    return verified
+
+
 def generate_license_report(
     npm_sbom_path: Path,
     policy_path: Path,
@@ -368,7 +533,17 @@ def generate_license_report(
 
     unresolved: list[str] = []
     unaccepted: list[str] = []
+    reviews = policy.get("reviewed_distributions", [])
+    identities = [(_package_name(item["name"]), item["version"]) for item in reviews]
+    if len(identities) != len(set(identities)):
+        raise ValueError("Duplicate distribution license review")
     for record in records:
+        for review in reviews:
+            if record["ecosystem"] == "PyPI" and (
+                _package_name(record["name"]),
+                record["version"],
+            ) == (_package_name(review["name"]), review["version"]):
+                _apply_license_review(record, review)
         identifiers = set(record["normalized_licenses"])
         if not identifiers:
             unresolved.append(f"{record['ecosystem']}:{record['name']}@{record['version']}")
@@ -416,7 +591,10 @@ def generate_license_report(
 
 
 def validate_audit_reports(
-    python_audit: dict[str, Any], npm_audit: dict[str, Any], exits: dict[str, Any]
+    python_audit: dict[str, Any],
+    npm_audit: dict[str, Any],
+    exits: dict[str, Any],
+    source_reviews: dict[tuple[str, str], dict[str, Any]] | None = None,
 ) -> None:
     """Require complete pip-audit JSON and npm audit v2 at --audit-level=critical."""
     for producer in ("python", "typescript"):
@@ -431,9 +609,32 @@ def validate_audit_reports(
         raise ValueError("Python audit is missing its nonempty dependency inventory")
     python_findings = 0
     seen = set()
+    reviewed_skips: set[tuple[str, str]] = set()
     for dependency in dependencies:
         if not isinstance(dependency, dict):
             raise ValueError("Python audit contains an invalid dependency record")
+        matches = [
+            identity
+            for identity in (source_reviews or {})
+            if identity[0] == _package_name(str(dependency.get("name", "")))
+        ]
+        if "skip_reason" in dependency and matches:
+            if len(matches) != 1:
+                raise ValueError("Ambiguous reviewed source audit identity")
+            identity = matches[0]
+            expected_reason = f"Dependency not found on PyPI and could not be audited: {dependency['name']} ({identity[1]})"
+            if (
+                dependency["skip_reason"] != expected_reason
+                or set(dependency)
+                not in ({"name", "skip_reason"}, {"name", "version", "skip_reason"})
+                or dependency.get("version", identity[1]) != identity[1]
+            ):
+                raise ValueError("Source review cannot cover this audit producer failure")
+            if identity in seen:
+                raise ValueError("Python audit contains a duplicate dependency")
+            seen.add(identity)
+            reviewed_skips.add(identity)
+            continue
         if error_fields.intersection(dependency):
             raise ValueError(
                 f"Python audit skipped or failed dependency: {dependency.get('name', '<unknown>')}; "
@@ -460,6 +661,8 @@ def validate_audit_reports(
             ):
                 raise ValueError("Python audit contains an incomplete vulnerability")
         python_findings += len(vulns)
+    if source_reviews and reviewed_skips != source_reviews.keys():
+        raise ValueError("Source review does not match the non-indexed audit inventory")
     if exits["python"] != int(python_findings > 0):
         raise ValueError("Python audit exit status disagrees with findings")
 
@@ -512,11 +715,13 @@ def review_vulnerabilities(
     json_output: Path,
     markdown_output: Path,
     audit_exit_codes_path: Path,
+    source_reviews_path: Path | None = None,
 ) -> None:
     python_audit = _read_json(python_audit_path)
     npm_audit = _read_json(npm_audit_path)
     exits = _read_json(audit_exit_codes_path)
-    validate_audit_reports(python_audit, npm_audit, exits)
+    source_reviews = verify_source_reviews(source_reviews_path)
+    validate_audit_reports(python_audit, npm_audit, exits, source_reviews)
     policy = _read_json(policy_path)
     accepted = {
         (item["id"], item["package"], item["version"]): item for item in policy["accepted_findings"]
@@ -526,9 +731,13 @@ def review_vulnerabilities(
     unaccepted: list[str] = []
 
     for dependency in python_audit["dependencies"]:
+        if "skip_reason" in dependency:
+            # This exact raw skip was matched to a verified source review above.
+            # Preserve it as separate evidence; never label it PyPI audit coverage.
+            continue
         package = str(dependency["name"])
         version = str(dependency["version"])
-        for vulnerability in dependency["vulns"]:
+        for vulnerability in dependency.get("vulns", []):
             identifier = str(vulnerability["id"])
             decision = accepted.get((identifier, package, version))
             record = {
@@ -581,6 +790,10 @@ def review_vulnerabilities(
         "python_findings": findings,
         "audit_exit_codes": exits,
         "npm_audit_level": "critical",
+        "source_reviews": list(source_reviews.values()),
+        "source_reviewed_producer_skips": [
+            item for item in python_audit["dependencies"] if "skip_reason" in item
+        ],
     }
     json_output.parent.mkdir(parents=True, exist_ok=True)
     json_output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -595,6 +808,7 @@ def review_vulnerabilities(
                 f"- Accepted Python findings: {report['summary']['accepted_python_findings']}",
                 f"- npm Critical findings: {npm_critical}",
                 f"- Unaccepted findings: {report['summary']['unaccepted']}",
+                f"- Separately reviewed VCS dependencies: {len(source_reviews)} (not PyPI audit coverage)",
             ]
         )
         + "\n",
@@ -664,6 +878,7 @@ def build_parser() -> argparse.ArgumentParser:
     vulnerabilities.add_argument("--npm-audit", type=Path, required=True)
     vulnerabilities.add_argument("--audit-exit-codes", type=Path, required=True)
     vulnerabilities.add_argument("--policy", type=Path, required=True)
+    vulnerabilities.add_argument("--source-reviews", type=Path)
     vulnerabilities.add_argument("--json-output", type=Path, required=True)
     vulnerabilities.add_argument("--markdown-output", type=Path, required=True)
 
@@ -701,6 +916,7 @@ def main() -> int:
             args.json_output,
             args.markdown_output,
             args.audit_exit_codes,
+            args.source_reviews,
         )
     elif args.command == "manifest":
         generate_manifest(args.artifact_root, version, args.output, args.sums_output)

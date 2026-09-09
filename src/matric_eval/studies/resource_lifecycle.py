@@ -310,7 +310,18 @@ class ResourceLifecycle:
                 if identity is None:
                     continue
                 marker = ("MATRIC_RESOURCE_ID=" + self.record["resource_id"]).encode()
-                if marker not in (entry / "environ").read_bytes().split(b"\0"):
+                try:
+                    environment = (entry / "environ").read_bytes().split(b"\0")
+                except OSError:
+                    # Exit can revoke access to environ while stat still exists.
+                    # Only proven death is harmless; a live or reused PID stays
+                    # an unresolved ownership obligation.
+                    if process_identity(int(entry.name)) is None:
+                        continue
+                    raise
+                if marker not in environment:
+                    if process_identity(int(entry.name)) is None:
+                        continue
                     raise RuntimeError("orphan launcher ownership cannot be established")
                 members.append(identity)
             except FileNotFoundError:

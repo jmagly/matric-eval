@@ -85,6 +85,17 @@ git push github refs/remotes/origin/main:refs/heads/main
 git push github refs/tags/v2026.9.0
 ```
 
+For GitHub-only publication, first merge through canonical Gitea and mirror the
+reviewed main commit. Use a clean clone whose `origin` is
+`https://github.com/jmagly/matric-eval.git`, supply `GITHUB_TOKEN` through the
+normal process environment, and wait for that exact commit's GitHub CI:
+
+```bash
+tools/release/cut-tag.sh 2026.9.0 --forge github --check
+tools/release/cut-tag.sh 2026.9.0 --forge github
+git push origin refs/tags/v2026.9.0
+```
+
 The wrapper requires exact current `origin/main`, matching versions and notes,
 successful exact-commit CI, and an unused tag. It creates only a local annotated
 tag and respects the maintainer's configured git signing behavior. No signing

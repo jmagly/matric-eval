@@ -13,7 +13,10 @@ dependencies = [
     "inspect-evals[cyberseceval_4,gaia,swe_bench]==0.19.0",
     "httpx>=0.28.0",
     "openai>=3.1.0",
-    "click>=8.2.0",
+    "click>=8.3.3",
+    # Security floors for transitive Inspect/benchmark dependencies.
+    "gitpython>=3.1.62",
+    "pypdf>=6.18.0",
     "rich>=14.0.0",
     "pydantic>=2.12.0",
     "pydantic-settings>=2.13.0",
