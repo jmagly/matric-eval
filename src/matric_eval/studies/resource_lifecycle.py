@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -43,6 +44,43 @@ def process_identity(pid: int) -> dict[str, Any] | None:
 
 def alive(identity: dict[str, Any]) -> bool:
     return process_identity(identity["pid"]) == identity
+
+
+def _pidfd_open(pid: int) -> int:
+    """Open a pidfd even when the Python runtime omits its optional wrapper."""
+    native = getattr(os, "pidfd_open", None)
+    if native is not None:
+        return int(native(pid))
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        operation = libc.pidfd_open
+    except AttributeError as error:
+        raise RuntimeError("this Linux runtime does not provide pidfd_open") from error
+    operation.argtypes = (ctypes.c_int, ctypes.c_uint)
+    operation.restype = ctypes.c_int
+    descriptor = int(operation(pid, 0))
+    if descriptor < 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number))
+    return descriptor
+
+
+def _pidfd_send_signal(descriptor: int, signum: int) -> None:
+    """Signal a pidfd through libc when Python lacks pidfd_send_signal."""
+    native = getattr(signal, "pidfd_send_signal", None)
+    if native is not None:
+        native(descriptor, signum)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        operation = libc.pidfd_send_signal
+    except AttributeError as error:
+        raise RuntimeError("this Linux runtime does not provide pidfd_send_signal") from error
+    operation.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint)
+    operation.restype = ctypes.c_int
+    if operation(descriptor, signum, None, 0) < 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number))
 
 
 def atomic(path: Path, value: dict[str, Any]) -> None:
@@ -344,7 +382,7 @@ class ResourceLifecycle:
                     if identity_key in signaled:
                         continue
                     try:
-                        descriptor = os.pidfd_open(member["pid"])
+                        descriptor = _pidfd_open(member["pid"])
                     except ProcessLookupError:
                         continue
                     try:
@@ -352,7 +390,7 @@ class ResourceLifecycle:
                         # between enumeration and opening the descriptor.
                         if process_identity(member["pid"]) != member:
                             continue
-                        signal.pidfd_send_signal(descriptor, signum)
+                        _pidfd_send_signal(descriptor, signum)
                         signaled.add(identity_key)
                     except ProcessLookupError:
                         pass
