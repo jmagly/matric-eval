@@ -129,11 +129,12 @@ jobs:
 
       - name: Review vulnerability findings
         run: |
-          python scripts/release_contract.py vulnerabilities \
+          uv run --no-sync python scripts/release_contract.py vulnerabilities \
             --python-audit release-artifacts/evidence/python-vulnerabilities.json \
             --audit-exit-codes release-artifacts/evidence/audit-exit-codes.json \
             --npm-audit release-artifacts/evidence/typescript-vulnerabilities.json \
             --policy release/vulnerability-policy.json \
+            --source-reviews release/source-reviews/instruction-following-eval.json \
             --json-output release-artifacts/evidence/vulnerability-review.json \
             --markdown-output release-artifacts/evidence/vulnerability-review.md
 

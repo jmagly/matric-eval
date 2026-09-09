@@ -4,7 +4,7 @@ All notable changes to matric-eval are documented here. The project follows
 CalVer `YYYY.M.PATCH`, documented in [the release guide](docs/development/releasing.md).
 The patch counter starts at zero each UTC month; historical SemVer tags remain unchanged.
 
-## [2026.9.0] - Unreleased
+## [2026.9.0] - 2026-09-09
 
 ### Changed
 
@@ -16,6 +16,10 @@ The patch counter starts at zero each UTC month; historical SemVer tags remain u
   release uploads. Draft staging and digest checks make retries safe.
 - Locked CI dependency setup, retained combined client coverage, removed duplicate
   unit-test smoke execution and aligned mirror package checks.
+
+- Raised minimum Click, GitPython and pypdf versions to patched releases.
+- Bound dependency license and unindexed source reviews to exact installed bytes;
+  retained expiring reviews for the remaining protobuf and NLTK advisories.
 
 ### Added
 
