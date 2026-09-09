@@ -614,3 +614,63 @@ def test_admission_changes_during_acquire_prevent_dispatch(
     assert lifecycle.broker.released == ["private-token"]
     assert lifecycle.record["cleanup"] == "complete"
     assert not lifecycle.private.exists()
+
+
+@pytest.mark.parametrize("exits", [True, False])
+def test_launcher_exit_during_ownership_read_still_proves_cleanup(lifecycle, monkeypatch, exits):
+    """A zombie has an empty environ despite owning the preceding live stat."""
+    import os
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+    from matric_eval.studies.resource_lifecycle import process_identity
+
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+        env={**os.environ, "MATRIC_RESOURCE_ID": lifecycle.record["resource_id"]},
+    )
+    lifecycle.save(launcher=process_identity(child.pid), state_before_launch="launched")
+    original_read = Path.read_bytes
+    raced = False
+
+    def exit_before_environ(path):
+        nonlocal raced
+        if path == Path(f"/proc/{child.pid}/environ") and not raced:
+            raced = True
+            if not exits:
+                raise PermissionError("live process environ is inaccessible")
+            child.terminate()
+            deadline = time.monotonic() + 5
+            # Do not poll/wait the child here: keep its real zombie /proc entry
+            # so the environ read races exit, not disappearance of the PID.
+            while process_identity(child.pid) is not None:
+                assert time.monotonic() < deadline, "child did not exit"
+                time.sleep(0.001)
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", exit_before_environ)
+    try:
+        cleaned = lifecycle.reconcile()
+        assert raced
+        if exits:
+            assert cleaned, lifecycle.record.get("reason")
+            assert process_identity(child.pid) is None
+            assert lifecycle.broker.released == ["private-token"]
+            assert (
+                lifecycle.record["launcher_extinct_at"]
+                <= lifecycle.record["lease_release_acknowledged_at"]
+            )
+        else:
+            assert not cleaned
+            assert process_identity(child.pid) is not None
+            assert lifecycle.record["reason"] == "PermissionError"
+            assert lifecycle.record["cleanup"] == "pending"
+            assert not lifecycle.broker.released
+    finally:
+        child.kill()
+        child.wait(timeout=5)
