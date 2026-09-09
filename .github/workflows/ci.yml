@@ -8,14 +8,19 @@ on:
 
 env:
   UV_CACHE_DIR: /tmp/.uv-cache
-  UV_PYTHON: "3.11"
+  # Use the container build: uv standalone Python may omit Linux pidfd APIs.
+  UV_PYTHON: "/usr/local/bin/python"
   UV_LOCKED: "1"
 
 jobs:
   quality:
     name: Quality Gates
     runs-on: ubuntu-latest
+    container: python:3.11
     steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git make nodejs npm
+
       - uses: actions/checkout@v4
 
       - name: Install uv
@@ -26,6 +31,23 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --extra dev --extra study
+
+      - name: Verify cleanup runtime capabilities
+        run: |
+          uv run --no-sync python - <<'PY'
+          import os
+          import signal
+          import sys
+          assert sys.version_info[:2] == (3, 11), sys.version
+          assert callable(getattr(os, "pidfd_open", None)), "Python lacks os.pidfd_open"
+          assert callable(getattr(signal, "pidfd_send_signal", None)), "Python lacks signal.pidfd_send_signal"
+          descriptor = os.pidfd_open(os.getpid())
+          try:
+              signal.pidfd_send_signal(descriptor, 0)
+          finally:
+              os.close(descriptor)
+          print(sys.version, sys.executable, "pidfd cleanup available")
+          PY
 
       - name: Verify CalVer surfaces
         run: python scripts/release_contract.py versions
@@ -45,8 +67,12 @@ jobs:
   test:
     name: Test and Coverage
     runs-on: ubuntu-latest
+    container: python:3.11
     needs: quality
     steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git make nodejs npm
+
       - uses: actions/checkout@v4
 
       - name: Install uv
@@ -57,6 +83,23 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --extra dev --extra study
+
+      - name: Verify cleanup runtime capabilities
+        run: |
+          uv run --no-sync python - <<'PY'
+          import os
+          import signal
+          import sys
+          assert sys.version_info[:2] == (3, 11), sys.version
+          assert callable(getattr(os, "pidfd_open", None)), "Python lacks os.pidfd_open"
+          assert callable(getattr(signal, "pidfd_send_signal", None)), "Python lacks signal.pidfd_send_signal"
+          descriptor = os.pidfd_open(os.getpid())
+          try:
+              signal.pidfd_send_signal(descriptor, 0)
+          finally:
+              os.close(descriptor)
+          print(sys.version, sys.executable, "pidfd cleanup available")
+          PY
 
       - name: Run all tests with coverage
         run: make test-coverage-fail
@@ -78,8 +121,12 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
+    container: python:3.11
     needs: test
     steps:
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y git make nodejs npm
+
       - uses: actions/checkout@v4
 
       - name: Install uv
@@ -90,6 +137,23 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
+
+      - name: Verify cleanup runtime capabilities
+        run: |
+          uv run --no-sync python - <<'PY'
+          import os
+          import signal
+          import sys
+          assert sys.version_info[:2] == (3, 11), sys.version
+          assert callable(getattr(os, "pidfd_open", None)), "Python lacks os.pidfd_open"
+          assert callable(getattr(signal, "pidfd_send_signal", None)), "Python lacks signal.pidfd_send_signal"
+          descriptor = os.pidfd_open(os.getpid())
+          try:
+              signal.pidfd_send_signal(descriptor, 0)
+          finally:
+              os.close(descriptor)
+          print(sys.version, sys.executable, "pidfd cleanup available")
+          PY
 
       - name: Build package
         run: uv build
