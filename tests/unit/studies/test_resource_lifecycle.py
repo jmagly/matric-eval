@@ -400,6 +400,28 @@ def test_orphan_launcher_session_is_extinct_before_release(lifecycle, tmp_path, 
             pass
 
 
+def test_pidfd_fallback_signals_exact_process(monkeypatch):
+    import os
+    import signal
+    import subprocess
+    import sys
+
+    from matric_eval.studies.resource_lifecycle import _pidfd_open, _pidfd_send_signal
+
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    monkeypatch.delattr(signal, "pidfd_send_signal", raising=False)
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    descriptor = _pidfd_open(child.pid)
+    try:
+        _pidfd_send_signal(descriptor, signal.SIGTERM)
+        assert child.wait(timeout=5) == -signal.SIGTERM
+    finally:
+        os.close(descriptor)
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=5)
+
+
 @pytest.mark.parametrize("operation", ["inspect", "stop", "remove", "cuda"])
 def test_docker_and_cuda_tools_have_real_subprocess_deadlines(tmp_path, monkeypatch, operation):
     import os
