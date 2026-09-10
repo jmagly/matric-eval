@@ -439,6 +439,33 @@ def test_failed_resident_preflight_stops_loaded_child(lifecycle, admission_plan)
     assert lifecycle.broker.released == ["private-token"]
 
 
+def test_resident_preflight_age_includes_readiness_window(lifecycle, admission_plan, monkeypatch):
+    import sys
+
+    import matric_eval.studies.resource_lifecycle as resource_lifecycle
+
+    attach_owned_container(lifecycle)
+    observed = {}
+
+    def qualify(plan, receipt_path, admission, *, max_age_seconds):
+        observed["max_age_seconds"] = max_age_seconds
+        return {"completed": True}
+
+    monkeypatch.setattr(resource_lifecycle, "execute_target_checks", qualify)
+    code = """
+import hashlib,json,os,pathlib,time
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+time.sleep(.2)
+"""
+    assert (
+        lifecycle.run([sys.executable, "-c", code], timeout=12.5, preflight_plan=admission_plan)
+        == 0
+    )
+    assert observed == {"max_age_seconds": 312.5}
+    assert lifecycle.record["cleanup"] == "complete"
+
+
 def test_lost_release_ack_removes_owned_readiness(lifecycle):
     from pathlib import Path
 
