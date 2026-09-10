@@ -43,6 +43,7 @@ jobs:
       - name: Run real-provider smoke
         env:
           MATRIC_SMOKE_ACCELERATOR: cpu
+          MATRIC_SMOKE_RUNNER_NAME: github-hosted
         run: >-
           uv run python scripts/run_real_provider_smoke.py
           --provider-url http://127.0.0.1:11434
@@ -56,3 +57,5 @@ jobs:
         with:
           name: real-provider-smoke-${{ github.run_id }}
           path: artifacts/real-provider-smoke
+          if-no-files-found: error
+          retention-days: 14

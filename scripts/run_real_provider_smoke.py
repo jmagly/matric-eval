@@ -64,7 +64,8 @@ def wait_for_provider(base_url: str, timeout: float) -> dict[str, Any]:
         except (HTTPError, URLError, TimeoutError, ValueError) as exc:
             last_error = exc
             time.sleep(2)
-    raise TimeoutError(f"Provider unavailable after {timeout:.0f}s: {last_error}")
+    last_error_type = type(last_error).__name__ if last_error is not None else "none"
+    raise TimeoutError(f"Provider unavailable after {timeout:.0f}s (last_error={last_error_type})")
 
 
 def model_snapshot(base_url: str, model: str, pull_timeout: float) -> dict[str, Any]:
@@ -80,9 +81,12 @@ def model_snapshot(base_url: str, model: str, pull_timeout: float) -> dict[str, 
     if selected is None:
         raise RuntimeError(f"Pulled model is absent from provider inventory: {model}")
     details = request_json(base_url, "/api/show", {"model": model}, timeout=30)
+    digest = selected.get("digest")
+    if not isinstance(digest, str) or not digest:
+        raise RuntimeError("Pulled model inventory does not contain an immutable digest")
     return {
         "name": model,
-        "digest": selected.get("digest"),
+        "digest": digest,
         "size": selected.get("size"),
         "modified_at": selected.get("modified_at"),
         "details": details.get("details", selected.get("details", {})),
@@ -124,6 +128,31 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def public_failure(phase: str, error: BaseException) -> dict[str, Any]:
+    """Return a bounded diagnostic without provider response bodies or credentials."""
+    diagnostic: dict[str, Any] = {
+        "phase": phase,
+        "type": type(error).__name__,
+    }
+    if isinstance(error, HTTPError):
+        diagnostic["http_status"] = error.code
+        diagnostic["message"] = f"provider returned HTTP {error.code}"
+    elif isinstance(error, URLError):
+        diagnostic["reason_type"] = type(error.reason).__name__
+        diagnostic["message"] = "provider transport request failed"
+    elif isinstance(error, subprocess.TimeoutExpired):
+        diagnostic["timeout_seconds"] = error.timeout
+        diagnostic["message"] = "evaluation subprocess exceeded its timeout"
+    elif isinstance(error, TimeoutError):
+        diagnostic["message"] = str(error)[:500]
+    elif isinstance(error, OSError):
+        diagnostic["errno"] = error.errno
+        diagnostic["message"] = "local smoke operation failed"
+    else:
+        diagnostic["message"] = str(error)[:500]
+    return diagnostic
+
+
 def latest_summary(results_dir: Path) -> tuple[Path, dict[str, Any]]:
     """Load the single summary produced by this smoke invocation."""
     summaries = sorted(results_dir.glob("run-*/summary.json"))
@@ -163,6 +192,7 @@ def main() -> int:
     report: dict[str, Any] = {
         "schema_version": 1,
         "status": "running",
+        "phase": "initialization",
         "started_at": started_at,
         "completed_at": None,
         "duration_seconds": None,
@@ -171,6 +201,7 @@ def main() -> int:
         "runner": {
             "accelerator": os.getenv("MATRIC_SMOKE_ACCELERATOR", "cpu"),
             "credential_mode": "required" if args.required_credential_env else "none",
+            "name": os.getenv("MATRIC_SMOKE_RUNNER_NAME") or os.getenv("RUNNER_NAME"),
         },
         "provider": {"name": "ollama", "url": public_url(args.provider_url)},
         "model": {"name": args.model},
@@ -180,14 +211,27 @@ def main() -> int:
     try:
         if args.required_credential_env and not os.getenv(args.required_credential_env):
             report["status"] = "gated"
+            report["phase"] = "credential_gate"
             report["gate_reason"] = f"Missing required credential: {args.required_credential_env}"
+            report["diagnostic"] = {
+                "phase": report["phase"],
+                "type": "MissingCredential",
+                "message": report["gate_reason"],
+            }
             return 2
 
+        report["phase"] = "provider_readiness"
         version = wait_for_provider(args.provider_url, args.provider_wait)
-        report["provider"]["version"] = version.get("version")
+        provider_version = version.get("version")
+        if not isinstance(provider_version, str) or not provider_version:
+            raise ValueError("Provider version response is missing a version")
+        report["provider"]["version"] = provider_version
+        report["phase"] = "model_pull"
         report["model"] = model_snapshot(args.provider_url, args.model, args.pull_timeout)
+        report["phase"] = "benchmark_metadata"
         report["benchmark"] = benchmark_snapshot(args.benchmark, report["git_sha"])
 
+        report["phase"] = "evaluation"
         command = [
             sys.executable,
             "-m",
@@ -222,6 +266,7 @@ def main() -> int:
         )
         report["command"] = command
         report["command_exit_code"] = process.returncode
+        report["phase"] = "summary_validation"
         summary_path, summary = latest_summary(results_dir)
         report["summary_path"] = str(summary_path.relative_to(output))
         report["summary"] = summary
@@ -233,10 +278,12 @@ def main() -> int:
                 f"(exit={process.returncode}, successful={successful}, failed={failed})"
             )
         report["status"] = "success"
+        report["phase"] = "complete"
         return 0
     except TimeoutError as exc:
         report["status"] = "gated" if "Provider unavailable" in str(exc) else "failed"
-        report["error"] = str(exc)
+        report["diagnostic"] = public_failure(str(report["phase"]), exc)
+        report["error"] = report["diagnostic"]["message"]
         return 2 if report["status"] == "gated" else 1
     except (
         HTTPError,
@@ -247,12 +294,27 @@ def main() -> int:
         subprocess.SubprocessError,
     ) as exc:
         report["status"] = "failed"
-        report["error"] = str(exc)
+        report["diagnostic"] = public_failure(str(report["phase"]), exc)
+        report["error"] = report["diagnostic"]["message"]
         return 1
     finally:
         report["completed_at"] = utc_now()
         report["duration_seconds"] = round(time.monotonic() - started, 3)
         write_json(report_path, report)
+        log_diagnostic = {
+            "status": report["status"],
+            "phase": report["phase"],
+            "duration_seconds": report["duration_seconds"],
+            "git_sha": report["git_sha"],
+            "provider_version": report["provider"].get("version"),
+            "model_digest": report["model"].get("digest"),
+            "diagnostic": report.get("diagnostic"),
+        }
+        print(
+            "real-provider-smoke-diagnostic "
+            + json.dumps(log_diagnostic, sort_keys=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
