@@ -1,0 +1,33 @@
+{
+  "version": "1",
+  "status": "publisher_metadata_verified",
+  "model": "OBLITERATUS/Qwen3.8-27B-OBLITERATED",
+  "revision": "a58c3b53b3ce71551eafde2ed5ec8df48e0f4ff8",
+  "artifacts": {
+    "abliteration_metadata.json": {
+      "sha256": "d8e7fba0e59824d4c3d98f3cc7ecf9d4b4999a8ec86accb2dd18c64495dea561",
+      "n_harmful_prompts": 1007,
+      "n_harmless_prompts": 1007,
+      "technique": "refusal_direction_ablation",
+      "method": "aggressive"
+    },
+    "hard_negative_residue.json": {
+      "sha256": "9603275bfa5037c53397ab3a5b6bc3c9dac818e66a727c6f39c93c0eb2c68df0",
+      "base_dataset": "builtin",
+      "base_pairs": 842,
+      "residue_examples": 13,
+      "residue_added_pairs": 165,
+      "total_pairs": 1007
+    },
+    "README.md": {
+      "sha256": "5ea5bdfb42b286f4171a6f16810899ec49577b700f02dfcfe6d0c321396f4251"
+    }
+  },
+  "lineage_conclusion": "The model-published receipt identifies the OBLITERATUS built-in corpus as the base and records 13 hash-addressed residue cases repeated into 165 additional pairs. It does not claim WildJailbreak, AdvBench, HarmBench, or another external prompt source was used for this model revision.",
+  "limitations": [
+    "The residue artifact contains indices, short prompt hashes, weights, reasons, and tags but not the prompt text or harmless counterparts.",
+    "Publisher metadata is model-specific lineage evidence, not an independent reproduction of training or evaluation.",
+    "The public Hugging Face OBLITERATUS namespace exposes model repositories but no dataset repositories through the dataset API as of 2026-09-09.",
+    "This evidence does not substitute for the gated WildJailbreak train/eval payloads in the general source catalog."
+  ]
+}
