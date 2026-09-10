@@ -37,12 +37,16 @@ def test_workflow_has_manual_schedule_service_and_artifact_retention(path: Path)
     assert "if: always()" in serialized
     assert "scripts/run_real_provider_smoke.py" in serialized
     assert "smollm2:135m" in serialized
+    assert "if-no-files-found: error" in serialized
+    assert "retention-days: 14" in serialized
 
 
 def test_gitea_workflow_installs_upload_action_runtime() -> None:
     serialized = (ROOT / ".gitea/workflows/real-provider-smoke.yml").read_text()
 
     assert "apt-get install -y curl git nodejs" in serialized
+    assert "runs-on: [teroknor, docker, node-20]" in serialized
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in serialized
 
 
 def test_public_url_removes_credentials_and_query() -> None:
@@ -70,6 +74,7 @@ def test_missing_credential_is_gated_and_recorded(tmp_path, monkeypatch) -> None
     report = json.loads((tmp_path / "smoke-report.json").read_text())
     assert report["status"] == "gated"
     assert report["gate_reason"] == "Missing required credential: PROVIDER_TOKEN"
+    assert report["diagnostic"]["phase"] == "credential_gate"
 
 
 def test_success_records_revisions_duration_and_summary(tmp_path, monkeypatch) -> None:
@@ -140,3 +145,19 @@ def test_failed_evaluation_is_not_reported_as_success(tmp_path, monkeypatch) -> 
     report = json.loads((tmp_path / "smoke-report.json").read_text())
     assert report["status"] == "failed"
     assert "one successful result" in report["error"]
+    assert report["diagnostic"]["phase"] == "summary_validation"
+
+
+def test_provider_transport_failure_is_bounded_and_content_free() -> None:
+    failure = smoke.public_failure(
+        "provider_readiness",
+        smoke.URLError("https://user:secret@example.test/path?token=hidden"),
+    )
+
+    assert failure == {
+        "phase": "provider_readiness",
+        "type": "URLError",
+        "reason_type": "str",
+        "message": "provider transport request failed",
+    }
+    assert "secret" not in json.dumps(failure)

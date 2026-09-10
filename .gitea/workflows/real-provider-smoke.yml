@@ -16,7 +16,7 @@ env:
 jobs:
   smoke:
     name: Ollama CPU Smoke
-    runs-on: ubuntu-latest
+    runs-on: [teroknor, docker, node-20]
     container: python:3.11
     timeout-minutes: 20
     services:
@@ -49,6 +49,7 @@ jobs:
       - name: Run real-provider smoke
         env:
           MATRIC_SMOKE_ACCELERATOR: cpu
+          MATRIC_SMOKE_RUNNER_NAME: teroknor
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run python scripts/run_real_provider_smoke.py \
@@ -59,7 +60,9 @@ jobs:
 
       - name: Retain provider diagnostics
         if: always()
-        uses: actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: real-provider-smoke-${{ github.run_id }}
           path: artifacts/real-provider-smoke
+          if-no-files-found: error
+          retention-days: 14
