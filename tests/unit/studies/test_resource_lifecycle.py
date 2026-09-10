@@ -1,21 +1,30 @@
+import json
+
 import pytest
 
+from matric_eval.studies.gpu import GpuAllocation
 from matric_eval.studies.resource_lifecycle import ResourceLifecycle
+
+GPU_A = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+GPU_B = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 
 class FakeBroker:
     def __init__(self):
         self.leases = []
         self.released = []
+        self.acquisitions = []
         self.offline = False
 
     def call(self, action, **fields):
         if self.offline:
             raise OSError("offline")
         if action == "acquire":
+            self.acquisitions.append(fields)
             lease = {
                 "owner": fields["owner"],
                 "gpu_uuids": fields["gpu_uuids"],
+                "requested_mib": fields["requested_mib"],
                 "token": "private-token",
             }
             self.leases.append(lease)
@@ -50,7 +59,12 @@ class FakeDocker:
 def lifecycle(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
     value = ResourceLifecycle(tmp_path / "owned", broker, docker)
-    value.prepare("existing-run", "existing-attempt", "GPU-owned", "qualification")
+    value.prepare(
+        "existing-run",
+        "existing-attempt",
+        GPU_A,
+        "qualification",
+    )
     yield value
     value.close()
 
@@ -62,6 +76,166 @@ def test_private_exact_lease_and_idempotent_release(lifecycle):
     assert lifecycle.reconcile()
     assert lifecycle.reconcile()
     assert lifecycle.broker.released == ["private-token"]
+
+
+def test_multi_gpu_allocation_is_persisted_and_acquired_as_one_ordered_set(tmp_path):
+    broker, docker = FakeBroker(), FakeDocker()
+    value = ResourceLifecycle(tmp_path / "multi", broker, docker)
+    allocation = GpuAllocation(
+        gpu_uuids=(GPU_B, GPU_A),
+        memory_mib=75_000,
+        topology_policy="nvlink-p2p-required/1",
+    )
+    try:
+        value.prepare("run", "attempt", allocation, "qualification")
+        assert value.record["schema"] == "matric-eval.resource-lifecycle/2"
+        assert value.record["gpu_allocation"] == allocation.to_dict()
+        assert value.record["gpu_allocation_sha256"] == allocation.fingerprint()
+        assert value.record["gpu_uuids"] == [GPU_B, GPU_A]
+        assert value.record["requested_mib"] == 75_000
+
+        value.acquire()
+
+        assert broker.acquisitions == [
+            {
+                "owner": value.record["owner"],
+                "requested_mib": 75_000,
+                "ttl": 300,
+                "gpu_uuids": [GPU_B, GPU_A],
+            }
+        ]
+        with pytest.raises(RuntimeError, match="persisted allocation intent"):
+            value.acquire(75_001)
+    finally:
+        value.reconcile()
+        value.close()
+
+
+def test_multi_gpu_overlap_blocks_the_entire_pending_set(tmp_path):
+    first = ResourceLifecycle(tmp_path / "first", FakeBroker(), FakeDocker())
+    second = ResourceLifecycle(tmp_path / "second", FakeBroker(), FakeDocker())
+    try:
+        first.prepare("run", "first", (GPU_A, GPU_B), "qualification")
+        second.prepare("run", "second", (GPU_B,), "qualification")
+
+        with pytest.raises(RuntimeError, match="unresolved cleanup obligation"):
+            second.acquire()
+
+        assert not second.broker.acquisitions
+    finally:
+        first.close()
+        second.close()
+
+
+def test_invalid_unresolved_allocation_evidence_blocks_new_acquisition(tmp_path):
+    first = ResourceLifecycle(tmp_path / "first", FakeBroker(), FakeDocker())
+    second = ResourceLifecycle(tmp_path / "second", FakeBroker(), FakeDocker())
+    try:
+        first.prepare("run", "first", (GPU_A,), "qualification")
+        first.record["gpu_uuids"] = ["not-an-exact-gpu-uuid"]
+        first.path.write_text(json.dumps(first.record), encoding="utf-8")
+        second.prepare("run", "second", (GPU_B,), "qualification")
+
+        with pytest.raises(RuntimeError, match="invalid unresolved allocation evidence"):
+            second.acquire()
+
+        assert not second.broker.acquisitions
+    finally:
+        first.close()
+        second.close()
+
+
+def test_partial_multi_gpu_cuda_survival_blocks_atomic_release(tmp_path):
+    broker, docker = FakeBroker(), FakeDocker()
+    value = ResourceLifecycle(tmp_path / "multi", broker, docker)
+    try:
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.acquire()
+        docker.info = {
+            "Id": "owned-container-id",
+            "Config": {"Labels": {"matric.resource": value.record["resource_id"]}},
+            "State": {"Running": True, "Pid": 1234},
+        }
+        docker.allocations = [(GPU_A, 1101), (GPU_B, 2202)]
+        docker.cgroup = lambda pid: "owned-container-id" if pid in {1101, 2202} else ""
+
+        original_stop = docker.stop
+
+        def partial_stop(identifier):
+            original_stop(identifier)
+            docker.allocations = [(GPU_B, 2202)]
+
+        docker.stop = partial_stop
+        assert not value.reconcile()
+        assert value.record["cleanup"] == "pending"
+        assert value.record["cuda_pids"] == [1101, 2202]
+        assert value.record["cuda_allocations"] == [
+            {"gpu_uuid": GPU_A, "pid": 1101},
+            {"gpu_uuid": GPU_B, "pid": 2202},
+        ]
+        assert value.record["surviving_cuda_allocations"] == [{"gpu_uuid": GPU_B, "pid": 2202}]
+        assert value.record["reason"] == "owned CUDA allocation remains"
+        assert not broker.released
+
+        docker.allocations = []
+        docker.remove = lambda identifier: None
+        assert value.reconcile()
+        assert value.record["surviving_cuda_allocations"] == []
+        assert broker.released == ["private-token"]
+    finally:
+        value.close()
+
+
+def test_multi_gpu_lease_rank_order_mutation_is_not_released(tmp_path):
+    broker, docker = FakeBroker(), FakeDocker()
+    value = ResourceLifecycle(tmp_path / "multi", broker, docker)
+    try:
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.acquire()
+        broker.leases[0]["gpu_uuids"] = [GPU_B, GPU_A]
+
+        assert not value.reconcile()
+        assert value.record["reason"] == "lease scope changed"
+        assert not broker.released
+    finally:
+        value.close()
+
+
+def test_multi_gpu_lease_memory_mutation_is_not_released(tmp_path):
+    broker, docker = FakeBroker(), FakeDocker()
+    value = ResourceLifecycle(tmp_path / "multi", broker, docker)
+    try:
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.acquire()
+        broker.leases[0]["requested_mib"] = 74_999
+
+        assert not value.reconcile()
+        assert value.record["reason"] == "lease aggregate memory changed"
+        assert not broker.released
+    finally:
+        value.close()
+
+
+def test_version_one_resource_record_remains_readable(tmp_path):
+    broker, docker = FakeBroker(), FakeDocker()
+    directory = tmp_path / "legacy"
+    value = ResourceLifecycle(directory, broker, docker)
+    value.prepare("run", "attempt", GPU_A, "qualification")
+    value.record["schema"] = "matric-eval.resource-lifecycle/1"
+    value.record.pop("gpu_allocation")
+    value.record.pop("gpu_allocation_sha256")
+    value.record.pop("requested_mib")
+    value.path.write_text(json.dumps(value.record), encoding="utf-8")
+    value.close()
+
+    reopened = ResourceLifecycle(directory, broker, docker)
+    try:
+        reopened.acquire()
+        assert broker.acquisitions[0]["gpu_uuids"] == [GPU_A]
+        assert broker.acquisitions[0]["requested_mib"] == 75_000
+    finally:
+        reopened.reconcile()
+        reopened.close()
 
 
 def test_outage_retains_obligation_and_reconnect(lifecycle):
@@ -76,7 +250,12 @@ def test_outage_retains_obligation_and_reconnect(lifecycle):
 
 def test_lost_acquire_ack_recovered_by_exact_owner(lifecycle):
     lifecycle.save(state="acquiring")
-    lifecycle.broker.call("acquire", owner=lifecycle.record["owner"], gpu_uuids=["GPU-owned"])
+    lifecycle.broker.call(
+        "acquire",
+        owner=lifecycle.record["owner"],
+        gpu_uuids=[GPU_A],
+        requested_mib=75_000,
+    )
     assert lifecycle.reconcile()
     assert lifecycle.broker.released == ["private-token"]
 
@@ -92,7 +271,7 @@ def test_unrelated_container_never_stopped_or_released(lifecycle):
 def test_live_cuda_prevents_release(lifecycle):
     lifecycle.acquire()
     lifecycle.save(cuda_pids=[12345])
-    lifecycle.docker.allocations = [("GPU-owned", 12345)]
+    lifecycle.docker.allocations = [("GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", 12345)]
     assert not lifecycle.reconcile()
     assert not lifecycle.broker.released
 
@@ -106,7 +285,7 @@ def test_disappearing_launched_container_fails_closed(lifecycle):
 
 def test_scope_mismatch_never_released(lifecycle):
     lifecycle.acquire()
-    lifecycle.broker.leases[0]["gpu_uuids"] = ["GPU-other"]
+    lifecycle.broker.leases[0]["gpu_uuids"] = ["GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]
     assert not lifecycle.reconcile()
     assert not lifecycle.broker.released
 
@@ -114,11 +293,16 @@ def test_scope_mismatch_never_released(lifecycle):
 def test_unique_names_and_no_reused_directory(lifecycle, tmp_path):
     other = ResourceLifecycle(tmp_path / "other", FakeBroker(), FakeDocker())
     try:
-        other.prepare("existing-run", "next-attempt", "GPU-owned", "qualification")
+        other.prepare(
+            "existing-run",
+            "next-attempt",
+            "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "qualification",
+        )
         for key in ("container", "readiness", "owner"):
             assert lifecycle.record[key] != other.record[key]
         with pytest.raises(RuntimeError):
-            lifecycle.prepare("r", "a", "GPU-owned", "owner")
+            lifecycle.prepare("r", "a", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner")
     finally:
         other.close()
 
@@ -126,7 +310,9 @@ def test_unique_names_and_no_reused_directory(lifecycle, tmp_path):
 def test_other_pending_attempt_blocks_acquire(lifecycle, tmp_path):
     other = ResourceLifecycle(tmp_path / "next", FakeBroker(), FakeDocker())
     try:
-        other.prepare("existing-run", "next", "GPU-owned", "qualification")
+        other.prepare(
+            "existing-run", "next", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "qualification"
+        )
         with pytest.raises(RuntimeError, match="unresolved"):
             other.acquire()
         assert not other.broker.leases
@@ -246,7 +432,7 @@ def test_real_unix_acquire_rejection_reconciles_without_lease(tmp_path):
         worker.start()
         value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
         try:
-            value.prepare("run", "attempt", "GPU-owned", "test")
+            value.prepare("run", "attempt", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
             with pytest.raises(BrokerRejected):
                 value.acquire()
             assert value.reconcile()
@@ -492,7 +678,7 @@ def test_new_boot_still_checks_current_owned_cuda(lifecycle):
     lifecycle.acquire()
     attach_owned_container(lifecycle)
     lifecycle.save(boot_id="old-boot")
-    lifecycle.docker.allocations = [("GPU-owned", 99999999)]
+    lifecycle.docker.allocations = [("GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", 99999999)]
     lifecycle.docker.cgroup = lambda pid: "owned-container-id" if pid == 99999999 else ""
     assert not lifecycle.reconcile()
     assert lifecycle.record["reason"] == "owned CUDA allocation remains"
@@ -523,7 +709,9 @@ def test_orphan_launcher_session_is_extinct_before_release(lifecycle, tmp_path, 
     leader.wait(timeout=5)
     orphan = int(path.read_text())
     lifecycle.save(launcher=identity, state_before_launch="launched")
-    lifecycle.docker.cuda = lambda: [("GPU-owned", orphan)] if process_identity(orphan) else []
+    lifecycle.docker.cuda = lambda: (
+        [("GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", orphan)] if process_identity(orphan) else []
+    )
     try:
         result = lifecycle.reconcile()
         if owned:
@@ -636,6 +824,7 @@ def test_delayed_unix_acquisition_cannot_be_discharged_by_empty_status(tmp_path)
                         pending = {
                             "owner": request["owner"],
                             "gpu_uuids": request["gpu_uuids"],
+                            "requested_mib": request["requested_mib"],
                             "token": "delayed-private-token",
                         }
                         # Keep the real RPC unanswered beyond its 10-second
@@ -659,7 +848,7 @@ def test_delayed_unix_acquisition_cannot_be_discharged_by_empty_status(tmp_path)
         worker.start()
         value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
         try:
-            value.prepare("run", "attempt", "GPU-owned", "test")
+            value.prepare("run", "attempt", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
             with pytest.raises(TimeoutError):
                 value.acquire()
             assert value.record["acquisition_outcome"] == "unknown"
@@ -689,14 +878,19 @@ def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycl
     lifecycle.save(state="stopped", cleanup="complete")
     other = ResourceLifecycle(tmp_path / "other", FakeBroker(), FakeDocker())
     try:
-        other.prepare("run", "new", "GPU-owned", "test")
+        other.prepare("run", "new", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
         with pytest.raises(RuntimeError, match="unresolved"):
             other.acquire()
         assert not lifecycle.reconcile()
         # Neither age nor repeated empty statuses resolves an unknown request.
         lifecycle.save(updated_at=0, cuda_release_verified_at=0)
         assert not lifecycle.reconcile()
-        lifecycle.broker.call("acquire", owner=lifecycle.record["owner"], gpu_uuids=["GPU-owned"])
+        lifecycle.broker.call(
+            "acquire",
+            owner=lifecycle.record["owner"],
+            gpu_uuids=[GPU_A],
+            requested_mib=75_000,
+        )
         assert lifecycle.reconcile()
         assert lifecycle.broker.released == ["private-token"]
         assert json.loads(lifecycle.path.read_text())["cleanup"] == "complete"

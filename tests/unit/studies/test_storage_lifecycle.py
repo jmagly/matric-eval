@@ -130,7 +130,12 @@ def test_crash_reconciliation_retries_storage_projection_failure(
         SimpleNamespace(inspect=lambda name: None, cuda=lambda: []),
     )
     try:
-        resource.prepare("r", "a", "GPU-owned", "owner")
+        resource.prepare(
+            "r",
+            "a",
+            "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "owner",
+        )
         reservation = {
             "ledger": str(ledger),
             "ledger_identity": filesystem(ledger),
