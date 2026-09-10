@@ -231,8 +231,40 @@ def build_token_counter(
     """Build the exact chat-template counter shared with the pinned server runtime."""
 
     def count(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None) -> int:
+        # Tau retains OpenAI wire-format tool-call arguments as JSON strings.
+        # Transformers renders the server's Qwen template locally, where the
+        # template's ``items`` filter requires the decoded object. Normalize a
+        # private copy for token counting without changing the outbound request.
+        template_messages = json.loads(json.dumps(messages))
+        for message in template_messages:
+            calls = message.get("tool_calls")
+            if not isinstance(calls, list):
+                continue
+            for call in calls:
+                if not isinstance(call, dict):
+                    raise RuntimeError("tool call must be an object for token counting")
+                function = call.get("function", call)
+                if not isinstance(function, dict):
+                    raise RuntimeError("tool-call function must be an object for token counting")
+                arguments = function.get("arguments")
+                if isinstance(arguments, str) and arguments:
+                    try:
+                        arguments = json.loads(arguments)
+                    except json.JSONDecodeError as error:
+                        raise RuntimeError(
+                            "tool-call arguments must contain a JSON object for token counting"
+                        ) from error
+                    if not isinstance(arguments, dict):
+                        raise RuntimeError(
+                            "tool-call arguments must contain a JSON object for token counting"
+                        )
+                    function["arguments"] = arguments
+                elif arguments is not None and not isinstance(arguments, (dict, str)):
+                    raise RuntimeError(
+                        "tool-call arguments must contain a JSON object for token counting"
+                    )
         encoded = tokenizer.apply_chat_template(
-            messages,
+            template_messages,
             tools=tools,
             tokenize=True,
             add_generation_prompt=True,
