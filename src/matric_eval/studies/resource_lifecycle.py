@@ -17,8 +17,9 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
+from matric_eval.studies.gpu import GpuAllocation
 from matric_eval.studies.preflight import (
     execute_plan,
     execute_target_checks,
@@ -209,6 +210,27 @@ def acquisition_settled(record: dict[str, Any]) -> bool:
     return bool(record.get("lease_sha256") or record.get("lease_release_acknowledged_at"))
 
 
+def record_allocation(record: dict[str, Any]) -> GpuAllocation:
+    """Read a native lifecycle allocation or its version-one list compatibility form."""
+    payload = record.get("gpu_allocation")
+    if payload is None:
+        allocation = GpuAllocation(
+            gpu_uuids=tuple(record["gpu_uuids"]),
+            memory_mib=record.get("requested_mib", 75000),
+        )
+        return allocation
+    if not isinstance(payload, dict):
+        raise RuntimeError("persisted GPU allocation must be an object")
+    allocation = GpuAllocation.from_dict(payload)
+    if list(allocation.gpu_uuids) != record.get("gpu_uuids"):
+        raise RuntimeError("persisted GPU allocation UUID views disagree")
+    if allocation.memory_mib != record.get("requested_mib"):
+        raise RuntimeError("persisted GPU allocation memory views disagree")
+    if allocation.fingerprint() != record.get("gpu_allocation_sha256"):
+        raise RuntimeError("persisted GPU allocation fingerprint disagrees")
+    return allocation
+
+
 class ResourceLifecycle:
     """The directory is private; record.json contains no lease token.
 
@@ -256,21 +278,42 @@ class ResourceLifecycle:
                     "cleanup": self.record["cleanup"],
                 }
 
-    def prepare(self, run_id: str, attempt_id: str, gpu: str, owner: str) -> None:
+    def prepare(
+        self,
+        run_id: str,
+        attempt_id: str,
+        gpu: str | Sequence[str] | GpuAllocation,
+        owner: str,
+        *,
+        memory_mib: int = 75000,
+        topology_policy: str | None = None,
+    ) -> None:
         if self.record:
             raise RuntimeError(
                 "resource directory already used; reconcile and use a new attempt directory"
             )
-        if not run_id or not attempt_id or not gpu or not gpu.startswith("GPU-"):
-            raise ValueError("run, attempt and exact GPU UUID are required")
+        if not run_id or not attempt_id:
+            raise ValueError("run and attempt are required")
+        if isinstance(gpu, GpuAllocation):
+            allocation = gpu
+        else:
+            gpu_uuids = (gpu,) if isinstance(gpu, str) else tuple(gpu)
+            allocation = GpuAllocation(
+                gpu_uuids=gpu_uuids,
+                memory_mib=memory_mib,
+                topology_policy=topology_policy,
+            )
         identity = uuid.uuid4().hex
         self.save(
-            schema="matric-eval.resource-lifecycle/1",
+            schema="matric-eval.resource-lifecycle/2",
             run_id=run_id,
             attempt_id=attempt_id,
             resource_id=identity,
             owner=f"{owner}:{identity}",
-            gpu_uuids=[gpu],
+            gpu_allocation=allocation.to_dict(),
+            gpu_allocation_sha256=allocation.fingerprint(),
+            gpu_uuids=list(allocation.gpu_uuids),
+            requested_mib=allocation.memory_mib,
             container=f"matric-{identity}",
             status_directory=os.environ.get("MATRIC_RUN_STATUS_DIR"),
             controller_type="process",
@@ -282,13 +325,19 @@ class ResourceLifecycle:
             state="planned",
             cleanup="pending",
             cuda_pids=[],
+            cuda_allocations=[],
+            surviving_cuda_allocations=[],
             acquisition_outcome="not-sent",
         )
 
-    def acquire(self, mib: int = 75000) -> str:
+    def acquire(self, mib: int | None = None) -> str:
+        allocation = record_allocation(self.record)
+        requested_mib = allocation.memory_mib
+        if mib is not None and mib != requested_mib:
+            raise RuntimeError("aggregate memory differs from the persisted allocation intent")
         with (self.directory.parent / ".allocation.lock").open("a+") as guard:
             fcntl.flock(guard, fcntl.LOCK_EX)
-            return self._acquire(mib)
+            return self._acquire(requested_mib)
 
     def _acquire(self, mib: int) -> str:
         if self.record.get("acquisition_outcome") != "not-sent":
@@ -297,10 +346,15 @@ class ResourceLifecycle:
             if candidate == self.path:
                 continue
             existing = json.loads(candidate.read_text())
-            if (existing.get("cleanup") != "complete" or not acquisition_settled(existing)) and (
-                set(existing.get("gpu_uuids", [])) & set(self.record["gpu_uuids"])
-            ):
-                raise RuntimeError("another attempt has an unresolved cleanup obligation")
+            if existing.get("cleanup") != "complete" or not acquisition_settled(existing):
+                try:
+                    existing_allocation = record_allocation(existing)
+                except (KeyError, TypeError, ValueError, RuntimeError) as error:
+                    raise RuntimeError(
+                        "another attempt has invalid unresolved allocation evidence"
+                    ) from error
+                if set(existing_allocation.gpu_uuids) & set(self.record["gpu_uuids"]):
+                    raise RuntimeError("another attempt has an unresolved cleanup obligation")
         # Persist before sending: timeout, cancellation, malformed responses and
         # process death all leave an unresolved, possibly still running request.
         self.save(state="acquiring", acquisition_outcome="unknown")
@@ -324,8 +378,15 @@ class ResourceLifecycle:
         return str(lease["token"])
 
     def accept_lease(self, lease: dict[str, Any]) -> None:
-        if lease["owner"] != self.record["owner"] or lease["gpu_uuids"] != self.record["gpu_uuids"]:
+        allocation = record_allocation(self.record)
+        if lease["owner"] != self.record["owner"] or lease["gpu_uuids"] != list(
+            allocation.gpu_uuids
+        ):
             raise RuntimeError("broker lease ownership mismatch")
+        if ("requested_mib" in lease or "gpu_allocation" in self.record) and lease.get(
+            "requested_mib"
+        ) != allocation.memory_mib:
+            raise RuntimeError("broker lease aggregate memory mismatch")
         atomic(self.private, {"token": lease["token"]})
         self.save(
             state="leased",
@@ -341,8 +402,13 @@ class ResourceLifecycle:
         if not matches:
             return None
         lease = matches[0]
-        if lease["gpu_uuids"] != self.record["gpu_uuids"]:
+        allocation = record_allocation(self.record)
+        if lease["gpu_uuids"] != list(allocation.gpu_uuids):
             raise RuntimeError("lease scope changed")
+        if ("requested_mib" in lease or "gpu_allocation" in self.record) and lease.get(
+            "requested_mib"
+        ) != allocation.memory_mib:
+            raise RuntimeError("lease aggregate memory changed")
         if (
             self.private.exists()
             and json.loads(self.private.read_text())["token"] != lease["token"]
@@ -433,6 +499,7 @@ class ResourceLifecycle:
         if not self.record:
             return True
         try:
+            allocation = record_allocation(self.record)
             if self.record.get("host", socket.gethostname()) != socket.gethostname():
                 raise RuntimeError("reconciliation requires the owning host")
             if self.record.get("cleanup") == "complete" and acquisition_settled(self.record):
@@ -447,6 +514,7 @@ class ResourceLifecycle:
             owned_pids = (
                 set(self.record["cuda_pids"]) if self.record["boot_id"] == boot() else set()
             )
+            observed_allocations: set[tuple[str, int]] = set()
             if info is not None:
                 if (
                     info["Config"].get("Labels", {}).get("matric.resource")
@@ -459,9 +527,15 @@ class ResourceLifecycle:
                 self.save(container_id=identifier, stopped_container_pid=info["State"].get("Pid"))
                 # Capture actual per-process CUDA ownership before container teardown.
                 for gpu, pid in self.docker.cuda():
-                    if gpu in self.record["gpu_uuids"] and identifier in self.docker.cgroup(pid):
+                    if gpu in allocation.gpu_uuids and identifier in self.docker.cgroup(pid):
                         owned_pids.add(pid)
-                self.save(cuda_pids=sorted(owned_pids))
+                        observed_allocations.add((gpu, pid))
+                self.save(
+                    cuda_pids=sorted(owned_pids),
+                    cuda_allocations=[
+                        {"gpu_uuid": gpu, "pid": pid} for gpu, pid in sorted(observed_allocations)
+                    ],
+                )
                 if info["State"]["Running"]:
                     self.docker.stop(identifier)
                 after = self.docker.inspect(self.record["container"])
@@ -483,7 +557,13 @@ class ResourceLifecycle:
             ):
                 # We never run with --rm; disappearing containers invalidate proof.
                 raise RuntimeError("owned container disappeared; cleanup proof unavailable")
-            if any(pid in owned_pids for _, pid in self.docker.cuda()):
+            surviving_allocations = [
+                {"gpu_uuid": gpu, "pid": pid}
+                for gpu, pid in sorted(self.docker.cuda())
+                if pid in owned_pids
+            ]
+            self.save(surviving_cuda_allocations=surviving_allocations)
+            if surviving_allocations:
                 raise RuntimeError("owned CUDA allocation remains")
             if info is not None:
                 self.save(container_stopped=info["Id"])
@@ -535,7 +615,7 @@ class ResourceLifecycle:
         self,
         command: list[str],
         timeout: float = 900,
-        mib: int = 75000,
+        mib: int | None = None,
         *,
         preflight_plan: dict[str, Any],
         storage_plan: dict[str, Any] | None = None,
@@ -547,6 +627,7 @@ class ResourceLifecycle:
         heartbeat_failed = threading.Event()
         heartbeat_worker = None
         try:
+            allocation = record_allocation(self.record)
 
             def cancel(signum: int, frame: Any) -> None:
                 raise InterruptedError(f"cancelled by signal {signum}")
@@ -564,7 +645,9 @@ class ResourceLifecycle:
                 "resource_binding": {
                     "run_id": self.record["run_id"],
                     "attempt_id": self.record["attempt_id"],
-                    "gpu_uuids": self.record["gpu_uuids"],
+                    "gpu_uuids": list(allocation.gpu_uuids),
+                    "gpu_allocation": allocation.to_dict(),
+                    "gpu_allocation_sha256": allocation.fingerprint(),
                     "command_sha256": hashlib.sha256(json.dumps(command).encode()).hexdigest(),
                 },
             }
@@ -593,7 +676,12 @@ class ResourceLifecycle:
             env = {
                 **os.environ,
                 "OLLAMA_UNIFY_GPU_LEASE": token,
-                "CUDA_VISIBLE_DEVICES": ",".join(self.record["gpu_uuids"]),
+                "CUDA_VISIBLE_DEVICES": ",".join(allocation.gpu_uuids),
+                "MATRIC_EVAL_GPU_ALLOCATION_JSON": json.dumps(
+                    allocation.to_dict(),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
                 "MATRIC_RESOURCE_ID": self.record["resource_id"],
             }
             replacements = {
@@ -712,7 +800,8 @@ def main() -> int:
     parser.add_argument("--run-id")
     parser.add_argument("--attempt-id")
     parser.add_argument("--owner", default="matric-eval")
-    parser.add_argument("--gpu")
+    parser.add_argument("--gpu", action="append")
+    parser.add_argument("--topology-policy")
     parser.add_argument("--ready-timeout", type=float, default=900)
     parser.add_argument("--memory-mib", type=int, default=75000)
     args, command = parser.parse_known_args()
@@ -727,12 +816,18 @@ def main() -> int:
         if args.preflight_plan is None:
             raise ValueError("run requires --preflight-plan")
         plan = json.loads(args.preflight_plan.read_text())
-        lifecycle.prepare(args.run_id, args.attempt_id, args.gpu, args.owner)
+        lifecycle.prepare(
+            args.run_id,
+            args.attempt_id,
+            tuple(args.gpu or ()),
+            args.owner,
+            memory_mib=args.memory_mib,
+            topology_policy=args.topology_policy,
+        )
         command = command[1:] if command[:1] == ["--"] else command
         return lifecycle.run(
             command,
             args.ready_timeout,
-            args.memory_mib,
             preflight_plan=plan,
             storage_plan=json.loads(args.storage_plan.read_text()) if args.storage_plan else None,
         )

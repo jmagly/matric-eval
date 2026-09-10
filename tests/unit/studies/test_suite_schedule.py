@@ -520,6 +520,8 @@ elif a[0] in ['stop','rm']:
 container,resource,ready=sys.argv[1:]
 root=pathlib.Path(os.environ['SCHEDULE_FAKE_DOCKER'])
 (root/(container+'.json')).write_text(json.dumps({'Id':'synthetic-'+resource,'Config':{'Labels':{'matric.resource':resource}},'State':{'Running':True,'Pid':os.getpid()}}))
+allocation=json.loads(os.environ['MATRIC_EVAL_GPU_ALLOCATION_JSON'])
+assert allocation['gpu_uuids']==os.environ['CUDA_VISIBLE_DEVICES'].split(',')
 token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
 pathlib.Path(ready+'.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
 while True: time.sleep(.1)
@@ -539,6 +541,7 @@ t=TerminalAttempt(attempt_id=i.attempt_id,observations=[Observation(observation_
 pathlib.Path(os.environ['MATRIC_SCHEDULE_TERMINAL']).write_text(t.model_dump_json())
 """)
     leases = []
+    acquisitions = []
 
     class Handler(socketserver.StreamRequestHandler):
         def handle(self):
@@ -546,9 +549,11 @@ pathlib.Path(os.environ['MATRIC_SCHEDULE_TERMINAL']).write_text(t.model_dump_jso
             action = request["action"]
             response = {"ok": True}
             if action == "acquire":
+                acquisitions.append(request)
                 lease = {
                     "owner": request["owner"],
                     "gpu_uuids": request["gpu_uuids"],
+                    "requested_mib": request["requested_mib"],
                     "token": "synthetic-" + str(len(leases)),
                 }
                 leases.append(lease)
@@ -573,11 +578,30 @@ pathlib.Path(os.environ['MATRIC_SCHEDULE_TERMINAL']).write_text(t.model_dump_jso
                 "check": check,
                 "task": task,
                 "leases": leases,
+                "acquisitions": acquisitions,
             }
         finally:
             broker.shutdown()
             broker.server_close()
             thread.join(5)
+
+
+def test_resident_service_normalizes_legacy_scalar_to_native_allocation() -> None:
+    from matric_eval.studies.schedule_cli import ResidentService
+
+    gpu = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    legacy = ResidentService(command=["true"], gpu=gpu, memory_mib=75_000)
+    native = ResidentService(
+        command=["true"],
+        gpu_allocation={
+            "schema": "matric-eval.gpu-allocation/1",
+            "gpu_uuids": [gpu],
+            "memory_mib": 75_000,
+            "topology_policy": None,
+        },
+    )
+
+    assert legacy.model_dump() == native.model_dump()
 
 
 @pytest.mark.parametrize("scenario", ["suite", "global", "crash"])
@@ -599,6 +623,8 @@ def test_supported_command_cli_end_to_end(tmp_path, command_services, scenario):
         fixtures["task"].write_text(
             fixtures["task"].read_text().replace("sys.exit(17)", "__import__('time').sleep(120)")
         )
+    gpu_a = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    gpu_b = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     service = ResidentService(
         command=[
             sys.executable,
@@ -607,9 +633,13 @@ def test_supported_command_cli_end_to_end(tmp_path, command_services, scenario):
             "{resource_id}",
             "{ready_base}",
         ],
-        gpu="GPU-synthetic-qualification",
+        gpu_allocation={
+            "schema": "matric-eval.gpu-allocation/1",
+            "gpu_uuids": [gpu_b, gpu_a],
+            "memory_mib": 2,
+            "topology_policy": None,
+        },
         broker_socket=fixtures["socket"],
-        memory_mib=1,
         ready_timeout_seconds=10,
     )
     checks = [
@@ -691,6 +721,11 @@ def test_supported_command_cli_end_to_end(tmp_path, command_services, scenario):
         assert result.returncode == 1, result.stderr
         assert result.stdout, result.stderr
         reports.append(json.loads(result.stdout))
+    assert fixtures["acquisitions"]
+    assert all(
+        request["gpu_uuids"] == [gpu_b, gpu_a] and request["requested_mib"] == 2
+        for request in fixtures["acquisitions"]
+    )
     if scenario == "global":
         assert reports[0]["global_stop"]
         assert [row["disposition"] for row in reports[0]["entries"]] == [

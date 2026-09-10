@@ -17,11 +17,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from matric_eval.results.contract import Record
 from matric_eval.state.journal import AttemptIntent, ObservationJournal, TerminalAttempt
 from matric_eval.state.observation_identity import canonical_json
+from matric_eval.studies.gpu import GpuAllocation, read_gpu_allocation
 from matric_eval.studies.suite_schedule import (
     GlobalFailure,
     Schedule,
@@ -34,11 +35,34 @@ from matric_eval.studies.suite_schedule import (
 
 class ResidentService(Record):
     command: list[str] = Field(min_length=1)
-    gpu: str
+    gpu_allocation: dict[str, Any]
     broker_socket: str = "/run/ollama-unify/gpu-negotiator.sock"
     docker_host: str = "unix:///run/matric-eval-docker.sock"
-    memory_mib: int = Field(default=75000, gt=0)
     ready_timeout_seconds: float = Field(default=900.0, gt=0, le=86400)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_gpu_allocation(cls, value: Any) -> Any:
+        """Canonicalize the deliberate legacy scalar service form on read."""
+        if not isinstance(value, dict):
+            return value
+        normalized = dict(value)
+        allocation = read_gpu_allocation(normalized).allocation
+        normalized["gpu_allocation"] = allocation.to_dict()
+        normalized.pop("gpu", None)
+        normalized.pop("memory_mib", None)
+        normalized.pop("topology_policy", None)
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_gpu_allocation(self) -> ResidentService:
+        allocation = GpuAllocation.from_dict(self.gpu_allocation)
+        self.gpu_allocation = allocation.to_dict()
+        return self
+
+    @property
+    def allocation(self) -> GpuAllocation:
+        return GpuAllocation.from_dict(self.gpu_allocation)
 
 
 class Binding(Record):
@@ -306,17 +330,18 @@ class CommandAdapter:
             work.identities[0].run_id,
             "--attempt-id",
             resource.name,
-            "--gpu",
-            binding.service.gpu,
             "--owner",
             "matric-suite-schedule",
             "--ready-timeout",
             str(binding.service.ready_timeout_seconds),
             "--memory-mib",
-            str(binding.service.memory_mib),
-            "--",
-            *binding.service.command,
+            str(binding.service.allocation.memory_mib),
         ]
+        if binding.service.allocation.topology_policy is not None:
+            command += ["--topology-policy", binding.service.allocation.topology_policy]
+        for gpu_uuid in binding.service.allocation.gpu_uuids:
+            command += ["--gpu", gpu_uuid]
+        command += ["--", *binding.service.command]
         read_fd, write_fd = os.pipe()
         try:
             gate = 'import os,sys; fd=int(sys.argv[1]); ok=os.read(fd,1); os.close(fd); os.execvpe(sys.argv[2],sys.argv[2:],os.environ) if ok == b"1" else sys.exit(125)'
