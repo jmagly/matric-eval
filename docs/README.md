@@ -54,6 +54,7 @@ Test strategy, plans, and contribution guidelines.
 - [**Profiles and Skips**](testing/profiles.md) - Finite Python/runtime support and accountable evidence gaps
 - [**Contributing**](testing/contributing.md) - How to write and run tests
 - [**A100 Execution**](testing/a100-execution.md) - Required host, storage, preflight, and matched-run policy
+- [**AIWG Agent Pipelines**](testing/agentic-pipelines.md) - Registry-derived platform coverage, bounds, evidence, and operations
 - [**Qwen3.8 27B Intervention Study**](../studies/qwen38-obliteration-2026-09/README.md) - Preregistered source/E03/Pliny comparison
 - **Test Plans**
   - [Unit Tests](testing/plans/unit.md)

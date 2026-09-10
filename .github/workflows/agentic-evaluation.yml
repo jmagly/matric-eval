@@ -1,0 +1,84 @@
+name: Agentic Evaluation Pipeline
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [matric-eval-agentic]
+  schedule:
+    - cron: "43 7 * * 1"
+
+concurrency:
+  group: agentic-evaluation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1"
+  UV_PYTHON: "3.11"
+  AIWG_VERSION: "2026.9.6"
+
+jobs:
+  evaluate:
+    name: Registry-derived matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24.12.0"
+
+      - name: Install pinned AIWG CLI
+        run: npm install --global "aiwg@$AIWG_VERSION"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+          version: "0.9.26"
+
+      - name: Install package
+        run: uv sync --locked --extra dev
+
+      - name: Select operator configuration
+        env:
+          MATRIC_AGENTIC_PIPELINE_CONFIG_B64: ${{ secrets.MATRIC_AGENTIC_PIPELINE_CONFIG_B64 }}
+        run: |
+          config_path="pipelines/agentic-evaluation.json"
+          if [ -n "${MATRIC_AGENTIC_PIPELINE_CONFIG_B64:-}" ]; then
+            config_path="$RUNNER_TEMP/agentic-evaluation.json"
+            printf '%s' "$MATRIC_AGENTIC_PIPELINE_CONFIG_B64" | base64 --decode > "$config_path"
+            chmod 600 "$config_path"
+          fi
+          echo "MATRIC_AGENTIC_CONFIG=$config_path" >> "$GITHUB_ENV"
+
+      - name: Run registry-derived matrix
+        env:
+          MATRIC_AGENTIC_CLAUDE_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_CLAUDE_CREDENTIAL }}
+          MATRIC_AGENTIC_CODEX_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_CODEX_CREDENTIAL }}
+          MATRIC_AGENTIC_COPILOT_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_COPILOT_CREDENTIAL }}
+          MATRIC_AGENTIC_CURSOR_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_CURSOR_CREDENTIAL }}
+          MATRIC_AGENTIC_FACTORY_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_FACTORY_CREDENTIAL }}
+          MATRIC_AGENTIC_HERMES_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_HERMES_CREDENTIAL }}
+          MATRIC_AGENTIC_OPENCODE_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_OPENCODE_CREDENTIAL }}
+          MATRIC_AGENTIC_OPENCLAW_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_OPENCLAW_CREDENTIAL }}
+          MATRIC_AGENTIC_OPENHUMAN_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_OPENHUMAN_CREDENTIAL }}
+          MATRIC_AGENTIC_PI_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_PI_CREDENTIAL }}
+          MATRIC_AGENTIC_WARP_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_WARP_CREDENTIAL }}
+          MATRIC_AGENTIC_WINDSURF_CREDENTIAL: ${{ secrets.MATRIC_AGENTIC_WINDSURF_CREDENTIAL }}
+          MATRIC_DIRECT_OPENROUTER_CREDENTIAL: ${{ secrets.MATRIC_DIRECT_OPENROUTER_CREDENTIAL }}
+          MATRIC_DIRECT_CHUTES_CREDENTIAL: ${{ secrets.MATRIC_DIRECT_CHUTES_CREDENTIAL }}
+        run: uv run python -m matric_eval.pipelines.agentic --config "$MATRIC_AGENTIC_CONFIG"
+
+      - name: Retain sanitized public results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: agentic-evaluation-${{ github.run_id }}
+          path: artifacts/agentic-evaluation/public
+          if-no-files-found: error
+          retention-days: 30
