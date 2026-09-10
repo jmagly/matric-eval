@@ -114,6 +114,55 @@ def test_token_counter_accepts_non_dict_mapping_batch_encoding() -> None:
     assert counter([{"role": "user", "content": "fixture"}], None) == 3
 
 
+def test_token_counter_decodes_wire_format_tool_arguments_without_mutation() -> None:
+    captured: dict[str, Any] = {}
+
+    class Tokenizer:
+        def apply_chat_template(self, conversation: Any, **kwargs: Any) -> list[int]:
+            captured["conversation"] = conversation
+            return [1]
+
+    messages = [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "lookup",
+                        "arguments": '{"account_id":"fixture"}',
+                    },
+                }
+            ],
+        }
+    ]
+    counter = tau_context.build_token_counter(Tokenizer(), "sealed-template")
+    assert counter(messages, None) == 1
+    assert captured["conversation"][0]["tool_calls"][0]["function"]["arguments"] == {
+        "account_id": "fixture"
+    }
+    assert messages[0]["tool_calls"][0]["function"]["arguments"] == ('{"account_id":"fixture"}')
+
+
+@pytest.mark.parametrize("arguments", ["not-json", "[]", 7])
+def test_token_counter_rejects_non_object_tool_arguments(arguments: Any) -> None:
+    class Tokenizer:
+        def apply_chat_template(self, conversation: Any, **kwargs: Any) -> list[int]:
+            raise AssertionError("invalid arguments must fail before template rendering")
+
+    messages = [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {"type": "function", "function": {"name": "lookup", "arguments": arguments}}
+            ],
+        }
+    ]
+    counter = tau_context.build_token_counter(Tokenizer(), "sealed-template")
+    with pytest.raises(RuntimeError, match="tool-call arguments"):
+        counter(messages, None)
+
+
 def test_attested_tokenizer_requires_assets_template_and_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
