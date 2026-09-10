@@ -252,7 +252,20 @@ qwen2.5:7b             e9c23b5a5d51    4.7 GB    3 days ago""",
         config = ProviderConfig(base_url="http://remote:11434")
         provider = OllamaProvider(config)
         kwargs = provider.get_eval_kwargs("llama3.2:3b")
-        assert kwargs["model_base_url"] == "http://remote:11434"
+        assert kwargs["model_base_url"] == "http://remote:11434/v1"
+
+    @pytest.mark.parametrize(
+        ("base_url", "expected"),
+        [
+            ("http://remote:11434/", "http://remote:11434/v1"),
+            ("http://remote:11434/v1", "http://remote:11434/v1"),
+            ("http://remote:11434/v1/", "http://remote:11434/v1"),
+        ],
+    )
+    def test_get_eval_kwargs_normalizes_openai_endpoint(self, base_url, expected):
+        provider = OllamaProvider(ProviderConfig(base_url=base_url))
+
+        assert provider.get_eval_kwargs("llama3.2:3b")["model_base_url"] == expected
 
 
 # =============================================================================

@@ -151,8 +151,12 @@ class OllamaProvider:
     def get_eval_kwargs(self, model: str, **overrides: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         # Ollama uses its native Inspect AI integration, no extra kwargs needed
-        # unless a custom base URL is specified
+        # unless a custom base URL is specified. Inspect's Ollama client speaks
+        # the OpenAI-compatible API, whose base is the native endpoint plus /v1.
         if self._config.base_url != "http://localhost:11434":
-            kwargs["model_base_url"] = self._config.base_url
+            base_url = self._config.base_url.rstrip("/")
+            if not base_url.endswith("/v1"):
+                base_url += "/v1"
+            kwargs["model_base_url"] = base_url
         kwargs.update(overrides)
         return kwargs
