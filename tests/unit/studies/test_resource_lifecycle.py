@@ -748,15 +748,30 @@ def test_acquire_wait_configuration_does_not_shorten_status_timeout(tmp_path):
 
 @pytest.mark.parametrize("change", ["source", "expiry"])
 def test_admission_changes_during_acquire_prevent_dispatch(
-    lifecycle, admission_plan, tmp_path, change
+    lifecycle, admission_plan, tmp_path, monkeypatch, change
 ):
     import sys
-    import time
     from pathlib import Path
 
+    validation_calls = 0
     if change == "expiry":
-        for check in admission_plan["checks"]:
-            check["freshness_seconds"] = 1
+        from matric_eval.studies import resource_lifecycle as lifecycle_module
+
+        original_validate = lifecycle_module.validate_admission
+
+        def expire_on_post_acquire_validation(receipt, plan, max_age_seconds):
+            nonlocal validation_calls
+            validation_calls += 1
+            if validation_calls == 2:
+                # Deterministically model the wall clock advancing while the
+                # acquire RPC is outstanding. A real sleep made the first
+                # validation expire under suite load before any lease existed.
+                receipt["completed_at"] -= max_age_seconds + 1
+            return original_validate(receipt, plan, max_age_seconds)
+
+        monkeypatch.setattr(
+            lifecycle_module, "validate_admission", expire_on_post_acquire_validation
+        )
     original = lifecycle.broker.call
 
     def acquire_then_change(action, **fields):
@@ -765,8 +780,6 @@ def test_admission_changes_during_acquire_prevent_dispatch(
             if change == "source":
                 script = Path(admission_plan["checks"][0]["inputs"][0])
                 script.write_text(script.read_text() + "\n# changed during broker acquire\n")
-            else:
-                time.sleep(1.05)  # Real bounded expiry while the acquire RPC is outstanding.
         return response
 
     lifecycle.broker.call = acquire_then_change
@@ -782,6 +795,8 @@ def test_admission_changes_during_acquire_prevent_dispatch(
     assert lifecycle.broker.released == ["private-token"]
     assert lifecycle.record["cleanup"] == "complete"
     assert not lifecycle.private.exists()
+    if change == "expiry":
+        assert validation_calls == 2
 
 
 @pytest.mark.parametrize("exits", [True, False])

@@ -4,6 +4,42 @@ All notable changes to matric-eval are documented here. The project follows
 CalVer `YYYY.M.PATCH`, documented in [the release guide](docs/development/releasing.md).
 The patch counter starts at zero each UTC month; historical SemVer tags remain unchanged.
 
+## [2026.9.1] - 2026-09-10
+
+### Added
+
+- Added an OBLITERATUS prompt importer with pinned source identities, per-record
+  provenance, qualification evidence and CLI support for reproducible dataset
+  materialization.
+- Added bounded local and simulator-backed TAU replay tooling, canaries and
+  retained root-cause evidence for the preregistered Qwen3.8 study.
+- Added an implementation-ready architecture, risk assessment and test strategy
+  for exact ordered 1+ GPU allocations and qualified tensor-parallel profiles.
+- Added a schema-validated, config-driven release flow covering local builds,
+  exact-commit CI, checked tags, forge mirroring and publication verification.
+
+### Changed
+
+- Preserve model-service admission through readiness, keep exact simulator
+  manifest order and normalize wire tool arguments before context accounting.
+- Record independent human-calibration selection inputs without coupling them
+  to OBLITERATUS prompt-source qualification.
+
+### Fixed
+
+- Settle synchronous broker rejections and release run leases only after
+  confirmed owned-container teardown.
+- Isolate replay service names and support portable pidfd inspection without
+  weakening live-process ownership checks.
+
+### Compatibility
+
+- Python 3.11+ and Node.js 18+ remain required. Result, protocol and evidence
+  schema versions are unchanged.
+- TAU scoring (#154), reusable human-calibrated graders (#126) and the remaining
+  OBLITERATUS dataset work (#164) remain deferred; this release does not claim
+  those qualification gates have passed.
+
 ## [2026.9.0] - 2026-09-09
 
 ### Changed

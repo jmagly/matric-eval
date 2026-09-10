@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1",
+  "engineVersion": "1.0.1",
+  "policyVersion": "1",
+  "profileVersion": "1.0.0",
+  "policyHash": "d22d988760fda2927d94a73e0c2d939c7f9daced1283183724199d9bab1b2b15",
+  "mode": "enforce",
+  "profile": "balanced",
+  "surface": "release-note",
+  "source": {
+    "kind": "repository",
+    "path": "docs/releases/2026.9.1.md",
+    "revision": "release/92-2026.9.1"
+  },
+  "actor": {
+    "trust": "maintainer-reviewed"
+  },
+  "requestedAction": "publish-release-note",
+  "policyProvenance": {
+    "source": ".aiwg/aiwg.config",
+    "path": "security.threatAssessment"
+  },
+  "assessed": true,
+  "findings": [],
+  "risk": {
+    "score": 0,
+    "severity": "informational",
+    "likelihood": 0,
+    "impact": 0
+  },
+  "decision": {
+    "action": "proceed",
+    "wouldAction": "proceed",
+    "interrupts": false,
+    "reason": "no active findings"
+  }
+}

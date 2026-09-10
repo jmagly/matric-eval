@@ -1,6 +1,6 @@
 {
   "name": "@matric/eval-client",
-  "version": "2026.9.0",
+  "version": "2026.9.1",
   "description": "TypeScript client for matric-eval evaluation framework",
   "type": "module",
   "main": "dist/index.js",
