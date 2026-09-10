@@ -11,7 +11,9 @@ from typing import Any
 
 import pytest
 
-from matric_eval.studies import StudyProtocol
+from matric_eval.studies import GpuAllocation, StudyProtocol
+from matric_eval.studies.batch import parallelism_attestation
+from matric_eval.studies.gpu import GpuExecutionBinding
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -105,6 +107,27 @@ def test_validates_turn2_lineage_and_runtime(tmp_path: Path) -> None:
     assert evidence["runtime"]["generation_seconds"] == 20
     assert evidence["result_sha256"] == hashlib.sha256(turn2_result_path.read_bytes()).hexdigest()
     assert evidence["input_receipt_sha256"] == hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+
+
+def test_direct_pilot_parallelism_is_attested_and_batch_stable() -> None:
+    study = StudyProtocol.from_yaml(PROTOCOL)
+    gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    evidence = parallelism_attestation(
+        binding,
+        tensor_parallel_size=1,
+        pipeline_parallel_size=1,
+        visible_gpu_uuids=(gpu_uuid,),
+    )
+    rows = [{"runtime": {"parallelism": evidence}} for _ in range(2)]
+
+    assert pilot_summary._attested_parallelism(study, rows, "pilot") == evidence
+
+    changed = json.loads(json.dumps(evidence))
+    changed["effective"]["visible_gpu_uuids"] = ["GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]
+    rows[1]["runtime"]["parallelism"] = changed
+    with pytest.raises(ValueError, match="changed within the batch"):
+        pilot_summary._attested_parallelism(study, rows, "pilot")
 
 
 def test_rejects_turn2_batch_hash_drift(tmp_path: Path) -> None:

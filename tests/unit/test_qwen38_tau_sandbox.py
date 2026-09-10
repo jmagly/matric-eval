@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -160,3 +161,80 @@ def test_paired_replay_requires_current_bounded_launch_contract(
     )
     with pytest.raises(RuntimeError, match="evidence allocation does not match"):
         supervisor.load_launch_contract("source")
+
+
+def test_paired_replay_releases_only_the_exact_ordered_gpu_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gpu_uuids = (
+        "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    )
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    responses = iter(
+        [
+            "",
+            json.dumps(
+                {
+                    "leases": [
+                        {
+                            "owner": "unit",
+                            "gpu_uuids": list(gpu_uuids),
+                            "token": "private-token",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+    monkeypatch.setattr(supervisor.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        supervisor.subprocess,
+        "check_output",
+        lambda *args, **kwargs: next(responses),
+    )
+
+    supervisor.stop_server("unit", gpu_uuids)
+
+    assert commands[-1][:-1] == ["sudo", "-n", "docker", "gpu", "release"]
+
+
+def test_paired_replay_refuses_partial_or_reordered_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gpu_a = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    gpu_b = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    responses = iter(
+        [
+            "",
+            json.dumps(
+                {
+                    "leases": [
+                        {
+                            "owner": "unit",
+                            "gpu_uuids": [gpu_a, gpu_b],
+                            "token": "private-token",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        supervisor.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0),
+    )
+    monkeypatch.setattr(
+        supervisor.subprocess,
+        "check_output",
+        lambda *args, **kwargs: next(responses),
+    )
+
+    with pytest.raises(RuntimeError, match="refusing partial release"):
+        supervisor.stop_server("unit", (gpu_b, gpu_a))

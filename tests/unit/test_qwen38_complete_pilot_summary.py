@@ -11,7 +11,9 @@ from typing import Any
 
 import pytest
 
-from matric_eval.studies import StudyProtocol
+from matric_eval.studies import GpuAllocation, StudyProtocol
+from matric_eval.studies.batch import parallelism_attestation
+from matric_eval.studies.gpu import GpuExecutionBinding
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -46,6 +48,14 @@ def _fixture(
 ) -> tuple[StudyProtocol, dict[str, Any], dict[str, Any], dict[str, Any]]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     study = StudyProtocol.from_yaml(PROTOCOL)
+    gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    parallelism = parallelism_attestation(
+        binding,
+        tensor_parallel_size=1,
+        pipeline_parallel_size=1,
+        visible_gpu_uuids=(gpu_uuid,),
+    )
     manifest = study.selection_manifest(_catalog(study), "pilot")
     selected = {
         allocation["allocation_id"]: allocation["selected_ids"]
@@ -64,6 +74,7 @@ def _fixture(
                 "total_generation_seconds": 100.0,
                 "total_deterministic_scoring_seconds": 4.0,
                 "estimated_full_direct_seconds_from_scratch": 1200.0,
+                "parallelism": parallelism,
             }
             for model in study.models
         },
@@ -204,6 +215,9 @@ def test_builds_complete_content_free_runtime_summary(tmp_path: Path) -> None:
     for model in result["models"].values():
         assert model["agentic"]["pilot_seconds"] == 205.0
         assert model["pilot_gpu_hours"] == pytest.approx(325.0 / 3600.0)
+        assert model["parallelism"]["effective"]["visible_gpu_uuids"] == [
+            "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        ]
 
 
 def test_direct_model_mapping_order_is_not_semantic(tmp_path: Path) -> None:

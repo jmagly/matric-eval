@@ -11,7 +11,8 @@ study_protocol="studies/qwen38-obliteration-2026-09/protocol.yaml"
 study_docker_host="unix:///run/matric-eval-docker.sock"
 study_broker_socket="/run/ollama-unify/gpu-negotiator.sock"
 
-gpu_uuid=""
+gpu_uuids=()
+parallelism_profile=""
 owner=""
 model_id=""
 model_path=""
@@ -36,7 +37,8 @@ while (( $# )); do
     --run-id) run_id="${2:-}"; shift 2 ;;
     --attempt-id) attempt_id="${2:-}"; shift 2 ;;
     --resource-directory) resource_directory="${2:-}"; shift 2 ;;
-    --gpu) gpu_uuid="${2:-}"; shift 2 ;;
+    --gpu) gpu_uuids+=("${2:-}"); shift 2 ;;
+    --parallelism-profile) parallelism_profile="${2:-}"; shift 2 ;;
     --owner) owner="${2:-}"; shift 2 ;;
     --model-id) model_id="${2:-}"; shift 2 ;;
     --model-path) model_path="${2:-}"; shift 2 ;;
@@ -50,20 +52,20 @@ while (( $# )); do
   esac
 done
 
-for required in storage_plan preflight_plan run_id attempt_id resource_directory gpu_uuid owner model_id model_path qualification lease_receipt server_receipt; do
+for required in storage_plan preflight_plan run_id attempt_id resource_directory owner model_id model_path qualification lease_receipt server_receipt; do
   if [[ -z "${!required}" ]]; then
     printf 'missing required option for %s\n' "$required" >&2
     exit 2
   fi
 done
+if (( ${#gpu_uuids[@]} == 0 )); then
+  printf 'missing required option for gpu\n' >&2
+  exit 2
+fi
 
 if [[ "$(hostname)" != "basilisk" ]]; then
   printf 'this runner requires host basilisk\n' >&2
   exit 1
-fi
-if [[ "$gpu_uuid" != GPU-* ]]; then
-  printf 'GPU must be specified by its exact UUID\n' >&2
-  exit 2
 fi
 if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then
   printf 'port must be an integer between 1024 and 65535\n' >&2
@@ -110,6 +112,32 @@ if [[ -n "$(git -C "$study_repo" status --porcelain)" ]]; then
   exit 1
 fi
 
+lifecycle_python="${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}"
+contract_arguments=(--protocol "$study_repo/$study_protocol" --format lines)
+if [[ -n "$parallelism_profile" ]]; then
+  contract_arguments+=(--parallelism-profile "$parallelism_profile")
+fi
+for gpu_uuid in "${gpu_uuids[@]}"; do
+  contract_arguments+=(--gpu "$gpu_uuid")
+done
+gpu_contract="$(PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" "$lifecycle_python" -m matric_eval.studies.wrapper "${contract_arguments[@]}")"
+mapfile -t gpu_fields <<<"$gpu_contract"
+if (( ${#gpu_fields[@]} != 5 )); then
+  printf 'GPU wrapper contract returned malformed output\n' >&2
+  exit 1
+fi
+gpu_selector="${gpu_fields[0]}"
+gpu_memory_mib="${gpu_fields[1]}"
+gpu_topology_policy="${gpu_fields[2]}"
+gpu_allocation_json="${gpu_fields[4]}"
+lifecycle_gpu_arguments=(--memory-mib "$gpu_memory_mib")
+if [[ "$gpu_topology_policy" != "-" ]]; then
+  lifecycle_gpu_arguments+=(--topology-policy "$gpu_topology_policy")
+fi
+for gpu_uuid in "${gpu_uuids[@]}"; do
+  lifecycle_gpu_arguments+=(--gpu "$gpu_uuid")
+done
+
 actual_image_id="$(
   sudo docker --host "$study_docker_host" image inspect "$study_image" --format '{{.Id}}'
 )"
@@ -134,10 +162,10 @@ code_revision="$(git -C "$study_repo" rev-parse HEAD)"
 evidence_uid="$(id -u)"
 evidence_gid="$(id -g)"
 
-sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}" -m matric_eval.studies.resource_lifecycle run \
+sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" "$lifecycle_python" -m matric_eval.studies.resource_lifecycle run \
   --directory "$resource_directory" --preflight-plan "$preflight_plan" --storage-plan "$storage_plan" \
   --run-id "$run_id" --attempt-id "$attempt_id" \
-  --owner "$owner" --gpu "$gpu_uuid" \
+  --owner "$owner" "${lifecycle_gpu_arguments[@]}" \
   --broker-acquire-timeout "$broker_acquire_timeout" --ready-timeout 900 -- \
   /usr/bin/docker --host "$study_docker_host" run \
     --name '{container}' \
@@ -148,7 +176,7 @@ sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATU
     --pull never \
     --log-driver none \
     --runtime nvidia \
-    --gpus "device=${gpu_uuid}" \
+    --gpus "$gpu_selector" \
     --ipc private \
     --ulimit memlock=-1 \
     --ulimit stack=67108864 \
@@ -171,6 +199,7 @@ sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATU
     --env VLLM_ENABLE_V1_MULTIPROCESSING=0 \
     --env OLLAMA_UNIFY_GPU_LEASE \
     --env CUDA_VISIBLE_DEVICES \
+    --env MATRIC_EVAL_GPU_ALLOCATION_JSON="$gpu_allocation_json" \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
     --env MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" \

@@ -17,6 +17,7 @@ from matric_eval.studies.batch import (
     load_batch_requests,
     run_offline_batch,
     validate_batch_contract,
+    validated_parallelism_binding,
     verify_model_artifact,
 )
 from matric_eval.studies.gpu import (
@@ -58,6 +59,7 @@ __all__ = [
     "run_offline_batch",
     "stratified_paired_bootstrap_ci",
     "validate_batch_contract",
+    "validated_parallelism_binding",
     "validate_gpu_binding",
     "verify_model_artifact",
     "wilson_interval",
