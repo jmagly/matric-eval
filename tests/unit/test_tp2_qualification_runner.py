@@ -69,9 +69,34 @@ def test_pair_availability_requires_the_per_rank_floor() -> None:
         {"uuid": GPU_B, "free_mib": 37_500},
     ]
 
-    assert available(inventory, (GPU_A, GPU_B)) is True
+    assert available(inventory, (GPU_A, GPU_B), set()) is True
     inventory[1]["free_mib"] = 37_499
-    assert available(inventory, (GPU_A, GPU_B)) is False
+    assert available(inventory, (GPU_A, GPU_B), set()) is False
+
+
+def test_pair_availability_rejects_active_compute_processes() -> None:
+    namespace = _runner_namespace()
+    available = namespace["_pair_is_available"]
+    parse = namespace["_compute_process_gpu_uuids"]
+    inventory = [
+        {"uuid": GPU_A, "free_mib": 75_000},
+        {"uuid": GPU_B, "free_mib": 75_000},
+    ]
+
+    active = parse(f"{GPU_A}, 1234\n")
+    assert active == {GPU_A}
+    assert available(inventory, (GPU_A, GPU_B), active) is False
+
+
+def test_compute_process_parser_fails_closed_on_malformed_output() -> None:
+    parse = _runner_namespace()["_compute_process_gpu_uuids"]
+
+    try:
+        parse(f"{GPU_A}\n")
+    except RuntimeError as error:
+        assert "malformed compute-process row" in str(error)
+    else:
+        raise AssertionError("malformed compute-process evidence must fail closed")
 
 
 def test_runtime_python_accepts_executable_venv_symlink(tmp_path: Path) -> None:
