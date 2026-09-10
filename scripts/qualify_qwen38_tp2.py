@@ -62,6 +62,19 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _require_resolved_executable(path: Path) -> Path:
+    """Validate an executable, allowing a symlink to a regular-file target."""
+    if not path.exists():
+        raise RuntimeError(f"required qualification input is unavailable: {path}")
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise RuntimeError(f"required qualification input is unavailable: {path}") from error
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise RuntimeError(f"required qualification input is unavailable: {path}")
+    return resolved
+
+
 def _load_object(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -241,6 +254,9 @@ def _host_evidence(
         "broker_executable": str(BROKER_EXECUTABLE),
         "broker_sha256": _sha256_file(BROKER_EXECUTABLE),
         "broker_service": service,
+        "python_executable": str(PYTHON),
+        "python_resolved": str(PYTHON.resolve(strict=True)),
+        "python_sha256": _sha256_file(PYTHON),
         "runtime_image": IMAGE,
         "runtime_image_id": image,
         "nvidia_container_runtime": runtime,
@@ -254,6 +270,8 @@ def _host_evidence(
         "binding": binding,
         "broker_sha256": private["broker_sha256"],
         "broker_service": service,
+        "python_resolved": private["python_resolved"],
+        "python_sha256": private["python_sha256"],
         "runtime_image": IMAGE,
         "runtime_image_id": image,
         "nvidia_container_runtime": runtime,
@@ -874,11 +892,14 @@ def main() -> int:
         QUALIFICATION,
         CHAT_TEMPLATE,
         MODEL_PATH,
-        PYTHON,
         BROKER_EXECUTABLE,
     ):
         if not required.exists() or required.is_symlink():
             raise RuntimeError(f"required qualification input is unavailable: {required}")
+    # Virtual environments conventionally expose their interpreter through a
+    # symlink. Resolve and attest its regular executable target instead of
+    # rejecting a healthy venv before any hardware resources are acquired.
+    _require_resolved_executable(PYTHON)
 
     root = STUDY / "run-control" / f"issue183-tp2-{time.time_ns()}"
     root.mkdir(mode=0o700)

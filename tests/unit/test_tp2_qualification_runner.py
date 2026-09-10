@@ -1,4 +1,5 @@
 import json
+import os
 import runpy
 import stat
 from pathlib import Path
@@ -71,3 +72,23 @@ def test_pair_availability_requires_the_per_rank_floor() -> None:
     assert available(inventory, (GPU_A, GPU_B)) is True
     inventory[1]["free_mib"] = 37_499
     assert available(inventory, (GPU_A, GPU_B)) is False
+
+
+def test_runtime_python_accepts_executable_venv_symlink(tmp_path: Path) -> None:
+    require_executable = _runner_namespace()["_require_resolved_executable"]
+    target = tmp_path / "python3.11"
+    target.write_text("#!/bin/sh\n", encoding="utf-8")
+    target.chmod(0o755)
+    venv_python = tmp_path / "python"
+    venv_python.symlink_to(target)
+
+    assert require_executable(venv_python) == target
+
+    target.chmod(0o644)
+    assert not os.access(target, os.X_OK)
+    try:
+        require_executable(venv_python)
+    except RuntimeError as error:
+        assert str(venv_python) in str(error)
+    else:
+        raise AssertionError("runtime interpreter must be executable")
