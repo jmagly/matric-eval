@@ -10,7 +10,13 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from matric_eval.studies import StudyProtocol, server_cli
+from matric_eval.studies import (
+    A100_TP1_PROFILE,
+    A100_TP2_PROFILE,
+    GpuAllocation,
+    StudyProtocol,
+    server_cli,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -70,10 +76,24 @@ def test_server_arguments_are_protocol_derived_and_localhost_only(tmp_path: Path
         str(tmp_path / "model"),
     ]
     assert arguments[arguments.index("--max-num-seqs") + 1] == "1"
+    assert arguments[arguments.index("--tensor-parallel-size") + 1] == "1"
+    assert arguments[arguments.index("--pipeline-parallel-size") + 1] == "1"
     assert arguments[arguments.index("--tool-call-parser") + 1] == "qwen3_coder"
     assert "--no-async-scheduling" in arguments
     assert "--enable-log-requests" not in arguments
     assert "--disable-uvicorn-access-log" in arguments
+
+    study.raw["study"]["execution"]["model_server"]["parallelism_profile"] = A100_TP2_PROFILE.id
+    tp2_arguments = server_cli._server_arguments(
+        study,
+        model_id,
+        tmp_path / "model",
+        tmp_path / "chat-template.jinja",
+        "127.0.0.1",
+        18080,
+    )
+    assert tp2_arguments[tp2_arguments.index("--tensor-parallel-size") + 1] == "2"
+    assert tp2_arguments[tp2_arguments.index("--pipeline-parallel-size") + 1] == "1"
 
     study.raw["study"]["execution"]["model_server"]["async_scheduling"] = True
     async_arguments = server_cli._server_arguments(
@@ -256,9 +276,18 @@ def test_run_attested_server_writes_content_free_receipt(
     monkeypatch.setattr(server_cli, "_load_json_object", lambda *args: {})
     monkeypatch.setattr(server_cli, "verify_model_artifact", lambda *args, **kwargs: "a" * 64)
     monkeypatch.setattr(server_cli, "_wait_for_endpoint", lambda *args, **kwargs: None)
-    monkeypatch.setattr(server_cli, "signal_model_resident", lambda model_id: marker)
+    observed_marker_arguments: list[dict[str, object]] = []
 
-    def capture(path: Path) -> str:
+    def signal(model_id: str, **kwargs: object) -> Path:
+        observed_marker_arguments.append(kwargs)
+        return marker
+
+    monkeypatch.setattr(server_cli, "signal_model_resident", signal)
+
+    observed_capture: dict[str, object] = {}
+
+    def capture(path: Path, **kwargs: object) -> str:
+        observed_capture.update(kwargs)
         path.write_text("{}\n", encoding="utf-8")
         return "b" * 64
 
@@ -279,6 +308,10 @@ def test_run_attested_server_writes_content_free_receipt(
         ),
     )
     monkeypatch.setenv("MATRIC_EVAL_CODE_REVISION", "c" * 40)
+    gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    allocation = GpuAllocation((gpu_uuid,), 75_000)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", gpu_uuid)
+    monkeypatch.setenv("MATRIC_EVAL_GPU_ALLOCATION_JSON", json.dumps(allocation.to_dict()))
 
     assert (
         server_cli.run_attested_server(
@@ -308,6 +341,25 @@ def test_run_attested_server_writes_content_free_receipt(
     assert payload["runtime"]["architecture_registration_plugin"] == (
         "matric_eval_architecture_registry"
     )
+    assert payload["runtime"]["parallelism"]["declared"]["profile"]["id"] == (A100_TP1_PROFILE.id)
+    assert payload["runtime"]["parallelism"]["declared"]["allocation"] == allocation.to_dict()
+    assert payload["runtime"]["parallelism"]["effective"] == {
+        "tensor_parallel_size": 1,
+        "pipeline_parallel_size": 1,
+        "visible_gpu_uuids": [gpu_uuid],
+    }
+    assert observed_marker_arguments[0]["parallelism"] == payload["runtime"]["parallelism"]
+    assert observed_marker_arguments[0]["runtime_identity"] == {
+        key: payload["runtime"][key]
+        for key in (
+            "engine",
+            "image",
+            "versions",
+            "vllm_build_commit",
+            "matric_eval_revision",
+        )
+    }
+    assert observed_capture["parallelism"] == payload["runtime"]["parallelism"]
     assert "completion" not in json.dumps(payload)
     assert observed_phases == ["loading", "ready", "stopped"]
     assert created_commands[0][0] == sys.executable

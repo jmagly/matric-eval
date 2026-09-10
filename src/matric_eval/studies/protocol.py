@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 
 from matric_eval.models import LineageRole, ModelSpec
+from matric_eval.studies.gpu import ParallelismProfile, registered_parallelism_profile
 
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 _SHA256_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
@@ -330,7 +331,8 @@ class StudyProtocol:
             raise ValueError("study.execution must be an object")
         if execution.get("host_alias") != "a100":
             raise ValueError("study execution host must be the a100 SSH alias")
-        if execution.get("required_gpu_model") != "NVIDIA A100 80GB PCIe":
+        required_gpu_model = execution.get("required_gpu_model")
+        if required_gpu_model != "NVIDIA A100 80GB PCIe":
             raise ValueError("study requires NVIDIA A100 80GB PCIe GPUs")
         if execution.get("exclusive_gpu_lease_required") is not True:
             raise ValueError("study execution requires an exclusive GPU lease")
@@ -366,8 +368,20 @@ class StudyProtocol:
         version = server.get("version")
         if not isinstance(version, str) or not version.strip():
             raise ValueError("study.execution.model_server.version must be pinned")
-        if server.get("tensor_parallel_size") != 1:
-            raise ValueError("study.execution.model_server.tensor_parallel_size must be 1")
+        if "tensor_parallel_size" in server or "pipeline_parallel_size" in server:
+            raise ValueError(
+                "study.execution.model_server must declare parallelism_profile instead of raw sizes"
+            )
+        profile_value = server.get("parallelism_profile")
+        if not isinstance(profile_value, str):
+            raise ValueError(
+                "study.execution.model_server.parallelism_profile must be a registered profile ID"
+            )
+        profile = registered_parallelism_profile(profile_value)
+        if profile.supported_accelerator_model != required_gpu_model:
+            raise ValueError(
+                "study execution required_gpu_model must match the parallelism profile"
+            )
         if server.get("safetensors_load_strategy") != "prefetch":
             raise ValueError(
                 "study.execution.model_server.safetensors_load_strategy must be prefetch"
@@ -451,6 +465,12 @@ class StudyProtocol:
         """Hash the parsed protocol independent of YAML comments and formatting."""
         canonical = json.dumps(self.raw, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(canonical).hexdigest()
+
+    @property
+    def parallelism_profile(self) -> ParallelismProfile:
+        """Resolve the preregistered model-server profile from the allowlist."""
+        value = self.raw["study"]["execution"]["model_server"]["parallelism_profile"]
+        return registered_parallelism_profile(value)
 
     def select_ids(
         self,

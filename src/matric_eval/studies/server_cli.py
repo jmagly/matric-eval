@@ -22,6 +22,8 @@ from matric_eval.studies.batch import (
     _model_for_id,
     _sha256_file,
     capture_active_gpu_lease,
+    parallelism_attestation,
+    runtime_gpu_execution_binding,
     signal_model_resident,
     verify_model_artifact,
     verify_runtime_environment,
@@ -117,6 +119,7 @@ def _server_arguments(
     """Build the fixed online exception to the otherwise offline inference contract."""
     model = _model_for_id(study, model_id)
     server = study.raw["study"]["execution"]["model_server"]
+    profile = study.parallelism_profile
     if server.get("online_serving_scope") != "official-agent-runners-only":
         raise ValueError("protocol does not authorize online serving for official agent runners")
     if host != "127.0.0.1":
@@ -137,7 +140,9 @@ def _server_arguments(
         "--max-model-len",
         str(model.runtime.context_limit),
         "--tensor-parallel-size",
-        str(server["tensor_parallel_size"]),
+        str(profile.tensor_parallel_size),
+        "--pipeline-parallel-size",
+        str(profile.pipeline_parallel_size),
         "--gpu-memory-utilization",
         str(server["gpu_memory_utilization"]),
         "--safetensors-load-strategy",
@@ -196,6 +201,17 @@ def _serve_child(registrations: JsonObject, arguments: list[str]) -> int:
     return 0
 
 
+def _argument_int(arguments: list[str], flag: str) -> int:
+    """Read one generated integer vLLM flag without accepting ambiguity."""
+    if arguments.count(flag) != 1:
+        raise RuntimeError(f"generated vLLM arguments must contain exactly one {flag}")
+    index = arguments.index(flag)
+    try:
+        return int(arguments[index + 1])
+    except (IndexError, ValueError) as error:
+        raise RuntimeError(f"generated vLLM argument {flag} must be an integer") from error
+
+
 def _terminate_child(process: subprocess.Popen[Any]) -> None:
     if process.poll() is None:
         process.terminate()
@@ -222,6 +238,7 @@ def run_attested_server(
 ) -> int:
     """Validate inputs, start vLLM, attest its lease, and supervise it to exit."""
     study = StudyProtocol.from_yaml(protocol_path, validate_registry=False)
+    execution_binding = runtime_gpu_execution_binding(study)
     model = _model_for_id(study, model_id)
     server = study.raw["study"]["execution"]["model_server"]
     expected_hostname = study.raw["study"]["execution"].get("expected_hostname")
@@ -245,6 +262,19 @@ def run_attested_server(
     if template_sha256 != model.runtime.chat_template_sha256:
         raise ValueError("chat template SHA-256 does not match the qualified runtime")
     arguments = _server_arguments(study, model_id, model_path, chat_template_path, host, port)
+    parallelism = parallelism_attestation(
+        execution_binding,
+        tensor_parallel_size=_argument_int(arguments, "--tensor-parallel-size"),
+        pipeline_parallel_size=_argument_int(arguments, "--pipeline-parallel-size"),
+        visible_gpu_uuids=execution_binding.allocation.gpu_uuids,
+    )
+    runtime_identity = {
+        "engine": "vllm",
+        "image": server["image"],
+        "versions": runtime_versions,
+        "vllm_build_commit": os.environ.get("VLLM_BUILD_COMMIT"),
+        "matric_eval_revision": os.environ.get("MATRIC_EVAL_CODE_REVISION"),
+    }
     registrations = server["architecture_registrations"]
     child_command = [
         sys.executable,
@@ -272,9 +302,18 @@ def run_attested_server(
         previous_handlers[signum] = signal.signal(signum, stop_child)
     try:
         _wait_for_endpoint(process, f"http://{host}:{port}/v1/models", ready_timeout)
-        ready_marker = signal_model_resident(model.id)
+        ready_marker = signal_model_resident(
+            model.id,
+            execution_binding=execution_binding,
+            parallelism=parallelism,
+            runtime_identity=runtime_identity,
+        )
         try:
-            lease_sha256 = capture_active_gpu_lease(lease_receipt_path)
+            lease_sha256 = capture_active_gpu_lease(
+                lease_receipt_path,
+                execution_binding=execution_binding,
+                parallelism=parallelism,
+            )
             lease_receipt_path.chmod(0o600)
             _set_evidence_owner(lease_receipt_path)
         finally:
@@ -290,10 +329,7 @@ def run_attested_server(
             "chat_template_sha256": template_sha256,
             "lease_receipt_sha256": lease_sha256,
             "runtime": {
-                "engine": "vllm",
-                "image": server["image"],
-                "versions": runtime_versions,
-                "matric_eval_revision": os.environ.get("MATRIC_EVAL_CODE_REVISION"),
+                **runtime_identity,
                 "endpoint_scope": "localhost-only",
                 "language_model_only": server["language_model_only"],
                 "architecture_registrations": registrations,
@@ -301,6 +337,7 @@ def run_attested_server(
                 "served_model_names": [model.id, str(model_path)],
                 "initialization_seconds": time.time() - initialization_started,
                 "arguments": arguments,
+                "parallelism": parallelism,
             },
         }
         _write_private_json(server_receipt_path, receipt)

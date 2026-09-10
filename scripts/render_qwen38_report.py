@@ -550,6 +550,7 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
     root = study.raw["study"]
     execution = root["execution"]
     server = execution["model_server"]
+    parallelism = study.parallelism_profile
     model_rows = []
     for raw_model in root["models"]:
         gaps = raw_model.get("evidence_gaps", [])
@@ -572,7 +573,7 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
 <h3>Models</h3><div class="table-wrap"><table><thead><tr><th>Label</th><th>Artifact</th><th>Revision</th><th>Role</th><th>Known provenance gaps</th></tr></thead><tbody>{"".join(model_rows)}</tbody></table></div>
 <h3>Datasets and scorers</h3><div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Dataset</th><th>Revision</th><th>Scoring protocol</th><th>n/model</th></tr></thead><tbody>{dataset_rows}</tbody></table></div></section>
 <section id="execution-environment"><p class="eyebrow">Execution environment</p><h2>Pinned A100 inference contract</h2>
-<p>Host <code>{_e(execution["expected_hostname"])}</code>; GPU <code>{_e(execution["required_gpu_model"])}</code>; engine <code>{_e(server["engine"])} {_e(server["version"])}</code>; image <code>{_e(server["image"])}</code>. Tensor parallelism was {server["tensor_parallel_size"]}, bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
+<p>Host <code>{_e(execution["expected_hostname"])}</code>; GPU <code>{_e(execution["required_gpu_model"])}</code>; engine <code>{_e(server["engine"])} {_e(server["version"])}</code>; image <code>{_e(server["image"])}</code>. Parallelism profile <code>{_e(parallelism.id)}</code> declared TP={parallelism.tensor_parallel_size} and PP={parallelism.pipeline_parallel_size}; bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
 <p>The primary comparison forces one source chat template, reasoning-on behavior, a 32,768-token context limit, and identical sampler settings. Vision and MTP are excluded to preserve a matched E03 comparison.</p></section>
 <section id="statistical-methods"><p class="eyebrow">Statistical methods</p><h2>Uncertainty and decision rules</h2>
 <p>Continuous component means use percentile bootstrap intervals; binary proportions use Wilson intervals. Intervention deltas use paired bootstrap resampling and domain summaries resample within allocation before equal-weight macro-averaging. Binary paired hypotheses use two-sided exact McNemar tests and Holm correction within axis.</p>
