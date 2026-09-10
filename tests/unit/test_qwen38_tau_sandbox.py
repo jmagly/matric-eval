@@ -238,3 +238,9 @@ def test_paired_replay_refuses_partial_or_reordered_release(
 
     with pytest.raises(RuntimeError, match="refusing partial release"):
         supervisor.stop_server("unit", (gpu_b, gpu_a))
+
+
+def test_paired_replay_forwards_the_selected_protocol_to_the_server_wrapper() -> None:
+    source = (ROOT / "scripts/run_qwen38_paired_replay.py").read_text(encoding="utf-8")
+
+    assert '"--protocol",\n                    protocol,' in source

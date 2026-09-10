@@ -30,6 +30,7 @@ while (( $# )); do
   case "$1" in
     --gpu) gpu_uuids+=("${2:-}"); shift 2 ;;
     --parallelism-profile) parallelism_profile="${2:-}"; shift 2 ;;
+    --protocol) study_protocol="${2:-}"; shift 2 ;;
     --owner) owner="${2:-}"; shift 2 ;;
     --model-id) model_id="${2:-}"; shift 2 ;;
     --model-path) model_path="${2:-}"; shift 2 ;;
@@ -93,8 +94,24 @@ if [[ -n "$(git -C "$study_repo" status --porcelain)" ]]; then
   exit 1
 fi
 
+if [[ "$study_protocol" == /* ]]; then
+  protocol_host="$(realpath -e -- "$study_protocol")"
+  if [[ "$protocol_host" != "${study_root}/"* ]]; then
+    printf 'absolute protocol must remain inside the private study result root\n' >&2
+    exit 2
+  fi
+  protocol_container="$protocol_host"
+else
+  protocol_host="$(realpath -e -- "$study_repo/$study_protocol")"
+  if [[ "$protocol_host" != "$study_repo/studies/"* ]]; then
+    printf 'relative protocol must remain inside the checkout studies directory\n' >&2
+    exit 2
+  fi
+  protocol_container="${protocol_host#"$study_repo/"}"
+fi
+
 lifecycle_python="${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}"
-contract_arguments=(--protocol "$study_repo/$study_protocol" --format lines)
+contract_arguments=(--protocol "$protocol_host" --format lines)
 if [[ -n "$parallelism_profile" ]]; then
   contract_arguments+=(--parallelism-profile "$parallelism_profile")
 fi
@@ -166,7 +183,7 @@ sudo docker gpu run \
     --entrypoint /usr/bin/python3 \
     "$study_image" \
     -m matric_eval.studies.runner_cli \
-    "$study_protocol" \
+    "$protocol_container" \
     "$study_manifest" \
     "$requests" \
     --model-id "$model_id" \

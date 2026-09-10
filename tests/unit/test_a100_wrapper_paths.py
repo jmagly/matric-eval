@@ -34,6 +34,8 @@ def test_gpu_wrappers_preserve_repeated_uuid_arguments_and_exact_selector() -> N
         assert "gpu_uuids=()" in source
         assert 'gpu_uuids+=("${2:-}")' in source
         assert 'contract_arguments+=(--gpu "$gpu_uuid")' in source
+        assert '--protocol) study_protocol="${2:-}"' in source
+        assert 'protocol_host="$(realpath -e --' in source
         assert '--gpus "$gpu_selector"' in source
         assert 'MATRIC_EVAL_GPU_ALLOCATION_JSON="$gpu_allocation_json"' in source
 
