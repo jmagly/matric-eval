@@ -17,7 +17,7 @@ import yaml
 from matric_eval.studies.protocol import StudyProtocol
 
 STUDY_ID = "qwen38-obliteration-2026-09"
-PROTOCOL_SHA256 = "01804a01700335f2b14186c3ead87c71590ff8af1707c70b55a85f42cf26c833"
+PROTOCOL_SHA256 = "3bdd8f87ae435cb1b20f763e694119f8f32cb295b58dba635d77407123b3e10f"
 SEED = 1790783388
 MODEL_PINS = {
     "qwen38-27b-source-bf16": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",

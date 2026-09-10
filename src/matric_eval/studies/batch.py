@@ -9,11 +9,17 @@ import os
 import platform
 import socket
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 from matric_eval.models import ExecutionMode, ModelSpec
+from matric_eval.studies.gpu import (
+    GpuAllocation,
+    GpuExecutionBinding,
+    validate_gpu_binding,
+)
 from matric_eval.studies.protocol import StudyProtocol
 
 
@@ -23,6 +29,99 @@ def _sha256_file(path: Path) -> str:
         while chunk := handle.read(8 * 1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def runtime_gpu_execution_binding(
+    study: StudyProtocol,
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> GpuExecutionBinding:
+    """Bind the preregistered profile to the lifecycle's exact allocation."""
+    values = os.environ if environment is None else environment
+    raw_allocation = values.get("MATRIC_EVAL_GPU_ALLOCATION_JSON")
+    if not raw_allocation:
+        raise RuntimeError("MATRIC_EVAL_GPU_ALLOCATION_JSON is required")
+    try:
+        payload = json.loads(raw_allocation)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("MATRIC_EVAL_GPU_ALLOCATION_JSON is invalid") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("MATRIC_EVAL_GPU_ALLOCATION_JSON must contain an object")
+    allocation = GpuAllocation.from_dict(payload)
+    visible = tuple(values.get("CUDA_VISIBLE_DEVICES", "").split(","))
+    if visible != allocation.gpu_uuids:
+        raise RuntimeError(
+            "CUDA_VISIBLE_DEVICES must exactly match the declared allocation UUID order"
+        )
+    return GpuExecutionBinding(allocation=allocation, profile=study.parallelism_profile)
+
+
+def parallelism_attestation(
+    binding: GpuExecutionBinding,
+    *,
+    tensor_parallel_size: int,
+    pipeline_parallel_size: int,
+    visible_gpu_uuids: Sequence[str],
+) -> dict[str, Any]:
+    """Build strict declared/effective evidence for one actual vLLM invocation."""
+    profile = binding.profile
+    if (
+        type(tensor_parallel_size) is not int
+        or tensor_parallel_size != profile.tensor_parallel_size
+    ):
+        raise RuntimeError("effective tensor parallelism disagrees with the declared profile")
+    if (
+        type(pipeline_parallel_size) is not int
+        or pipeline_parallel_size != profile.pipeline_parallel_size
+    ):
+        raise RuntimeError("effective pipeline parallelism disagrees with the declared profile")
+    visible = tuple(visible_gpu_uuids)
+    if visible != binding.allocation.gpu_uuids:
+        raise RuntimeError("effective visible GPU order disagrees with the declared allocation")
+    return {
+        "schema_version": "1",
+        "declared": {
+            "profile": profile.to_dict(),
+            "profile_sha256": profile.fingerprint(),
+            "allocation": binding.allocation.to_dict(),
+            "allocation_sha256": binding.allocation.fingerprint(),
+            "binding_sha256": binding.fingerprint(),
+        },
+        "effective": {
+            "tensor_parallel_size": tensor_parallel_size,
+            "pipeline_parallel_size": pipeline_parallel_size,
+            "visible_gpu_uuids": list(visible),
+        },
+    }
+
+
+def validate_parallelism_attestation(
+    binding: GpuExecutionBinding,
+    evidence: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Reject any retained attestation that disagrees with its binding."""
+    effective = evidence.get("effective")
+    if not isinstance(effective, Mapping):
+        raise RuntimeError("parallelism attestation lacks effective settings")
+    tensor_parallel_size = effective.get("tensor_parallel_size")
+    pipeline_parallel_size = effective.get("pipeline_parallel_size")
+    visible_gpu_uuids = effective.get("visible_gpu_uuids")
+    if (
+        type(tensor_parallel_size) is not int
+        or type(pipeline_parallel_size) is not int
+        or not isinstance(visible_gpu_uuids, list)
+        or not all(isinstance(value, str) for value in visible_gpu_uuids)
+    ):
+        raise RuntimeError("parallelism attestation has invalid effective settings")
+    expected = parallelism_attestation(
+        binding,
+        tensor_parallel_size=tensor_parallel_size,
+        pipeline_parallel_size=pipeline_parallel_size,
+        visible_gpu_uuids=visible_gpu_uuids,
+    )
+    if dict(evidence) != expected:
+        raise RuntimeError("parallelism attestation disagrees with the execution binding")
+    return expected
 
 
 @dataclass(frozen=True)
@@ -392,10 +491,13 @@ def _gpu_broker_status(socket_path: Path) -> dict[str, Any]:
 def capture_active_gpu_lease(
     receipt_path: Path,
     *,
+    execution_binding: GpuExecutionBinding,
+    parallelism: Mapping[str, Any],
     status_factory: Callable[[Path], dict[str, Any]] = _gpu_broker_status,
     sleep: Callable[[float], None] = time.sleep,
 ) -> str:
     """Wait for and record the exact active scoped lease inherited by the container."""
+    attestation = validate_parallelism_attestation(execution_binding, parallelism)
     token = os.environ.get("OLLAMA_UNIFY_GPU_LEASE")
     if not token:
         raise RuntimeError("production offline execution requires OLLAMA_UNIFY_GPU_LEASE")
@@ -433,6 +535,35 @@ def capture_active_gpu_lease(
                 raise RuntimeError(
                     "CUDA_VISIBLE_DEVICES does not exactly match the active scoped lease"
                 )
+            if lease.get("requested_mib") != execution_binding.allocation.memory_mib:
+                raise RuntimeError("active GPU lease memory disagrees with the allocation")
+            raw_gpus = status.get("gpus")
+            if not isinstance(raw_gpus, list) or not all(
+                isinstance(item, dict) for item in raw_gpus
+            ):
+                raise RuntimeError("GPU broker status lacks device evidence")
+            by_uuid = {
+                item.get("uuid"): item for item in raw_gpus if isinstance(item.get("uuid"), str)
+            }
+            if len(by_uuid) != len(
+                [item for item in raw_gpus if isinstance(item.get("uuid"), str)]
+            ):
+                raise RuntimeError("GPU broker status contains duplicate device UUIDs")
+            try:
+                allocated_gpus = [by_uuid[gpu] for gpu in execution_binding.allocation.gpu_uuids]
+            except KeyError as error:
+                raise RuntimeError("GPU broker status lacks an allocated device") from error
+            available_memory: list[int] = []
+            for item in allocated_gpus:
+                total_mib = item.get("total_mib")
+                if type(total_mib) is not int:
+                    raise RuntimeError("GPU broker status lacks integer device memory evidence")
+                available_memory.append(total_mib)
+            validate_gpu_binding(
+                execution_binding.allocation,
+                execution_binding.profile,
+                available_memory_mib=available_memory,
+            )
             receipt = {
                 "schema_version": "1",
                 "captured_at_unix": time.time(),
@@ -442,6 +573,7 @@ def capture_active_gpu_lease(
                 "gpus": status.get("gpus"),
                 "backend_available": status.get("backend_available"),
                 "backend_checked_at": status.get("backend_checked_at"),
+                "parallelism": attestation,
             }
             receipt_path.parent.mkdir(parents=True, exist_ok=True)
             with receipt_path.open("x", encoding="utf-8") as handle:
@@ -457,8 +589,21 @@ def capture_active_gpu_lease(
         sleep(0.25)
 
 
-def signal_model_resident(model_id: str) -> Path:
-    """Create a token-specific readiness marker for the host GPU lease broker."""
+def signal_model_resident(
+    model_id: str,
+    *,
+    execution_binding: GpuExecutionBinding,
+    parallelism: Mapping[str, Any],
+    runtime_identity: Mapping[str, Any],
+) -> Path:
+    """Create an allocation token-specific, allocation-attested readiness marker."""
+    attestation = validate_parallelism_attestation(execution_binding, parallelism)
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    if tuple(visible.split(",")) != execution_binding.allocation.gpu_uuids:
+        raise RuntimeError("readiness visible GPUs disagree with the declared execution binding")
+    runtime = dict(runtime_identity)
+    if runtime.get("engine") != "vllm" or not isinstance(runtime.get("image"), str):
+        raise RuntimeError("readiness runtime identity must include vLLM and its image")
     token = os.environ.get("OLLAMA_UNIFY_GPU_LEASE", "")
     if not token or any(not (character.isalnum() or character in "-_") for character in token):
         raise RuntimeError("OLLAMA_UNIFY_GPU_LEASE is missing or unsafe for a readiness marker")
@@ -474,7 +619,9 @@ def signal_model_resident(model_id: str) -> Path:
         "schema_version": "1",
         "model_id": model_id,
         "lease_token_sha256": hashlib.sha256(token.encode()).hexdigest(),
-        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "cuda_visible_devices": visible,
+        "parallelism": attestation,
+        "runtime_identity": runtime,
         "created_at_unix": time.time(),
         "pid": os.getpid(),
     }
@@ -509,6 +656,16 @@ def run_offline_batch(
     model = _model_for_id(study, model_id)
     execution = study.raw["study"]["execution"]
     server = execution["model_server"]
+    execution_binding = runtime_gpu_execution_binding(study)
+    profile = execution_binding.profile
+    tensor_parallel_size = profile.tensor_parallel_size
+    pipeline_parallel_size = profile.pipeline_parallel_size
+    parallelism = parallelism_attestation(
+        execution_binding,
+        tensor_parallel_size=tensor_parallel_size,
+        pipeline_parallel_size=pipeline_parallel_size,
+        visible_gpu_uuids=execution_binding.allocation.gpu_uuids,
+    )
     production_runtime = (
         engine_factory is None or tokenizer_factory is None or sampling_factory is None
     )
@@ -565,6 +722,17 @@ def run_offline_batch(
         runtime_versions = verify_runtime_environment(server)
     else:
         runtime_versions = {"vllm": "injected-test-double", "transformers": "injected-test-double"}
+    runtime_identity = {
+        "engine": "vllm",
+        "image": server["image"],
+        "versions": runtime_versions,
+        "vllm_build_commit": os.environ.get("VLLM_BUILD_COMMIT"),
+        "matric_eval_revision": (
+            os.environ.get("MATRIC_EVAL_CODE_REVISION")
+            if production_runtime
+            else "injected-test-double"
+        ),
+    }
 
     os.environ.pop("VLLM_BATCH_INVARIANT", None)
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
@@ -603,22 +771,35 @@ def run_offline_batch(
         for request in requests
     ]
     initialization_started = time.time()
+    engine_arguments = {
+        "model": str(model_directory),
+        "dtype": model.runtime.dtype,
+        "max_model_len": model.runtime.context_limit,
+        "tensor_parallel_size": tensor_parallel_size,
+        "pipeline_parallel_size": pipeline_parallel_size,
+        "gpu_memory_utilization": server["gpu_memory_utilization"],
+        "safetensors_load_strategy": server["safetensors_load_strategy"],
+        "async_scheduling": server["async_scheduling"],
+        "language_model_only": server["language_model_only"],
+        "trust_remote_code": False,
+        "enable_prefix_caching": False,
+    }
     engine = engine_factory(
-        model=str(model_directory),
-        dtype=model.runtime.dtype,
-        max_model_len=model.runtime.context_limit,
-        tensor_parallel_size=server["tensor_parallel_size"],
-        gpu_memory_utilization=server["gpu_memory_utilization"],
-        safetensors_load_strategy=server["safetensors_load_strategy"],
-        async_scheduling=server["async_scheduling"],
-        language_model_only=server["language_model_only"],
-        trust_remote_code=False,
-        enable_prefix_caching=False,
+        **engine_arguments,
     )
     if production_runtime:
-        ready_marker = signal_model_resident(model.id)
+        ready_marker = signal_model_resident(
+            model.id,
+            execution_binding=execution_binding,
+            parallelism=parallelism,
+            runtime_identity=runtime_identity,
+        )
         try:
-            lease_sha256 = capture_active_gpu_lease(lease_receipt)
+            lease_sha256 = capture_active_gpu_lease(
+                lease_receipt,
+                execution_binding=execution_binding,
+                parallelism=parallelism,
+            )
         finally:
             ready_marker.unlink(missing_ok=True)
     initialization_seconds = time.time() - initialization_started
@@ -660,15 +841,7 @@ def run_offline_batch(
                 "prompt_tokens": len(getattr(result, "prompt_token_ids", ())),
                 "completion_tokens": len(getattr(candidate, "token_ids", ())),
                 "runtime": {
-                    "engine": "vllm",
-                    "image": server["image"],
-                    "versions": runtime_versions,
-                    "vllm_build_commit": os.environ.get("VLLM_BUILD_COMMIT"),
-                    "matric_eval_revision": (
-                        os.environ.get("MATRIC_EVAL_CODE_REVISION")
-                        if production_runtime
-                        else "injected-test-double"
-                    ),
+                    **runtime_identity,
                     "checkpoint_architectures": checkpoint_architectures,
                     "request_batch_sha256": request_batch_sha256,
                     "request_batch_size": len(requests),
@@ -683,6 +856,7 @@ def run_offline_batch(
                     "usage_stats": server["usage_stats"],
                     "chat_template_sha256": template_sha256,
                     "lease_receipt_sha256": lease_sha256,
+                    "parallelism": parallelism,
                     "model_qualification_sha256": qualification_sha256,
                     "model_verification": (
                         "full-sha256"
@@ -704,6 +878,7 @@ def run_offline_batch(
         "allocations": list(dict.fromkeys(request.allocation_id for request in requests)),
         "initialization_seconds": initialization_seconds,
         "elapsed_seconds": elapsed_seconds,
+        "parallelism": parallelism,
         "output": str(output),
         "output_sha256": _sha256_file(output),
     }

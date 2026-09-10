@@ -296,7 +296,7 @@ study:
       language_model_only: true
       architecture_registrations:
         Qwen3_5ForCausalLM: matric_eval.studies.qwen35_vllm:Qwen3_5TextForCausalLM
-      tensor_parallel_size: 1
+      parallelism_profile: a100-80gb-pcie-tp1/1
       gpu_memory_utilization: 0.9
       safetensors_load_strategy: prefetch
       usage_stats: false
