@@ -60,7 +60,7 @@ jobs:
 
       - name: Retain provider diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: real-provider-smoke-${{ github.run_id }}
           path: artifacts/real-provider-smoke
