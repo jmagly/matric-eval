@@ -19,10 +19,29 @@ from matric_eval.studies.batch import (
     validate_batch_contract,
     verify_model_artifact,
 )
+from matric_eval.studies.gpu import (
+    A100_TP1_PROFILE,
+    A100_TP2_PROFILE,
+    GpuAllocation,
+    GpuContractError,
+    GpuContractErrorCode,
+    GpuExecutionBinding,
+    ParallelismProfile,
+    read_gpu_allocation,
+    registered_parallelism_profile,
+    validate_gpu_binding,
+)
 from matric_eval.studies.protocol import BenchmarkAllocation, StudyProtocol
 
 __all__ = [
     "BenchmarkAllocation",
+    "A100_TP1_PROFILE",
+    "A100_TP2_PROFILE",
+    "GpuAllocation",
+    "GpuContractError",
+    "GpuContractErrorCode",
+    "GpuExecutionBinding",
+    "ParallelismProfile",
     "StudyBatchRequest",
     "StudyObservation",
     "StudyProtocol",
@@ -34,9 +53,12 @@ __all__ = [
     "load_batch_requests",
     "load_observations",
     "paired_bootstrap_delta_ci",
+    "read_gpu_allocation",
+    "registered_parallelism_profile",
     "run_offline_batch",
     "stratified_paired_bootstrap_ci",
     "validate_batch_contract",
+    "validate_gpu_binding",
     "verify_model_artifact",
     "wilson_interval",
 ]
