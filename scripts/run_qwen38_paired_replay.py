@@ -434,6 +434,8 @@ def main(argv=None):
                     *wrapper_gpu_arguments,
                     "--parallelism-profile",
                     profile_id,
+                    "--protocol",
+                    protocol,
                     "--owner",
                     unit,
                     "--model-id",
