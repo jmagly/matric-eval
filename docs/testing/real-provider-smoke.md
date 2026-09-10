@@ -22,6 +22,11 @@ The fixed small model validates real network transport, model acquisition,
 Inspect AI inference, benchmark loading, scoring, and result persistence. It is
 not a quality baseline for the model.
 
+`--provider-url` names the native Ollama API root (for example,
+`http://ollama:11434`). The provider adapter appends `/v1` only for Inspect's
+OpenAI-compatible inference transport; readiness, pull, inventory, and model
+metadata continue to use Ollama's native `/api/*` routes.
+
 ## Artifacts
 
 Every run retains `artifacts/real-provider-smoke`, including:
