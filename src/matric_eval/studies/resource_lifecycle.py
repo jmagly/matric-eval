@@ -26,6 +26,8 @@ from matric_eval.studies.preflight import (
 )
 from matric_eval.studies.run_status import RunStatus
 
+DISPATCH_ADMISSION_MAX_AGE_SECONDS = 300
+
 
 class BrokerRejected(RuntimeError):
     """The broker returned a well-formed, terminal rejection response."""
@@ -569,7 +571,7 @@ class ResourceLifecycle:
             admission = execute_plan(
                 preflight_plan, receipt_directory / "preflight.json", launch=False
             )
-            validate_admission(admission, preflight_plan, 300)
+            validate_admission(admission, preflight_plan, DISPATCH_ADMISSION_MAX_AGE_SECONDS)
             self.save(
                 preflight_fingerprint=admission["plan_fingerprint"],
                 preflight_binding=preflight_plan["resource_binding"],
@@ -603,7 +605,7 @@ class ResourceLifecycle:
                 command = [arg.replace(key, value) for arg in command]
             # Acquisition may block while evidence expires or inputs change.
             # Recheck before recording any launch or opening the dispatch gate.
-            validate_admission(admission, preflight_plan, 300)
+            validate_admission(admission, preflight_plan, DISPATCH_ADMISSION_MAX_AGE_SECONDS)
             # Persist potential container creation before dispatch. A missing
             # container before dispatch is safe; lost launch acknowledgment stays pending.
             self.save(state="launching", state_before_launch="launched")
@@ -650,6 +652,12 @@ class ResourceLifecycle:
                         preflight_plan,
                         receipt_directory / "target-preflight.json",
                         admission,
+                        # Admission is revalidated against the strict five-minute
+                        # dispatch gate immediately before launch. A qualified
+                        # model may then consume the full readiness window before
+                        # resident checks can run, so that elapsed load time must
+                        # not invalidate otherwise-fresh evidence.
+                        max_age_seconds=DISPATCH_ADMISSION_MAX_AGE_SECONDS + timeout,
                     )
                     if heartbeat_failed.is_set():
                         raise RuntimeError("lease heartbeat failed during target qualification")
