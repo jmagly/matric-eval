@@ -157,12 +157,41 @@ def _inventory(ledger: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
-def _pair_is_available(inventory: list[dict[str, Any]], gpus: tuple[str, str]) -> bool:
+def _compute_process_gpu_uuids(output: str) -> set[str]:
+    gpu_uuids: set[str] = set()
+    for row in csv.reader(output.splitlines(), skipinitialspace=True):
+        if not row:
+            continue
+        if len(row) != 2 or not row[0].startswith("GPU-") or not row[1].strip().isdigit():
+            raise RuntimeError("nvidia-smi returned a malformed compute-process row")
+        gpu_uuids.add(row[0])
+    return gpu_uuids
+
+
+def _active_compute_gpu_uuids(ledger: list[dict[str, Any]]) -> set[str]:
+    result = _command(
+        ledger,
+        "nvidia-compute-processes",
+        [
+            "nvidia-smi",
+            "--query-compute-apps=gpu_uuid,pid",
+            "--format=csv,noheader,nounits",
+        ],
+    )
+    return _compute_process_gpu_uuids(result.stdout)
+
+
+def _pair_is_available(
+    inventory: list[dict[str, Any]],
+    gpus: tuple[str, str],
+    active_compute_gpu_uuids: set[str],
+) -> bool:
     by_uuid = {item["uuid"]: item for item in inventory}
     return all(
         gpu in by_uuid
         and type(by_uuid[gpu].get("free_mib")) is int
         and by_uuid[gpu]["free_mib"] >= 37_500
+        and gpu not in active_compute_gpu_uuids
         for gpu in gpus
     )
 
@@ -173,13 +202,14 @@ def _wait_for_pair(
     deadline = time.monotonic() + wait_seconds
     while True:
         inventory = _inventory(ledger)
+        active_compute_gpu_uuids = _active_compute_gpu_uuids(ledger)
         status = Broker(BROKER_SOCKET).call("status")
         selected_leases = [
             lease
             for lease in status.get("leases", [])
             if isinstance(lease, dict) and set(lease.get("gpu_uuids", [])) & set(gpus)
         ]
-        if _pair_is_available(inventory, gpus) and not selected_leases:
+        if _pair_is_available(inventory, gpus, active_compute_gpu_uuids) and not selected_leases:
             return inventory, status
         if time.monotonic() >= deadline:
             raise TimeoutError("qualified GPU pair did not become available before the deadline")
