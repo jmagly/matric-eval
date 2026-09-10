@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -17,6 +18,8 @@ from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from matric_eval.tasks.registry import get_registry
+
+SAFE_IDENTIFIER = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,63}\Z")
 
 
 def utc_now() -> str:
@@ -153,6 +156,47 @@ def public_failure(phase: str, error: BaseException) -> dict[str, Any]:
     return diagnostic
 
 
+def failed_result_diagnostics(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract bounded failure classifications without publishing result content."""
+    diagnostics: list[dict[str, Any]] = []
+    results = summary.get("results")
+    if not isinstance(results, list):
+        return diagnostics
+
+    for index, result in enumerate(results):
+        if not isinstance(result, dict):
+            continue
+        status = result.get("status")
+        execution = result.get("execution")
+        reasons = result.get("eligibility_reasons")
+        is_failure = status != "success" or execution == "failed" or bool(reasons)
+        if not is_failure:
+            continue
+
+        diagnostic: dict[str, Any] = {"result_index": index}
+        for field in ("status", "execution", "error_type"):
+            value = result.get(field)
+            if isinstance(value, str) and SAFE_IDENTIFIER.fullmatch(value):
+                diagnostic[field] = value
+        if isinstance(reasons, list):
+            safe_reasons = [
+                reason
+                for reason in reasons
+                if isinstance(reason, str) and SAFE_IDENTIFIER.fullmatch(reason)
+            ]
+            if safe_reasons:
+                diagnostic["eligibility_reasons"] = safe_reasons[:10]
+
+        error = result.get("error")
+        prefix = "Inspect terminal status: "
+        if isinstance(error, str) and error.startswith(prefix):
+            terminal_status = error.removeprefix(prefix)
+            if SAFE_IDENTIFIER.fullmatch(terminal_status):
+                diagnostic["terminal_status"] = terminal_status
+        diagnostics.append(diagnostic)
+    return diagnostics
+
+
 def latest_summary(results_dir: Path) -> tuple[Path, dict[str, Any]]:
     """Load the single summary produced by this smoke invocation."""
     summaries = sorted(results_dir.glob("run-*/summary.json"))
@@ -270,6 +314,7 @@ def main() -> int:
         summary_path, summary = latest_summary(results_dir)
         report["summary_path"] = str(summary_path.relative_to(output))
         report["summary"] = summary
+        report["result_failures"] = failed_result_diagnostics(summary)
         failed = summary.get("failed", 0)
         successful = summary.get("successful", 0)
         if process.returncode != 0 or failed or successful != 1:
@@ -309,6 +354,7 @@ def main() -> int:
             "provider_version": report["provider"].get("version"),
             "model_digest": report["model"].get("digest"),
             "diagnostic": report.get("diagnostic"),
+            "result_failures": report.get("result_failures", []),
         }
         print(
             "real-provider-smoke-diagnostic "

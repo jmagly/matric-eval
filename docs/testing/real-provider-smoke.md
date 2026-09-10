@@ -34,11 +34,16 @@ Every run retains `artifacts/real-provider-smoke`, including:
 
 Artifact upload uses `if: always()`, so failed and gated runs retain diagnostics.
 Gitea uses the immutable v4 artifact backend with a 14-day retention period and
-fails the upload step when the diagnostic directory is absent. The runner also
-prints one bounded `real-provider-smoke-diagnostic` JSON object to the step log,
-so provider readiness, model pull, evaluation, and summary failures remain
-actionable even when artifact storage itself is unavailable. The object excludes
-provider response bodies, credentials, and captured model output.
+the compatible `ChristopherHX/gitea-upload-artifact` fork pinned to an exact
+commit. This is required while the installed Gitea runner predates native
+compatibility with the stock v4 action. GitHub continues to use the official
+action pinned to an exact commit. Both workflows fail the upload step when the
+diagnostic directory is absent. The runner also prints one bounded
+`real-provider-smoke-diagnostic` JSON object to the step log, so provider
+readiness, model pull, evaluation, and summary failures remain actionable even
+when artifact storage itself is unavailable. Per-result failure diagnostics are
+limited to allowlisted identifiers; the object excludes provider response
+bodies, credentials, URLs, and captured model output.
 The smoke runner exits nonzero when the provider is unavailable, the model pull
 fails, evaluation times out, or the summary does not contain exactly one
 successful model result.

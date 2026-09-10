@@ -46,6 +46,14 @@ def test_gitea_workflow_installs_upload_action_runtime() -> None:
 
     assert "apt-get install -y curl git nodejs" in serialized
     assert "runs-on: [teroknor, docker, node-20]" in serialized
+    assert (
+        "ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7" in serialized
+    )
+
+
+def test_github_workflow_keeps_official_upload_action() -> None:
+    serialized = (ROOT / ".github/workflows/real-provider-smoke.yml").read_text()
+
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in serialized
 
 
@@ -119,7 +127,7 @@ def test_success_records_revisions_duration_and_summary(tmp_path, monkeypatch) -
     assert report["duration_seconds"] >= 0
 
 
-def test_failed_evaluation_is_not_reported_as_success(tmp_path, monkeypatch) -> None:
+def test_failed_evaluation_is_not_reported_as_success(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -132,7 +140,23 @@ def test_failed_evaluation_is_not_reported_as_success(tmp_path, monkeypatch) -> 
     )
     summary_path = tmp_path / "results/run-test/summary.json"
     summary_path.parent.mkdir(parents=True)
-    summary_path.write_text(json.dumps({"successful": 0, "failed": 1}))
+    summary_path.write_text(
+        json.dumps(
+            {
+                "successful": 0,
+                "failed": 1,
+                "results": [
+                    {
+                        "status": "error",
+                        "execution": "failed",
+                        "error_type": "RuntimeError",
+                        "eligibility_reasons": ["execution_failed"],
+                        "error": "secret provider response",
+                    }
+                ],
+            }
+        )
+    )
     process = smoke.subprocess.CompletedProcess([], 0, stdout="{}", stderr="provider error")
 
     with (
@@ -146,6 +170,59 @@ def test_failed_evaluation_is_not_reported_as_success(tmp_path, monkeypatch) -> 
     assert report["status"] == "failed"
     assert "one successful result" in report["error"]
     assert report["diagnostic"]["phase"] == "summary_validation"
+    assert report["result_failures"] == [
+        {
+            "result_index": 0,
+            "status": "error",
+            "execution": "failed",
+            "error_type": "RuntimeError",
+            "eligibility_reasons": ["execution_failed"],
+        }
+    ]
+    public_log = capsys.readouterr().err
+    assert '"error_type":"RuntimeError"' in public_log
+    assert "secret provider response" not in public_log
+
+
+def test_result_failure_diagnostics_exclude_untrusted_content() -> None:
+    diagnostics = smoke.failed_result_diagnostics(
+        {
+            "results": [
+                {
+                    "status": "error",
+                    "execution": "failed",
+                    "error_type": "HTTPError; token=secret",
+                    "eligibility_reasons": [
+                        "execution_failed",
+                        "https://example.test/?token=secret",
+                    ],
+                    "error": "https://user:secret@example.test/private response",
+                },
+                {
+                    "status": "error",
+                    "execution": "failed",
+                    "error": "Inspect terminal status: model_error",
+                },
+            ]
+        }
+    )
+
+    assert diagnostics == [
+        {
+            "result_index": 0,
+            "status": "error",
+            "execution": "failed",
+            "eligibility_reasons": ["execution_failed"],
+        },
+        {
+            "result_index": 1,
+            "status": "error",
+            "execution": "failed",
+            "terminal_status": "model_error",
+        },
+    ]
+    assert "secret" not in json.dumps(diagnostics)
+    assert "example.test" not in json.dumps(diagnostics)
 
 
 def test_provider_transport_failure_is_bounded_and_content_free() -> None:
