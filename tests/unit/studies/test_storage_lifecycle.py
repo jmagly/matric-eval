@@ -7,6 +7,9 @@ import pytest
 from matric_eval.storage import StorageBlocker
 from matric_eval.studies.storage_lifecycle import docker_control_contract
 
+GPU_A = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+GPU_B = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
 
 @pytest.fixture
 def fixture(tmp_path, monkeypatch):
@@ -41,6 +44,8 @@ def fixture(tmp_path, monkeypatch):
         "none",
         "--ipc",
         "private",
+        "--gpus",
+        f"device={GPU_A}",
         "--mount",
         f"type=bind,src={path},dst=/tmp",
         "--mount",
@@ -56,6 +61,40 @@ def test_finite_docker_contract_reports_actual_daemon_root(fixture):
     assert Path(result["root"]).name == "docker"
     assert result["container_limit"] == 1
     assert "not a kernel quota" in result["enforcement"]
+
+
+def test_docker_gpu_selector_exactly_matches_ordered_lifecycle_set(fixture):
+    command, config, docker = fixture
+    result = docker_control_contract(
+        command,
+        config,
+        docker,
+        gpu_uuids=(GPU_A,),
+    )
+    assert result["image"].startswith("image@sha256:")
+
+
+@pytest.mark.parametrize(
+    "selector_options",
+    [
+        ["--gpus", f"device={GPU_A},{GPU_B}"],
+        ["--gpus", f'"device={GPU_A}"'],
+        ["--gpus", "all"],
+        ["--gpus", f"device={GPU_B},{GPU_A}"],
+        ["--gpus", f"device={GPU_A}", "--gpus", f"device={GPU_A}"],
+    ],
+)
+def test_docker_gpu_selector_cannot_widen_reorder_or_repeat(fixture, selector_options):
+    command, config, docker = fixture
+    marker = command.index("--gpus")
+    changed = command[:marker] + selector_options + command[marker + 2 :]
+    with pytest.raises(StorageBlocker, match="ordered lifecycle allocation"):
+        docker_control_contract(
+            changed,
+            config,
+            docker,
+            gpu_uuids=(GPU_A,),
+        )
 
 
 @pytest.mark.parametrize(

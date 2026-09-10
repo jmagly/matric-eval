@@ -16,6 +16,7 @@ from typing import Any, Callable
 
 from matric_eval.models import ExecutionMode, ModelSpec
 from matric_eval.studies.gpu import (
+    GPU_EXECUTION_BINDING_SCHEMA,
     GpuAllocation,
     GpuExecutionBinding,
     validate_gpu_binding,
@@ -122,6 +123,28 @@ def validate_parallelism_attestation(
     if dict(evidence) != expected:
         raise RuntimeError("parallelism attestation disagrees with the execution binding")
     return expected
+
+
+def validated_parallelism_binding(
+    evidence: Mapping[str, Any],
+) -> tuple[GpuExecutionBinding, dict[str, Any]]:
+    """Rebuild and validate the binding declared by retained runtime evidence."""
+
+    declared = evidence.get("declared")
+    if not isinstance(declared, Mapping):
+        raise RuntimeError("parallelism attestation lacks a declared binding")
+    allocation = declared.get("allocation")
+    profile = declared.get("profile")
+    if not isinstance(allocation, Mapping) or not isinstance(profile, Mapping):
+        raise RuntimeError("parallelism attestation has a malformed declared binding")
+    binding = GpuExecutionBinding.from_dict(
+        {
+            "schema": GPU_EXECUTION_BINDING_SCHEMA,
+            "allocation": allocation,
+            "profile": profile,
+        }
+    )
+    return binding, validate_parallelism_attestation(binding, evidence)
 
 
 @dataclass(frozen=True)

@@ -450,7 +450,10 @@ UV_PYTHON=3.11 uv run python scripts/render_qwen38_report.py \
 The output directory contains `index.html`, `methods.html`, print CSS, `report.pdf`,
 the byte-identical aggregate results, protocol, ordered sample manifest, content-free
 normalization receipt and pilot summary, a reproduction manifest, and SHA-256/size
-inventory. A report from an incomplete pilot is available only with `--draft`; it is
+inventory. Methods and reproducibility data render each model's validated effective
+profile, TP/PP sizes, ordered visible UUID allocation, aggregate memory, and topology
+policy from retained pilot runtime attestations rather than restating protocol defaults.
+A report from an incomplete pilot is available only with `--draft`; it is
 visibly watermarked and its JSON status is `draft`, so it cannot be mistaken for the
 final publication.
 
@@ -911,6 +914,13 @@ scripts/run_qwen38_offline_container.sh \
 
 Choose the GPU UUID from the preregistered crossover schedule after `docker gpu
 discover`; the UUID above is an example assignment, not a claim of availability.
+Repeat `--gpu` once per device in CUDA rank order. Omitting
+`--parallelism-profile` retains the one-A100 TP1 compatibility path. A two-A100 run must
+use a protocol that declares `a100-80gb-pcie-tp2/1`, pass that exact value with
+`--parallelism-profile`, and provide two distinct exact UUIDs; the wrapper rejects
+duplicates, indexes, `all`, unsupported profiles, and profile/device-count mismatches
+before acquiring a lease. Docker receives one unquoted `device=UUID,UUID` selector in
+the same order.
 The wrapper's outer broker command maintains the heartbeat and releases only after the
 container has exited and freed CUDA memory. The runner writes a token-specific readiness marker
 only after vLLM has made the model resident, waits for the broker to report that exact

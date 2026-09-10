@@ -13,7 +13,9 @@ from typing import Any
 import pytest
 import yaml
 
-from matric_eval.studies import StudyObservation, StudyProtocol, analyze_observations
+from matric_eval.studies import GpuAllocation, StudyObservation, StudyProtocol, analyze_observations
+from matric_eval.studies.batch import parallelism_attestation
+from matric_eval.studies.gpu import GpuExecutionBinding
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -55,6 +57,14 @@ def _evidence() -> tuple[
     dict[str, Any],
 ]:
     study = _study()
+    gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    parallelism = parallelism_attestation(
+        binding,
+        tensor_parallel_size=1,
+        pipeline_parallel_size=1,
+        visible_gpu_uuids=(gpu_uuid,),
+    )
     manifest = study.selection_manifest(_catalog(study), "full")
     observations: list[StudyObservation] = []
     for allocation in manifest["allocations"]:
@@ -150,6 +160,7 @@ def _evidence() -> tuple[
                 "pilot_gpu_hours": 0.25,
                 "estimated_full_gpu_hours": 4.0,
                 "agentic": {"pilot_seconds": 300.0},
+                "parallelism": parallelism,
             }
             for model in study.models
         },
@@ -213,6 +224,24 @@ def test_validates_hash_join_and_requires_complete_pilot() -> None:
         )
 
 
+def test_report_rejects_effective_gpu_attestation_drift() -> None:
+    study, manifest, analysis, receipt, pilot = _evidence()
+    first = study.models[0].id
+    pilot["models"][first]["parallelism"]["effective"]["visible_gpu_uuids"] = [
+        "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    ]
+
+    with pytest.raises(RuntimeError, match="visible GPU order"):
+        renderer.validate_evidence(
+            study=study,
+            manifest=manifest,
+            analysis=analysis,
+            receipt=receipt,
+            pilot=pilot,
+            allow_incomplete_pilot=False,
+        )
+
+
 def test_renders_aggregate_only_site_pdf_and_content_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -261,6 +290,15 @@ def test_renders_aggregate_only_site_pdf_and_content_manifest(
     for section in renderer.REQUIRED_SECTIONS:
         assert f'id="{section}"' in index + methods
     assert "Raw prompts and completions are not included" in index
+    assert "retained effective bindings rather than protocol defaults" in methods
+    assert "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" in methods
+    reproducibility = json.loads((output / "reproducibility.json").read_text(encoding="utf-8"))
+    attested = reproducibility["execution"]["attested_by_model"]
+    assert set(attested) == {model.id for model in study.models}
+    assert all(
+        evidence["effective"]["visible_gpu_uuids"] == ["GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
+        for evidence in attested.values()
+    )
     assert (output / "aggregate-results.json").read_bytes() == paths["analysis"].read_bytes()
     manifest_payload = json.loads((output / "bundle-manifest.json").read_text(encoding="utf-8"))
     published = {item["path"] for item in manifest_payload["files"]}

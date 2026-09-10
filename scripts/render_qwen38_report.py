@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from matric_eval.studies import StudyProtocol
+from matric_eval.studies import StudyProtocol, validated_parallelism_binding
 
 JsonObject = dict[str, Any]
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
@@ -96,6 +96,30 @@ def _interval(value: Any, label: str) -> tuple[float, float]:
     if low > high:
         raise ValueError(f"{label} lower bound exceeds upper bound")
     return low, high
+
+
+def _effective_execution(study: StudyProtocol, pilot: JsonObject) -> JsonObject:
+    models = pilot.get("models")
+    if not isinstance(models, dict):
+        raise ValueError("pilot summary lacks the model execution matrix")
+    result: JsonObject = {}
+    for model in study.models:
+        summary = models.get(model.id)
+        evidence = summary.get("parallelism") if isinstance(summary, dict) else None
+        if not isinstance(evidence, dict):
+            raise ValueError(f"pilot summary lacks {model.id} parallelism evidence")
+        binding, validated = validated_parallelism_binding(evidence)
+        if binding.profile.id != study.parallelism_profile.id:
+            raise ValueError(f"pilot summary {model.id} profile does not match the protocol")
+        result[model.id] = {
+            "profile": validated["declared"]["profile"],
+            "profile_sha256": validated["declared"]["profile_sha256"],
+            "allocation": validated["declared"]["allocation"],
+            "allocation_sha256": validated["declared"]["allocation_sha256"],
+            "binding_sha256": validated["declared"]["binding_sha256"],
+            "effective": validated["effective"],
+        }
+    return result
 
 
 def validate_evidence(
@@ -255,6 +279,7 @@ def validate_evidence(
         raise ValueError("pilot summary does not match the study seed or model matrix")
     if list(pilot["models"]) != model_ids:
         raise ValueError("pilot summary model order does not match the protocol")
+    _effective_execution(study, pilot)
     complete = pilot.get("status") == "complete"
     if complete and pilot.get("schema_version") != "1":
         raise ValueError("unsupported complete pilot summary schema")
@@ -546,11 +571,16 @@ def _results_body(
 """
 
 
-def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObject) -> str:
+def _methods_body(
+    study: StudyProtocol,
+    analysis: JsonObject,
+    receipt: JsonObject,
+    pilot: JsonObject,
+) -> str:
     root = study.raw["study"]
     execution = root["execution"]
     server = execution["model_server"]
-    parallelism = study.parallelism_profile
+    effective_execution = _effective_execution(study, pilot)
     model_rows = []
     for raw_model in root["models"]:
         gaps = raw_model.get("evidence_gaps", [])
@@ -565,6 +595,18 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
         f"<td>{item.full_samples}</td></tr>"
         for item in study.benchmarks
     )
+    execution_rows = "".join(
+        "<tr>"
+        f"<td>{_e(MODEL_LABELS[model_id])}</td>"
+        f"<td><code>{_e(evidence['profile']['id'])}</code></td>"
+        f"<td>{evidence['effective']['tensor_parallel_size']}</td>"
+        f"<td>{evidence['effective']['pipeline_parallel_size']}</td>"
+        f"<td><code>{_e(','.join(evidence['effective']['visible_gpu_uuids']))}</code></td>"
+        f"<td>{evidence['allocation']['memory_mib']:,}</td>"
+        f"<td><code>{_e(evidence['allocation']['topology_policy'] or 'none')}</code></td>"
+        "</tr>"
+        for model_id, evidence in effective_execution.items()
+    )
     missing = analysis["missingness_policy"]
     return f"""
 <section id="preregistered-methods"><p class="eyebrow">Preregistered methods</p><h2>Design</h2>
@@ -573,7 +615,8 @@ def _methods_body(study: StudyProtocol, analysis: JsonObject, receipt: JsonObjec
 <h3>Models</h3><div class="table-wrap"><table><thead><tr><th>Label</th><th>Artifact</th><th>Revision</th><th>Role</th><th>Known provenance gaps</th></tr></thead><tbody>{"".join(model_rows)}</tbody></table></div>
 <h3>Datasets and scorers</h3><div class="table-wrap"><table><thead><tr><th>Allocation</th><th>Dataset</th><th>Revision</th><th>Scoring protocol</th><th>n/model</th></tr></thead><tbody>{dataset_rows}</tbody></table></div></section>
 <section id="execution-environment"><p class="eyebrow">Execution environment</p><h2>Pinned A100 inference contract</h2>
-<p>Host <code>{_e(execution["expected_hostname"])}</code>; GPU <code>{_e(execution["required_gpu_model"])}</code>; engine <code>{_e(server["engine"])} {_e(server["version"])}</code>; image <code>{_e(server["image"])}</code>. Parallelism profile <code>{_e(parallelism.id)}</code> declared TP={parallelism.tensor_parallel_size} and PP={parallelism.pipeline_parallel_size}; bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
+<p>Host <code>{_e(execution["expected_hostname"])}</code>; GPU <code>{_e(execution["required_gpu_model"])}</code>; engine <code>{_e(server["engine"])} {_e(server["version"])}</code>; image <code>{_e(server["image"])}</code>. The table reports retained effective bindings rather than protocol defaults; bfloat16 was used, speculative decoding was disabled, and official agent runners used concurrency one.</p>
+<div class="table-wrap"><table><thead><tr><th>Model</th><th>Profile</th><th>TP</th><th>PP</th><th>Ordered visible GPU UUIDs</th><th>Aggregate MiB</th><th>Topology policy</th></tr></thead><tbody>{execution_rows}</tbody></table></div>
 <p>The primary comparison forces one source chat template, reasoning-on behavior, a 32,768-token context limit, and identical sampler settings. Vision and MTP are excluded to preserve a matched E03 comparison.</p></section>
 <section id="statistical-methods"><p class="eyebrow">Statistical methods</p><h2>Uncertainty and decision rules</h2>
 <p>Continuous component means use percentile bootstrap intervals; binary proportions use Wilson intervals. Intervention deltas use paired bootstrap resampling and domain summaries resample within allocation before equal-weight macro-averaging. Binary paired hypotheses use two-sided exact McNemar tests and Holm correction within axis.</p>
@@ -597,6 +640,7 @@ def _reproducibility(
     manifest: JsonObject,
     analysis: JsonObject,
     receipt: JsonObject,
+    pilot: JsonObject,
     revision: str,
     input_hashes: Mapping[str, str],
     draft: bool,
@@ -659,7 +703,10 @@ def _reproducibility(
             }
             for item in study.benchmarks
         ],
-        "execution": root["execution"],
+        "execution": {
+            "protocol": root["execution"],
+            "attested_by_model": _effective_execution(study, pilot),
+        },
         "judging": root["judging"],
         "input_file_sha256": dict(input_hashes),
         "reproduction_commands": [
@@ -748,7 +795,7 @@ def render_bundle(
         (temp / "methods.html").write_text(
             _page(
                 title=f"{title} — methods",
-                body=_methods_body(study, analysis, receipt),
+                body=_methods_body(study, analysis, receipt, pilot),
                 draft=draft,
                 active="methods",
             ),
@@ -772,6 +819,7 @@ def render_bundle(
                 manifest=manifest,
                 analysis=analysis,
                 receipt=receipt,
+                pilot=pilot,
                 revision=revision,
                 input_hashes=input_hashes,
                 draft=draft,

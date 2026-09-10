@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run one manifest-locked Qwen3.8 study allocation in the pinned A100 container.
-# Required options: --gpu, --owner, --model-id, --model-path, --qualification,
+# Required options: one or more --gpu, --owner, --model-id, --model-path, --qualification,
 # --requests, --lease-receipt, --output, and --ready-base. Use --manifest to
 # override the pilot manifest after its gate passes.
 
@@ -15,7 +15,8 @@ study_manifest="${study_root}/pilot-manifest.json"
 study_docker_host="unix:///run/matric-eval-docker.sock"
 study_broker_socket="/run/ollama-unify/gpu-negotiator.sock"
 
-gpu_uuid=""
+gpu_uuids=()
+parallelism_profile=""
 owner=""
 model_id=""
 model_path=""
@@ -27,7 +28,8 @@ ready_base=""
 
 while (( $# )); do
   case "$1" in
-    --gpu) gpu_uuid="${2:-}"; shift 2 ;;
+    --gpu) gpu_uuids+=("${2:-}"); shift 2 ;;
+    --parallelism-profile) parallelism_profile="${2:-}"; shift 2 ;;
     --owner) owner="${2:-}"; shift 2 ;;
     --model-id) model_id="${2:-}"; shift 2 ;;
     --model-path) model_path="${2:-}"; shift 2 ;;
@@ -41,20 +43,20 @@ while (( $# )); do
   esac
 done
 
-for required in gpu_uuid owner model_id model_path qualification requests lease_receipt output ready_base; do
+for required in owner model_id model_path qualification requests lease_receipt output ready_base; do
   if [[ -z "${!required}" ]]; then
     printf 'missing required option for %s\n' "$required" >&2
     exit 2
   fi
 done
+if (( ${#gpu_uuids[@]} == 0 )); then
+  printf 'missing required option for gpu\n' >&2
+  exit 2
+fi
 
 if [[ "$(hostname)" != "basilisk" ]]; then
   printf 'this runner requires host basilisk\n' >&2
   exit 1
-fi
-if [[ "$gpu_uuid" != GPU-* ]]; then
-  printf 'GPU must be specified by its exact UUID\n' >&2
-  exit 2
 fi
 for input in "$model_path" "$qualification" "$requests" "$study_manifest"; do
   if [[ ! -e "$input" ]]; then
@@ -91,6 +93,28 @@ if [[ -n "$(git -C "$study_repo" status --porcelain)" ]]; then
   exit 1
 fi
 
+lifecycle_python="${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}"
+contract_arguments=(--protocol "$study_repo/$study_protocol" --format lines)
+if [[ -n "$parallelism_profile" ]]; then
+  contract_arguments+=(--parallelism-profile "$parallelism_profile")
+fi
+for gpu_uuid in "${gpu_uuids[@]}"; do
+  contract_arguments+=(--gpu "$gpu_uuid")
+done
+gpu_contract="$(PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" "$lifecycle_python" -m matric_eval.studies.wrapper "${contract_arguments[@]}")"
+mapfile -t gpu_fields <<<"$gpu_contract"
+if (( ${#gpu_fields[@]} != 5 )); then
+  printf 'GPU wrapper contract returned malformed output\n' >&2
+  exit 1
+fi
+gpu_selector="${gpu_fields[0]}"
+gpu_memory_mib="${gpu_fields[1]}"
+gpu_allocation_json="${gpu_fields[4]}"
+broker_gpu_arguments=(--vram-mib "$gpu_memory_mib")
+for gpu_uuid in "${gpu_uuids[@]}"; do
+  broker_gpu_arguments+=(--gpu "$gpu_uuid")
+done
+
 actual_image_id="$(
   sudo docker --host "$study_docker_host" image inspect "$study_image" --format '{{.Id}}'
 )"
@@ -105,9 +129,8 @@ code_revision="$(git -C "$study_repo" rev-parse HEAD)"
 
 sudo docker gpu run \
   --owner "$owner" \
-  --vram-mib 75000 \
+  "${broker_gpu_arguments[@]}" \
   --ttl 300 \
-  --gpu "$gpu_uuid" \
   --ready-timeout 900 \
   --ready-command "$ready_command" \
   -- \
@@ -116,7 +139,7 @@ sudo docker gpu run \
     --hostname basilisk \
     --read-only \
     --runtime nvidia \
-    --gpus "device=${gpu_uuid}" \
+    --gpus "$gpu_selector" \
     --ipc host \
     --ulimit memlock=-1 \
     --ulimit stack=67108864 \
@@ -135,6 +158,7 @@ sudo docker gpu run \
     --env VLLM_NO_USAGE_STATS=1 \
     --env OLLAMA_UNIFY_GPU_LEASE \
     --env CUDA_VISIBLE_DEVICES \
+    --env MATRIC_EVAL_GPU_ALLOCATION_JSON="$gpu_allocation_json" \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
     --env MATRIC_EVAL_GPU_BROKER_SOCKET="$study_broker_socket" \

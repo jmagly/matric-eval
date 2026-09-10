@@ -11,9 +11,10 @@ import subprocess
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Sequence
 
 from matric_eval.storage import Allocation, StorageBlocker, StorageSession, publish_run_status
+from matric_eval.studies.gpu import read_gpu_allocation
 
 
 def require_daemon_mount_namespace(host: str) -> None:
@@ -45,7 +46,11 @@ def require_daemon_mount_namespace(host: str) -> None:
 
 
 def docker_control_contract(
-    command: list[str], config: dict[str, Any], docker: Any
+    command: list[str],
+    config: dict[str, Any],
+    docker: Any,
+    *,
+    gpu_uuids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Validate Docker options before IMAGE and every implicit writable image volume."""
     if (
@@ -95,6 +100,13 @@ def docker_control_contract(
             "storage_docker_contract", "an existing digest-pinned image is required"
         )
     image = command[index]
+    if gpu_uuids is not None:
+        expected_selector = "device=" + ",".join(gpu_uuids)
+        if options.get("--gpus") != [expected_selector]:
+            raise StorageBlocker(
+                "storage_docker_contract",
+                "Docker GPU selector must exactly match the ordered lifecycle allocation",
+            )
     for flag, value in (
         ("--read-only", "true"),
         ("--pull", "never"),
@@ -186,7 +198,13 @@ def docker_control_contract(
 
 class ResidentStorage:
     def __init__(self, config: dict[str, Any], resource: Any, command: list[str]) -> None:
-        contract = docker_control_contract(command, config, resource.docker)
+        allocation = read_gpu_allocation(resource.record).allocation
+        contract = docker_control_contract(
+            command,
+            config,
+            resource.docker,
+            gpu_uuids=allocation.gpu_uuids,
+        )
         self.resource = resource
         self.session = StorageSession(
             [Allocation(**item) for item in config["allocations"]],

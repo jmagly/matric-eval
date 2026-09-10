@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from matric_eval.studies import StudyProtocol
+from matric_eval.studies import StudyProtocol, validated_parallelism_binding
 
 MODEL_FILES = {
     "qwen38-27b-source-bf16": "source",
@@ -43,6 +43,26 @@ def _runtime(rows: list[dict[str, Any]], label: str) -> dict[str, Any]:
     if not isinstance(runtime, dict):
         raise ValueError(f"{label} is missing runtime evidence")
     return runtime
+
+
+def _attested_parallelism(
+    study: StudyProtocol,
+    rows: list[dict[str, Any]],
+    label: str,
+) -> dict[str, Any]:
+    attestations = []
+    for row in rows:
+        runtime = row.get("runtime")
+        evidence = runtime.get("parallelism") if isinstance(runtime, dict) else None
+        if not isinstance(evidence, dict):
+            raise ValueError(f"{label} is missing parallelism evidence")
+        attestations.append(evidence)
+    if any(evidence != attestations[0] for evidence in attestations[1:]):
+        raise ValueError(f"{label} parallelism evidence changed within the batch")
+    binding, validated = validated_parallelism_binding(attestations[0])
+    if binding.profile.id != study.parallelism_profile.id:
+        raise ValueError(f"{label} parallelism profile does not match the protocol")
+    return validated
 
 
 def _validate_turn2(
@@ -182,6 +202,11 @@ def main() -> int:
             raise ValueError(f"{model.id} score receipts disagree")
         runtime = _runtime(results, f"{model.id} direct turn 1")
         turn2_runtime = turn2["runtime"]
+        parallelism = _attested_parallelism(
+            study,
+            [*results, *turn2_results],
+            f"{model.id} direct pilot",
+        )
         initialization = float(runtime["initialization_seconds"])
         generation = float(runtime["generation_seconds"])
         turn2_initialization = float(turn2_runtime["initialization_seconds"])
@@ -199,6 +224,7 @@ def main() -> int:
             "model_source": model.source,
             "model_revision": model.checkpoint_revision,
             "generation_code_revision": runtime["matric_eval_revision"],
+            "parallelism": parallelism,
             "scoring_code_revision": receipt["scoring_code_revision"],
             "direct_pilot_samples": len(results),
             "direct_pilot_generation_calls": len(results) + len(turn2_results),

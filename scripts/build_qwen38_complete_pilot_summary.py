@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from matric_eval.studies import StudyProtocol
+from matric_eval.studies import StudyProtocol, validated_parallelism_binding
 
 JsonObject = dict[str, Any]
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
@@ -511,6 +511,12 @@ def build_summary(
     for model_id, model in direct_models.items():
         if not isinstance(model, dict):
             raise ValueError(f"direct pilot model {model_id} must be an object")
+        parallelism = model.get("parallelism")
+        if not isinstance(parallelism, dict):
+            raise ValueError(f"direct pilot model {model_id} lacks parallelism evidence")
+        binding, _ = validated_parallelism_binding(parallelism)
+        if binding.profile.id != study.parallelism_profile.id:
+            raise ValueError(f"direct pilot model {model_id} profile does not match protocol")
         _number(model.get("total_generation_seconds"), f"{model_id}.total_generation_seconds")
         _number(
             model.get("total_initialization_seconds"),

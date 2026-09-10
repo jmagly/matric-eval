@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -16,6 +17,9 @@ from pathlib import Path
 
 from qwen38_tau_sandbox import sandbox_socket_path_evidence
 
+from matric_eval.studies import StudyProtocol
+from matric_eval.studies.wrapper import WrapperGpuContract, resolve_wrapper_gpu_contract
+
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
 OUT = STUDY / "replay-20260909-r7"
@@ -26,7 +30,7 @@ ADMISSION_RECEIPT = STUDY / "tau-admission-20260909/source-tau-receipt.json"
 TAU = Path("/srv/matric-eval/benchmarks/tau2-qwen38-simulator-guard-v3")
 HARBOR = Path("/srv/matric-eval/benchmarks/harbor-qwen38-terminal-runtime-guard")
 TERMINAL = Path("/srv/matric-eval/benchmarks/terminal-bench-2-1-5c8eadf1")
-GPU = "GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0"
+DEFAULT_GPU_UUIDS = ("GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0",)
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
 STATUS: dict = {"status": "preflight", "operations": []}
 
@@ -187,7 +191,20 @@ def load_launch_contract(prefix):
     }
 
 
-def stop_server(unit):
+def replay_gpu_contract(
+    gpu_uuids: list[str] | None = None,
+    *,
+    parallelism_profile: str | None = None,
+    protocol: Path = PROTOCOL,
+) -> WrapperGpuContract:
+    return resolve_wrapper_gpu_contract(
+        StudyProtocol.from_yaml(protocol),
+        gpu_uuids or DEFAULT_GPU_UUIDS,
+        parallelism_profile=parallelism_profile,
+    )
+
+
+def stop_server(unit, gpu_uuids):
     subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
     containers = subprocess.check_output(
         [
@@ -209,17 +226,37 @@ def stop_server(unit):
         subprocess.check_output(["sudo", "-n", "docker", "gpu", "status"], text=True)
     )["leases"]
     for lease in leases:
-        if lease.get("owner") == unit and lease.get("gpu_uuids") == [GPU]:
-            result = subprocess.run(
-                ["sudo", "-n", "docker", "gpu", "release", lease["token"]],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode:
-                raise RuntimeError("Run GPU lease release failed")
+        if lease.get("owner") != unit:
+            continue
+        if lease.get("gpu_uuids") != list(gpu_uuids):
+            raise RuntimeError("Run GPU lease allocation changed; refusing partial release")
+        result = subprocess.run(
+            ["sudo", "-n", "docker", "gpu", "release", lease["token"]],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise RuntimeError("Run GPU lease release failed")
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--protocol", type=Path, default=PROTOCOL)
+    parser.add_argument("--gpu", action="append")
+    parser.add_argument("--parallelism-profile")
+    args = parser.parse_args(argv)
+    protocol = args.protocol.resolve()
+    gpu_contract = replay_gpu_contract(
+        args.gpu,
+        parallelism_profile=args.parallelism_profile,
+        protocol=protocol,
+    )
+    gpu_uuids = gpu_contract.binding.allocation.gpu_uuids
+    profile_id = gpu_contract.binding.profile.id
+    wrapper_gpu_arguments = []
+    for gpu_uuid in gpu_uuids:
+        wrapper_gpu_arguments.extend(["--gpu", gpu_uuid])
+
     os.umask(0o077)
 
     def terminate(signum, frame):
@@ -254,7 +291,8 @@ def main():
                 "prefix": prefix,
                 "model_id": old["model_id"],
                 "model_path": old["runtime"]["arguments"][0],
-                "gpu": GPU,
+                "gpu_uuids": list(gpu_uuids),
+                "parallelism_profile": profile_id,
             }
         )
     plan = {
@@ -393,8 +431,9 @@ def main():
                     launch["preflight_plan"],
                     "--storage-plan",
                     launch["storage_plan"],
-                    "--gpu",
-                    GPU,
+                    *wrapper_gpu_arguments,
+                    "--parallelism-profile",
+                    profile_id,
                     "--owner",
                     unit,
                     "--model-id",
@@ -433,7 +472,7 @@ def main():
             else:
                 raise RuntimeError("Model readiness timed out")
             common = [
-                PROTOCOL,
+                protocol,
                 STUDY / "pilot-manifest.json",
                 "--model-id",
                 entry["model_id"],
@@ -498,7 +537,7 @@ def main():
                 ],
                 29000,
             )
-            stop_server(unit)
+            stop_server(unit, gpu_uuids)
             unit = None
         save(status="complete", model=None)
     except BaseException as error:
@@ -507,7 +546,7 @@ def main():
     finally:
         try:
             if unit:
-                stop_server(unit)
+                stop_server(unit, gpu_uuids)
         finally:
             cleanup_runtime_tmp()
 
