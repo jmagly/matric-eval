@@ -1,0 +1,52 @@
+{
+  "schema": "matric-eval.agentic-pipeline/1",
+  "aiwg": {
+    "executable": "aiwg",
+    "framework": "sdlc",
+    "version": "2026.9.6"
+  },
+  "fixture": "../tests/fixtures/agentic-pipeline-workspace",
+  "output": "../artifacts/agentic-evaluation",
+  "scenario": {
+    "id": "aiwg-workspace-smoke",
+    "benchmark_id": "aiwg_provider_smoke",
+    "revision": "1",
+    "tier": "smoke",
+    "prompt": "Inspect this clean fixture and return its project name."
+  },
+  "limits": {
+    "max_concurrency": 2,
+    "timeout_seconds": 300,
+    "infrastructure_retries": 1,
+    "max_tokens": 20000,
+    "max_cost_usd": 10.0
+  },
+  "providers": {},
+  "direct_endpoints": [
+    {
+      "id": "ollama",
+      "status": "unavailable",
+      "reason": "operator_endpoint_not_configured"
+    },
+    {
+      "id": "vllm",
+      "status": "unavailable",
+      "reason": "operator_endpoint_not_configured"
+    },
+    {
+      "id": "llama-cpp",
+      "status": "unavailable",
+      "reason": "operator_endpoint_not_configured"
+    },
+    {
+      "id": "openrouter",
+      "status": "unavailable",
+      "reason": "operator_endpoint_not_configured"
+    },
+    {
+      "id": "chutes",
+      "status": "unavailable",
+      "reason": "operator_endpoint_not_configured"
+    }
+  ]
+}
