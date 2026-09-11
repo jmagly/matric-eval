@@ -4,6 +4,49 @@ All notable changes to matric-eval are documented here. The project follows
 CalVer `YYYY.M.PATCH`, documented in [the release guide](docs/development/releasing.md).
 The patch counter starts at zero each UTC month; historical SemVer tags remain unchanged.
 
+## [2026.9.2] - 2026-09-11
+
+### Added
+
+- Added native exact ordered 1+ GPU allocation, lifecycle, vLLM profile,
+  wrapper, replay, reporting and TP2 qualification contracts.
+- Added a governed AIWG-wide agent-platform evaluation pipeline whose matrix is
+  derived from the maintained provider registry and whose credentialed runs stay
+  outside pull-request CI.
+- Added bounded two-A100 qualification tooling with topology, per-rank capacity,
+  content-free canary, TAU diagnostic and set-atomic cleanup evidence gates.
+
+### Changed
+
+- Propagate exact GPU UUID sets and tensor-parallel profiles across requests,
+  leases, containers, CUDA visibility, server receipts and cleanup.
+- Restore bounded real-provider smoke diagnostics and normalize Ollama inference
+  requests onto its supported OpenAI-compatible endpoint.
+- Record every current or future AIWG provider and the supported direct endpoint
+  families with explicit, machine-readable execution dispositions.
+
+### Fixed
+
+- Reject foreign CUDA processes during TP2 admission even when nominal free
+  memory exceeds the per-rank floor.
+- Accept a virtual environment's conventional executable symlink while attesting
+  the resolved regular-file interpreter.
+- Redact agent-pipeline evidence while streaming and reject unsafe environment,
+  fixture, command and result inputs before they can weaken isolation or public
+  normalization.
+
+### Compatibility
+
+- Python 3.11+ and Node.js 18+ remain required. Existing result and study
+  contracts remain readable; the agentic pipeline introduces its own versioned
+  configuration and result schemas.
+- The TP2 harness is delivered but hardware qualification remains blocked in
+  #183 because the exact GPU0/GPU2 pair is occupied by unrelated workloads.
+  Dependent documentation #184 and epic #178 remain open, and no TP2 scoring
+  success is claimed.
+- TAU research/scoring (#154), grader qualification (#126), and remaining
+  OBLITERATUS dataset work (#164) remain explicitly deferred.
+
 ## [2026.9.1] - 2026-09-10
 
 ### Added
@@ -126,5 +169,8 @@ The patch counter starts at zero each UTC month; historical SemVer tags remain u
 - Core benchmark tasks, tiered CLI, checkpoint state structures, parallel
   execution, logging, and recommendation support.
 
+[2026.9.2]: https://git.integrolabs.net/roctinam/matric-eval/compare/v2026.9.1...v2026.9.2
+[2026.9.1]: https://git.integrolabs.net/roctinam/matric-eval/compare/v2026.9.0...v2026.9.1
+[2026.9.0]: https://git.integrolabs.net/roctinam/matric-eval/compare/v0.2.0...v2026.9.0
 [0.2.0]: https://git.integrolabs.net/roctinam/matric-eval/compare/v0.1.0...v0.2.0
 [0.1.0]: https://git.integrolabs.net/roctinam/matric-eval/releases/tag/v0.1.0
