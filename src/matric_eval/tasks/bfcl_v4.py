@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from inspect_ai import Task, task
 
+from matric_eval.studies.device_memory import validate_ceiling
 from matric_eval.tasks.registry import (
     BenchmarkStatus,
     BenchmarkUnavailableError,
@@ -26,12 +27,15 @@ def build_bfcl_generate_command(
     backend: str = "vllm",
     local_model_path: str | None = None,
     num_gpus: int = 1,
-    gpu_memory_utilization: float = 0.9,
+    gpu_memory_utilization: float,
     num_threads: int = 1,
 ) -> list[str]:
     """Build generation arguments accepted by the pinned official BFCL CLI."""
     if not categories:
         raise ValueError("at least one BFCL category is required")
+    # Required rather than defaulted: a per-card memory ceiling set by the host
+    # owner must come from the study protocol, never from a literal here.
+    validate_ceiling(gpu_memory_utilization, path="gpu_memory_utilization")
     command = [
         "bfcl",
         "generate",

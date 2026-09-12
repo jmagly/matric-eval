@@ -326,7 +326,9 @@ A100_TP1_PROFILE = ParallelismProfile(
     pipeline_parallel_size=1,
     required_device_count=1,
     supported_accelerator_model=A100_80GB_PCIE,
-    minimum_memory_mib_per_device=75_000,
+    # 87% of an 81,920 MiB A100. The reservation becomes the broker lease, so it
+    # must stay within the declared ceiling; see studies.device_memory.
+    minimum_memory_mib_per_device=71_270,
 )
 A100_TP2_PROFILE = ParallelismProfile(
     id=A100_TP2_PROFILE_ID,

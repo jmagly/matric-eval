@@ -210,13 +210,26 @@ def acquisition_settled(record: dict[str, Any]) -> bool:
     return bool(record.get("lease_sha256") or record.get("lease_release_acknowledged_at"))
 
 
+def _required_int(record: dict[str, Any], key: str) -> int:
+    """Read an integer a persisted record must carry.
+
+    Reservations are never defaulted: a missing value previously fell back to a
+    hardcoded 75000 MiB, which silently committed more of a card than policy
+    allowed.
+    """
+    value = record.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise RuntimeError(f"persisted allocation requires an integer {key}")
+    return value
+
+
 def record_allocation(record: dict[str, Any]) -> GpuAllocation:
     """Read a native lifecycle allocation or its version-one list compatibility form."""
     payload = record.get("gpu_allocation")
     if payload is None:
         allocation = GpuAllocation(
             gpu_uuids=tuple(record["gpu_uuids"]),
-            memory_mib=record.get("requested_mib", 75000),
+            memory_mib=_required_int(record, "requested_mib"),
         )
         return allocation
     if not isinstance(payload, dict):
@@ -285,7 +298,7 @@ class ResourceLifecycle:
         gpu: str | Sequence[str] | GpuAllocation,
         owner: str,
         *,
-        memory_mib: int = 75000,
+        memory_mib: int,
         topology_policy: str | None = None,
     ) -> None:
         if self.record:

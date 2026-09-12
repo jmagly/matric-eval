@@ -28,6 +28,12 @@ from matric_eval.studies.batch import (
     verify_model_artifact,
     verify_runtime_environment,
 )
+from matric_eval.studies.device_memory import (
+    assert_within_ceiling,
+    evidence,
+    query_observations,
+    resolve_ceiling,
+)
 from matric_eval.studies.protocol import StudyProtocol
 from matric_eval.studies.run_status import RunStatus, adapter_main
 from matric_eval.studies.vllm_plugin import PLUGIN_NAME, REGISTRATIONS_ENV
@@ -302,6 +308,12 @@ def run_attested_server(
         previous_handlers[signum] = signal.signal(signum, stop_child)
     try:
         _wait_for_endpoint(process, f"http://{host}:{port}/v1/models", ready_timeout)
+        # The server's own fraction bounds its allocator, not the CUDA context or
+        # NCCL buffers. Measure the cards before accepting the server as ready so
+        # the receipt proves the ceiling held instead of merely declaring it.
+        device_ceiling = resolve_ceiling(server)
+        device_observations = query_observations(execution_binding.allocation.gpu_uuids)
+        assert_within_ceiling(device_observations, device_ceiling, stage="model server ready")
         ready_marker = signal_model_resident(
             model.id,
             execution_binding=execution_binding,
@@ -339,6 +351,7 @@ def run_attested_server(
                 "arguments": arguments,
                 "parallelism": parallelism,
             },
+            "device_memory": evidence(device_observations, device_ceiling),
         }
         _write_private_json(server_receipt_path, receipt)
         if status:

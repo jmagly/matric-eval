@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 
 from matric_eval.models import LineageRole, ModelSpec
+from matric_eval.studies.device_memory import validate_device_memory_policy
 from matric_eval.studies.gpu import ParallelismProfile, registered_parallelism_profile
 
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -386,15 +387,7 @@ class StudyProtocol:
             raise ValueError(
                 "study.execution.model_server.safetensors_load_strategy must be prefetch"
             )
-        gpu_memory_utilization = server.get("gpu_memory_utilization")
-        if (
-            isinstance(gpu_memory_utilization, bool)
-            or not isinstance(gpu_memory_utilization, (int, float))
-            or not 0.5 <= gpu_memory_utilization < 1
-        ):
-            raise ValueError(
-                "study.execution.model_server.gpu_memory_utilization must be in [0.5, 1.0)"
-            )
+        validate_device_memory_policy(server, profile)
         image = server.get("image")
         if not isinstance(image, str) or not re.search(r"@sha256:[0-9a-f]{64}$", image):
             raise ValueError("study.execution.model_server.image must use an immutable digest")
