@@ -18,6 +18,7 @@ from pathlib import Path
 from qwen38_tau_sandbox import sandbox_socket_path_evidence
 
 from matric_eval.studies import StudyProtocol
+from matric_eval.studies.run_residue import assert_free_space, reset_failed_units
 from matric_eval.studies.wrapper import WrapperGpuContract, resolve_wrapper_gpu_contract
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,10 +93,7 @@ def execute(name, command, timeout):
 
 
 def check_space():
-    for path, floor in (("/", 40), ("/srv", 40)):
-        st = os.statvfs(path)
-        if st.f_bavail * st.f_frsize < floor * 1024**3:
-            raise RuntimeError(f"Free space below {floor} GiB at {path}")
+    assert_free_space(("/", "/srv"), floor_gib=40)
 
 
 def prepare_runtime_tmp():
@@ -206,6 +204,11 @@ def replay_gpu_contract(
 
 def stop_server(unit, gpu_uuids):
     subprocess.run(["sudo", "-n", "systemctl", "stop", unit], check=True, timeout=150)
+    # A transient unit that exited non-zero holds failed state in the manager
+    # until it is reset. Clear it here so the next run's health check is honest.
+    outcome = reset_failed_units([unit])
+    if not outcome.ok:
+        print(f"warning: could not reset failed state for {unit}: {outcome.error}")
     containers = subprocess.check_output(
         [
             "sudo",

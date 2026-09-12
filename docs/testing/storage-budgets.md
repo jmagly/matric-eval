@@ -223,3 +223,39 @@ The same code passed complete A100 `make ci`: 3,356 main tests, 349 expected ski
 and 35 mandatory isolated client conformance tests with zero skips. Combined
 coverage was 80.72%; Ruff, formatting and the mypy gate passed. Validation log:
 `/srv/matric-eval/workspaces/matric-eval-160-allissue-final-verification-3.log`.
+
+## Reclaiming run residue
+
+Each study run leaves two artefacts behind: a transient systemd unit per server
+or replay attempt, and a workspace tree. A transient unit that exits non-zero
+holds failed state in the manager until it is reset, which makes
+`systemctl --state=failed` useless as a health signal for the next run.
+Workspace trees are never pruned on their own.
+
+Teardown now resets the failed state of the unit it stopped. For accumulated
+residue, `matric_eval.studies.run_residue` reports and reclaims:
+
+```bash
+# Report only - the default. Nothing is removed.
+python -m matric_eval.studies.run_residue --workspaces <data-root>/workspaces
+
+# Perform the reclamation.
+python -m matric_eval.studies.run_residue --workspaces <data-root>/workspaces --apply
+```
+
+Retention is `--keep-last` newest trees plus anything younger than
+`--min-age-hours`; both are applied before a tree is ever a candidate.
+
+A tree is permanently excluded when it contains `.git`, `.keep`, or `KEEP`, or
+when it is named in `--protect`. The `.git` guard is load-bearing: the
+deployment checkout lives inside `workspaces/`, so a naive age sweep would
+delete the installation. Mark any run under investigation with `.keep` to hold
+it past the retention window.
+
+Parallel suites multiply both effects, so assert headroom before scheduling:
+
+```python
+from matric_eval.studies.run_residue import assert_free_space
+
+assert_free_space(("/", "/srv"), floor_gib=40)
+```
