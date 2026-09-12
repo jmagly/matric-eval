@@ -71,49 +71,58 @@ in three places which previously disagreed:
 
 | Place | Before | Now |
 |---|---|---|
-| Broker lease (`minimum_memory_mib_per_device`) | 75,000 MiB — 91.55% of an 81,920 MiB A100 | derived to stay within the ceiling |
-| Model server (`--gpu-memory-utilization`) | protocol value | protocol value, must not exceed the ceiling |
+| Broker lease (`minimum_memory_mib_per_device`) | 75,000 MiB — 91.55% of an 81,920 MiB A100 | within the ceiling, derived |
+| Model server (`--gpu-memory-utilization`) | the protocol value, verbatim | the protocol value clamped by the operator ceiling |
 | Observed on the card | never measured | sampled and asserted when the server reports ready |
 
 `matric_eval.studies.device_memory` owns the arithmetic and the assertions so
 the three cannot drift apart.
 
-### Declaring the ceiling
+### The ceiling is set by the operator, not by editing the protocol
 
-```yaml
-study:
-  execution:
-    model_server:
-      gpu_memory_utilization: 0.87
-      max_device_memory_fraction: 0.87
+A study protocol is hash-pinned by its calibration and judge plans — see
+`protocol_sha256` in `studies/*/calibration-v2-plan.yaml` and `judge-plan.yaml`
+— and is documented there as immutable once a study is underway. Editing
+`gpu_memory_utilization` to tighten it would change the protocol's canonical
+digest and invalidate both pins.
+
+So the ceiling comes from the environment instead and **clamps** the protocol:
+
+```bash
+MATRIC_EVAL_DEVICE_MEMORY_CEILING=0.87
 ```
 
-`max_device_memory_fraction` is authoritative. It defaults to
-`gpu_memory_utilization`, so an existing protocol keeps its behaviour until the
-field is added. Both are validated to `[0.5, 1.0)`, and
-`gpu_memory_utilization` may not exceed `max_device_memory_fraction`.
+The effective fraction handed to the model server is the tighter of the two. A
+protocol looser than the ceiling is not an error — it is clamped, because the
+operator owns the hardware and the protocol file cannot change. A protocol
+already tighter than the ceiling is left alone. When unset, the ceiling is
+`DEFAULT_DEVICE_MEMORY_CEILING`.
 
-Protocol load also refuses a parallelism profile whose per-device reservation
-exceeds the ceiling, so a lease can no longer commit more of the card than
-policy allows.
+A profile whose per-device reservation exceeds the effective ceiling is still
+refused outright at protocol load, since a lease must never commit more of a
+card than policy allows.
 
 ### Why a margin below the host limit
 
-A host limit of 90% should not be declared as `0.90`. The server's
+A host limit of 90% should not be expressed as `0.90`. The server's
 `--gpu-memory-utilization` bounds its own allocator, but not everything resident
 for that process — the CUDA context and NCCL communication buffers sit outside
-the fraction it profiles, and any sidecar on the same card is not covered at
-all. `DEFAULT_DEVICE_MEMORY_CEILING` is therefore `0.87`: on an 81,920 MiB A100
-that is 71,270 MiB, leaving roughly 2,458 MiB of headroom under a 90% limit.
+the fraction it profiles, and a sidecar sharing the card is not covered at all.
+The default is therefore `0.87`: on an 81,920 MiB A100 that is 71,270 MiB,
+leaving roughly 2,458 MiB of headroom under a 90% limit.
 
 ### Evidence
 
 When the server reports ready, each leased device is sampled and the run fails
-closed if any card is above the ceiling. The server receipt carries the reading:
+closed if any card is above the ceiling. The receipt carries the reading and
+every input to the decision, so the clamp is auditable:
 
 ```json
 "device_memory": {
   "ceiling_fraction": 0.87,
+  "protocol_gpu_memory_utilization": 0.9,
+  "operator_ceiling_fraction": 0.87,
+  "effective_gpu_memory_utilization": 0.87,
   "devices": [{"uuid": "GPU-...", "total_mib": 81920, "used_mib": 68000, "used_fraction": 0.830078}],
   "high_water_uuid": "GPU-...",
   "high_water_fraction": 0.830078,
@@ -121,5 +130,5 @@ closed if any card is above the ceiling. The server receipt carries the reading:
 }
 ```
 
-That turns "we configured a ceiling" into "we measured the cards and here is the
-high-water mark", which is what a host owner can actually audit.
+That turns "we configured a ceiling" into "we measured the cards, here is the
+high-water mark, and here is why this fraction was used".

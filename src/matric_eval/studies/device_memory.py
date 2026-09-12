@@ -9,6 +9,7 @@ the assertions so those three cannot drift apart.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -31,6 +32,26 @@ ACCELERATOR_TOTAL_MIB: Mapping[str, int] = {A100_80GB_PCIE: 81_920}
 DEFAULT_DEVICE_MEMORY_CEILING = 0.87
 
 MINIMUM_CEILING = 0.5
+
+#: Operator override for the per-card ceiling.
+#:
+#: A study protocol is hash-pinned by its calibration and judge plans and is
+#: documented as immutable once a study is underway, so a host owner's ceiling
+#: cannot be applied by editing it. This variable clamps the protocol instead:
+#: the effective fraction is the tighter of the two, the protocol file stays
+#: byte-identical, and its pinned hash keeps verifying.
+DEVICE_MEMORY_CEILING_ENV = "MATRIC_EVAL_DEVICE_MEMORY_CEILING"
+
+
+def legacy_record_reservation_mib() -> int:
+    """Reservation assumed for a version-one record that omits ``requested_mib``.
+
+    Version-one records predate the field, so reading one has to assume a
+    reservation. That assumption used to be a hardcoded 75,000 MiB, which is
+    91.55% of an 81,920 MiB A100 and above the ceiling; derive it instead so a
+    historical record cannot reserve more of a card than policy allows.
+    """
+    return ceiling_mib(A100_80GB_PCIE, DEFAULT_DEVICE_MEMORY_CEILING)
 
 
 class DeviceMemoryCeilingError(RuntimeError):
@@ -86,18 +107,53 @@ def ceiling_mib(accelerator_model: str, fraction: float) -> int:
     return int(total_mib(accelerator_model) * fraction)
 
 
-def resolve_ceiling(server: Mapping[str, object]) -> float:
-    """The declared ceiling for a model-server block.
+def operator_ceiling(env: Mapping[str, str] | None = None) -> float:
+    """The host owner's per-card ceiling, from the environment or the default."""
+    source = os.environ if env is None else env
+    raw = source.get(DEVICE_MEMORY_CEILING_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_DEVICE_MEMORY_CEILING
+    try:
+        parsed = float(raw)
+    except ValueError:
+        raise ValueError(f"{DEVICE_MEMORY_CEILING_ENV} must be a number in [0.5, 1.0)") from None
+    return validate_ceiling(parsed, path=DEVICE_MEMORY_CEILING_ENV)
 
-    ``max_device_memory_fraction`` is authoritative when present. It defaults to
+
+def declared_ceiling(server: Mapping[str, object]) -> float:
+    """The ceiling the protocol itself declares.
+
+    ``max_device_memory_fraction`` is authoritative when present; it defaults to
     ``gpu_memory_utilization`` so an existing protocol keeps its behaviour.
     """
-    declared = server.get("max_device_memory_fraction")
+    # Name the field the value actually came from; reporting the wrong key sends
+    # the reader to a field their protocol may not even set.
+    field = "max_device_memory_fraction"
+    declared = server.get(field)
     if declared is None:
-        declared = server.get("gpu_memory_utilization")
-    return validate_ceiling(
-        declared, path="study.execution.model_server.max_device_memory_fraction"
+        field = "gpu_memory_utilization"
+        declared = server.get(field)
+    return validate_ceiling(declared, path=f"study.execution.model_server.{field}")
+
+
+def resolve_ceiling(server: Mapping[str, object], env: Mapping[str, str] | None = None) -> float:
+    """The effective ceiling: the tighter of the protocol and the operator."""
+    return min(declared_ceiling(server), operator_ceiling(env))
+
+
+def effective_utilization(
+    server: Mapping[str, object], env: Mapping[str, str] | None = None
+) -> float:
+    """The fraction actually handed to the model server.
+
+    Clamped by the operator ceiling so a host owner can tighten a pinned
+    protocol without editing it.
+    """
+    declared = validate_ceiling(
+        server.get("gpu_memory_utilization"),
+        path="study.execution.model_server.gpu_memory_utilization",
     )
+    return min(declared, operator_ceiling(env))
 
 
 def assert_profile_within_ceiling(profile: ParallelismProfile, fraction: float) -> None:
@@ -118,19 +174,22 @@ def assert_profile_within_ceiling(profile: ParallelismProfile, fraction: float) 
 
 
 def validate_device_memory_policy(
-    server: Mapping[str, object], profile: ParallelismProfile
+    server: Mapping[str, object],
+    profile: ParallelismProfile,
+    env: Mapping[str, str] | None = None,
 ) -> float:
-    """Validate a model-server block against its profile. Returns the ceiling."""
-    fraction = resolve_ceiling(server)
-    utilization = validate_ceiling(
+    """Validate a model-server block against its profile.
+
+    Returns the effective ceiling. A protocol fraction above the operator
+    ceiling is not an error: it is clamped, because the protocol is pinned and
+    the operator owns the hardware.
+    """
+    declared = declared_ceiling(server)
+    validate_ceiling(
         server.get("gpu_memory_utilization"),
         path="study.execution.model_server.gpu_memory_utilization",
     )
-    if utilization > fraction:
-        raise ValueError(
-            "study.execution.model_server.gpu_memory_utilization "
-            f"({utilization}) must not exceed max_device_memory_fraction ({fraction})"
-        )
+    fraction = min(declared, operator_ceiling(env))
     assert_profile_within_ceiling(profile, fraction)
     return fraction
 

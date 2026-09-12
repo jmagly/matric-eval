@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from matric_eval.studies.device_memory import legacy_record_reservation_mib
 from matric_eval.studies.gpu import GpuAllocation
 from matric_eval.studies.resource_lifecycle import ResourceLifecycle
 
@@ -55,6 +56,11 @@ class FakeDocker:
         self.info["State"]["Running"] = False
 
 
+#: Reservations are explicit now; derive the test value from the ceiling so a
+#: policy change cannot leave these assertions pinned to a stale number.
+TEST_LEASE_MIB = legacy_record_reservation_mib()
+
+
 @pytest.fixture
 def lifecycle(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
@@ -64,6 +70,7 @@ def lifecycle(tmp_path):
         "existing-attempt",
         GPU_A,
         "qualification",
+        memory_mib=TEST_LEASE_MIB,
     )
     yield value
     value.close()
@@ -87,7 +94,7 @@ def test_multi_gpu_allocation_is_persisted_and_acquired_as_one_ordered_set(tmp_p
         topology_policy="nvlink-p2p-required/1",
     )
     try:
-        value.prepare("run", "attempt", allocation, "qualification")
+        value.prepare("run", "attempt", allocation, "qualification", memory_mib=TEST_LEASE_MIB)
         assert value.record["schema"] == "matric-eval.resource-lifecycle/2"
         assert value.record["gpu_allocation"] == allocation.to_dict()
         assert value.record["gpu_allocation_sha256"] == allocation.fingerprint()
@@ -115,8 +122,8 @@ def test_multi_gpu_overlap_blocks_the_entire_pending_set(tmp_path):
     first = ResourceLifecycle(tmp_path / "first", FakeBroker(), FakeDocker())
     second = ResourceLifecycle(tmp_path / "second", FakeBroker(), FakeDocker())
     try:
-        first.prepare("run", "first", (GPU_A, GPU_B), "qualification")
-        second.prepare("run", "second", (GPU_B,), "qualification")
+        first.prepare("run", "first", (GPU_A, GPU_B), "qualification", memory_mib=TEST_LEASE_MIB)
+        second.prepare("run", "second", (GPU_B,), "qualification", memory_mib=TEST_LEASE_MIB)
 
         with pytest.raises(RuntimeError, match="unresolved cleanup obligation"):
             second.acquire()
@@ -131,10 +138,10 @@ def test_invalid_unresolved_allocation_evidence_blocks_new_acquisition(tmp_path)
     first = ResourceLifecycle(tmp_path / "first", FakeBroker(), FakeDocker())
     second = ResourceLifecycle(tmp_path / "second", FakeBroker(), FakeDocker())
     try:
-        first.prepare("run", "first", (GPU_A,), "qualification")
+        first.prepare("run", "first", (GPU_A,), "qualification", memory_mib=TEST_LEASE_MIB)
         first.record["gpu_uuids"] = ["not-an-exact-gpu-uuid"]
         first.path.write_text(json.dumps(first.record), encoding="utf-8")
-        second.prepare("run", "second", (GPU_B,), "qualification")
+        second.prepare("run", "second", (GPU_B,), "qualification", memory_mib=TEST_LEASE_MIB)
 
         with pytest.raises(RuntimeError, match="invalid unresolved allocation evidence"):
             second.acquire()
@@ -149,7 +156,7 @@ def test_partial_multi_gpu_cuda_survival_blocks_atomic_release(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
     value = ResourceLifecycle(tmp_path / "multi", broker, docker)
     try:
-        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification", memory_mib=TEST_LEASE_MIB)
         value.acquire()
         docker.info = {
             "Id": "owned-container-id",
@@ -190,7 +197,7 @@ def test_multi_gpu_lease_rank_order_mutation_is_not_released(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
     value = ResourceLifecycle(tmp_path / "multi", broker, docker)
     try:
-        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification", memory_mib=TEST_LEASE_MIB)
         value.acquire()
         broker.leases[0]["gpu_uuids"] = [GPU_B, GPU_A]
 
@@ -205,7 +212,7 @@ def test_multi_gpu_lease_memory_mutation_is_not_released(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
     value = ResourceLifecycle(tmp_path / "multi", broker, docker)
     try:
-        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification")
+        value.prepare("run", "attempt", (GPU_A, GPU_B), "qualification", memory_mib=TEST_LEASE_MIB)
         value.acquire()
         broker.leases[0]["requested_mib"] = 74_999
 
@@ -220,7 +227,7 @@ def test_version_one_resource_record_remains_readable(tmp_path):
     broker, docker = FakeBroker(), FakeDocker()
     directory = tmp_path / "legacy"
     value = ResourceLifecycle(directory, broker, docker)
-    value.prepare("run", "attempt", GPU_A, "qualification")
+    value.prepare("run", "attempt", GPU_A, "qualification", memory_mib=TEST_LEASE_MIB)
     value.record["schema"] = "matric-eval.resource-lifecycle/1"
     value.record.pop("gpu_allocation")
     value.record.pop("gpu_allocation_sha256")
@@ -232,7 +239,7 @@ def test_version_one_resource_record_remains_readable(tmp_path):
     try:
         reopened.acquire()
         assert broker.acquisitions[0]["gpu_uuids"] == [GPU_A]
-        assert broker.acquisitions[0]["requested_mib"] == 75_000
+        assert broker.acquisitions[0]["requested_mib"] == legacy_record_reservation_mib()
     finally:
         reopened.reconcile()
         reopened.close()
@@ -254,7 +261,7 @@ def test_lost_acquire_ack_recovered_by_exact_owner(lifecycle):
         "acquire",
         owner=lifecycle.record["owner"],
         gpu_uuids=[GPU_A],
-        requested_mib=75_000,
+        requested_mib=TEST_LEASE_MIB,
     )
     assert lifecycle.reconcile()
     assert lifecycle.broker.released == ["private-token"]
@@ -298,11 +305,18 @@ def test_unique_names_and_no_reused_directory(lifecycle, tmp_path):
             "next-attempt",
             "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             "qualification",
+            memory_mib=TEST_LEASE_MIB,
         )
         for key in ("container", "readiness", "owner"):
             assert lifecycle.record[key] != other.record[key]
         with pytest.raises(RuntimeError):
-            lifecycle.prepare("r", "a", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner")
+            lifecycle.prepare(
+                "r",
+                "a",
+                "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "owner",
+                memory_mib=TEST_LEASE_MIB,
+            )
     finally:
         other.close()
 
@@ -311,7 +325,11 @@ def test_other_pending_attempt_blocks_acquire(lifecycle, tmp_path):
     other = ResourceLifecycle(tmp_path / "next", FakeBroker(), FakeDocker())
     try:
         other.prepare(
-            "existing-run", "next", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "qualification"
+            "existing-run",
+            "next",
+            "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "qualification",
+            memory_mib=TEST_LEASE_MIB,
         )
         with pytest.raises(RuntimeError, match="unresolved"):
             other.acquire()
@@ -432,7 +450,13 @@ def test_real_unix_acquire_rejection_reconciles_without_lease(tmp_path):
         worker.start()
         value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
         try:
-            value.prepare("run", "attempt", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
+            value.prepare(
+                "run",
+                "attempt",
+                "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "test",
+                memory_mib=TEST_LEASE_MIB,
+            )
             with pytest.raises(BrokerRejected):
                 value.acquire()
             assert value.reconcile()
@@ -848,7 +872,13 @@ def test_delayed_unix_acquisition_cannot_be_discharged_by_empty_status(tmp_path)
         worker.start()
         value = ResourceLifecycle(tmp_path / "owned", Broker(path), FakeDocker())
         try:
-            value.prepare("run", "attempt", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
+            value.prepare(
+                "run",
+                "attempt",
+                "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "test",
+                memory_mib=TEST_LEASE_MIB,
+            )
             with pytest.raises(TimeoutError):
                 value.acquire()
             assert value.record["acquisition_outcome"] == "unknown"
@@ -878,7 +908,13 @@ def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycl
     lifecycle.save(state="stopped", cleanup="complete")
     other = ResourceLifecycle(tmp_path / "other", FakeBroker(), FakeDocker())
     try:
-        other.prepare("run", "new", "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "test")
+        other.prepare(
+            "run",
+            "new",
+            "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "test",
+            memory_mib=TEST_LEASE_MIB,
+        )
         with pytest.raises(RuntimeError, match="unresolved"):
             other.acquire()
         assert not lifecycle.reconcile()
@@ -889,7 +925,7 @@ def test_legacy_false_complete_is_reopened_and_blocks_other_acquisition(lifecycl
             "acquire",
             owner=lifecycle.record["owner"],
             gpu_uuids=[GPU_A],
-            requested_mib=75_000,
+            requested_mib=TEST_LEASE_MIB,
         )
         assert lifecycle.reconcile()
         assert lifecycle.broker.released == ["private-token"]

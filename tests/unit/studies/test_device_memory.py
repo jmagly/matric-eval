@@ -16,7 +16,10 @@ from matric_eval.studies.device_memory import (
     assert_profile_within_ceiling,
     assert_within_ceiling,
     ceiling_mib,
+    declared_ceiling,
+    effective_utilization,
     evidence,
+    operator_ceiling,
     parse_observations,
     query_observations,
     resolve_ceiling,
@@ -96,24 +99,61 @@ def test_profile_above_the_ceiling_is_rejected_with_both_numbers():
     assert str(ceiling_mib(A100_80GB_PCIE, 0.80)) in message
 
 
-def test_resolve_ceiling_prefers_the_explicit_declaration():
+def test_declared_ceiling_prefers_the_explicit_field():
     server = {"gpu_memory_utilization": 0.87, "max_device_memory_fraction": 0.9}
-    assert resolve_ceiling(server) == 0.9
+    assert declared_ceiling(server) == 0.9
 
 
-def test_resolve_ceiling_falls_back_so_existing_protocols_keep_behaviour():
-    assert resolve_ceiling({"gpu_memory_utilization": 0.87}) == 0.87
+def test_declared_ceiling_falls_back_so_existing_protocols_keep_behaviour():
+    assert declared_ceiling({"gpu_memory_utilization": 0.87}) == 0.87
 
 
-def test_policy_rejects_a_server_fraction_above_the_ceiling():
-    server = {"gpu_memory_utilization": 0.95, "max_device_memory_fraction": 0.87}
-    with pytest.raises(ValueError, match="must not exceed max_device_memory_fraction"):
-        validate_device_memory_policy(server, A100_TP1_PROFILE)
+def test_operator_ceiling_defaults_when_unset():
+    assert operator_ceiling({}) == DEFAULT_DEVICE_MEMORY_CEILING
 
 
-def test_policy_accepts_the_shipped_shape():
-    server = {"gpu_memory_utilization": 0.87, "max_device_memory_fraction": 0.87}
-    assert validate_device_memory_policy(server, A100_TP1_PROFILE) == 0.87
+@pytest.mark.parametrize("raw", ["0.80", " 0.80 "])
+def test_operator_ceiling_reads_the_environment(raw):
+    assert operator_ceiling({"MATRIC_EVAL_DEVICE_MEMORY_CEILING": raw}) == 0.80
+
+
+@pytest.mark.parametrize("raw", ["", "   "])
+def test_blank_operator_ceiling_falls_back_to_the_default(raw):
+    assert operator_ceiling({"MATRIC_EVAL_DEVICE_MEMORY_CEILING": raw}) == (
+        DEFAULT_DEVICE_MEMORY_CEILING
+    )
+
+
+@pytest.mark.parametrize("raw", ["not-a-number", "1.5", "0.1"])
+def test_invalid_operator_ceiling_is_refused(raw):
+    with pytest.raises(ValueError):
+        operator_ceiling({"MATRIC_EVAL_DEVICE_MEMORY_CEILING": raw})
+
+
+def test_operator_ceiling_clamps_a_pinned_protocol_it_cannot_edit():
+    """The real case: the protocol says 0.9 and is hash-pinned, the host allows less."""
+    server = {"gpu_memory_utilization": 0.9}
+    assert effective_utilization(server, {}) == DEFAULT_DEVICE_MEMORY_CEILING
+    assert resolve_ceiling(server, {}) == DEFAULT_DEVICE_MEMORY_CEILING
+
+
+def test_a_protocol_tighter_than_the_operator_is_left_alone():
+    server = {"gpu_memory_utilization": 0.6}
+    assert effective_utilization(server, {}) == 0.6
+
+
+def test_policy_clamps_rather_than_rejecting_a_looser_protocol():
+    # Rejecting would make a pinned protocol unusable on a tighter host; the
+    # operator owns the hardware, so the tighter value simply wins.
+    server = {"gpu_memory_utilization": 0.95}
+    assert validate_device_memory_policy(server, A100_TP1_PROFILE, {}) == (
+        DEFAULT_DEVICE_MEMORY_CEILING
+    )
+
+
+def test_policy_accepts_the_shipped_protocol_shape():
+    server = {"gpu_memory_utilization": 0.9}
+    assert validate_device_memory_policy(server, A100_TP1_PROFILE, {}) == 0.87
 
 
 def test_observation_fraction_and_zero_capacity():

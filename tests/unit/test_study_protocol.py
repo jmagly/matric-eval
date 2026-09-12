@@ -25,6 +25,10 @@ from matric_eval.studies import (
 )
 from matric_eval.studies.gpu import NVLINK_P2P_TOPOLOGY_POLICY
 
+#: Single-device allocations must track the profile requirement, so a ceiling
+#: change cannot leave a "too small" case silently satisfiable.
+_TP1_REQUIRED_MIB = A100_TP1_PROFILE.minimum_memory_mib_per_device
+
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
 
@@ -99,7 +103,7 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
     gpu_a = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     gpu_b = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     for profile, allocation in (
-        (A100_TP1_PROFILE, GpuAllocation((gpu_a,), 75_000)),
+        (A100_TP1_PROFILE, GpuAllocation((gpu_a,), _TP1_REQUIRED_MIB)),
         (
             A100_TP2_PROFILE,
             GpuAllocation(
@@ -138,7 +142,7 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
             tp2_study,
             environment={
                 "MATRIC_EVAL_GPU_ALLOCATION_JSON": json.dumps(
-                    GpuAllocation((gpu_a,), 75_000).to_dict()
+                    GpuAllocation((gpu_a,), _TP1_REQUIRED_MIB).to_dict()
                 ),
                 "CUDA_VISIBLE_DEVICES": gpu_a,
             },
@@ -160,7 +164,7 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
             tp1_study,
             environment={
                 "MATRIC_EVAL_GPU_ALLOCATION_JSON": json.dumps(
-                    GpuAllocation((gpu_a,), 75_000).to_dict()
+                    GpuAllocation((gpu_a,), _TP1_REQUIRED_MIB).to_dict()
                 ),
                 "CUDA_VISIBLE_DEVICES": f"{gpu_a},{gpu_b}",
             },
@@ -170,7 +174,9 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
 def test_parallelism_attestation_rejects_effective_disagreement(protocol_data: dict) -> None:
     gpu = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     study = StudyProtocol.from_dict(protocol_data, validate_registry=False)
-    binding = GpuExecutionBinding(GpuAllocation((gpu,), 75_000), study.parallelism_profile)
+    binding = GpuExecutionBinding(
+        GpuAllocation((gpu,), _TP1_REQUIRED_MIB), study.parallelism_profile
+    )
 
     with pytest.raises(RuntimeError, match="tensor parallelism"):
         batch_module.parallelism_attestation(
@@ -184,7 +190,7 @@ def test_parallelism_attestation_rejects_effective_disagreement(protocol_data: d
 def test_parallelism_attestation_rejects_declared_effective_disagreement() -> None:
     gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     binding = GpuExecutionBinding(
-        GpuAllocation((gpu_uuid,), 75_000),
+        GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB),
         A100_TP1_PROFILE,
     )
     evidence = batch_module.parallelism_attestation(
@@ -257,7 +263,7 @@ def test_active_gpu_lease_receipt_is_scoped_and_private(
     token = "lease-test"
     gpu_uuid = "GPU-170a99ee-850f-2182-1050-4e8d3c87b6b0"
     study = StudyProtocol.from_yaml(PROTOCOL)
-    allocation = GpuAllocation((gpu_uuid,), 75_000)
+    allocation = GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB)
     binding = GpuExecutionBinding(allocation, study.parallelism_profile)
     parallelism = batch_module.parallelism_attestation(
         binding,
@@ -278,7 +284,7 @@ def test_active_gpu_lease_receipt_is_scoped_and_private(
                     "token": token,
                     "owner": "matric-eval-qwen38",
                     "state": next(states),
-                    "requested_mib": 75000,
+                    "requested_mib": _TP1_REQUIRED_MIB,
                     "gpu_uuids": [gpu_uuid],
                 }
             ],
@@ -311,7 +317,9 @@ def test_active_gpu_lease_rejects_visible_device_mismatch(
 ) -> None:
     gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     study = StudyProtocol.from_yaml(PROTOCOL)
-    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    binding = GpuExecutionBinding(
+        GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB), study.parallelism_profile
+    )
     parallelism = batch_module.parallelism_attestation(
         binding,
         tensor_parallel_size=1,
@@ -333,7 +341,7 @@ def test_active_gpu_lease_rejects_visible_device_mismatch(
                         "token": "lease-test",
                         "state": "active",
                         "gpu_uuids": ["GPU-different"],
-                        "requested_mib": 75_000,
+                        "requested_mib": _TP1_REQUIRED_MIB,
                     }
                 ],
             },
@@ -343,8 +351,8 @@ def test_active_gpu_lease_rejects_visible_device_mismatch(
 @pytest.mark.parametrize(
     ("requested_mib", "total_mib", "message"),
     (
-        (74_999, 81_920, "lease memory disagrees"),
-        (75_000, 74_999, "insufficient_device_memory"),
+        (_TP1_REQUIRED_MIB - 1, 81_920, "lease memory disagrees"),
+        (_TP1_REQUIRED_MIB, _TP1_REQUIRED_MIB - 1, "insufficient_device_memory"),
     ),
 )
 def test_active_gpu_lease_rejects_memory_evidence_disagreement(
@@ -356,7 +364,9 @@ def test_active_gpu_lease_rejects_memory_evidence_disagreement(
 ) -> None:
     gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     study = StudyProtocol.from_yaml(PROTOCOL)
-    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    binding = GpuExecutionBinding(
+        GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB), study.parallelism_profile
+    )
     parallelism = batch_module.parallelism_attestation(
         binding,
         tensor_parallel_size=1,
@@ -397,7 +407,9 @@ def test_model_resident_marker_is_token_specific(
     gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", gpu_uuid)
     study = StudyProtocol.from_yaml(PROTOCOL)
-    binding = GpuExecutionBinding(GpuAllocation((gpu_uuid,), 75_000), study.parallelism_profile)
+    binding = GpuExecutionBinding(
+        GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB), study.parallelism_profile
+    )
     parallelism = batch_module.parallelism_attestation(
         binding,
         tensor_parallel_size=1,
@@ -793,7 +805,7 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
         return FakeEngine()
 
     gpu_uuid = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    allocation = GpuAllocation((gpu_uuid,), 75_000)
+    allocation = GpuAllocation((gpu_uuid,), _TP1_REQUIRED_MIB)
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", gpu_uuid)
     monkeypatch.setenv("MATRIC_EVAL_GPU_ALLOCATION_JSON", json.dumps(allocation.to_dict()))
     monkeypatch.setattr(batch_module.platform, "node", lambda: "basilisk")
@@ -839,7 +851,10 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     }
     assert engine_kwargs["tensor_parallel_size"] == 1
     assert engine_kwargs["pipeline_parallel_size"] == 1
-    assert engine_kwargs["gpu_memory_utilization"] == 0.9
+    assert (
+        engine_kwargs["gpu_memory_utilization"]
+        == study.raw["study"]["execution"]["model_server"]["gpu_memory_utilization"]
+    )
     assert engine_kwargs["safetensors_load_strategy"] == "prefetch"
     assert engine_kwargs["async_scheduling"] is False
     assert engine_kwargs["language_model_only"] is True

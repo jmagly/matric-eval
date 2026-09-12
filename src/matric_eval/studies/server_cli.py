@@ -30,7 +30,9 @@ from matric_eval.studies.batch import (
 )
 from matric_eval.studies.device_memory import (
     assert_within_ceiling,
+    effective_utilization,
     evidence,
+    operator_ceiling,
     query_observations,
     resolve_ceiling,
 )
@@ -150,7 +152,9 @@ def _server_arguments(
         "--pipeline-parallel-size",
         str(profile.pipeline_parallel_size),
         "--gpu-memory-utilization",
-        str(server["gpu_memory_utilization"]),
+        # Clamped by the operator ceiling: the protocol is hash-pinned and cannot
+        # be edited to tighten it, so the tighter of the two is what runs.
+        str(effective_utilization(server)),
         "--safetensors-load-strategy",
         str(server["safetensors_load_strategy"]),
         "--chat-template",
@@ -351,7 +355,12 @@ def run_attested_server(
                 "arguments": arguments,
                 "parallelism": parallelism,
             },
-            "device_memory": evidence(device_observations, device_ceiling),
+            "device_memory": {
+                **evidence(device_observations, device_ceiling),
+                "protocol_gpu_memory_utilization": server["gpu_memory_utilization"],
+                "operator_ceiling_fraction": operator_ceiling(),
+                "effective_gpu_memory_utilization": effective_utilization(server),
+            },
         }
         _write_private_json(server_receipt_path, receipt)
         if status:
