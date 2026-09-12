@@ -267,3 +267,97 @@ def test_both_execution_paths_clamp_the_protocol_fraction():
     for source, where in ((online, "server_cli"), (offline, "batch")):
         assert "effective_utilization" in source, where
         assert 'server["gpu_memory_utilization"]),' not in source, where
+
+
+def _status(*rows: tuple[str, int, int]) -> dict:
+    return {"gpus": [{"uuid": u, "total_mib": t, "used_mib": m} for u, t, m in rows]}
+
+
+def test_free_reservation_guard_passes_on_an_empty_card():
+    observed = device_memory.assert_free_from_status(
+        _status(("GPU-a", 81_920, 18)), ["GPU-a"], 71_270
+    )
+    assert observed[0].used_mib == 18
+
+
+def test_free_reservation_guard_rejects_a_card_holding_a_co_tenant():
+    """The pliny failure: 60,788 MiB resident, a 71,270 MiB reservation requested."""
+    with pytest.raises(device_memory.DeviceMemoryCeilingError) as error:
+        device_memory.assert_free_from_status(_status(("GPU-a", 81_920, 60_788)), ["GPU-a"], 71_270)
+    message = str(error.value)
+    assert "GPU-a" in message
+    assert "71270" in message
+    assert "60788" in message, "the operator needs to see what was already resident"
+
+
+def test_free_reservation_guard_passes_at_the_exact_boundary():
+    device_memory.assert_free_from_status(_status(("GPU-a", 81_920, 10_650)), ["GPU-a"], 71_270)
+
+
+def test_free_reservation_guard_reports_every_short_device():
+    with pytest.raises(device_memory.DeviceMemoryCeilingError) as error:
+        device_memory.assert_free_from_status(
+            _status(("GPU-a", 81_920, 60_788), ("GPU-b", 81_920, 70_000)),
+            ["GPU-a", "GPU-b"],
+            71_270,
+        )
+    assert "GPU-a" in str(error.value) and "GPU-b" in str(error.value)
+
+
+def test_free_reservation_guard_ignores_unleased_devices():
+    device_memory.assert_free_from_status(
+        _status(("GPU-a", 81_920, 18), ("GPU-busy", 81_920, 80_000)), ["GPU-a"], 71_270
+    )
+
+
+def test_free_reservation_guard_is_inert_without_device_evidence():
+    """An older broker publishes no device section; that must not block a run."""
+    assert device_memory.assert_free_from_status({"leases": []}, ["GPU-a"], 71_270) == ()
+
+
+def test_free_reservation_guard_refuses_a_missing_leased_device():
+    with pytest.raises(device_memory.DeviceMemoryCeilingError, match="omits leased device"):
+        device_memory.assert_free_from_status(_status(("GPU-other", 81_920, 18)), ["GPU-a"], 71_270)
+
+
+def test_free_reservation_guard_refuses_non_integer_memory():
+    status = {"gpus": [{"uuid": "GPU-a", "total_mib": "81920", "used_mib": 18}]}
+    with pytest.raises(device_memory.DeviceMemoryCeilingError, match="integer memory"):
+        device_memory.assert_free_from_status(status, ["GPU-a"], 71_270)
+
+
+@pytest.mark.parametrize("amount", [0, -1])
+def test_free_reservation_guard_refuses_a_nonsense_reservation(amount):
+    with pytest.raises(device_memory.DeviceMemoryCeilingError, match="positive MiB"):
+        device_memory.assert_free_from_status(_status(("GPU-a", 81_920, 18)), ["GPU-a"], amount)
+
+
+def test_foreign_intrusion_detected_on_a_leased_card():
+    status = {"foreign_gpu_processes": {"3692206@GPU-a": 30972}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}) == {"3692206@GPU-a": 30972}
+
+
+def test_foreign_process_present_at_acquisition_is_not_an_intrusion():
+    baseline = {"1984040@GPU-a": 416}
+    status = {"foreign_gpu_processes": dict(baseline)}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], baseline) == {}
+
+
+def test_foreign_process_on_an_unleased_card_is_ignored():
+    status = {"foreign_gpu_processes": {"3174044@GPU-other": 19368}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}) == {}
+
+
+def test_intrusion_alongside_a_baseline_process_is_still_detected():
+    baseline = {"1984040@GPU-a": 416}
+    status = {"foreign_gpu_processes": {**baseline, "3692206@GPU-a": 30972}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], baseline) == {"3692206@GPU-a": 30972}
+
+
+def test_absent_foreign_map_is_not_an_intrusion():
+    assert device_memory.foreign_intrusions({}, ["GPU-a"], {}) == {}
+
+
+def test_malformed_foreign_map_is_refused():
+    with pytest.raises(device_memory.DeviceMemoryCeilingError, match="malformed"):
+        device_memory.foreign_intrusions({"foreign_gpu_processes": ["nope"]}, ["GPU-a"], {})

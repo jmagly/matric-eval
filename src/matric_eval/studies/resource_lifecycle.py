@@ -19,7 +19,11 @@ import uuid
 from pathlib import Path
 from typing import Any, Sequence
 
-from matric_eval.studies.device_memory import legacy_record_reservation_mib
+from matric_eval.studies.device_memory import (
+    assert_free_from_status,
+    foreign_intrusions,
+    legacy_record_reservation_mib,
+)
 from matric_eval.studies.gpu import GpuAllocation
 from matric_eval.studies.preflight import (
     execute_plan,
@@ -211,6 +215,15 @@ def acquisition_settled(record: dict[str, Any]) -> bool:
     return bool(record.get("lease_sha256") or record.get("lease_release_acknowledged_at"))
 
 
+def _baseline_for_token(status: dict[str, Any], token: str) -> dict[str, int]:
+    """The foreign allocations the broker saw when it granted this lease."""
+    for lease in status.get("leases") or []:
+        if isinstance(lease, dict) and lease.get("token") == token:
+            baseline = lease.get("foreign_baseline") or {}
+            return {str(k): int(v) for k, v in baseline.items() if isinstance(v, int)}
+    return {}
+
+
 def record_allocation(record: dict[str, Any]) -> GpuAllocation:
     """Read a native lifecycle allocation or its version-one list compatibility form."""
     payload = record.get("gpu_allocation")
@@ -330,6 +343,12 @@ class ResourceLifecycle:
             surviving_cuda_allocations=[],
             acquisition_outcome="not-sent",
         )
+
+    def _lease_foreign_baseline(self, token: str) -> dict[str, int]:
+        try:
+            return _baseline_for_token(self.broker.call("status"), token)
+        except (OSError, ValueError, RuntimeError):
+            return {}
 
     def acquire(self, mib: int | None = None) -> str:
         allocation = record_allocation(self.record)
@@ -661,11 +680,28 @@ class ResourceLifecycle:
                 preflight_binding=preflight_plan["resource_binding"],
             )
             token = self.acquire(mib)
+            # Free memory, checked before anything launches. The lease-capture
+            # check can only compare advertised capacity, because by then the
+            # study's own weights are resident; a co-tenant was therefore
+            # admitted and OOM-killed mid-load. See issue 213.
+            assert_free_from_status(
+                self.broker.call("status"), allocation.gpu_uuids, allocation.memory_mib
+            )
+            lease_baseline = self._lease_foreign_baseline(token)
 
             def keep_lease() -> None:
                 while not heartbeat_stop.wait(30):
                     try:
                         self.broker.call("heartbeat", token=token)
+                        intruders = foreign_intrusions(
+                            self.broker.call("status"), allocation.gpu_uuids, lease_baseline
+                        )
+                        if intruders:
+                            # A lease is advisory against the co-resident backend,
+                            # so say so plainly rather than let the run surface as
+                            # an unexplained readiness timeout.
+                            self.save(reason="foreign_allocation_on_leased_device")
+                            raise RuntimeError(f"foreign allocation on leased device: {intruders}")
                     except (OSError, ValueError, RuntimeError):
                         heartbeat_failed.set()
                         if not heartbeat_stop.is_set():
