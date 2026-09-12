@@ -772,7 +772,16 @@ class ResourceLifecycle:
                     if value["lease_token_sha256"] != self.record["lease_sha256"]:
                         raise RuntimeError("readiness lease mismatch")
                     self.broker.call("ready", token=token)
-                    self.save(state="qualifying-target")
+                    # A scoped lease blocks its cards only until the broker is
+                    # told the model is resident; from `ready` onward it may
+                    # place an Ollama lane in whatever VRAM it measures as free.
+                    # The broker's protocol requires `prepare` before any growth,
+                    # and both target qualification and the study batch grow
+                    # device memory. A rejection is deliberately left to
+                    # propagate: refusing the run is correct when the broker will
+                    # not clear the card. See issue 216.
+                    self.broker.call("prepare", token=token)
+                    self.save(state="qualifying-target", broker_prepared_at=time.time())
                     target = execute_target_checks(
                         preflight_plan,
                         receipt_directory / "target-preflight.json",
