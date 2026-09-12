@@ -160,3 +160,102 @@ secret/configuration, and rerun with a fresh output directory. On quota exhausti
 lower concurrency or budgets; do not relabel the attempt as model quality. On a
 suspected secret leak, activate the kill switch, revoke the credential, restrict
 artifact access, and follow the incident-response runbook before rerunning.
+
+## Enabling a direct endpoint
+
+A `direct_endpoint` is executed as a **subprocess**, not as an HTTP call the
+pipeline makes itself. The operator supplies a client command; the pipeline
+supplies an isolated workspace and grades the document that command leaves
+behind. [`pipelines/agentic-evaluation-endpoint.example.json`](../../pipelines/agentic-evaluation-endpoint.example.json)
+is a complete enabled entry, and
+[`pipelines/openai-endpoint-adapter.py`](../../pipelines/openai-endpoint-adapter.py)
+is a reference adapter for any OpenAI-compatible chat endpoint.
+
+### Required fields
+
+An enabled target must carry `model`, `model_revision`, `dependency_revision`,
+a non-empty `command` argv, and one mode-specific revision field:
+
+| Mode | Revision field |
+|---|---|
+| `direct_endpoint` | `endpoint_revision` |
+| `agentic_platform` | `platform_version` |
+
+### Command templating
+
+The `command` argv is templated before execution:
+
+| Placeholder | Value |
+|---|---|
+| `{prompt}` | `scenario.prompt` |
+| `{workspace}` | absolute path to the isolated workspace |
+| `{target}` | provider or endpoint id |
+| `{tier}` | `scenario.tier` |
+| `{scenario_id}` | `scenario.id` |
+| `{benchmark_id}` | `scenario.benchmark_id` |
+
+### Execution environment
+
+The command runs with its working directory set to a private copy of the
+fixture. The environment is scrubbed to `PATH`, `LANG`, `LC_ALL`,
+`MATRIC_EVAL_TIER`, and a fresh `HOME` inside the workspace. Only the variable
+names listed in `credentials` and `inherit_environment` are passed through, and
+a target whose declared credentials are absent is recorded as skipped rather
+than failed.
+
+Because the environment carries no project dependencies, an adapter should
+depend only on its interpreter's standard library, and `command[0]` should be an
+absolute path — `PATH` is inherited but a project virtualenv is not active.
+
+### The adapter is the scorer
+
+When `result_file` is set, the pipeline reads that path inside the workspace and
+takes the verdict from it. The document must contain:
+
+| Field | Requirement |
+|---|---|
+| `outcome` | exactly `passed` or `failed` |
+| `reason` | matches `[a-z][a-z0-9_.-]{0,127}` |
+| `usage` | optional object; `tokens` and `cost_usd` are normalized |
+
+Anything else is recorded as `invalid_native_result` with `failure_class:
+infrastructure`. A `failed` outcome is attributed to `agent_model_quality`,
+which is the distinction that keeps model quality separate from infrastructure
+faults.
+
+So the adapter decides whether its target succeeded. Derive that expectation
+from the fixture rather than hardcoding an answer, so the assertion travels with
+the fixture — the reference adapter reads a `Project name:` line and checks the
+model's answer against it.
+
+### Output directories are never reused
+
+Per-target evidence is written with `exist_ok=False`; a completed run is never
+overwritten. A target whose attempt directory already exists is reported as
+`retained_evidence_present` with an `evidence_conflict` field naming the
+offending path, rather than as an opaque `controller_error`. Move or remove the
+previous output, or point `output` somewhere new.
+
+A later run that skips a target before writing evidence — an active kill switch,
+for instance — is unaffected and may reuse the directory.
+
+### Worked result
+
+A passing endpoint row looks like this:
+
+```json
+{
+  "target": "vllm",
+  "execution_mode": "direct_endpoint",
+  "status": "passed",
+  "reason": "project_name_reported",
+  "exit_code": 0,
+  "duration_seconds": 2.605,
+  "usage": { "cost_usd": 0.0, "tokens": 57 },
+  "failure_class": null,
+  "native_result_sha256": "7ccb6c24dbde04..."
+}
+```
+
+A self-hosted endpoint reports `cost_usd: 0.0`, so operator-owned hardware can
+carry the matrix at no marginal cost.

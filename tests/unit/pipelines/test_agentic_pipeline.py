@@ -497,3 +497,68 @@ def test_timeout_and_kill_switch_are_typed(tmp_path: Path, monkeypatch: pytest.M
     killed_result = AgenticPipeline(config).run()["results"][0]
     assert killed_result["status"] == "intentionally_skipped"
     assert killed_result["reason"] == "kill_switch_active"
+
+
+def test_retained_evidence_is_reported_with_its_path_not_controller_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        agentic,
+        "discover_aiwg_provider_inventory",
+        lambda executable="aiwg": _inventory("codex"),
+    )
+    path = _config(
+        tmp_path,
+        providers={
+            "codex": _enabled_target(
+                deploy_command=[sys.executable, "-c", "pass"],
+                command=[sys.executable, "-c", "pass"],
+            )
+        },
+    )
+    collision = tmp_path / "output" / "private" / "agentic_platform-codex-attempt-1"
+    collision.mkdir(parents=True)
+
+    result = AgenticPipeline(PipelineConfig.load(path)).run()["results"][0]
+
+    assert result["reason"] == "retained_evidence_present"
+    assert result["failure_class"] == "infrastructure"
+    # The operator needs the path, not just an exception name.
+    assert result["evidence_conflict"] == str(collision)
+    assert "error_type" not in result, "a known condition must not surface as controller_error"
+    assert collision.exists(), "the guard must never delete retained evidence"
+
+
+def test_kill_switch_run_may_reuse_an_output_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second run that skips before writing evidence must not be blocked."""
+    monkeypatch.setattr(
+        agentic,
+        "discover_aiwg_provider_inventory",
+        lambda executable="aiwg": _inventory("codex"),
+    )
+    path = _config(
+        tmp_path,
+        providers={
+            "codex": _enabled_target(
+                deploy_command=[sys.executable, "-c", "pass"],
+                command=[sys.executable, "-c", "pass"],
+            )
+        },
+    )
+    AgenticPipeline(PipelineConfig.load(path)).run()
+
+    config = PipelineConfig.load(path)
+    (config.output / "KILL").write_text("operator stop\n", encoding="utf-8")
+    killed = AgenticPipeline(config).run()["results"][0]
+
+    assert killed["status"] == "intentionally_skipped"
+    assert killed["reason"] == "kill_switch_active"
+
+
+def test_shipped_example_configurations_load(tmp_path: Path) -> None:
+    examples = sorted(Path("pipelines").glob("*.json"))
+    assert examples, "expected at least one shipped example configuration"
+    for example in examples:
+        PipelineConfig.load(example)
