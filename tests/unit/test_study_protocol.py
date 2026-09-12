@@ -23,6 +23,7 @@ from matric_eval.studies import (
     StudyProtocol,
     run_offline_batch,
 )
+from matric_eval.studies.device_memory import effective_utilization
 from matric_eval.studies.gpu import NVLINK_P2P_TOPOLOGY_POLICY
 
 #: Single-device allocations must track the profile requirement, so a ceiling
@@ -851,9 +852,10 @@ def test_offline_batch_runner_locks_manifest_seeds_and_artifacts(
     }
     assert engine_kwargs["tensor_parallel_size"] == 1
     assert engine_kwargs["pipeline_parallel_size"] == 1
-    assert (
-        engine_kwargs["gpu_memory_utilization"]
-        == study.raw["study"]["execution"]["model_server"]["gpu_memory_utilization"]
+    # Clamped, not the raw protocol value: the operator ceiling applies to the
+    # offline batch path exactly as it does to online serving.
+    assert engine_kwargs["gpu_memory_utilization"] == effective_utilization(
+        study.raw["study"]["execution"]["model_server"]
     )
     assert engine_kwargs["safetensors_load_strategy"] == "prefetch"
     assert engine_kwargs["async_scheduling"] is False

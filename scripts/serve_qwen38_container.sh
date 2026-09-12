@@ -219,6 +219,7 @@ sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" MATRIC_RUN_STATU
     --env MATRIC_EVAL_GPU_ALLOCATION_JSON="$gpu_allocation_json" \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
+    --env MATRIC_EVAL_DEVICE_MEMORY_CEILING="${MATRIC_EVAL_DEVICE_MEMORY_CEILING:-}" \
     --env MATRIC_RUN_STATUS_DIR="${MATRIC_RUN_STATUS_DIR:-}" \
     --env MATRIC_EVAL_EVIDENCE_UID="$evidence_uid" \
     --env MATRIC_EVAL_EVIDENCE_GID="$evidence_gid" \

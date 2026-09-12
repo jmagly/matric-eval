@@ -243,3 +243,27 @@ def test_no_launch_path_embeds_a_memory_fraction_literal():
             if literal.search(path.read_text(encoding="utf-8")):
                 offenders.append(str(path))
     assert not offenders, f"hardcoded gpu_memory_utilization in {offenders}"
+
+
+def test_operator_ceiling_reaches_every_study_container():
+    """A ceiling the container never sees is a silent divergence.
+
+    The container environment is explicitly enumerated with --env flags, so a
+    variable absent from that list does not propagate. The lease would honour an
+    operator override while the model server quietly used the protocol value.
+    """
+    for script in (
+        Path("scripts/serve_qwen38_container.sh"),
+        Path("scripts/run_qwen38_offline_container.sh"),
+    ):
+        body = script.read_text(encoding="utf-8")
+        assert "--env MATRIC_EVAL_DEVICE_MEMORY_CEILING" in body, script
+
+
+def test_both_execution_paths_clamp_the_protocol_fraction():
+    """Online serving and offline batch must agree on the effective fraction."""
+    online = Path("src/matric_eval/studies/server_cli.py").read_text(encoding="utf-8")
+    offline = Path("src/matric_eval/studies/batch.py").read_text(encoding="utf-8")
+    for source, where in ((online, "server_cli"), (offline, "batch")):
+        assert "effective_utilization" in source, where
+        assert 'server["gpu_memory_utilization"]),' not in source, where

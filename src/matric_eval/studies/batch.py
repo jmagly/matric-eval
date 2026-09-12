@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from matric_eval.models import ExecutionMode, ModelSpec
+from matric_eval.studies.device_memory import effective_utilization
 from matric_eval.studies.gpu import (
     GPU_EXECUTION_BINDING_SCHEMA,
     GpuAllocation,
@@ -800,7 +801,9 @@ def run_offline_batch(
         "max_model_len": model.runtime.context_limit,
         "tensor_parallel_size": tensor_parallel_size,
         "pipeline_parallel_size": pipeline_parallel_size,
-        "gpu_memory_utilization": server["gpu_memory_utilization"],
+        # Clamped by the operator ceiling, like the online path; the protocol is
+        # hash-pinned and cannot be edited to tighten it.
+        "gpu_memory_utilization": effective_utilization(server),
         "safetensors_load_strategy": server["safetensors_load_strategy"],
         "async_scheduling": server["async_scheduling"],
         "language_model_only": server["language_model_only"],
