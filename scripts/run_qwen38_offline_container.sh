@@ -178,6 +178,7 @@ sudo docker gpu run \
     --env MATRIC_EVAL_GPU_ALLOCATION_JSON="$gpu_allocation_json" \
     --env MATRIC_EVAL_RUNTIME_IMAGE="$study_image" \
     --env MATRIC_EVAL_CODE_REVISION="$code_revision" \
+    --env MATRIC_EVAL_DEVICE_MEMORY_CEILING="${MATRIC_EVAL_DEVICE_MEMORY_CEILING:-}" \
     --env MATRIC_EVAL_GPU_BROKER_SOCKET="$study_broker_socket" \
     --env MATRIC_EVAL_MODEL_READY_BASE="$ready_base" \
     --entrypoint /usr/bin/python3 \
