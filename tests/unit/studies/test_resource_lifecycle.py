@@ -758,6 +758,32 @@ time.sleep(.2)
     assert lifecycle.record["cleanup"] == "complete"
 
 
+def test_growth_is_bracketed_by_prepare_and_a_closing_ready(lifecycle, admission_plan, monkeypatch):
+    """`prepare` returns the lease to pending, which blocks the card so the growth
+    is safe; the closing `ready` lifts that block. Leaving it pending would hold a
+    co-resident service off the card for the whole run. See issue 221."""
+    import sys
+
+    import matric_eval.studies.resource_lifecycle as resource_lifecycle
+
+    attach_owned_container(lifecycle)
+    monkeypatch.setattr(
+        resource_lifecycle,
+        "execute_target_checks",
+        lambda *args, **fields: {"completed": True},
+    )
+    code = """
+import hashlib,json,os,pathlib,time
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+time.sleep(.2)
+"""
+    assert lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan) == 0
+
+    lease_verbs = [a for a in lifecycle.broker.actions if a in {"ready", "prepare"}]
+    assert lease_verbs == ["ready", "prepare", "ready"], lease_verbs
+
+
 def test_rejected_prepare_refuses_the_run_and_cleans_the_lease(
     lifecycle, admission_plan, monkeypatch
 ):

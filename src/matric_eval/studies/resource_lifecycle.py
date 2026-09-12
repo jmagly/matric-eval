@@ -824,14 +824,15 @@ class ResourceLifecycle:
                     if value["lease_token_sha256"] != self.record["lease_sha256"]:
                         raise RuntimeError("readiness lease mismatch")
                     self.broker.call("ready", token=token)
-                    # A scoped lease blocks its cards only until the broker is
-                    # told the model is resident; from `ready` onward it may
-                    # place an Ollama lane in whatever VRAM it measures as free.
-                    # The broker's protocol requires `prepare` before any growth,
-                    # and both target qualification and the study batch grow
-                    # device memory. A rejection is deliberately left to
+                    # `ready` made the lease active, which lets the broker place
+                    # its own lanes in the VRAM the ceiling leaves free. `prepare`
+                    # returns it to pending, and a pending scoped lease blocks its
+                    # cards -- that block is what makes the growth below safe. The
+                    # matching `ready` after qualification lifts it again; leaving
+                    # the lease pending would hold a co-resident service off the
+                    # card for the whole run. A rejection is deliberately left to
                     # propagate: refusing the run is correct when the broker will
-                    # not clear the card. See issue 216.
+                    # not clear the card. See issues 216 and 221.
                     self.broker.call("prepare", token=token)
                     self.save(state="qualifying-target", broker_prepared_at=time.time())
                     target = execute_target_checks(
@@ -849,6 +850,9 @@ class ResourceLifecycle:
                         raise RuntimeError("lease heartbeat failed during target qualification")
                     if not target["completed"]:
                         raise RuntimeError("resident target preflight failed")
+                    # Growth is finished, so lift the block `prepare` put on the
+                    # card. See issue 221.
+                    self.broker.call("ready", token=token)
                     ready = True
                     info = self.docker.inspect(self.record["container"])
                     if info is None:
