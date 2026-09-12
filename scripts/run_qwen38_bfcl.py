@@ -18,6 +18,8 @@ from typing import Any, Sequence
 
 import yaml
 
+from matric_eval.studies.device_memory import validate_ceiling
+
 BFCL_PACKAGE_VERSION = "2026.3.23"
 BFCL_SOURCE_REVISION = "6ea57973c7a6097fd7c5915698c54c17c5b1b6c8"
 PRIVATE_ROOT = Path("/srv/matric-eval/results/qwen38-obliteration-2026-09")
@@ -278,6 +280,24 @@ def _collect_top_level_ids(root: Path) -> set[str]:
     return found
 
 
+def _protocol_gpu_memory_utilization(study: JsonObject) -> float:
+    """Read the model-server memory fraction the protocol declares.
+
+    Previously a 0.9 literal here, which meant tightening the protocol had no
+    effect on this path and bypassed its [0.5, 1.0) validation.
+    """
+    execution = study.get("execution")
+    if not isinstance(execution, dict):
+        raise ValueError("protocol study.execution must be an object")
+    server = execution.get("model_server")
+    if not isinstance(server, dict):
+        raise ValueError("protocol study.execution.model_server must be an object")
+    return validate_ceiling(
+        server.get("gpu_memory_utilization"),
+        path="study.execution.model_server.gpu_memory_utilization",
+    )
+
+
 def run_bfcl(args: argparse.Namespace) -> JsonObject:
     if platform.node() != "basilisk":
         raise RuntimeError("BFCL study execution requires host basilisk")
@@ -359,7 +379,7 @@ def run_bfcl(args: argparse.Namespace) -> JsonObject:
             num_threads=1,
             num_gpus=1,
             backend="vllm",
-            gpu_memory_utilization=0.9,
+            gpu_memory_utilization=_protocol_gpu_memory_utilization(study),
             result_dir=args.result_dir,
             run_ids=True,
             allow_overwrite=False,

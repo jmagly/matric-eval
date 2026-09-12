@@ -28,6 +28,14 @@ from matric_eval.studies.batch import (
     verify_model_artifact,
     verify_runtime_environment,
 )
+from matric_eval.studies.device_memory import (
+    assert_within_ceiling,
+    effective_utilization,
+    evidence,
+    operator_ceiling,
+    query_observations,
+    resolve_ceiling,
+)
 from matric_eval.studies.protocol import StudyProtocol
 from matric_eval.studies.run_status import RunStatus, adapter_main
 from matric_eval.studies.vllm_plugin import PLUGIN_NAME, REGISTRATIONS_ENV
@@ -144,7 +152,9 @@ def _server_arguments(
         "--pipeline-parallel-size",
         str(profile.pipeline_parallel_size),
         "--gpu-memory-utilization",
-        str(server["gpu_memory_utilization"]),
+        # Clamped by the operator ceiling: the protocol is hash-pinned and cannot
+        # be edited to tighten it, so the tighter of the two is what runs.
+        str(effective_utilization(server)),
         "--safetensors-load-strategy",
         str(server["safetensors_load_strategy"]),
         "--chat-template",
@@ -302,6 +312,12 @@ def run_attested_server(
         previous_handlers[signum] = signal.signal(signum, stop_child)
     try:
         _wait_for_endpoint(process, f"http://{host}:{port}/v1/models", ready_timeout)
+        # The server's own fraction bounds its allocator, not the CUDA context or
+        # NCCL buffers. Measure the cards before accepting the server as ready so
+        # the receipt proves the ceiling held instead of merely declaring it.
+        device_ceiling = resolve_ceiling(server)
+        device_observations = query_observations(execution_binding.allocation.gpu_uuids)
+        assert_within_ceiling(device_observations, device_ceiling, stage="model server ready")
         ready_marker = signal_model_resident(
             model.id,
             execution_binding=execution_binding,
@@ -338,6 +354,12 @@ def run_attested_server(
                 "initialization_seconds": time.time() - initialization_started,
                 "arguments": arguments,
                 "parallelism": parallelism,
+            },
+            "device_memory": {
+                **evidence(device_observations, device_ceiling),
+                "protocol_gpu_memory_utilization": server["gpu_memory_utilization"],
+                "operator_ceiling_fraction": operator_ceiling(),
+                "effective_gpu_memory_utilization": effective_utilization(server),
             },
         }
         _write_private_json(server_receipt_path, receipt)

@@ -6,12 +6,26 @@ from pathlib import Path
 import pytest
 
 from matric_eval.studies import StudyProtocol
+from matric_eval.studies.device_memory import (
+    DEFAULT_DEVICE_MEMORY_CEILING,
+    ceiling_mib,
+)
 from matric_eval.studies.gpu import (
+    A100_80GB_PCIE,
     A100_TP1_PROFILE,
     A100_TP2_PROFILE,
     NVLINK_P2P_TOPOLOGY_POLICY,
 )
 from matric_eval.studies.wrapper import resolve_wrapper_gpu_contract
+
+#: The single-device lease, derived from the ceiling rather than pinned, so a
+#: policy change cannot leave this test asserting a stale reservation.
+TP1_LEASE_MIB = str(ceiling_mib(A100_80GB_PCIE, DEFAULT_DEVICE_MEMORY_CEILING))
+#: TP2 spans two cards, so its total lease is twice the per-device reservation
+#: and is well inside the per-card ceiling.
+TP2_LEASE_MIB = str(
+    A100_TP2_PROFILE.required_device_count * A100_TP2_PROFILE.minimum_memory_mib_per_device
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -26,7 +40,7 @@ def test_tp1_wrapper_contract_preserves_legacy_single_gpu_argv() -> None:
     assert contract.docker_selector == f"device={GPU_A}"
     assert contract.lifecycle_arguments == (
         "--memory-mib",
-        "75000",
+        TP1_LEASE_MIB,
         "--gpu",
         GPU_A,
     )
@@ -45,7 +59,7 @@ def test_tp2_wrapper_contract_preserves_rank_order_in_every_projection() -> None
     assert contract.docker_selector == f"device={GPU_B},{GPU_A}"
     assert contract.lifecycle_arguments == (
         "--memory-mib",
-        "75000",
+        TP2_LEASE_MIB,
         "--topology-policy",
         NVLINK_P2P_TOPOLOGY_POLICY,
         "--gpu",
@@ -101,5 +115,5 @@ def test_wrapper_cli_emits_exact_machine_consumable_argv() -> None:
     payload = json.loads(result.stdout)
 
     assert payload["docker_selector"] == f"device={GPU_A}"
-    assert payload["lifecycle_arguments"] == ["--memory-mib", "75000", "--gpu", GPU_A]
+    assert payload["lifecycle_arguments"] == ["--memory-mib", TP1_LEASE_MIB, "--gpu", GPU_A]
     assert payload["allocation"]["gpu_uuids"] == [GPU_A]

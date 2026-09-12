@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from inspect_ai import Task, task
 
+from matric_eval.studies.device_memory import validate_ceiling
 from matric_eval.tasks.registry import (
     BenchmarkStatus,
     BenchmarkUnavailableError,
@@ -26,7 +27,7 @@ def build_bfcl_generate_command(
     backend: str = "vllm",
     local_model_path: str | None = None,
     num_gpus: int = 1,
-    gpu_memory_utilization: float = 0.9,
+    gpu_memory_utilization: float | None = None,
     num_threads: int = 1,
 ) -> list[str]:
     """Build generation arguments accepted by the pinned official BFCL CLI."""
@@ -52,7 +53,10 @@ def build_bfcl_generate_command(
                 "--num-gpus",
                 str(num_gpus),
                 "--gpu-memory-utilization",
-                str(gpu_memory_utilization),
+                # Required exactly where it is used - when this call launches a
+                # server. Never defaulted to a literal: a per-card ceiling set by
+                # the host owner has to come from the caller's protocol.
+                str(validate_ceiling(gpu_memory_utilization, path="gpu_memory_utilization")),
             ]
         )
         if local_model_path:

@@ -17,6 +17,10 @@ from matric_eval.studies import (
     StudyProtocol,
     server_cli,
 )
+from matric_eval.studies.device_memory import (
+    DEFAULT_DEVICE_MEMORY_CEILING,
+    DeviceObservation,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -276,6 +280,15 @@ def test_run_attested_server_writes_content_free_receipt(
     monkeypatch.setattr(server_cli, "_load_json_object", lambda *args: {})
     monkeypatch.setattr(server_cli, "verify_model_artifact", lambda *args, **kwargs: "a" * 64)
     monkeypatch.setattr(server_cli, "_wait_for_endpoint", lambda *args, **kwargs: None)
+    # The real query shells out to nvidia-smi for the leased UUIDs; stub it with a
+    # reading inside the ceiling so the receipt assertion below is deterministic.
+    monkeypatch.setattr(
+        server_cli,
+        "query_observations",
+        lambda gpu_uuids: tuple(
+            DeviceObservation(uuid=uuid, total_mib=81_920, used_mib=60_000) for uuid in gpu_uuids
+        ),
+    )
     observed_marker_arguments: list[dict[str, object]] = []
 
     def signal(model_id: str, **kwargs: object) -> Path:
@@ -333,6 +346,18 @@ def test_run_attested_server_writes_content_free_receipt(
     payload = json.loads(receipt.read_text(encoding="utf-8"))
     assert payload["model_id"] == model.id
     assert payload["lease_receipt_sha256"] == "b" * 64
+    # The host owner audits this: the receipt must carry the measured reading,
+    # not just the configured ceiling.
+    device_memory = payload["device_memory"]
+    assert device_memory["high_water_used_mib"] == 60_000
+    assert device_memory["devices"], "each leased card must appear in the receipt"
+    # The protocol is hash-pinned at 0.9 and must stay so; the operator ceiling
+    # clamps it, and the receipt shows all three numbers so the clamp is auditable.
+    assert device_memory["protocol_gpu_memory_utilization"] == 0.9
+    assert device_memory["operator_ceiling_fraction"] == DEFAULT_DEVICE_MEMORY_CEILING
+    assert device_memory["effective_gpu_memory_utilization"] == DEFAULT_DEVICE_MEMORY_CEILING
+    assert device_memory["ceiling_fraction"] == DEFAULT_DEVICE_MEMORY_CEILING
+    assert device_memory["high_water_fraction"] < DEFAULT_DEVICE_MEMORY_CEILING
     assert payload["runtime"]["endpoint_scope"] == "localhost-only"
     assert payload["runtime"]["language_model_only"] is True
     assert payload["runtime"]["architecture_registrations"] == {

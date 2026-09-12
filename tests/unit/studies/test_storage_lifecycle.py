@@ -5,7 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 from matric_eval.storage import StorageBlocker
+from matric_eval.studies.device_memory import legacy_record_reservation_mib
 from matric_eval.studies.storage_lifecycle import docker_control_contract
+
+#: Reservations are explicit; derive rather than pin a literal.
+TEST_LEASE_MIB = legacy_record_reservation_mib()
 
 GPU_A = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 GPU_B = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
@@ -174,6 +178,7 @@ def test_crash_reconciliation_retries_storage_projection_failure(
             "a",
             "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             "owner",
+            memory_mib=TEST_LEASE_MIB,
         )
         reservation = {
             "ledger": str(ledger),

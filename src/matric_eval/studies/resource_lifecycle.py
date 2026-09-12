@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Sequence
 
+from matric_eval.studies.device_memory import legacy_record_reservation_mib
 from matric_eval.studies.gpu import GpuAllocation
 from matric_eval.studies.preflight import (
     execute_plan,
@@ -216,7 +217,7 @@ def record_allocation(record: dict[str, Any]) -> GpuAllocation:
     if payload is None:
         allocation = GpuAllocation(
             gpu_uuids=tuple(record["gpu_uuids"]),
-            memory_mib=record.get("requested_mib", 75000),
+            memory_mib=record.get("requested_mib", legacy_record_reservation_mib()),
         )
         return allocation
     if not isinstance(payload, dict):
@@ -285,7 +286,7 @@ class ResourceLifecycle:
         gpu: str | Sequence[str] | GpuAllocation,
         owner: str,
         *,
-        memory_mib: int = 75000,
+        memory_mib: int,
         topology_policy: str | None = None,
     ) -> None:
         if self.record:
