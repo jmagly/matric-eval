@@ -4,7 +4,7 @@ import pytest
 
 from matric_eval.studies.device_memory import legacy_record_reservation_mib
 from matric_eval.studies.gpu import GpuAllocation
-from matric_eval.studies.resource_lifecycle import ResourceLifecycle
+from matric_eval.studies.resource_lifecycle import BrokerRejected, ResourceLifecycle
 
 GPU_A = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 GPU_B = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
@@ -16,10 +16,17 @@ class FakeBroker:
         self.released = []
         self.acquisitions = []
         self.offline = False
+        #: Ordered verb log, so a test can assert protocol sequencing.
+        self.actions = []
+        #: Verbs the broker refuses, as the real one does with ``ok: false``.
+        self.reject = set()
 
     def call(self, action, **fields):
         if self.offline:
             raise OSError("offline")
+        self.actions.append(action)
+        if action in self.reject:
+            raise BrokerRejected(f"broker {action} rejected request")
         if action == "acquire":
             self.acquisitions.append(fields)
             lease = {
@@ -674,6 +681,70 @@ time.sleep(.2)
     )
     assert observed == {"max_age_seconds": 312.5}
     assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_prepare_is_called_between_ready_and_target_qualification(
+    lifecycle, admission_plan, monkeypatch
+):
+    """A scoped lease stops blocking its card at `ready`, so the broker's
+    `prepare` verb must run before anything that grows device memory."""
+    import sys
+
+    import matric_eval.studies.resource_lifecycle as resource_lifecycle
+
+    attach_owned_container(lifecycle)
+    observed = {}
+
+    def qualify(plan, receipt_path, admission, *, max_age_seconds):
+        observed["actions_at_qualification"] = list(lifecycle.broker.actions)
+        return {"completed": True}
+
+    monkeypatch.setattr(resource_lifecycle, "execute_target_checks", qualify)
+    code = """
+import hashlib,json,os,pathlib,time
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+time.sleep(.2)
+"""
+    assert lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan) == 0
+
+    seen = observed["actions_at_qualification"]
+    assert "prepare" in seen, "prepare must run before target qualification"
+    assert seen.index("ready") < seen.index("prepare"), "prepare must follow ready"
+    assert lifecycle.record["broker_prepared_at"] > 0
+    assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_rejected_prepare_refuses_the_run_and_cleans_the_lease(
+    lifecycle, admission_plan, monkeypatch
+):
+    """If the broker will not clear the card, refusing is correct: qualification
+    must not run and the lease must still be discharged."""
+    import sys
+
+    import matric_eval.studies.resource_lifecycle as resource_lifecycle
+
+    attach_owned_container(lifecycle)
+    lifecycle.broker.reject.add("prepare")
+    qualified = []
+
+    monkeypatch.setattr(
+        resource_lifecycle,
+        "execute_target_checks",
+        lambda *args, **fields: qualified.append(args) or {"completed": True},
+    )
+    code = """
+import hashlib,json,os,pathlib,time
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+time.sleep(30)
+"""
+    with pytest.raises(BrokerRejected, match="prepare"):
+        lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan)
+
+    assert qualified == [], "a refused card must never be qualified"
+    assert lifecycle.record["cleanup"] == "complete"
+    assert lifecycle.broker.released == ["private-token"]
 
 
 def test_lost_release_ack_removes_owned_readiness(lifecycle):
