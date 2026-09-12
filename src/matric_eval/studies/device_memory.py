@@ -10,10 +10,13 @@ the assertions so those three cannot drift apart.
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from matric_eval.studies.gpu import A100_80GB_PCIE, ParallelismProfile
+
+#: Injection point for tests; matches the parts of ``subprocess.run`` used here.
+Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 #: Advertised total memory per supported accelerator, in MiB.
 ACCELERATOR_TOTAL_MIB: Mapping[str, int] = {A100_80GB_PCIE: 81_920}
@@ -156,7 +159,7 @@ def parse_observations(rows: Iterable[str]) -> tuple[DeviceObservation, ...]:
 
 
 def query_observations(
-    gpu_uuids: Sequence[str], *, run=subprocess.run
+    gpu_uuids: Sequence[str], *, run: Runner = subprocess.run
 ) -> tuple[DeviceObservation, ...]:
     """Read current memory for exactly ``gpu_uuids``."""
     if not gpu_uuids:
