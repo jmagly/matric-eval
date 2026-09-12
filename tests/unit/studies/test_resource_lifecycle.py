@@ -48,6 +48,8 @@ class FakeDocker:
         self.info = None
         self.allocations = []
         self.stopped = []
+        #: pid -> cgroup text, so container ownership can be exercised.
+        self.cgroups = {}
 
     def inspect(self, name):
         return self.info
@@ -56,7 +58,7 @@ class FakeDocker:
         return self.allocations
 
     def cgroup(self, pid):
-        return ""
+        return self.cgroups.get(pid, "")
 
     def stop(self, identifier):
         self.stopped.append(identifier)
@@ -493,6 +495,47 @@ def test_rejection_after_persisted_lease_is_recovered(lifecycle):
     assert lifecycle.reconcile()
     assert lifecycle.record["acquisition_outcome"] == "acknowledged"
     assert lifecycle.broker.released == ["private-token"]
+
+
+def test_own_container_cuda_pids_are_recognized_as_ours(lifecycle):
+    """The guard must be able to tell the study apart from a co-tenant; the broker
+    reports both as foreign. See issue 218."""
+    attach_owned_container(lifecycle)
+    identifier = lifecycle.docker.info["Id"]
+    lifecycle.docker.allocations = [(GPU_A, 723708), (GPU_A, 999001), (GPU_B, 555)]
+    lifecycle.docker.cgroups = {
+        723708: f"0::/docker/{identifier}",
+        999001: "0::/system.slice/ollama-unify-negotiator.service",
+        555: f"0::/docker/{identifier}",
+    }
+    # 999001 is a genuine co-tenant; 555 is ours but on a card we do not lease.
+    assert lifecycle._owned_cuda_pids([GPU_A]) == {723708}
+
+
+def test_unresolvable_container_ownership_is_reported_as_unknown(lifecycle):
+    """Unknown ownership must not be reported as an empty set: that would make a
+    transient docker error look like proof that nothing is ours."""
+    lifecycle.docker.info = None
+    assert lifecycle._owned_cuda_pids([GPU_A]) is None
+
+
+def test_recorded_reason_survives_successful_cleanup(lifecycle):
+    """A completed teardown says nothing about whether the run succeeded, so it
+    must not erase why the run aborted. See issue 219."""
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    lifecycle.note_reason("foreign_allocation_on_leased_device")
+
+    assert lifecycle.reconcile() is True
+    assert lifecycle.record["cleanup"] == "complete"
+    assert lifecycle.record["state"] == "stopped"
+    assert lifecycle.record["reason"] == "foreign_allocation_on_leased_device"
+
+
+def test_first_reason_is_kept_over_a_later_vaguer_one(lifecycle):
+    lifecycle.note_reason("foreign_allocation_on_leased_device")
+    lifecycle.note_reason("InterruptedError")
+    assert lifecycle.record["reason"] == "foreign_allocation_on_leased_device"
 
 
 def test_owned_container_stopped_before_release(lifecycle):
