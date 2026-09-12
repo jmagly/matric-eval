@@ -76,6 +76,7 @@ Planning and implementation guides.
 - [**Roadmap**](development/roadmap.md) - Supported capabilities and live milestones
 - [**Checkpoint/Resume**](development/checkpoint-resume.md) - Implementation details for fault tolerance
 - [**Session Init**](development/session-init.md) - Development session initialization
+- [**Operator Deployments**](development/operator-deployments.md) - Updating deployments on hosts without git credentials
 
 ### Research
 
