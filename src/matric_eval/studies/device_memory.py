@@ -276,3 +276,76 @@ def evidence(observations: Sequence[DeviceObservation], fraction: float) -> dict
         "high_water_fraction": round(peak.fraction, 6),
         "high_water_used_mib": peak.used_mib,
     }
+
+
+def assert_free_from_status(
+    status: Mapping[str, object], gpu_uuids: Sequence[str], required_mib: int
+) -> tuple[DeviceObservation, ...]:
+    """Refuse to launch when a leased card lacks room for its reservation.
+
+    Reads the broker's own device evidence rather than shelling out, so the
+    check runs wherever the lifecycle already talks to the broker and stays
+    testable without hardware.
+
+    The lease-capture check can only compare advertised capacity, because by
+    then the study's own weights are resident. Nothing checked *free* memory
+    before the load, so a card already holding a co-tenant was admitted, began
+    loading, and was OOM-killed. See issue 213.
+    """
+    if required_mib <= 0:
+        raise DeviceMemoryCeilingError("reservation must be a positive MiB amount")
+    rows = status.get("gpus")
+    if not rows:
+        # An older broker publishes no device section; absence of evidence is
+        # not evidence of room, but it is not grounds to block a run either.
+        return ()
+    if not isinstance(rows, Sequence):
+        raise DeviceMemoryCeilingError("broker status device section is malformed")
+    by_uuid: dict[str, Mapping[str, object]] = {}
+    for row in rows:
+        if isinstance(row, Mapping) and isinstance(row.get("uuid"), str):
+            by_uuid[str(row["uuid"])] = row
+    observations: list[DeviceObservation] = []
+    for uuid in gpu_uuids:
+        row = by_uuid.get(uuid)
+        if row is None:
+            raise DeviceMemoryCeilingError(f"broker status omits leased device {uuid}")
+        total, used = row.get("total_mib"), row.get("used_mib")
+        if not isinstance(total, int) or not isinstance(used, int):
+            raise DeviceMemoryCeilingError(f"broker status lacks integer memory for {uuid}")
+        observations.append(DeviceObservation(uuid=uuid, total_mib=total, used_mib=used))
+    short = [item for item in observations if item.total_mib - item.used_mib < required_mib]
+    if short:
+        detail = "; ".join(
+            f"{item.uuid} has {item.total_mib - item.used_mib} MiB free of {item.total_mib}, "
+            f"{item.used_mib} MiB already resident"
+            for item in short
+        )
+        raise DeviceMemoryCeilingError(
+            f"leased device lacks room for a {required_mib} MiB reservation -- {detail}"
+        )
+    return tuple(observations)
+
+
+def foreign_intrusions(
+    status: Mapping[str, object], gpu_uuids: Sequence[str], baseline: Mapping[str, int]
+) -> dict[str, int]:
+    """Foreign allocations on leased cards that were absent at acquisition.
+
+    The broker records a per-lease ``foreign_baseline``, so anything on a leased
+    UUID that is not in that baseline arrived afterwards and is competing with
+    the study for the card it holds a lease on.
+    """
+    current = status.get("foreign_gpu_processes") or {}
+    if not isinstance(current, Mapping):
+        raise DeviceMemoryCeilingError("broker status foreign process map is malformed")
+    leased = set(gpu_uuids)
+    intruders: dict[str, int] = {}
+    for key, amount in current.items():
+        if key in baseline:
+            continue
+        # Keys are "pid@GPU-uuid".
+        _, _, uuid = str(key).partition("@")
+        if uuid in leased and isinstance(amount, int):
+            intruders[str(key)] = amount
+    return intruders
