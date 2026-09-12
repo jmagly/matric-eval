@@ -354,6 +354,29 @@ def test_intrusion_alongside_a_baseline_process_is_still_detected():
     assert device_memory.foreign_intrusions(status, ["GPU-a"], baseline) == {"3692206@GPU-a": 30972}
 
 
+def test_the_studys_own_server_is_not_an_intrusion():
+    """The broker calls every process it does not own foreign, and the per-lease
+    baseline predates our own allocation, so ownership must be excluded explicitly."""
+    status = {"foreign_gpu_processes": {"723708@GPU-a": 52476}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}) == {"723708@GPU-a": 52476}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}, owned_pids={723708}) == {}
+
+
+def test_a_co_tenant_is_still_detected_beside_our_own_server():
+    """Excluding ourselves must not disarm the guard for a real co-tenant."""
+    status = {"foreign_gpu_processes": {"723708@GPU-a": 52476, "999001@GPU-a": 34871}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}, owned_pids={723708}) == {
+        "999001@GPU-a": 34871
+    }
+
+
+def test_unparseable_pid_cannot_be_proven_ours():
+    status = {"foreign_gpu_processes": {"notapid@GPU-a": 1024}}
+    assert device_memory.foreign_intrusions(status, ["GPU-a"], {}, owned_pids={723708}) == {
+        "notapid@GPU-a": 1024
+    }
+
+
 def test_absent_foreign_map_is_not_an_intrusion():
     assert device_memory.foreign_intrusions({}, ["GPU-a"], {}) == {}
 

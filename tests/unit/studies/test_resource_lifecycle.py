@@ -48,6 +48,8 @@ class FakeDocker:
         self.info = None
         self.allocations = []
         self.stopped = []
+        #: pid -> cgroup text, so container ownership can be exercised.
+        self.cgroups = {}
 
     def inspect(self, name):
         return self.info
@@ -56,7 +58,7 @@ class FakeDocker:
         return self.allocations
 
     def cgroup(self, pid):
-        return ""
+        return self.cgroups.get(pid, "")
 
     def stop(self, identifier):
         self.stopped.append(identifier)
@@ -495,6 +497,47 @@ def test_rejection_after_persisted_lease_is_recovered(lifecycle):
     assert lifecycle.broker.released == ["private-token"]
 
 
+def test_own_container_cuda_pids_are_recognized_as_ours(lifecycle):
+    """The guard must be able to tell the study apart from a co-tenant; the broker
+    reports both as foreign. See issue 218."""
+    attach_owned_container(lifecycle)
+    identifier = lifecycle.docker.info["Id"]
+    lifecycle.docker.allocations = [(GPU_A, 723708), (GPU_A, 999001), (GPU_B, 555)]
+    lifecycle.docker.cgroups = {
+        723708: f"0::/docker/{identifier}",
+        999001: "0::/system.slice/ollama-unify-negotiator.service",
+        555: f"0::/docker/{identifier}",
+    }
+    # 999001 is a genuine co-tenant; 555 is ours but on a card we do not lease.
+    assert lifecycle._owned_cuda_pids([GPU_A]) == {723708}
+
+
+def test_unresolvable_container_ownership_is_reported_as_unknown(lifecycle):
+    """Unknown ownership must not be reported as an empty set: that would make a
+    transient docker error look like proof that nothing is ours."""
+    lifecycle.docker.info = None
+    assert lifecycle._owned_cuda_pids([GPU_A]) is None
+
+
+def test_recorded_reason_survives_successful_cleanup(lifecycle):
+    """A completed teardown says nothing about whether the run succeeded, so it
+    must not erase why the run aborted. See issue 219."""
+    lifecycle.acquire()
+    attach_owned_container(lifecycle)
+    lifecycle.note_reason("foreign_allocation_on_leased_device")
+
+    assert lifecycle.reconcile() is True
+    assert lifecycle.record["cleanup"] == "complete"
+    assert lifecycle.record["state"] == "stopped"
+    assert lifecycle.record["reason"] == "foreign_allocation_on_leased_device"
+
+
+def test_first_reason_is_kept_over_a_later_vaguer_one(lifecycle):
+    lifecycle.note_reason("foreign_allocation_on_leased_device")
+    lifecycle.note_reason("InterruptedError")
+    assert lifecycle.record["reason"] == "foreign_allocation_on_leased_device"
+
+
 def test_owned_container_stopped_before_release(lifecycle):
     lifecycle.acquire()
     lifecycle.docker.info = {
@@ -713,6 +756,32 @@ time.sleep(.2)
     assert seen.index("ready") < seen.index("prepare"), "prepare must follow ready"
     assert lifecycle.record["broker_prepared_at"] > 0
     assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_growth_is_bracketed_by_prepare_and_a_closing_ready(lifecycle, admission_plan, monkeypatch):
+    """`prepare` returns the lease to pending, which blocks the card so the growth
+    is safe; the closing `ready` lifts that block. Leaving it pending would hold a
+    co-resident service off the card for the whole run. See issue 221."""
+    import sys
+
+    import matric_eval.studies.resource_lifecycle as resource_lifecycle
+
+    attach_owned_container(lifecycle)
+    monkeypatch.setattr(
+        resource_lifecycle,
+        "execute_target_checks",
+        lambda *args, **fields: {"completed": True},
+    )
+    code = """
+import hashlib,json,os,pathlib,time
+token=os.environ['OLLAMA_UNIFY_GPU_LEASE']
+pathlib.Path('{ready_base}.'+token+'.ready').write_text(json.dumps({'lease_token_sha256':hashlib.sha256(token.encode()).hexdigest()}))
+time.sleep(.2)
+"""
+    assert lifecycle.run([sys.executable, "-c", code], preflight_plan=admission_plan) == 0
+
+    lease_verbs = [a for a in lifecycle.broker.actions if a in {"ready", "prepare"}]
+    assert lease_verbs == ["ready", "prepare", "ready"], lease_verbs
 
 
 def test_rejected_prepare_refuses_the_run_and_cleans_the_lease(

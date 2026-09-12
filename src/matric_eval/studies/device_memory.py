@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from matric_eval.studies.gpu import A100_80GB_PCIE, ParallelismProfile
@@ -328,9 +328,19 @@ def assert_free_from_status(
 
 
 def foreign_intrusions(
-    status: Mapping[str, object], gpu_uuids: Sequence[str], baseline: Mapping[str, int]
+    status: Mapping[str, object],
+    gpu_uuids: Sequence[str],
+    baseline: Mapping[str, int],
+    owned_pids: Collection[int] = (),
 ) -> dict[str, int]:
     """Foreign allocations on leased cards that were absent at acquisition.
+
+    ``owned_pids`` are the study's own CUDA processes. The broker calls every
+    process it does not itself own "foreign", and the per-lease baseline is taken
+    at acquisition, before the study has allocated anything — so without this
+    exclusion the study's own model server is reported as an intruder on the very
+    card it holds a lease for, and the heartbeat worker aborts the run. See
+    issue 218.
 
     The broker records a per-lease ``foreign_baseline``, so anything on a leased
     UUID that is not in that baseline arrived afterwards and is competing with
@@ -340,12 +350,20 @@ def foreign_intrusions(
     if not isinstance(current, Mapping):
         raise DeviceMemoryCeilingError("broker status foreign process map is malformed")
     leased = set(gpu_uuids)
+    owned = {int(pid) for pid in owned_pids}
     intruders: dict[str, int] = {}
     for key, amount in current.items():
         if key in baseline:
             continue
         # Keys are "pid@GPU-uuid".
-        _, _, uuid = str(key).partition("@")
-        if uuid in leased and isinstance(amount, int):
-            intruders[str(key)] = amount
+        pid, _, uuid = str(key).partition("@")
+        if uuid not in leased or not isinstance(amount, int):
+            continue
+        try:
+            if int(pid) in owned:
+                continue
+        except ValueError:
+            # An unparseable pid cannot be proven ours, so treat it as foreign.
+            pass
+        intruders[str(key)] = amount
     return intruders

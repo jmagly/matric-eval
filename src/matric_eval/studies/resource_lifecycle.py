@@ -272,6 +272,17 @@ class ResourceLifecycle:
     def close(self) -> None:
         self.lock.close()
 
+    def note_reason(self, reason: str) -> None:
+        """Record why a run is failing, keeping the first and most specific cause.
+
+        A later, vaguer writer must not bury the original diagnosis: the heartbeat
+        worker names `foreign_allocation_on_leased_device`, then self-raises
+        SIGTERM, so the outer handler would otherwise relabel it `InterruptedError`.
+        See issue 219.
+        """
+        if not self.record.get("reason"):
+            self.save(reason=reason)
+
     def save(self, **fields: Any) -> None:
         self.record.update(fields)
         atomic(self.path, self.record)
@@ -349,6 +360,39 @@ class ResourceLifecycle:
             return _baseline_for_token(self.broker.call("status"), token)
         except (OSError, ValueError, RuntimeError):
             return {}
+
+    def _owned_cuda_pids(self, gpu_uuids: Sequence[str]) -> set[int] | None:
+        """The study's own CUDA processes on the leased cards, or None if unknown.
+
+        Mirrors the ownership test used before teardown: a CUDA pid is ours when
+        its cgroup names our container. This must be resolved live, because the
+        container allocates only after the lease is granted, which is why the
+        broker's per-lease baseline cannot cover it.
+
+        Returns None when ownership cannot be established. The caller then skips
+        the intrusion check for that tick rather than treating a transient docker
+        error as a foreign allocation — failing open for one 30s tick is far
+        cheaper than killing a loaded study.
+        """
+        try:
+            info = self.docker.inspect(self.record["container"])
+            if info is None:
+                return None
+            identifier = info["Id"]
+            leased = set(gpu_uuids)
+            owned: set[int] = set()
+            for gpu, pid in self.docker.cuda():
+                if gpu not in leased:
+                    continue
+                try:
+                    if identifier in self.docker.cgroup(pid):
+                        owned.add(pid)
+                except OSError:
+                    # The process exited between listing and inspection.
+                    continue
+            return owned
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+            return None
 
     def acquire(self, mib: int | None = None) -> str:
         allocation = record_allocation(self.record)
@@ -611,7 +655,10 @@ class ResourceLifecycle:
                 self.docker.remove(info["Id"])
             self.private.unlink(missing_ok=True)
             Path(self.record["readiness"]).unlink(missing_ok=True)
-            self.save(state="stopped", cleanup="complete", reason=None)
+            # `cleanup="complete"` says teardown succeeded; it says nothing about
+            # whether the run did. Clearing `reason` here made every aborted run
+            # indistinguishable from a clean one. See issue 219.
+            self.save(state="stopped", cleanup="complete")
             if recover_storage:
                 from matric_eval.studies.storage_lifecycle import recover_resource_storage
 
@@ -624,11 +671,8 @@ class ResourceLifecycle:
             RuntimeError,
             subprocess.SubprocessError,
         ) as error:
-            self.save(
-                state="cleanup-pending",
-                cleanup="pending",
-                reason=str(error) if type(error) is RuntimeError else type(error).__name__,
-            )
+            self.note_reason(str(error) if type(error) is RuntimeError else type(error).__name__)
+            self.save(state="cleanup-pending", cleanup="pending")
             return False
 
     def run(
@@ -693,14 +737,22 @@ class ResourceLifecycle:
                 while not heartbeat_stop.wait(30):
                     try:
                         self.broker.call("heartbeat", token=token)
-                        intruders = foreign_intrusions(
-                            self.broker.call("status"), allocation.gpu_uuids, lease_baseline
+                        owned = self._owned_cuda_pids(allocation.gpu_uuids)
+                        intruders = (
+                            foreign_intrusions(
+                                self.broker.call("status"),
+                                allocation.gpu_uuids,
+                                lease_baseline,
+                                owned_pids=owned,
+                            )
+                            if owned is not None
+                            else {}
                         )
                         if intruders:
                             # A lease is advisory against the co-resident backend,
                             # so say so plainly rather than let the run surface as
                             # an unexplained readiness timeout.
-                            self.save(reason="foreign_allocation_on_leased_device")
+                            self.note_reason("foreign_allocation_on_leased_device")
                             raise RuntimeError(f"foreign allocation on leased device: {intruders}")
                     except (OSError, ValueError, RuntimeError):
                         heartbeat_failed.set()
@@ -772,14 +824,15 @@ class ResourceLifecycle:
                     if value["lease_token_sha256"] != self.record["lease_sha256"]:
                         raise RuntimeError("readiness lease mismatch")
                     self.broker.call("ready", token=token)
-                    # A scoped lease blocks its cards only until the broker is
-                    # told the model is resident; from `ready` onward it may
-                    # place an Ollama lane in whatever VRAM it measures as free.
-                    # The broker's protocol requires `prepare` before any growth,
-                    # and both target qualification and the study batch grow
-                    # device memory. A rejection is deliberately left to
+                    # `ready` made the lease active, which lets the broker place
+                    # its own lanes in the VRAM the ceiling leaves free. `prepare`
+                    # returns it to pending, and a pending scoped lease blocks its
+                    # cards -- that block is what makes the growth below safe. The
+                    # matching `ready` after qualification lifts it again; leaving
+                    # the lease pending would hold a co-resident service off the
+                    # card for the whole run. A rejection is deliberately left to
                     # propagate: refusing the run is correct when the broker will
-                    # not clear the card. See issue 216.
+                    # not clear the card. See issues 216 and 221.
                     self.broker.call("prepare", token=token)
                     self.save(state="qualifying-target", broker_prepared_at=time.time())
                     target = execute_target_checks(
@@ -797,6 +850,9 @@ class ResourceLifecycle:
                         raise RuntimeError("lease heartbeat failed during target qualification")
                     if not target["completed"]:
                         raise RuntimeError("resident target preflight failed")
+                    # Growth is finished, so lift the block `prepare` put on the
+                    # card. See issue 221.
+                    self.broker.call("ready", token=token)
                     ready = True
                     info = self.docker.inspect(self.record["container"])
                     if info is None:
