@@ -26,6 +26,27 @@ from typing import IO, Any, Sequence
 PIPELINE_SCHEMA = "matric-eval.agentic-pipeline/1"
 RESULT_SCHEMA = "matric-eval.agentic-pipeline-result/1"
 ADAPTER_VERSION = "1"
+ATTEMPT_MARKER = "-attempt-"
+
+
+class RetainedEvidenceError(RuntimeError):
+    """A previous run's evidence occupies the directory this attempt needs.
+
+    Per-target evidence is created with ``exist_ok=False`` so a completed run is
+    never silently overwritten. Raising a typed error keeps that guarantee while
+    letting the controller report the offending path and the remedy, instead of
+    flattening a bare ``FileExistsError`` into an opaque ``controller_error``.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(
+            f"retained evidence already present at {path}; move or remove the "
+            "previous output, or point output at a new directory. Evidence is "
+            "never overwritten automatically."
+        )
+        self.path = path
+
+
 TERMINAL_STATUSES = {"passed", "failed", "unavailable", "unsupported", "intentionally_skipped"}
 CONFIGURED_STATUSES = {"enabled", "unavailable", "unsupported", "intentionally_skipped"}
 ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]*$")
@@ -245,6 +266,17 @@ class AgenticPipeline:
                 mode, target = futures[future]
                 try:
                     results.append(future.result())
+                except RetainedEvidenceError as error:
+                    results.append(
+                        {
+                            **self._base_result(mode, target, inventory),
+                            "status": "failed",
+                            "reason": "retained_evidence_present",
+                            "failure_class": "infrastructure",
+                            "evidence_conflict": str(error.path),
+                            "completed_at": time.time(),
+                        }
+                    )
                 except Exception as error:  # pragma: no cover - defensive containment
                     results.append(
                         {
@@ -369,8 +401,11 @@ class AgenticPipeline:
     ) -> dict[str, Any]:
         started = time.time()
         safe_target = re.sub(r"[^a-zA-Z0-9_.-]", "_", target)
-        evidence = private / f"{mode}-{safe_target}-attempt-{attempt}"
-        evidence.mkdir(parents=True, exist_ok=False, mode=0o700)
+        evidence = private / f"{mode}-{safe_target}{ATTEMPT_MARKER}{attempt}"
+        try:
+            evidence.mkdir(parents=True, exist_ok=False, mode=0o700)
+        except FileExistsError as error:
+            raise RetainedEvidenceError(evidence) from error
         os.chmod(evidence, 0o700)
         with tempfile.TemporaryDirectory(prefix=f"matric-eval-{safe_target}-") as temp:
             workspace = Path(temp) / "workspace"

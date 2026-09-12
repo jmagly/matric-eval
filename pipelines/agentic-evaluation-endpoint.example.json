@@ -1,0 +1,52 @@
+{
+  "schema": "matric-eval.agentic-pipeline/1",
+  "aiwg": {
+    "executable": "aiwg",
+    "framework": "sdlc",
+    "version": "2026.9.6"
+  },
+  "fixture": "../tests/fixtures/agentic-pipeline-workspace",
+  "output": "../artifacts/agentic-evaluation",
+  "scenario": {
+    "id": "aiwg-workspace-smoke",
+    "benchmark_id": "aiwg_provider_smoke",
+    "revision": "1",
+    "tier": "smoke",
+    "prompt": "Inspect this clean fixture and return its project name."
+  },
+  "limits": {
+    "max_concurrency": 2,
+    "timeout_seconds": 300,
+    "infrastructure_retries": 1,
+    "max_tokens": 20000,
+    "max_cost_usd": 1.0
+  },
+  "providers": {},
+  "direct_endpoints": [
+    {
+      "id": "vllm",
+      "status": "enabled",
+      "model": "REPLACE/with-the-model-id-the-endpoint-serves",
+      "model_revision": "REPLACE-model-build-or-quantization",
+      "endpoint_revision": "REPLACE-host-and-port-identifier",
+      "dependency_revision": "REPLACE-server-version",
+      "streaming": "stdout-stderr",
+      "result_file": "result.json",
+      "estimated_tokens": 6000,
+      "estimated_cost_usd": 0.0,
+      "command": [
+        "/usr/bin/python3",
+        "/absolute/path/to/matric-eval/pipelines/openai-endpoint-adapter.py",
+        "--endpoint", "http://127.0.0.1:8000",
+        "--model", "REPLACE/with-the-model-id-the-endpoint-serves",
+        "--prompt", "{prompt}",
+        "--result", "result.json",
+        "--max-tokens", "4096"
+      ]
+    },
+    { "id": "ollama", "status": "unavailable", "reason": "operator_endpoint_not_configured" },
+    { "id": "llama-cpp", "status": "unavailable", "reason": "operator_endpoint_not_configured" },
+    { "id": "openrouter", "status": "unavailable", "reason": "operator_endpoint_not_configured" },
+    { "id": "chutes", "status": "unavailable", "reason": "operator_endpoint_not_configured" }
+  ]
+}
