@@ -17,11 +17,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to tool calling dataset (BFCL-style format)
-TOOL_CALLING_PATH = Path("/home/roctinam/data/evals/bfcl/tool_calling.jsonl")
+TOOL_CALLING_PATH = Path(data_path("bfcl", "tool_calling.jsonl"))
 
 # Scenario types
 ScenarioType = Literal[

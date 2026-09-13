@@ -16,13 +16,13 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.prompts import get_prompt
 from matric_eval.scorers.code_execution import code_execution_scorer
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to HumanEval dataset
-HUMANEVAL_PATH = "/home/roctinam/data/evals/humaneval/HumanEval.jsonl"
+HUMANEVAL_PATH = data_path("humaneval", "HumanEval.jsonl")
 
 
 def record_to_sample(record: dict[str, Any]) -> Sample:

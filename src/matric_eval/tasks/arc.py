@@ -17,11 +17,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to ARC-Challenge dataset
-ARC_PATH = "/home/roctinam/data/evals/arc/ARC-Challenge/ARC-Challenge-Test.jsonl"
+ARC_PATH = data_path("arc", "ARC-Challenge", "ARC-Challenge-Test.jsonl")
 
 
 def format_arc_prompt(question: str, choices: list[dict[str, str]]) -> str:

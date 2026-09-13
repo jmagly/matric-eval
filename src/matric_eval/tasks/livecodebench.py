@@ -17,13 +17,13 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.prompts import get_prompt
 from matric_eval.scorers.io_execution import io_execution_scorer
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to LiveCodeBench dataset
-LIVECODEBENCH_PATH = "/home/roctinam/data/evals/livecodebench/livecodebench.jsonl"
+LIVECODEBENCH_PATH = data_path("livecodebench", "livecodebench.jsonl")
 
 
 def parse_test_cases(test_cases_str: str | list) -> list:

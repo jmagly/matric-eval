@@ -126,6 +126,16 @@ class Settings(BaseSettings):
         default="datasets", description="Root directory for datasets (external + custom)"
     )
 
+    # Benchmark corpora root. The historical value is an absolute path under one
+    # operator's home directory, which is not portable and, on a host the project
+    # does not own, reads from a personal directory rather than the study's data
+    # root. Kept as the default so existing deployments do not move; override
+    # with EVAL_DATA_ROOT.
+    data_root: str = Field(
+        default="/home/roctinam/data/evals",
+        description="Root directory holding acquired benchmark corpora",
+    )
+
     # Reproducibility
     seed: int = Field(default=42, description="Random seed for reproducible sampling")
 
