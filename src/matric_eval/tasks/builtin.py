@@ -5,10 +5,114 @@ Uses 5 samples per benchmark for rapid feedback (~2 min per model).
 Based on matric-cli's smoke tier approach.
 """
 
+import re
+from typing import Any
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import includes, match
-from inspect_ai.solver import generate, system_message
+from inspect_ai.scorer import CORRECT, Score, Scorer, Target, match, mean, scorer
+from inspect_ai.solver import TaskState, generate, system_message
+
+from matric_eval.scorers.code_execution import code_execution_scorer
+
+#: Imports the graded code may rely on. The samples annotate with `List`, and a
+#: model that omits the import fails at definition time rather than on logic, so
+#: the instruction is part of the task rather than a scoring concession.
+_CODE_SYSTEM_MESSAGE = (
+    "You are a Python coding assistant. Write clean, correct code. "
+    "Return only the function, including any imports it needs, and no explanations."
+)
+
+#: Executable contracts for the HumanEval samples, transcribed from the doctest
+#: examples in each prompt. `includes()` previously compared the response against
+#: a full reference implementation, so only a verbatim reproduction of one
+#: arbitrary solution scored; these assert behaviour instead. See issue 224.
+_HUMANEVAL_CONTRACTS: dict[str, tuple[str, str]] = {
+    "humaneval_0": (
+        "has_close_elements",
+        "assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False\n"
+        "assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True",
+    ),
+    "humaneval_2": (
+        "truncate_number",
+        "assert abs(truncate_number(3.5) - 0.5) < 1e-9",
+    ),
+    "humaneval_3": (
+        "below_zero",
+        "assert below_zero([1, 2, 3]) == False\nassert below_zero([1, 2, -4, 5]) == True",
+    ),
+    "humaneval_5": (
+        "intersperse",
+        "assert intersperse([], 4) == []\nassert intersperse([1, 2, 3], 4) == [1, 4, 2, 4, 3]",
+    ),
+    "humaneval_6": (
+        "parse_nested_parens",
+        "assert parse_nested_parens('(()()) ((())) () ((())())') == [2, 3, 1, 3]",
+    ),
+}
+
+_ASSERT_LINE = re.compile(r"^\s*assert\b.*$", re.MULTILINE)
+
+
+def _asserts_from_prompt(text: str) -> str:
+    """The assert statements a prompt already states as its contract.
+
+    Deriving the MBPP tests from the prompt keeps them from drifting away from
+    what the model was actually asked to satisfy.
+    """
+    return "\n".join(line.strip() for line in _ASSERT_LINE.findall(text))
+
+
+def _executable(sample: Sample) -> Sample:
+    """Attach the `entry_point`/`test` metadata the execution scorer reads."""
+    metadata: dict[str, Any] = dict(sample.metadata or {})
+    if metadata.get("category") != "code" or metadata.get("test"):
+        return sample
+    entry_point, test = _HUMANEVAL_CONTRACTS.get(str(sample.id), (None, ""))
+    if entry_point is None:
+        entry_point = metadata.get("function_name")
+        test = _asserts_from_prompt(sample.input if isinstance(sample.input, str) else "")
+    if not entry_point or not test:
+        return sample
+    metadata["entry_point"] = entry_point
+    metadata["test"] = test
+    return Sample(input=sample.input, target=sample.target, id=sample.id, metadata=metadata)
+
+
+@scorer(metrics=[mean()])
+def smoke_mixed_scorer(timeout: int = 30) -> Scorer:
+    """Score each sample by its kind, normalising to 1.0/0.0.
+
+    The combined suite mixes code and math under one scorer. `includes()` served
+    neither: a correct program and a correct number both scored on incidental
+    substring overlap. Route by the sample's declared category and normalise the
+    delegate's verdict so one metric spans both kinds. See issue 224.
+    """
+    execution = code_execution_scorer(timeout=timeout)
+    numeric = match(numeric=True)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        category = (state.metadata or {}).get("category")
+        delegate = execution if category == "code" else numeric
+        result = await delegate(state, target)
+        if result is None:
+            # A delegate that returns nothing has not graded the sample; saying so
+            # is correct, inventing a 0.0 is not.
+            return Score.unscored(
+                reason="grader_failed",
+                explanation="delegate scorer returned no score",
+                metadata={"scored_as": category or "non-code"},
+            )
+        passed = result.value in (CORRECT, True, 1, 1.0)
+        return Score(
+            value=1.0 if passed else 0.0,
+            answer=result.answer,
+            explanation=result.explanation,
+            metadata={**(result.metadata or {}), "scored_as": category or "non-code"},
+        )
+
+    return score
+
 
 # =============================================================================
 # HumanEval Smoke Samples (5 representative problems)
@@ -254,14 +358,9 @@ Think step by step, then provide the final numeric answer.""",
 def smoke_humaneval() -> Task:
     """HumanEval smoke test (5 samples)."""
     return Task(
-        dataset=MemoryDataset(HUMANEVAL_SAMPLES),
-        solver=[
-            system_message(
-                "You are a Python coding assistant. Write clean, correct code. Return only the function, no explanations."
-            ),
-            generate(),
-        ],
-        scorer=includes(),  # Check if target concepts are in response
+        dataset=MemoryDataset([_executable(sample) for sample in HUMANEVAL_SAMPLES]),
+        solver=[system_message(_CODE_SYSTEM_MESSAGE), generate()],
+        scorer=code_execution_scorer(),
         name="humaneval_smoke",
     )
 
@@ -270,14 +369,9 @@ def smoke_humaneval() -> Task:
 def smoke_mbpp() -> Task:
     """MBPP smoke test (5 samples)."""
     return Task(
-        dataset=MemoryDataset(MBPP_SAMPLES),
-        solver=[
-            system_message(
-                "You are a Python coding assistant. Write the function exactly as specified. Return only the function code."
-            ),
-            generate(),
-        ],
-        scorer=includes(),
+        dataset=MemoryDataset([_executable(sample) for sample in MBPP_SAMPLES]),
+        solver=[system_message(_CODE_SYSTEM_MESSAGE), generate()],
+        scorer=code_execution_scorer(),
         name="mbpp_smoke",
     )
 
@@ -301,15 +395,19 @@ def smoke_gsm8k() -> Task:
 @task
 def smoke_suite() -> Task:
     """Combined smoke suite - all benchmarks (15 samples total)."""
-    all_samples = HUMANEVAL_SAMPLES + MBPP_SAMPLES + GSM8K_SAMPLES
+    all_samples = [
+        _executable(sample) for sample in HUMANEVAL_SAMPLES + MBPP_SAMPLES + GSM8K_SAMPLES
+    ]
     return Task(
         dataset=MemoryDataset(all_samples),
         solver=[
             system_message(
-                "You are a helpful coding and math assistant. For code problems, return only the function. For math problems, show your work and provide the numeric answer."
+                "You are a helpful coding and math assistant. For code problems, return "
+                "only the function including any imports it needs. For math problems, "
+                "show your work and provide the numeric answer."
             ),
             generate(),
         ],
-        scorer=includes(),
+        scorer=smoke_mixed_scorer(),
         name="smoke_suite",
     )
