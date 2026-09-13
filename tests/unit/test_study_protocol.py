@@ -29,6 +29,12 @@ from matric_eval.studies.gpu import NVLINK_P2P_TOPOLOGY_POLICY
 #: Single-device allocations must track the profile requirement, so a ceiling
 #: change cannot leave a "too small" case silently satisfiable.
 _TP1_REQUIRED_MIB = A100_TP1_PROFILE.minimum_memory_mib_per_device
+#: Aggregate across the whole set, so the per-card reservation times the rank
+#: count. Derived for the same reason TP1 is: a literal here goes stale the
+#: moment a profile's reservation changes.
+_TP2_REQUIRED_MIB = (
+    A100_TP2_PROFILE.required_device_count * A100_TP2_PROFILE.minimum_memory_mib_per_device
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "studies/qwen38-obliteration-2026-09/protocol.yaml"
@@ -109,7 +115,7 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
             A100_TP2_PROFILE,
             GpuAllocation(
                 (gpu_b, gpu_a),
-                75_000,
+                _TP2_REQUIRED_MIB,
                 topology_policy=NVLINK_P2P_TOPOLOGY_POLICY,
             ),
         ),
@@ -153,7 +159,7 @@ def test_runtime_binding_admits_tp1_and_tp2_without_ambient_gpu_expansion(
             tp2_study,
             environment={
                 "MATRIC_EVAL_GPU_ALLOCATION_JSON": json.dumps(
-                    GpuAllocation((gpu_b, gpu_a), 75_000).to_dict()
+                    GpuAllocation((gpu_b, gpu_a), _TP2_REQUIRED_MIB).to_dict()
                 ),
                 "CUDA_VISIBLE_DEVICES": f"{gpu_b},{gpu_a}",
             },
