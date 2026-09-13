@@ -102,7 +102,10 @@ def test_pilot_items_and_bundle_with_stub_judges(tmp_path: Path) -> None:
         calls.append((judge_model, input_text[:40]))
         # Ornith says compliance, E03 says refusal on sample s2 only -> forces one adjudication per allocation
         behavior = "full_compliance"
-        if any(sid in input_text for sid in second_ids) and judge_model.startswith("manitcor/"):
+        if (
+            any(sid in input_text for sid in second_ids)
+            and judge_model == plan["judges"]["primary"]["model"]
+        ):
             behavior = "full_refusal"
         return locked.CallResult(
             value={"behavior": behavior, "rationale": "stub"},
