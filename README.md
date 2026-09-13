@@ -1,16 +1,20 @@
 <div align="center">
 
+<img src="docs/assets/readme/05-retro-terminal.png" alt="matric-eval — green and amber retro terminal pixel art showing parallel evaluation tracks and organized results" width="1000">
+
 # matric-eval
 
 **Reproducible model evaluation across local and hosted inference providers**
 
-Compare model capabilities, retain benchmark protocols and run artifacts, and generate recommendations for the matric ecosystem.
+Run a first smoke test, compare local and hosted models, and carry the results into application decisions.
+matric-eval brings benchmark protocols, provider adapters, resumable runs, and versioned measurements
+together in a Python CLI, with a TypeScript client for application integration.
 
-[![Python](https://img.shields.io/badge/Python-%3E%3D3.11-3776AB?logo=python&logoColor=white&style=flat-square)](https://github.com/jmagly/matric-eval/blob/main/pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](https://github.com/jmagly/matric-eval/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/Python-%3E%3D3.11-3776AB?logo=python&logoColor=white&style=flat-square)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 [![Providers](https://img.shields.io/badge/Providers-5-purple?style=flat-square)](#inference-providers)
 
-[**Quick Start**](#quick-start) · [**Features**](#features) · [**Documentation**](#documentation) · [**Contributing**](#contributing) · [**Support**](#community--support)
+[**Quick Start**](#quick-start) · [**Workflows**](#choose-your-workflow) · [**Features**](#features) · [**Results**](#results-and-comparisons) · [**Documentation**](#documentation) · [**Contributing**](#contributing) · [**Support**](#community--support)
 
 </div>
 
@@ -22,11 +26,83 @@ matric-eval is a Python CLI and library built on Inspect AI. It runs public benc
 
 Use it to compare code generation, math, reasoning, instruction following, knowledge, conversation, tool use, and application behavior. Agentic, multimodal, repository, long-context, and memory adapters have individual data and runtime prerequisites; a registry entry does not mean a benchmark can run without setup.
 
+## Who It’s For
+
+matric-eval is useful when you need to choose a model for a particular workload and keep a reviewable account
+of how you made that choice. Start with a single benchmark and provider, then add the protocols and execution
+controls your comparison needs.
+
+| Your work | What matric-eval provides | Start here |
+|---|---|---|
+| Building an application | Public and application-specific tasks, custom JSONL data, a TypeScript client | [Quick Start](#quick-start) |
+| Comparing inference backends | Five provider adapters and explicit or Cartesian evaluation matrices | [Evaluation Matrix](#evaluation-matrix) |
+| Maintaining a model evaluation history | Versioned measurements, strict readers, immutable trend imports | [Results and Comparisons](#results-and-comparisons) |
+| Running a controlled study | Protocol validation, deterministic manifests, artifact qualification | [Preregistered Studies](#preregistered-studies) |
+| Evaluating an agent platform | Pinned scenarios, bounded execution, separate quality and infrastructure outcomes | [Agentic Evaluation Pipelines](#agentic-evaluation-pipelines) |
+
+## What Problems Does It Solve?
+
+### Comparing models under explicit conditions
+
+A model name and a score leave out much of an experiment: the dataset revision, sample selection, prompt,
+scorer, reasoning settings, and runtime can all affect the result. matric-eval connects benchmark protocol
+records to execution and result artifacts so those conditions can be inspected. Matrices make the intended
+model/provider/benchmark combinations explicit; qualified model declarations add identity and lineage checks.
+
+That structure gives you a basis for comparison. The result contract and recommendation policy still need to
+establish that the measurements are eligible to be compared before a ranking is meaningful.
+
+### Carrying evaluation work across interruptions
+
+A long evaluation can stop after some benchmarks have finished. The standard CLI records run state, locks,
+and completed results, then supports resuming at benchmark granularity. You can validate the retained run,
+inspect gaps, and continue without manually rebuilding its model and benchmark selection.
+
+Matrices and specialized runners have their own execution contracts. Follow the recovery path for the runner
+that produced the artifacts; a standard run checkpoint does not cover every workflow.
+
+### Keeping useful measurements when a single score is insufficient
+
+An evaluation can produce several named metrics, missing estimates, failed attempts, and excluded results.
+Version 2 output preserves those distinctions alongside declared comparison scope. Strict readers and trend
+imports let downstream applications retain the richer record, while capability policies define how eligible
+measurements contribute to a decision.
+
+This is particularly useful when a provider failure, incomplete suite, or changed judge would otherwise be
+mistaken for a change in model quality.
+
+## Simple Building Blocks
+
+| Building block | Role in an evaluation |
+|---|---|
+| **Benchmark** | Connects samples, task behavior, scoring, lifecycle, and protocol metadata |
+| **Provider** | Connects an inference backend to the evaluation path |
+| **Tier** | Selects a configured sample count for a bounded check or larger run |
+| **Matrix** | Declares combinations of models, providers, and benchmarks |
+| **Run and checkpoint** | Retains the standard CLI’s execution state and completed benchmark results |
+| **Result contract** | Represents measurements, outcomes, missingness, and comparison eligibility |
+| **Study protocol and manifest** | Freezes the study design and ordered sample selection before execution |
+
+For example, a smoke run checks that a chosen model can complete five GSM8K samples. A matrix repeats the
+selected protocol across declared targets. A study adds a frozen sampling and artifact contract. These are
+successive choices about what you need to control, each with its own setup and retained outputs.
+
+## Choose Your Workflow
+
+1. **Get a first result:** install from source, connect an existing Ollama model, and run one smoke benchmark.
+2. **Compare configured targets:** define an [evaluation matrix](#evaluation-matrix) and inspect the selected protocols.
+3. **Test your application’s data:** add a [custom JSONL dataset](#custom-datasets) with an explicit scorer.
+4. **Consume and compare measurements:** select [version 2 output](#results-and-comparisons), validate artifacts, and declare a capability policy.
+5. **Control a larger experiment:** follow a [study protocol](#preregistered-studies) or [agentic pipeline](#agentic-evaluation-pipelines).
+
+The Python package supplies evaluation orchestration. You supply model access and each task’s data and runtime
+prerequisites. Start with a bounded run before committing to a broader tier or matrix.
+
 ## Status
 
 The Python package and TypeScript client source versions are **2026.9.2**, using CalVer `YYYY.M.PATCH`. Check [GitHub Releases](https://github.com/jmagly/matric-eval/releases) or [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases) for published artifacts and their validation evidence. Package registry publishing is disabled; a source version alone does not establish release availability.
 
-The [roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md) records support boundaries and deferred work. Benchmark inventories change independently of release notes; inspect the current checkout with `matric-eval list-benchmarks` and `matric-eval audit-benchmarks`.
+The [roadmap](docs/development/roadmap.md) records support boundaries and deferred work. Benchmark inventories change independently of release notes; inspect the current checkout with `matric-eval list-benchmarks` and `matric-eval audit-benchmarks`.
 
 ## Installation
 
@@ -57,7 +133,7 @@ python -m pip install ./packages/python/matric_eval-2026.9.2-py3-none-any.whl
 matric-eval --version
 ```
 
-Release downloads, checksums, and package validation are described in the [release notes](https://github.com/jmagly/matric-eval/blob/main/docs/releases/2026.9.2.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
+Release downloads, checksums, and package validation are described in the [release notes](docs/releases/2026.9.2.md). Optional source extras include `dev`, `study`, `ds1000`, and `evalplus`; install only those needed by your workflow, for example `uv sync --locked --extra dev --extra study`.
 
 ## Quick Start
 
@@ -75,12 +151,15 @@ uv run matric-eval run --model llama3.2:3b --benchmark gsm8k --tier smoke
 The run prints its result directory, normally `results/run-<timestamp>`. Use the actual directory and run ID from that output:
 
 ```bash
-uv run matric-eval recommend --results-dir results/RUN_ID
 uv run matric-eval validate RUN_ID --output results
 
 # Resume an incomplete run at benchmark granularity
 uv run matric-eval run --resume results/RUN_ID --fill-gaps
 ```
+
+A completed smoke run verifies a small execution path; its sample size is not enough to establish a general
+model ranking. For machine-readable measurements and policy-based recommendations, continue with
+[Results and Comparisons](#results-and-comparisons).
 
 Without `--model`, the default Ollama path discovers models under `--max-size` (15 GB by default). Without `--benchmark`, the CLI selects the benchmarks enabled by the named tier configuration. This can be much broader than a single smoke check.
 
@@ -91,7 +170,9 @@ Without `--model`, the default Ollama path discovers models under `--max-size` (
 - **Model comparisons:** YAML matrices with Cartesian or explicit runs; schema version 2 adds qualified model identity and lineage checks.
 - **Checkpoint and resume:** persisted run state, locking, completed-result reuse, and continuation of incomplete benchmarks.
 - **Thinking and judges:** reasoning modes for capable models and optional additional LLM judge scoring.
-- **Application integration:** matric-cli and matric-memory tasks, capability recommendations, and a TypeScript subprocess client.
+- **Application integration:** matric-cli and matric-memory tasks, policy-based capability recommendations, and a TypeScript subprocess client.
+- **Versioned measurements:** named metrics, nullable estimates, strict migration readers, and immutable history imports.
+- **Agent platform pipelines:** registry-derived target coverage, pinned fixtures, execution budgets, and typed failure outcomes.
 - **Custom data:** discover JSONL datasets with optional field mapping, prompts, scorers, and tier configuration.
 - **Preregistered studies:** protocol validation, deterministic sample manifests, model artifact qualification, and manifest-locked offline execution.
 
@@ -115,7 +196,7 @@ uv run matric-eval run --provider openrouter --api-key "$OPENROUTER_API_KEY" \
 
 Replace the model placeholders with identifiers served by your provider. Set the credential variable locally before the hosted-provider example. Explicit CLI runs accept `--api-key`; provider instances created with their default configuration, including matrix providers, read `OPENROUTER_API_KEY` or `CHUTES_API_KEY` from the environment.
 
-A working provider health check does not prove benchmark data, tools, or scoring prerequisites are satisfied. Retained real-provider validation is documented in the [smoke guide](https://github.com/jmagly/matric-eval/blob/main/docs/testing/real-provider-smoke.md).
+A working provider health check does not prove benchmark data, tools, or scoring prerequisites are satisfied. Retained real-provider validation is documented in the [smoke guide](docs/testing/real-provider-smoke.md).
 
 ## Benchmarks and Tiers
 
@@ -132,7 +213,7 @@ uv run matric-eval audit-benchmarks --fail-on-error
 | `experimental` | Research integration whose execution or scoring contract may change |
 | `unavailable` | Explicitly retained no-go entry; not runnable |
 
-Core tasks include HumanEval, MBPP, GSM8K, ARC, IFEval, LiveCodeBench, DS-1000, MMLU, MT-Bench, Tool Calling, matric-cli, and matric-memory. Successor and specialist adapters are described in the [benchmark protocol index](https://github.com/jmagly/matric-eval/blob/main/docs/README.md#benchmark-protocols). Use exact registry names, such as `tool_calling` and `matric_memory`, with `--benchmark`.
+Core tasks include HumanEval, MBPP, GSM8K, ARC, IFEval, LiveCodeBench, DS-1000, MMLU, MT-Bench, Tool Calling, matric-cli, and matric-memory. Successor and specialist adapters are described in the [benchmark protocol index](docs/README.md#benchmark-protocols). Use exact registry names, such as `tool_calling` and `matric_memory`, with `--benchmark`.
 
 | Tier | Selection |
 |---|---|
@@ -164,7 +245,7 @@ evaluation:
 uv run matric-eval run --matrix eval-matrix.yaml
 ```
 
-For Cartesian matrices, set `models`, `providers`, and `benchmarks` arrays, with `matrix.mode: cartesian`; optional `exclude` entries remove combinations. Matrix execution uses its own provider setup and cannot be combined with `--resume`. See [qualified model examples](https://github.com/jmagly/matric-eval/blob/main/examples/README.md) for schema version 2 and external-runner boundaries.
+For Cartesian matrices, set `models`, `providers`, and `benchmarks` arrays, with `matrix.mode: cartesian`; optional `exclude` entries remove combinations. Matrix execution uses its own provider setup and cannot be combined with `--resume`. See [qualified model examples](examples/README.md) for schema version 2 and external-runner boundaries.
 
 ## Custom Datasets
 
@@ -186,14 +267,19 @@ name: my-eval
 description: Domain-specific evaluation
 scorer: match
 tiers: { smoke: 5, quick: 50, full: 0 }
-field_mapping: { input: question, target: answer }
+field_mapping: { input: input, target: target }
 ```
 
-That mapping expects `question` and `answer` fields instead of the example's `input` and `target`. Configure another root with `EVAL_DATASETS_DIR=/path/to/datasets`.
+This configuration matches the JSONL record above. For data with `question` and `answer` fields, change the mapping
+to `{ input: question, target: answer }`. Configure another root with `EVAL_DATASETS_DIR=/path/to/datasets`.
+
+Choose a scorer that measures the behavior you need. Exact text matching is useful for constrained responses;
+code execution, structured tool calls, and open-ended answers need their corresponding scoring contracts.
+Keep dataset changes and scorer changes visible when comparing later runs.
 
 ## Preregistered Studies
 
-Study protocols define model cohorts, sampling, execution, and reporting contracts. The CLI provides four study commands:
+Study protocols define model cohorts, sampling, execution, and reporting contracts. Begin with these four study commands:
 
 | Command | Purpose |
 |---|---|
@@ -202,7 +288,86 @@ Study protocols define model cohorts, sampling, execution, and reporting contrac
 | `qualify-study-model` | Hash local model artifacts and create a qualification manifest |
 | `run-study-offline-batch` | Execute a qualified, manifest-locked cohort with offline vLLM |
 
-Follow the [study index](https://github.com/jmagly/matric-eval/blob/main/studies/README.md) and the chosen protocol's host and artifact policy. Protocol validation is separate from actually running the model or completing a study.
+Follow the [study index](studies/README.md) and the chosen protocol's host and artifact policy. Protocol validation is separate from actually running the model or completing a study.
+
+The `study-run` command group also provides status and supervision for external adapters. Use
+`uv run matric-eval study-run --help` to inspect the available operations. GPU allocation, storage,
+preflight, and external runner setup depend on the selected protocol; follow the
+[execution guide](docs/testing/a100-execution.md) before scheduling a cohort.
+
+## Agentic Evaluation Pipelines
+
+Agent platforms add more moving parts than a direct model endpoint: the platform version, workspace,
+tools, fixture, and model all participate in the result. The agentic pipeline discovers AIWG’s provider
+inventory and creates a record for each platform, including targets that are unsupported, unavailable,
+or intentionally skipped. Direct endpoints have separate records.
+
+An operator configuration pins the relevant revisions and enables the targets that can actually run.
+Execution supports concurrency limits, per-attempt deadlines, token and cost reservations, infrastructure
+retries, and a kill switch. Private attempt records and a sanitized matrix provide different views of the
+same run. Infrastructure outcomes remain separate from native model/agent quality outcomes.
+
+The public configuration starts with targets unavailable until an operator supplies setup and identity
+metadata. Follow the [agentic pipeline guide](docs/testing/agentic-pipelines.md) for configuration,
+credential channels, execution, recovery, and retained outputs. These evaluations run through the dedicated
+[workflow](.github/workflows/agentic-evaluation.yml), outside pull-request CI.
+
+## Results and Comparisons
+
+### Produce and inspect versioned measurements
+
+The CLI’s default artifact format is `legacy`. Select `v2` explicitly to retain named metrics, nullable
+estimates, outcome counts, judge identities, and declared comparison eligibility. Terminal rendering is a
+separate option: `--output-format json` does not by itself select the versioned contract.
+
+```bash
+uv run matric-eval run --model llama3.2:3b --benchmark gsm8k --tier smoke \
+  --result-format v2 --output-format json
+
+# Replace RUN_ID with the directory reported by the run
+uv run matric-eval read-result results/RUN_ID/summary.json
+```
+
+The versioned summary is a collection of result envelopes and explicit projection failures. Inspect both;
+a missing or unrepresentable result must not be treated as a zero score. Trial evaluations keep a separate
+contract and cannot implicitly become suite scores.
+
+### Make a capability decision
+
+Recommendations require a declared capability policy and eligible measurements. The policy identifies the
+comparison scope, metrics, weights, units, directions, and transforms. The current profile requires complete
+coverage of the evaluated benchmark suite for each capability.
+
+```bash
+# policy.json must describe the eligible comparison scope and aggregation
+uv run matric-eval recommend --results-dir results/RUN_ID \
+  --capability-policy policy.json
+```
+
+Missing policy, legacy sources, unknown comparison scope, incomplete metrics, or ambiguous multiple runs
+cannot produce a qualified recommendation. A smoke run may exercise the mechanics without providing the
+coverage or qualification your decision needs. See the [consumer guide](docs/development/consumer-migration.md)
+for the policy contract, exclusions, TypeScript reader behavior, and migration boundaries.
+
+### Preserve history
+
+Strict readers accept supported current and historical formats and reject ambiguous or malformed artifacts.
+Conversion creates a new file and retains the original legacy payload and its digest. Legacy imports remain
+explicitly unverified.
+
+```bash
+uv run matric-eval convert-result old-summary.json --output converted-summary.json
+uv run matric-eval trend-import results/RUN_ID/MODEL_RESULT.json --database history.sqlite
+uv run matric-eval trend-series --help
+```
+
+Use the individual version 2 model-result file emitted by the run for `MODEL_RESULT.json`; the collection
+in `summary.json` is not accepted by `trend-import`.
+
+Trend imports preserve source text and named measurements in versioned tables. Importing identical bytes is
+idempotent; changing bytes for an existing run/model identity is refused. Series selection requires an explicit
+comparison scope and checks model identity by default. Measurement-only comparisons can be requested explicitly,
+but cannot establish unchanged model weights. See [immutable history](docs/development/consumer-migration.md#immutable-history).
 
 ## TypeScript Client
 
@@ -216,15 +381,18 @@ npm install ./packages/typescript/matric-eval-client-2026.9.2.tgz
 import { createClient } from '@matric/eval-client';
 
 const client = createClient(); // matric-eval must be on PATH
-const summary = await client.run({
+const result = await client.evaluate({
+  resultFormat: 'v2',
   tier: 'smoke',
   models: ['llama3.2:3b'],
   benchmarks: ['gsm8k'],
 });
-const recommendations = await client.recommend({ input: summary.outputDir });
+console.log(result); // versioned measurements and explicit failures
 ```
 
-Use `createClient('/absolute/path/to/.venv/bin/matric-eval')` for a source installation. The client supports streaming callbacks and cancellation with `AbortSignal`. The current CLI contract rejects multiple explicit models in one client call, `resume: true`, and the reserved `timeout` and `parallelism` options. Use one model per call or the CLI matrix workflow. See the [client source and types](https://github.com/jmagly/matric-eval/tree/main/bindings/typescript/src).
+Use `createClient('/absolute/path/to/.venv/bin/matric-eval')` for a source installation. The client also exposes strict result readers through `loadResult` and typed versioned output through
+`evaluate({ resultFormat: 'v2', ... })`. Apply the comparison and policy requirements above before deriving
+recommendations. The client supports streaming callbacks and cancellation with `AbortSignal`. The current CLI contract rejects multiple explicit models in one client call, `resume: true`, and the reserved `timeout` and `parallelism` options. Use one model per call or the CLI matrix workflow. See the [client source and types](bindings/typescript/src).
 
 ## Architecture
 
@@ -242,11 +410,11 @@ flowchart LR
     Results --> Recommend[Capability recommendations]
 ```
 
-The normal CLI run retains benchmark-level state and result artifacts. Matrices and specialized study runners have separate execution paths. Some agentic benchmarks delegate to pinned external runtimes rather than the generic Inspect task path. The [architecture guide](https://github.com/jmagly/matric-eval/blob/main/docs/architecture/overview.md) maps those boundaries to source files.
+The normal CLI run retains benchmark-level state and result artifacts. Matrices and specialized study runners have separate execution paths. Some agentic benchmarks delegate to pinned external runtimes rather than the generic Inspect task path. The [architecture guide](docs/architecture/overview.md) maps those boundaries to source files.
 
 ## Execution Safety
 
-Code benchmarks execute model-generated programs. The basic Python scorer uses a subprocess with a timeout; it does **not** enforce network denial, filesystem isolation, or memory limits. Run untrusted workloads inside appropriately configured containers or VMs, and follow each benchmark's runtime requirements. Ollama serves inference; it does not sandbox code executed by the evaluator. See the [security policy](https://github.com/jmagly/matric-eval/blob/main/SECURITY.md).
+Code benchmarks execute model-generated programs. The basic Python scorer uses a subprocess with a timeout; it does **not** enforce network denial, filesystem isolation, or memory limits. Run untrusted workloads inside appropriately configured containers or VMs, and follow each benchmark's runtime requirements. Ollama serves inference; it does not sandbox code executed by the evaluator. See the [security policy](SECURITY.md).
 
 ## Troubleshooting
 
@@ -263,19 +431,32 @@ Code benchmarks execute model-generated programs. The basic Python scorer uses a
 
 ## Documentation
 
-- [Documentation index](https://github.com/jmagly/matric-eval/blob/main/docs/README.md)
-- [CLI reference](https://github.com/jmagly/matric-eval/blob/main/docs/cli.md)
-- [Architecture](https://github.com/jmagly/matric-eval/blob/main/docs/architecture/overview.md)
-- [Checkpoint and resume](https://github.com/jmagly/matric-eval/blob/main/docs/development/checkpoint-resume.md)
-- [Benchmark protocols](https://github.com/jmagly/matric-eval/blob/main/docs/README.md#benchmark-protocols)
-- [Agentic runner setup](https://github.com/jmagly/matric-eval/blob/main/docs/benchmarks/agentic-runners.md)
-- [Roadmap](https://github.com/jmagly/matric-eval/blob/main/docs/development/roadmap.md)
-- [Testing guide](https://github.com/jmagly/matric-eval/blob/main/docs/testing/contributing.md)
-- [Workspace guidance](https://github.com/jmagly/matric-eval/blob/main/WORKSPACE.md)
+### Get started and run evaluations
+
+- [CLI reference](docs/cli.md) — commands, arguments, and options
+- [Benchmark protocols](docs/README.md#benchmark-protocols) — lifecycle, revisions, and access prerequisites
+- [Evaluation examples](examples/README.md) — matrices and qualified model declarations
+- [Checkpoint and resume](docs/development/checkpoint-resume.md) — retained state and recovery
+- [Real-provider smoke guide](docs/testing/real-provider-smoke.md) — setup and live validation boundaries
+
+### Integrate results and run controlled studies
+
+- [Consumer migration](docs/development/consumer-migration.md) — versioned results, capability policies, and history
+- [Study index](studies/README.md) — preregistered protocols and sampling contracts
+- [Agentic runner setup](docs/benchmarks/agentic-runners.md) — external benchmark environments
+- [Agentic pipelines](docs/testing/agentic-pipelines.md) — platform coverage, execution bounds, and output handling
+
+### Understand and contribute
+
+- [Architecture](docs/architecture/overview.md) — components and execution boundaries
+- [Roadmap](docs/development/roadmap.md) — supported capabilities and deferred work
+- [Testing guide](docs/testing/contributing.md) — local checks and test contributions
+- [Release guide](docs/development/releasing.md) — verified downloads and release validation
+- [Documentation index](docs/README.md) — complete reference map
 
 ## Contributing
 
-Read [CONTRIBUTING.md](https://github.com/jmagly/matric-eval/blob/main/CONTRIBUTING.md). From a source checkout:
+Read [CONTRIBUTING.md](CONTRIBUTING.md). From a source checkout:
 
 ```bash
 uv sync --locked --extra dev --extra study
@@ -290,12 +471,18 @@ uv build
 - **Engineering issues and pull requests:** [Gitea tracker](https://git.integrolabs.net/roctinam/matric-eval/issues)
 - **Source mirror:** [GitHub](https://github.com/jmagly/matric-eval)
 - **Release artifacts:** [GitHub Releases](https://github.com/jmagly/matric-eval/releases), [Gitea Releases](https://git.integrolabs.net/roctinam/matric-eval/releases)
-- **Vulnerabilities:** Follow [SECURITY.md](https://github.com/jmagly/matric-eval/blob/main/SECURITY.md); avoid public disclosure of sensitive details.
+- **Vulnerabilities:** Follow [SECURITY.md](SECURITY.md); avoid public disclosure of sensitive details.
 - **Integro Labs:** [integrolabs.io](https://integrolabs.io)
 
 ## License
 
-MIT. See [LICENSE](https://github.com/jmagly/matric-eval/blob/main/LICENSE). Benchmark datasets, model weights, and external runners retain their own terms and access conditions.
+MIT. See [LICENSE](LICENSE). Benchmark datasets, model weights, and external runners retain their own terms and access conditions.
+
+## README Artwork
+
+[View all six hero styles](docs/assets/readme/README.md): precision instrument, Swiss editorial, paper sculpture,
+engineering blueprint, retro terminal, and orbital observatory. The gallery includes original PNGs and the
+prompts used to generate them.
 
 ## Acknowledgments
 
