@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import Any, Sequence
 
+from matric_eval.studies.gpu import A100_TP2_PROFILE
 from matric_eval.studies.resource_lifecycle import Broker
 from matric_eval.studies.tp2_qualification import (
     QUALIFICATION_SCHEMA,
@@ -190,7 +191,9 @@ def _pair_is_available(
     return all(
         gpu in by_uuid
         and type(by_uuid[gpu].get("free_mib")) is int
-        and by_uuid[gpu]["free_mib"] >= 37_500
+        # Derived, not duplicated: a second literal here is exactly how this
+        # floor drifted from the profile when TP1's reservation changed.
+        and by_uuid[gpu]["free_mib"] >= A100_TP2_PROFILE.minimum_memory_mib_per_device
         and gpu not in active_compute_gpu_uuids
         for gpu in gpus
     )

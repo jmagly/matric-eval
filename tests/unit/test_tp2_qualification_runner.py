@@ -63,14 +63,20 @@ def test_preflight_plan_preserves_two_gpu_rank_order(tmp_path: Path) -> None:
 
 
 def test_pair_availability_requires_the_per_rank_floor() -> None:
+    """The floor is the profile's per-device reservation, not a shard-fit figure:
+    a card with only enough room for half the weights cannot host a rank that
+    grows to the device ceiling."""
+    from matric_eval.studies.gpu import A100_TP2_PROFILE
+
+    floor = A100_TP2_PROFILE.minimum_memory_mib_per_device
     available = _runner_namespace()["_pair_is_available"]
     inventory = [
-        {"uuid": GPU_A, "free_mib": 37_500},
-        {"uuid": GPU_B, "free_mib": 37_500},
+        {"uuid": GPU_A, "free_mib": floor},
+        {"uuid": GPU_B, "free_mib": floor},
     ]
 
     assert available(inventory, (GPU_A, GPU_B), set()) is True
-    inventory[1]["free_mib"] = 37_499
+    inventory[1]["free_mib"] = floor - 1
     assert available(inventory, (GPU_A, GPU_B), set()) is False
 
 

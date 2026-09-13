@@ -336,7 +336,12 @@ A100_TP2_PROFILE = ParallelismProfile(
     pipeline_parallel_size=1,
     required_device_count=2,
     supported_accelerator_model=A100_80GB_PCIE,
-    minimum_memory_mib_per_device=37_500,
+    # 87% of an 81,920 MiB A100, the same per-device reservation as TP1. Sharding
+    # halves the *weights* per card, but vLLM's gpu_memory_utilization is applied
+    # per card, so a TP2 rank still grows to the ceiling on the card it occupies.
+    # Reserving the old shard-fit 37_500 under-reserved every card by ~33 GiB and
+    # left the broker free to place a co-tenant where the KV cache was headed.
+    minimum_memory_mib_per_device=71_270,
     topology_policy=NVLINK_P2P_TOPOLOGY_POLICY,
 )
 PARALLELISM_PROFILES: Mapping[str, ParallelismProfile] = MappingProxyType(

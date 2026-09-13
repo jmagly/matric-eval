@@ -33,6 +33,12 @@ def assert_code(error: pytest.ExceptionInfo[GpuContractError], code: GpuContract
     assert str(error.value).startswith(code.value + ":")
 
 
+#: Derived from the profile on purpose: hardcoding these is how the TP2 fixtures
+#: drifted when TP1's per-device reservation moved to the 87% ceiling.
+TP2_PER_CARD_MIB = A100_TP2_PROFILE.minimum_memory_mib_per_device
+TP2_AGGREGATE_MIB = A100_TP2_PROFILE.required_device_count * TP2_PER_CARD_MIB
+
+
 def tp1_allocation() -> GpuAllocation:
     return GpuAllocation(gpu_uuids=(GPU_A,), memory_mib=75_000)
 
@@ -40,7 +46,7 @@ def tp1_allocation() -> GpuAllocation:
 def tp2_allocation() -> GpuAllocation:
     return GpuAllocation(
         gpu_uuids=(GPU_A, GPU_B),
-        memory_mib=75_000,
+        memory_mib=TP2_AGGREGATE_MIB,
         topology_policy=NVLINK_P2P_TOPOLOGY_POLICY,
     )
 
@@ -55,7 +61,7 @@ def test_allocation_round_trip_preserves_rank_order_and_fingerprint() -> None:
     assert (
         GpuAllocation(
             gpu_uuids=(GPU_B, GPU_A),
-            memory_mib=75_000,
+            memory_mib=TP2_AGGREGATE_MIB,
             topology_policy=NVLINK_P2P_TOPOLOGY_POLICY,
         ).fingerprint()
         != allocation.fingerprint()
@@ -159,7 +165,7 @@ def test_tp1_and_tp2_bindings_validate_observed_hardware() -> None:
             tp2_allocation(),
             A100_TP2_PROFILE_ID,
             observed_accelerator_models=[A100_80GB_PCIE, A100_80GB_PCIE],
-            available_memory_mib=[40_000, 40_000],
+            available_memory_mib=[TP2_PER_CARD_MIB, TP2_PER_CARD_MIB],
         )
         is A100_TP2_PROFILE
     )
@@ -176,7 +182,7 @@ def test_tp1_and_tp2_bindings_validate_observed_hardware() -> None:
             GpuContractErrorCode.PROFILE_DEVICE_COUNT_MISMATCH,
         ),
         (
-            GpuAllocation(gpu_uuids=(GPU_A, GPU_B), memory_mib=75_000),
+            GpuAllocation(gpu_uuids=(GPU_A, GPU_B), memory_mib=TP2_AGGREGATE_MIB),
             A100_TP2_PROFILE,
             None,
             None,
@@ -185,7 +191,7 @@ def test_tp1_and_tp2_bindings_validate_observed_hardware() -> None:
         (
             GpuAllocation(
                 gpu_uuids=(GPU_A, GPU_B),
-                memory_mib=74_999,
+                memory_mib=TP2_AGGREGATE_MIB - 1,
                 topology_policy=NVLINK_P2P_TOPOLOGY_POLICY,
             ),
             A100_TP2_PROFILE,
@@ -290,3 +296,45 @@ def test_reader_accepts_nested_native_record_and_rejects_ambiguous_record() -> N
 
 def test_native_wire_schema_is_explicit() -> None:
     assert tp1_allocation().to_dict()["schema"] == GPU_ALLOCATION_SCHEMA
+
+
+def test_every_a100_profile_reserves_the_device_ceiling() -> None:
+    """A profile's per-device reservation becomes the broker lease, and vLLM
+    applies gpu_memory_utilization per card -- so every rank grows to the device
+    ceiling on whichever card it occupies, regardless of tensor-parallel width.
+
+    This invariant spans two modules on purpose. TP2 was left at a shard-fit
+    37_500 when TP1's reservation moved to the 87% ceiling, which under-reserved
+    each card by ~33 GiB; asserting the cross-module equality is what makes that
+    drift impossible rather than merely unlikely.
+    """
+    from matric_eval.studies.device_memory import (
+        DEFAULT_DEVICE_MEMORY_CEILING,
+        ceiling_mib,
+    )
+    from matric_eval.studies.gpu import PARALLELISM_PROFILES
+
+    expected = ceiling_mib(A100_80GB_PCIE, DEFAULT_DEVICE_MEMORY_CEILING)
+    a100_profiles = [
+        profile
+        for profile in PARALLELISM_PROFILES.values()
+        if profile.supported_accelerator_model == A100_80GB_PCIE
+    ]
+    assert a100_profiles, "expected registered A100 profiles"
+    for profile in a100_profiles:
+        assert profile.minimum_memory_mib_per_device == expected, profile.id
+
+
+def test_tp2_aggregate_request_covers_the_ceiling_on_every_card() -> None:
+    """The aggregate is what the broker is asked to free across the whole set."""
+    from matric_eval.studies.device_memory import (
+        DEFAULT_DEVICE_MEMORY_CEILING,
+        ceiling_mib,
+    )
+
+    per_card = ceiling_mib(A100_80GB_PCIE, DEFAULT_DEVICE_MEMORY_CEILING)
+    aggregate = (
+        A100_TP2_PROFILE.required_device_count * A100_TP2_PROFILE.minimum_memory_mib_per_device
+    )
+    assert A100_TP2_PROFILE.required_device_count == 2
+    assert aggregate == 2 * per_card
