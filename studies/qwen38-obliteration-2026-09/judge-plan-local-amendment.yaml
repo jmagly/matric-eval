@@ -11,9 +11,10 @@ api:
     proxied route; /api/chat and /api/generate hang). think:false is NOT honoured there; reasoning_effort
     is. Judged at low (bounded reasoning); if a call exhausts the budget with empty content, one fallback
     pass at none, recorded per judgment as usage.reasoning_mode. Rationale strings are capped at 800 chars
-    via maxLength in the enforced schema; any finish=length falls through to the next mode.
+    via maxLength in the enforced schema; any finish=length falls through to the next mode. options.num_ctx
+    is ignored on /v1, so context is baked into derived judge models (num_ctx 32768) created from the
+    base tags with a Modelfile, as the tau3 lane did.
   temperature: 0.0
-  num_ctx: 32768
   num_predict: 3072
   seed: 1790783388
   timeout_seconds: 600
@@ -30,16 +31,16 @@ api:
 judges:
   primary:
     provider: ollama-local
-    model: manitcor/qwen3.8-27b-obliterated-e03:q6_k-corrected
-    snapshot: manitcor/qwen3.8-27b-obliterated-e03:q6_k-corrected
+    model: matric-eval-judge-e03:2026-09-13
+    snapshot: matric-eval-judge-e03:2026-09-13
   secondary:
     provider: ollama-local
-    model: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
-    snapshot: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
+    model: matric-eval-judge-ornith:2026-09-13
+    snapshot: matric-eval-judge-ornith:2026-09-13
   adjudicator:
     provider: ollama-local
-    model: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
-    snapshot: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
+    model: matric-eval-judge-ornith:2026-09-13
+    snapshot: matric-eval-judge-ornith:2026-09-13
 controls:
   blinded_model_labels: true
   order_randomized: true
@@ -196,23 +197,29 @@ amendment:
   owner_authorized_exception:
     control: target_models_may_not_judge
     waived_for: primary
-    detail: The primary judge is the E03 checkpoint (a study target) as a Q6_K GGUF quantization, ollama
-      ID 0198e445a521. validate_plan's literal check passes only because the ollama tag differs from the
-      study's model id/source strings; the exception is declared here rather than relied upon implicitly.
-      E03 judging its own completions is a self-evaluation cell; blinding and order randomization apply
-      but do not remove it.
+    detail: The primary judge is the E03 checkpoint (a study target) as a Q6_K GGUF quantization, derived
+      tag matric-eval-judge-e03:2026-09-13 (13400579fa0b) FROM ollama ID 0198e445a521. validate_plan's
+      literal check passes only because the ollama tag differs from the study's model id/source strings;
+      the exception is declared here rather than relied upon implicitly. E03 judging its own completions
+      is a self-evaluation cell; blinding and order randomization apply but do not remove it.
     authorized_by: study owner, in session, 2026-09-13
   judge_identities:
     primary:
-      ollama_tag: manitcor/qwen3.8-27b-obliterated-e03:q6_k-corrected
-      ollama_id: 0198e445a521
+      ollama_tag: matric-eval-judge-e03:2026-09-13
+      ollama_id: 13400579fa0b
+      derived_from: manitcor/qwen3.8-27b-obliterated-e03:q6_k-corrected
+      base_ollama_id: 0198e445a521
+      modelfile: FROM <base>; PARAMETER num_ctx 32768; PARAMETER temperature 0
       architecture: qwen35 (Qwen3_5ForConditionalGeneration family)
       parameters: 26.9B
       quantization: Q6_K
-      relation_to_study: target e03, quantized representation — not the qualified bf16 artifact
+      relation_to_study: target e03, quantized representation -- not the qualified bf16 artifact
     secondary:
-      ollama_tag: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
-      ollama_id: 7e5aa56289a9
+      ollama_tag: matric-eval-judge-ornith:2026-09-13
+      ollama_id: 7f62f7e64d27
+      derived_from: hf.co/OBLITERATUS/Ornith-1.5-9B-OBLITERATED:Q4_K_M
+      base_ollama_id: 7e5aa56289a9
+      modelfile: FROM <base>; PARAMETER num_ctx 32768; PARAMETER temperature 0
       architecture: qwen35
       parameters: 9.2B
       quantization: Q4_K_M

@@ -85,7 +85,6 @@ class LocalOllamaCaller:
                 "max_tokens": int(api["num_predict"]),
                 "seed": int(api["seed"]),
                 "reasoning_effort": effort,
-                "options": {"num_ctx": int(api["num_ctx"])},
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": {
