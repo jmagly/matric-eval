@@ -17,12 +17,12 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to MMLU test dataset directory
-MMLU_TEST_PATH = "/home/roctinam/data/evals/mmlu/data/test"
-MMLU_DEV_PATH = "/home/roctinam/data/evals/mmlu/data/dev"
+MMLU_TEST_PATH = data_path("mmlu", "data", "test")
+MMLU_DEV_PATH = data_path("mmlu", "data", "dev")
 
 # Answer letter mapping
 ANSWER_LETTERS = ["A", "B", "C", "D"]
@@ -124,11 +124,11 @@ def load_mmlu_csv(data_dir: str | Path) -> list[dict[str, Any]]:
         FileNotFoundError: If data directory doesn't exist
         ValueError: If no CSV files found or dataset is empty
     """
-    data_path = Path(data_dir)
-    if not data_path.exists():
+    directory = Path(data_dir)
+    if not directory.exists():
         raise FileNotFoundError(f"MMLU dataset directory not found at {data_dir}")
 
-    csv_files = sorted(data_path.glob("*_test.csv"))
+    csv_files = sorted(directory.glob("*_test.csv"))
     if not csv_files:
         raise ValueError(f"No MMLU CSV files found in {data_dir}")
 

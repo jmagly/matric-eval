@@ -1,5 +1,7 @@
 """Configuration management for matric-eval."""
 
+from pathlib import Path
+
 from .settings import TIERS, Settings, TierConfig, get_settings
 
 # Legacy compatibility functions for existing code
@@ -40,6 +42,22 @@ def get_datasets_dir() -> str:
     return get_settings().datasets_dir
 
 
+def get_data_root() -> Path:
+    """Root directory holding acquired benchmark corpora.
+
+    ``EVAL_DATA_ROOT`` redirects every file-backed loader, so a dataset acquired
+    into an operator-chosen destination is reachable without editing task
+    modules. Task path constants derive from this at import time, so set the
+    variable before importing a task module.
+    """
+    return Path(get_settings().data_root)
+
+
+def data_path(*parts: str) -> str:
+    """Path to one acquired dataset artifact beneath the resolved data root."""
+    return str(get_data_root().joinpath(*parts))
+
+
 __all__ = [
     "Settings",
     "TierConfig",
@@ -51,4 +69,6 @@ __all__ = [
     "get_tier",
     "get_sample_count",
     "get_datasets_dir",
+    "get_data_root",
+    "data_path",
 ]
