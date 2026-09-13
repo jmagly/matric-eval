@@ -4,7 +4,11 @@ import pytest
 
 from matric_eval.studies.device_memory import legacy_record_reservation_mib
 from matric_eval.studies.gpu import GpuAllocation
-from matric_eval.studies.resource_lifecycle import BrokerRejected, ResourceLifecycle
+from matric_eval.studies.resource_lifecycle import (
+    BrokerRejected,
+    ResourceLifecycle,
+    call_timeout,
+)
 
 GPU_A = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 GPU_B = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
@@ -495,6 +499,26 @@ def test_rejection_after_persisted_lease_is_recovered(lifecycle):
     assert lifecycle.reconcile()
     assert lifecycle.record["acquisition_outcome"] == "acknowledged"
     assert lifecycle.broker.released == ["private-token"]
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        # Both can force the broker to unload lanes before answering.
+        ("acquire", 300.0),
+        ("prepare", 300.0),
+        # Quick control requests must not inherit a 300s budget.
+        ("status", 10.0),
+        ("heartbeat", 10.0),
+        ("ready", 10.0),
+        ("release", 10.0),
+    ],
+)
+def test_reclaiming_verbs_get_the_configured_budget(action, expected):
+    """`prepare` blocks its cards, so it evicts like `acquire` and cannot be held
+    to the 10s control budget -- that killed a run after the model was resident.
+    See issue 222."""
+    assert call_timeout(action, 300.0) == expected
 
 
 def test_own_container_cuda_pids_are_recognized_as_ours(lifecycle):

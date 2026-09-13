@@ -116,6 +116,21 @@ def boot() -> str:
     return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
 
 
+#: Verbs that can force the broker to unload its own lanes before answering.
+#: `prepare` returns a scoped lease to pending, which blocks its cards, so it
+#: carries the same eviction cost as `acquire` and must not be held to the quick
+#: control-request budget. See issue 222.
+RECLAIMING_ACTIONS = frozenset({"acquire", "prepare"})
+
+#: Budget for a broker call that only reads or updates state.
+CONTROL_TIMEOUT_SECONDS = 10.0
+
+
+def call_timeout(action: str, acquire_timeout: float) -> float:
+    """Seconds to allow a broker verb, by whether it can reclaim capacity."""
+    return acquire_timeout if action in RECLAIMING_ACTIONS else CONTROL_TIMEOUT_SECONDS
+
+
 class Broker:
     def __init__(self, path: str, acquire_timeout: float = 10) -> None:
         if not 0 < acquire_timeout <= 300:
@@ -125,7 +140,7 @@ class Broker:
 
     def call(self, action: str, **fields: Any) -> dict[str, Any]:
         with socket.socket(socket.AF_UNIX) as client:
-            client.settimeout(self.acquire_timeout if action == "acquire" else 10)
+            client.settimeout(call_timeout(action, self.acquire_timeout))
             client.connect(self.path)
             client.sendall(json.dumps({"action": action, **fields}).encode() + b"\n")
             with client.makefile("rb") as stream:
