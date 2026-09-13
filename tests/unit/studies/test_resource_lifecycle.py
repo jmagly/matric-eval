@@ -1251,3 +1251,49 @@ def test_launcher_exit_during_ownership_read_still_proves_cleanup(lifecycle, mon
     finally:
         child.kill()
         child.wait(timeout=5)
+
+
+def test_readiness_timeout_is_attributed_on_the_record(lifecycle, admission_plan):
+    """A run that aborts must say why, even when teardown then succeeds.
+
+    Only reconcile() recorded a reason, so anything that aborted the run itself --
+    a self-raised SIGTERM from a worker, a broker rejection, a readiness timeout --
+    left `reason` unset and a failed run's record was indistinguishable from a
+    clean one. Three aborts on real A100 hardware were unattributable for this.
+    """
+    import sys
+
+    attach_owned_container(lifecycle)
+    with pytest.raises(TimeoutError):
+        lifecycle.run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            timeout=1,
+            preflight_plan=admission_plan,
+        )
+    assert lifecycle.record["reason"] == "TimeoutError"
+    assert lifecycle.record["cleanup"] == "complete"
+
+
+def test_broker_rejection_is_attributed_on_the_record(lifecycle, admission_plan):
+    import sys
+
+    attach_owned_container(lifecycle)
+    lifecycle.broker.reject.add("acquire")
+    with pytest.raises(BrokerRejected):
+        lifecycle.run([sys.executable, "-c", "pass"], preflight_plan=admission_plan)
+    assert lifecycle.record["reason"]
+
+
+def test_a_workers_specific_reason_survives_the_outer_handler(lifecycle, admission_plan):
+    """The outer handler must not relabel a worker's diagnosis as the generic one."""
+    import sys
+
+    attach_owned_container(lifecycle)
+    lifecycle.note_reason("foreign_allocation_on_leased_device")
+    with pytest.raises(TimeoutError):
+        lifecycle.run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            timeout=1,
+            preflight_plan=admission_plan,
+        )
+    assert lifecycle.record["reason"] == "foreign_allocation_on_leased_device"
