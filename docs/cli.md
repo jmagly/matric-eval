@@ -256,7 +256,10 @@ Options:
 Usage: matric-eval run-study-offline-batch [OPTIONS] PROTOCOL MANIFEST
                                            REQUESTS
 
-  Run one manifest-locked model cohort through offline batch-invariant vLLM.
+  Run one manifest-locked model cohort through offline vLLM. Batch invariance
+  follows the protocol's `model_server.batch_invariance` declaration (pinned false
+  for this study), so completions are not reproducible across process instances;
+  compare models statistically over the sample set.
 
 Options:
   --model-id TEXT             Qualified model ID from the study protocol.

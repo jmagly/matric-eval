@@ -3,6 +3,14 @@
 # Required options: one or more --gpu, --owner, --model-id, --model-path, --qualification,
 # --requests, --lease-receipt, --output, and --ready-base. Use --manifest to
 # override the pilot manifest after its gate passes.
+#
+# --ready-timeout SECONDS  broker readiness budget (default 3600). A cold checkpoint
+#                          load with several models sharing one NVMe measured 831 s
+#                          before CUDA-graph capture, so 900 s was not enough.
+# --no-warm-cache          skip reading the snapshot into page cache before launch.
+#                          Warm loads run ~1.4 shards/s; cold concurrent loads from one
+#                          NVMe measured 836 s/shard. Warming is done just before the
+#                          load so the pages are not evicted while waiting.
 
 set -euo pipefail
 
@@ -25,6 +33,8 @@ requests=""
 lease_receipt=""
 output=""
 ready_base=""
+ready_timeout=3600
+warm_cache=1
 
 while (( $# )); do
   case "$1" in
@@ -40,6 +50,8 @@ while (( $# )); do
     --output) output="${2:-}"; shift 2 ;;
     --ready-base) ready_base="${2:-}"; shift 2 ;;
     --manifest) study_manifest="${2:-}"; shift 2 ;;
+    --ready-timeout) ready_timeout="${2:-}"; shift 2 ;;
+    --no-warm-cache) warm_cache=0; shift ;;
     *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
@@ -52,6 +64,10 @@ for required in owner model_id model_path qualification requests lease_receipt o
 done
 if (( ${#gpu_uuids[@]} == 0 )); then
   printf 'missing required option for gpu\n' >&2
+  exit 2
+fi
+if [[ ! "$ready_timeout" =~ ^[0-9]+$ ]] || (( ready_timeout < 60 )); then
+  printf 'ready-timeout must be an integer number of seconds, at least 60\n' >&2
   exit 2
 fi
 
@@ -89,7 +105,10 @@ if [[ "$ready_base" != "${study_root}/run-control/"* ]]; then
   printf 'ready-base must be inside the study run-control directory\n' >&2
   exit 2
 fi
-if [[ -n "$(git -C "$study_repo" status --porcelain)" ]]; then
+# The runner is invoked as root against an operator-owned checkout; without
+# safe.directory git refuses ("dubious ownership") and would blank the revision.
+git_provenance=(git -C "$study_repo" -c "safe.directory=$study_repo")
+if [[ -n "$("${git_provenance[@]}" status --porcelain)" ]]; then
   printf 'study checkout must be clean before execution\n' >&2
   exit 1
 fi
@@ -111,6 +130,26 @@ else
 fi
 
 lifecycle_python="${MATRIC_LIFECYCLE_PYTHON:-$study_repo/.venv/bin/python}"
+
+# The batch runner rejects a manifest bound to a different protocol digest, but
+# only after the container and model have started. Fail here instead.
+protocol_digest="$(PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$study_repo/src" "$lifecycle_python" - "$protocol_host" <<'PY'
+import sys
+from matric_eval.studies.protocol import StudyProtocol
+print(StudyProtocol.from_yaml(sys.argv[1], validate_registry=False).canonical_sha256)
+PY
+)"
+manifest_digest="$(PYTHONDONTWRITEBYTECODE=1 "$lifecycle_python" - "$study_manifest" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get("protocol_sha256", ""))
+PY
+)"
+if [[ "$manifest_digest" != "$protocol_digest" ]]; then
+  printf 'manifest %s is bound to protocol %s but the protocol digest is %s; rebuild it with build-study-manifest\n' \
+    "$study_manifest" "${manifest_digest:0:16}" "${protocol_digest:0:16}" >&2
+  exit 1
+fi
+
 contract_arguments=(--protocol "$protocol_host" --format lines)
 if [[ -n "$parallelism_profile" ]]; then
   contract_arguments+=(--parallelism-profile "$parallelism_profile")
@@ -140,15 +179,27 @@ if [[ "$actual_image_id" != "${study_image#*@}" ]]; then
   exit 1
 fi
 
+if (( warm_cache )); then
+  warm_start=$SECONDS
+  for shard in "$model_path"/*.safetensors; do
+    [[ -f "$shard" ]] && cat -- "$shard" >/dev/null
+  done
+  printf 'warmed page cache for %s in %ss\n' "$model_id" "$(( SECONDS - warm_start ))" >&2
+fi
+
 sudo docker gpu discover >/dev/null
 ready_command="test -s \"${ready_base}.\${OLLAMA_UNIFY_GPU_LEASE}.ready\""
-code_revision="$(git -C "$study_repo" rev-parse HEAD)"
+code_revision="$("${git_provenance[@]}" rev-parse HEAD)"
+if [[ -z "$code_revision" ]]; then
+  printf 'could not resolve the study checkout revision\n' >&2
+  exit 1
+fi
 
 sudo docker gpu run \
   --owner "$owner" \
   "${broker_gpu_arguments[@]}" \
   --ttl 300 \
-  --ready-timeout 900 \
+  --ready-timeout "$ready_timeout" \
   --ready-command "$ready_command" \
   -- \
   /usr/bin/docker --host "$study_docker_host" run --rm \
