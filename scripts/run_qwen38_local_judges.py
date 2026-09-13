@@ -62,8 +62,21 @@ class LocalOllamaCaller:
     def close(self):
         self._client.close()
 
+    def _bounded(self, schema):
+        # The locked validator checks labels, not rationale length; a T=0 judge can ramble a
+        # rationale past any token budget. Cap it in the grammar the server enforces.
+        limit = int(self._api.get("rationale_max_chars", 0) or 0)
+        if not limit:
+            return schema
+        out = json.loads(json.dumps(schema))
+        for key, prop in out.get("properties", {}).items():
+            if key.endswith("rationale") and prop.get("type") == "string":
+                prop["maxLength"] = limit
+        return out
+
     def _post(self, model, instructions, input_text, schema, effort):
         api = self._api
+        schema = self._bounded(schema)
         return self._client.post(
             api["endpoint"],
             json={
@@ -125,16 +138,18 @@ class LocalOllamaCaller:
                             choice = payload["choices"][0]
                             content = choice["message"].get("content") or ""
                             finish = choice.get("finish_reason")
-                            if finish == "length" and not content.strip():
-                                # Reasoning consumed the whole budget; deterministic at T=0, so fall through
-                                # to the next reasoning mode instead of retrying identically.
-                                last = f"budget exhausted by reasoning (effort={effort})"
+                            if finish == "length":
+                                # Budget exhausted -- by reasoning (empty content) or by a rambling rationale
+                                # (truncated JSON). Deterministic at T=0, so fall through to the next
+                                # reasoning mode instead of retrying identically.
+                                last = f"budget exhausted (effort={effort}, {len(content)} content chars)"
                                 self._receipts.append(
                                     {
                                         "model": model,
                                         "attempt": attempt,
                                         "effort": effort,
                                         "exhausted": True,
+                                        "content_chars": len(content),
                                     }
                                 )
                                 break

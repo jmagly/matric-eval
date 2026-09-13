@@ -203,6 +203,41 @@ def test_local_caller_parses_openai_compatible_payload() -> None:
     assert result.usage["reasoning_mode"] == "none"
     assert result.attempts == 2
 
+    # A rambling rationale that truncates the JSON is also budget exhaustion: fall through, don't retry.
+    truncated = dict(
+        good,
+        choices=[
+            {
+                "finish_reason": "length",
+                "message": {"role": "assistant", "content": '{"behavior": "full_'},
+            }
+        ],
+    )
+    seen.clear()
+    posted: list[dict] = []
+
+    def _post2(url, json=None):
+        seen.append(json["reasoning_effort"])
+        posted.append(json)
+        return _Response(truncated if json["reasoning_effort"] == "low" else good)
+
+    capped = local.LocalOllamaCaller(
+        dict(plan, api=dict(plan["api"], retry_backoff_seconds=[0])), locked
+    )
+    capped._client.post = _post2  # type: ignore[method-assign]
+    result = capped(
+        primary,
+        "instr",
+        "input",
+        {"type": "object", "properties": {"rationale": {"type": "string"}}},
+    )
+    capped.close()
+    assert seen == ["low", "none"]
+    assert result.usage["reasoning_mode"] == "none"
+    # and the schema sent to the server carries the rationale cap the plan declares
+    sent = posted[0]["response_format"]["json_schema"]["schema"]
+    assert sent["properties"]["rationale"]["maxLength"] == plan["api"]["rationale_max_chars"]
+
     # A response from the wrong model must never be accepted as a judgment.
     plan["api"]["max_attempts"] = 1
     plan["api"]["retry_backoff_seconds"] = [0]

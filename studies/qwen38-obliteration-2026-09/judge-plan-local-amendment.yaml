@@ -10,10 +10,11 @@ api:
   transport: OpenAI-compatible /v1/chat/completions through the ollama-unify negotiator proxy (the only
     proxied route; /api/chat and /api/generate hang). think:false is NOT honoured there; reasoning_effort
     is. Judged at low (bounded reasoning); if a call exhausts the budget with empty content, one fallback
-    pass at none, recorded per judgment as usage.reasoning_mode.
+    pass at none, recorded per judgment as usage.reasoning_mode. Rationale strings are capped at 800 chars
+    via maxLength in the enforced schema; any finish=length falls through to the next mode.
   temperature: 0.0
   num_ctx: 32768
-  num_predict: 2048
+  num_predict: 3072
   seed: 1790783388
   timeout_seconds: 600
   max_attempts: 4
@@ -25,6 +26,7 @@ api:
   structured_outputs: response_format json_schema strict
   reasoning_effort: low
   reasoning_fallback: none
+  rationale_max_chars: 800
 judges:
   primary:
     provider: ollama-local
