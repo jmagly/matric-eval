@@ -17,12 +17,12 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.scorers import llm_judge_scorer
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to MT-Bench dataset
-MTBENCH_PATH = "/home/roctinam/data/evals/mtbench/question.jsonl"
+MTBENCH_PATH = data_path("mtbench", "question.jsonl")
 
 
 def record_to_sample(record: dict[str, Any]) -> Sample:

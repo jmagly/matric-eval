@@ -18,11 +18,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState, generate, system_message
 
-from matric_eval.config import get_sample_count, get_seed
+from matric_eval.config import data_path, get_sample_count, get_seed
 from matric_eval.tasks.registry import register_benchmark
 
 # Path to GSM8K dataset
-GSM8K_PATH = "/home/roctinam/data/evals/gsm8k/test.jsonl"
+GSM8K_PATH = data_path("gsm8k", "test.jsonl")
 
 
 def extract_answer(text: str) -> str | None:
