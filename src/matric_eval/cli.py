@@ -1522,7 +1522,14 @@ def run_study_offline_batch(
     gpu_lease_receipt: Path,
     output: Path,
 ) -> None:
-    """Run one manifest-locked model cohort through offline batch-invariant vLLM."""
+    """Run one manifest-locked model cohort through offline vLLM.
+
+    Batch invariance follows the protocol's ``model_server.batch_invariance``
+    declaration; the study protocol pins it false, and the runtime strips
+    ``VLLM_BATCH_INVARIANT`` so no ambient setting can override the declaration.
+    Completions are therefore not reproducible across process instances even with
+    identical per-sample seeds; compare models statistically over the sample set.
+    """
     from matric_eval.studies import run_offline_batch
 
     try:
