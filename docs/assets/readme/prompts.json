@@ -1,0 +1,29 @@
+{
+  "tool": "built-in image_gen",
+  "variants": [
+    {
+      "name": "01-precision-instrument",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: cinematic photorealistic product photography. A precision optical laboratory instrument splits luminous inputs into parallel test channels on a dark graphite workbench, ending at a finely calibrated glass measurement plane. Brushed metal, smoked glass, restrained teal and warm white illumination, realistic macro detail, refined empty space around large clean title."
+    },
+    {
+      "name": "02-swiss-editorial",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: bold Swiss modernist editorial poster, flat printed graphic aesthetic. Warm ivory paper, huge black grotesk typography, vermilion geometric accents. A disciplined matrix of circles and rectangular specimen tiles with a few contrasting states suggests controlled comparison. Asymmetric composition, crisp alignment, subtle print grain, strictly two dimensional, substantial whitespace."
+    },
+    {
+      "name": "03-paper-sculpture",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: handcrafted layered paper sculpture photographed in soft studio light. Folded cards travel through six orderly testing lanes and gather in layered result trays, abstract without labels. Cream background, cobalt, coral and muted mint paper, visible cut edges and soft tactile shadows. Friendly sophisticated dimensional illustration, title integrated cleanly into open upper area."
+    },
+    {
+      "name": "04-engineering-blueprint",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: meticulous technical blueprint drawing. Deep Prussian blue field with fine white and cyan drafting lines, axonometric exploded evaluation apparatus, aligned sample cartridges, processing modules, and output archive arranged with precise construction guides. Spacious engineering diagram aesthetic, no tiny labels or numbers, large white technical title."
+    },
+    {
+      "name": "05-retro-terminal",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: premium retro computing pixel art. Blackened navy CRT-inspired field, phosphor green and amber pixel blocks, six parallel abstract processing tracks funneling sample patterns into ordered output stacks. Authentic chunky pixel geometry and subtle scanline texture, restrained nostalgic glow. Large crisp pixel-lettered matric-eval title, no terminal commands or numbers."
+    },
+    {
+      "name": "06-orbital-observatory",
+      "prompt": "Use case: stylized-concept. Asset type: open-source matric-eval README hero banner. Wide landscape approximately 2.5:1. Communicate model evaluation, comparable trials, measured outcomes and reproducible experiments through a clear visual metaphor. Polished professional composition readable at GitHub README width. Text verbatim: \"matric-eval\" as the only text, prominent and perfectly spelled. No other words, numbers, logos, watermarks, fictitious scores or UI screenshots. Style: elegant painterly science-fiction concept art, expansive atmospheric space observatory. Six distinct luminous trajectories pass through a monumental orbital measurement ring, resolving into an orderly constellation beyond. Deep indigo, violet nebula haze and gold light, grand perspective, soft brushwork with precise focal detail. Title in understated large clean typography in quiet space."
+    }
+  ]
+}
