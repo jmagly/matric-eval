@@ -885,6 +885,14 @@ class ResourceLifecycle:
             if not ready:
                 raise RuntimeError("model exited before readiness")
             return child.returncode
+        except BaseException as error:
+            # Attribute the cause before unwinding. Only reconcile()'s handler
+            # recorded a reason, so anything that aborted the run itself -- a
+            # self-raised SIGTERM from a worker, a broker rejection, a readiness
+            # timeout -- left `reason` unset and the post-mortem record silent.
+            # Three aborts on real hardware were unattributable for exactly this.
+            self.note_reason(str(error) if type(error) is RuntimeError else type(error).__name__)
+            raise
         finally:
             heartbeat_stop.set()
             if heartbeat_worker is not None:
